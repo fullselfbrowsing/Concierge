@@ -1,61 +1,31 @@
 /**
  * Concierge core type surface.
  *
- * This file is the design contract. It has no runtime dependencies, no
- * framework imports, and no top-level DOM access — it must be constructible
- * on a server under Next App Router, Nuxt, or SvelteKit without guards.
+ * This file is the design contract. No runtime dependencies, no framework
+ * imports, no top-level DOM access — it must construct on a server under Next
+ * App Router, Nuxt, or SvelteKit without guards. The no-DOM guarantee is
+ * enforced mechanically by `lib: ["ES2022"]`: referencing `document` here is a
+ * compile error (TS2584), not a code-review question.
  */
+
+import type { StandardSchemaV1 } from "@standard-schema/spec";
+
+export type { StandardSchemaV1 };
 
 // ---------------------------------------------------------------------------
 // Schema interop
 // ---------------------------------------------------------------------------
 
-/**
- * Minimal local copy of the Standard Schema v1 interface.
- *
- * Inlined rather than depended upon so core stays dependency-free. Zod 4,
- * Valibot, and ArkType all implement this, so Concierge is not welded to any
- * one validation library's release cadence.
- */
-export interface StandardSchemaV1<Input = unknown, Output = Input> {
-  readonly "~standard": {
-    readonly version: 1;
-    readonly vendor: string;
-    readonly validate: (
-      value: unknown,
-    ) =>
-      | { readonly value: Output; readonly issues?: undefined }
-      | { readonly issues: ReadonlyArray<{ readonly message: string }> }
-      | Promise<
-          | { readonly value: Output; readonly issues?: undefined }
-          | { readonly issues: ReadonlyArray<{ readonly message: string }> }
-        >;
-    readonly types?: { readonly input: Input; readonly output: Output };
-  };
-}
-
-export type InferOutput<S> = S extends StandardSchemaV1<unknown, infer O> ? O : never;
+export type InferOutput<S> =
+  S extends StandardSchemaV1<unknown, infer O> ? O : never;
 
 /**
- * Structural stand-in for the platform `AbortSignal`.
- *
- * Declared locally rather than pulling the `DOM` lib into core, which would
- * make `document` and `window` type-visible here and quietly erode the
- * no-DOM guarantee. A real `AbortSignal` is assignable to this.
- */
-export interface AbortSignalLike {
-  readonly aborted: boolean;
-  addEventListener(type: "abort", listener: () => void): void;
-  removeEventListener(type: "abort", listener: () => void): void;
-}
-
-/**
- * JSON Schema handed to the model.
+ * JSON Schema handed to the agent.
  *
  * The root MUST be `type: "object"`. A discriminated union emits `{oneOf: []}`
- * with no root type, which OpenAI Realtime rejects for the entire session —
- * the agent silently loses every action in that stage. `buildCatalog` throws
- * on violation rather than letting it fail in production.
+ * with no root type; OpenAI Realtime then rejects the *entire* session update
+ * and the agent silently loses every action in that stage, apologizing that it
+ * cannot do that here. `buildCatalog` throws on violation, naming the action.
  */
 export interface JsonSchemaObject {
   type: "object";
@@ -65,6 +35,19 @@ export interface JsonSchemaObject {
   [key: string]: unknown;
 }
 
+/**
+ * Structural stand-in for the platform `AbortSignal`.
+ *
+ * Declared locally rather than pulling the `DOM` lib into core, which would
+ * make `document` and `window` type-visible and erode the guarantee above. A
+ * real `AbortSignal` is assignable to this.
+ */
+export interface AbortSignalLike {
+  readonly aborted: boolean;
+  addEventListener(type: "abort", listener: () => void): void;
+  removeEventListener(type: "abort", listener: () => void): void;
+}
+
 // ---------------------------------------------------------------------------
 // Results
 // ---------------------------------------------------------------------------
@@ -72,22 +55,46 @@ export interface JsonSchemaObject {
 /**
  * The universal return type of every action.
  *
- * `message` is not log output. It is relayed to a human verbatim — shown in a
- * transcript or spoken aloud. One complete sentence; failures carry a recovery
- * hint.
+ * `message` is not log output. It is relayed to a human — rendered in a
+ * transcript, or voiced. One complete sentence; failures carry a recovery hint.
+ *
+ * Note what this type cannot promise: on a conversational transport the agent
+ * *reauthors* this text before the human sees it. See {@link ConsentGrade}.
  */
 export interface ActionResult {
   ok: boolean;
-  /** Stable machine-readable failure code. Absent on success unless meaningful. */
+  /** Stable machine-readable failure code. */
   reason?: string;
-  /** One sentence, safe to show or speak verbatim. Never a stack trace. */
+  /** One sentence, safe to show or speak. Never a stack trace. */
   message: string;
 }
 
-export const USER_STOPPED: Readonly<ActionResult> = Object.freeze({
+/**
+ * Why an action did not run, when the cause was the human rather than an error.
+ *
+ * The distinction is load-bearing for what the agent says next. MCP's
+ * elicitation flow separates these for the same reason: an explicit refusal is
+ * a decision, a dismissal is not, and conflating them makes the agent either
+ * nag or give up wrongly.
+ */
+export type AbandonReason =
+  /** The human explicitly refused. Do not re-offer without new information. */
+  | "declined"
+  /** The human interrupted or dismissed. Re-offering is reasonable. */
+  | "cancelled"
+  /** A newer turn superseded this call before it ran. */
+  | "superseded";
+
+export const USER_CANCELLED: Readonly<ActionResult> = Object.freeze({
   ok: false,
-  reason: "user-stopped",
+  reason: "cancelled",
   message: "Cancelled.",
+});
+
+export const USER_DECLINED: Readonly<ActionResult> = Object.freeze({
+  ok: false,
+  reason: "declined",
+  message: "Okay, I won't do that.",
 });
 
 // ---------------------------------------------------------------------------
@@ -101,8 +108,11 @@ export interface InvocationMeta {
    * Identity of the human turn that caused this call.
    *
    * Load-bearing for consent: an agent can create a new response by itself, it
-   * cannot create a new user turn. An automatic follow-up inherits the same
-   * `userTurnId` and therefore cannot satisfy a `bindTo: "userTurn"` gate.
+   * cannot create a new user turn. An automatic follow-up inherits this value
+   * and therefore cannot satisfy a `bindTo: "userTurn"` gate.
+   *
+   * Supplied by the transport. A transport that cannot derive one is limited
+   * to the weaker `bindTo: "response"`.
    */
   userTurnId?: string;
   /** Primary deduplication key. */
@@ -113,20 +123,44 @@ export interface InvocationMeta {
   /**
    * Defer a side effect until the agent's response has reached the human.
    *
-   * Voice: audio playback stopped. Text: message finished rendering. Headless:
-   * unavailable, so the effect never runs — which is why consent fails closed
-   * on transports that cannot promise delivery.
+   * Absent when the transport cannot promise delivery, in which case consent
+   * never arms and gated actions cannot proceed. That is the intended failure
+   * mode: closed.
    */
-  deferUntilDelivered?: (effect: (deliveredResponseId: string) => void) => void;
+  deferUntilDelivered?: (effect: (report: DeliveryReport) => void) => void;
 }
 
-export type ActionHandler<Args, Bridge> = (ctx: {
+/**
+ * What actually happened when the agent's response was delivered.
+ *
+ * This carries an outcome rather than a bare id because barge-in must be
+ * *representable*. An earlier draft passed only `deliveredResponseId: string`,
+ * which made the truncation attack unfixable: a human interrupting two seconds
+ * into a nine-second readback both destroys perception and produces a fresh
+ * user turn, so consent would arm on content nobody received. A consumer that
+ * cannot see `outcome` cannot refuse that.
+ */
+export interface DeliveryReport {
+  responseId: string;
+  /** `interrupted` means the human cut it short — consent must not arm. */
+  outcome: "completed" | "interrupted";
+  /** Fraction of intended content actually delivered, where measurable. */
+  deliveredFraction?: number;
+  /**
+   * Hash of the exact bytes presented, when the app rendered them itself.
+   * The producer for {@link ConsentAck.readbackHash}, and therefore the only
+   * route to an `attested` grade.
+   */
+  readbackHash?: string;
+}
+
+export type ActionHandler<Args, Bridge, AckPayload = unknown> = (ctx: {
   args: Args;
   /** `null` when the owning stage's bridge is not mounted. Always check it. */
   bridge: Bridge | null;
   meta: InvocationMeta;
   /** Present only for actions declaring `consent.requires`. */
-  ack?: ConsentAck;
+  ack?: ConsentAck<unknown, AckPayload>;
 }) => ActionResult | Promise<ActionResult>;
 
 // ---------------------------------------------------------------------------
@@ -134,30 +168,67 @@ export type ActionHandler<Args, Bridge> = (ctx: {
 // ---------------------------------------------------------------------------
 
 /**
- * What a transport can promise about the human having received a readback.
+ * What a transport can honestly promise about a readback reaching the human.
  *
- * - `perceived` — the human unavoidably received it (audio finished playing).
- * - `delivered` — the UI rendered it; the human may not have read it.
- * - `none`      — no human in the loop.
+ * Ordered weakest to strongest. The names describe the *measured hop*, not the
+ * hoped-for outcome — an earlier draft of this type had a `"perceived"` grade
+ * that conflated "audio finished playing" with "the human learned the facts."
+ * They are not the same claim, because on a conversational transport the
+ * agent reauthors `ActionResult.message` before the human ever receives it.
+ * Trusting the agent's own summary as the consent artifact is OWASP ASI09
+ * (Human-Agent Trust Exploitation).
  */
-export type ConsentGrade = "perceived" | "delivered" | "none";
+export type ConsentGrade =
+  /** No human in the loop. Gated actions cannot run. */
+  | "none"
+  /** The agent's rendition was rendered. The human may not have consumed it. */
+  | "delivered"
+  /** The agent's rendition demonstrably reached the human (playback completed). */
+  | "relayed"
+  /**
+   * The human received the *raw action payload*, rendered by the app itself
+   * and not paraphrased by the agent. The only grade that survives ASI09, and
+   * the only one an irreversible action should accept.
+   */
+  | "attested";
+
+export const CONSENT_GRADE_ORDER: readonly ConsentGrade[] = Object.freeze([
+  "none",
+  "delivered",
+  "relayed",
+  "attested",
+]);
 
 export interface ConsentPolicy<Snapshot = unknown> {
-  /** Name of the action that must run first and arm consent. */
+  /**
+   * The action that must run first and arm consent.
+   *
+   * Deliberately `string`, and deliberately checked at `buildCatalog` rather
+   * than here. An earlier draft typed this as the action's own `Name` param to
+   * catch typos — but because `Name` is inferred from *both* `name` and this
+   * field, `{name: "confirmBooking", consent: {requires: "reviewBooking"}}`
+   * widened `Name` to the union of the two, silently corrupting the name-union
+   * derivation the whole catalog depends on. The cross-reference genuinely
+   * cannot be checked at declaration time, because the catalog does not exist
+   * yet. CAT-03 throws at build time instead — a real check, later, rather than
+   * an apparent check that does nothing.
+   */
   requires: string;
   /**
    * `"userTurn"` requires a genuinely new human turn between review and
-   * confirm. `"response"` is weaker and only distinguishes agent responses.
+   * confirm. `"response"` only distinguishes agent responses and is weaker.
    */
   bindTo: "userTurn" | "response";
   /**
    * Field-by-field equality over what was reviewed. Any drift between review
    * and confirm destroys the consent.
+   *
+   * Compared against a *normalized* snapshot — see {@link SnapshotNormalizer}.
    */
   snapshotEquality?: (a: Snapshot, b: Snapshot) => boolean;
   /**
-   * Minimum transport guarantee. `buildCatalog` throws if the configured
-   * transport cannot meet it — an action that needs consent does not degrade
+   * Minimum transport guarantee. `buildCatalog` throws when the configured
+   * transport cannot meet it. An action that needs consent must not degrade
    * quietly onto a transport that cannot deliver it.
    */
   minGrade?: ConsentGrade;
@@ -167,9 +238,59 @@ export interface ConsentPolicy<Snapshot = unknown> {
 export interface ConsentAck<Snapshot = unknown, Payload = unknown> {
   userTurnId: string;
   responseId: string;
+  /** Normalized and structurally frozen at arm time. Never a live reference. */
   snapshot: Snapshot;
-  /** Data captured at review time and replayed verbatim at confirm time. */
+  /** Captured at review time and replayed verbatim at confirm time. */
   payload: Payload;
+  /** The grade actually achieved when this ack armed. */
+  grade: ConsentGrade;
+  /**
+   * Hash of the exact bytes presented to the human.
+   *
+   * Without this, the ack proves only that *a* readback occurred — not that it
+   * described *this* payload. Required at `attested`, where the app renders the
+   * raw payload itself and can therefore hash what it actually showed. Absent
+   * at lower grades, which is precisely why they are lower.
+   */
+  readbackHash?: string;
+}
+
+/**
+ * Detaches a snapshot from the app's reactivity system before it is stored.
+ *
+ * Required, not optional. Svelte's `$state` returns a Proxy, so a snapshot
+ * captured at review time would otherwise be a *live view* that mutates with
+ * the app — turning "any drift destroys consent" into "there is never any
+ * drift," a gate that passes unconditionally while appearing to work.
+ * `structuredClone` is not a fix; it throws `DataCloneError` on proxies.
+ *
+ * The Svelte adapter fills this with `$state.snapshot`. Frameworks without
+ * proxy-based reactivity supply a deep freeze.
+ */
+export type SnapshotNormalizer = <T>(value: T) => T;
+
+// ---------------------------------------------------------------------------
+// Side-effect annotations
+// ---------------------------------------------------------------------------
+
+/**
+ * What this action does to the world.
+ *
+ * Mirrors MCP's tool hints so `concierge-mcp` has something to derive
+ * annotations from, and so developers arriving from MCP can declare what they
+ * already expect to declare. Unlike MCP — where the spec requires clients to
+ * treat annotations as untrusted, because the server is a third party — here
+ * the catalog author is the app author, so these are trustworthy.
+ *
+ * `buildCatalog` warns when `destructive: true` carries no `consent` policy.
+ */
+export interface SideEffects {
+  /** Does not modify state. Mutually exclusive with the other two. */
+  readOnly?: boolean;
+  /** Irreversible or costly to undo. Should carry a consent policy. */
+  destructive?: boolean;
+  /** Repeating with identical arguments has no additional effect. */
+  idempotent?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -177,7 +298,7 @@ export interface ConsentAck<Snapshot = unknown, Payload = unknown> {
 // ---------------------------------------------------------------------------
 
 /**
- * Required for any action with a non-empty schema. Defaults to `"drop"`;
+ * Required for any action with a non-empty schema. Defaults to `"drop"` —
  * telemetry leaks are opt-in, never accidental.
  */
 export type RedactionPolicy<Args> =
@@ -196,19 +317,30 @@ export interface ActionDefinition<
 > {
   name: Name;
   /**
-   * Model-facing. Describes *when* to reach for this action, not just what it
-   * accepts — the schema already covers what.
+   * Agent-facing. Describes *when* to reach for this action; the schema
+   * already covers what it accepts.
+   *
+   * Must be a static string. Building descriptions from i18n, CMS, or
+   * per-tenant content reintroduces MCP-style tool poisoning on a catalog
+   * that is otherwise code-reviewed.
    */
   description: string;
   schema: Schema;
-  /** Supply when the validator cannot emit JSON Schema itself. */
+  /**
+   * Explicit JSON Schema, when the validator cannot emit its own.
+   *
+   * Still required in practice: Standard JSON Schema is implemented by Zod and
+   * ArkType but *not* by Valibot as published, despite documentation claiming
+   * otherwise. Verify against the installed package, not the docs site.
+   */
   jsonSchema?: JsonSchemaObject;
   redact: RedactionPolicy<InferOutput<Schema>>;
   handler: ActionHandler<InferOutput<Schema>, Bridge>;
+  effects?: SideEffects;
   consent?: ConsentPolicy;
   /**
    * Terminal actions tear down the session. They short-circuit their batch and
-   * emit no result envelope, because nothing is left to receive it.
+   * emit no result envelope, because nothing remains to receive it.
    */
   terminal?: boolean;
 }
@@ -218,13 +350,14 @@ export interface ActionDefinition<
 // ---------------------------------------------------------------------------
 
 /**
- * A page component's contribution to the catalog: imperative mutations plus a
- * live view of state.
+ * A page component's contribution: imperative mutations plus a live view of
+ * state.
  *
- * Snapshot fields MUST be getter functions, never values. A value captured at
- * registration time goes stale inside the handler closure. The getter contract
- * `() => T` is identical across React refs, Vue refs, Svelte runes, and
- * Angular signals — which is what makes this pattern portable.
+ * Snapshot fields MUST be getter functions, never values — a value captured at
+ * registration goes stale inside the handler closure. The `() => T` contract is
+ * convergent across the ecosystem: TanStack's Svelte adapter exports the
+ * identical `Accessor<T> = () => T`, Solid's is verbatim the same, Angular
+ * signals *are* getters, and Vue's `toValue` accepts them.
  */
 export interface Bridge<
   Actions extends Record<string, (...args: never[]) => unknown> = Record<string, never>,
@@ -241,7 +374,7 @@ export interface BridgeRegistry<B extends Bridge = Bridge> {
   /**
    * Returns an identity-guarded unsubscriber: it removes the entry only if the
    * registration is still the one it created. React StrictMode double-mount,
-   * Vue HMR, and Svelte remounts all produce a stale cleanup otherwise.
+   * Vue HMR, and Svelte remount all produce stale cleanups otherwise.
    */
   register: (bridge: B) => () => void;
 }
@@ -257,6 +390,8 @@ export interface StageContext {
 }
 
 export interface StageDefinition<B extends Bridge = Bridge> {
+  /** Stable identifier, used in catalog keys and devtools. */
+  id: string;
   match: (ctx: StageContext) => boolean;
   actions: ReadonlyArray<ActionDefinition<string, StandardSchemaV1, B>>;
   bridge?: BridgeRegistry<B>;
@@ -274,9 +409,28 @@ export interface ToolCall {
   outputIndex: number;
 }
 
+/**
+ * A complete, ordered batch of calls plus the turn identity they belong to.
+ *
+ * The envelope exists because consent cannot be implemented without it: an
+ * earlier draft delivered a bare `ToolCall[]`, which carries no `responseId`,
+ * no `userTurnId`, and no delivery hook — so `bindTo: "userTurn"`, the gate the
+ * whole design rests on, had no data to read.
+ */
+export interface ToolBatch {
+  responseId: string;
+  /** Absent on transports that cannot derive turn identity. */
+  userTurnId?: string;
+  calls: ReadonlyArray<ToolCall>;
+  signal?: AbortSignalLike;
+  deferUntilDelivered?: (effect: (deliveredResponseId: string) => void) => void;
+}
+
 export interface TransportCapabilities {
-  /** What this transport can promise about the human receiving a readback. */
+  /** What this transport can honestly promise. See {@link ConsentGrade}. */
   consentGrade: ConsentGrade;
+  /** Whether turn identity is derivable — required for `bindTo: "userTurn"`. */
+  userTurnIdentity: boolean;
   /** Whether a single response may contain several calls. */
   parallelCalls: boolean;
   /** Whether the catalog can be swapped mid-session on stage change. */
@@ -284,17 +438,20 @@ export interface TransportCapabilities {
 }
 
 /**
- * Transport is the only vendor-shaped seam. Core has no opinion about whether
- * the agent arrives over WebRTC, SSE, MCP stdio, or a command palette.
+ * The only vendor-shaped seam. Core has no opinion about whether the agent
+ * arrives over WebRTC, SSE, MCP stdio, WebMCP, or a command palette.
  */
 export interface Transport {
   readonly capabilities: TransportCapabilities;
   /** Publish the catalog for the current stage. */
   setTools: (tools: ReadonlyArray<EmittedTool>) => void;
-  /** Deliver a completed, ordered batch of calls. */
-  onToolBatch: (cb: (batch: ReadonlyArray<ToolCall>) => void) => () => void;
-  /** Return one result envelope per call. */
-  respond: (callId: string, output: string) => void;
+  /** Deliver a completed, ordered batch. */
+  onToolBatch: (cb: (batch: ToolBatch) => void) => () => void;
+  /**
+   * Return one result per call. Takes the result, not a string — serializing
+   * at the boundary is the transport's job, not the dispatcher's.
+   */
+  respond: (callId: string, result: ActionResult) => void;
 }
 
 export interface EmittedTool {
@@ -305,14 +462,25 @@ export interface EmittedTool {
 }
 
 // ---------------------------------------------------------------------------
-// Dispatcher
+// Concierge
 // ---------------------------------------------------------------------------
 
 export interface ConciergeConfig {
-  stages: Record<string, StageDefinition>;
+  /**
+   * Ordered — first match wins.
+   *
+   * An array rather than a keyed object because object key iteration puts
+   * integer-like keys first, which would make match order depend on whether a
+   * stage happened to be named `"2"`.
+   */
+  stages: ReadonlyArray<StageDefinition>;
   /** Available in every stage. */
   crossStage?: ReadonlyArray<ActionDefinition>;
-  transport?: Transport;
+  /**
+   * Detaches snapshots from framework reactivity before storage. Supplied by
+   * the framework adapter; defaults to a deep freeze.
+   */
+  normalizeSnapshot?: SnapshotNormalizer;
   /**
    * Grace period before any side effect lands, so a human can interrupt.
    * @default 600
@@ -320,7 +488,7 @@ export interface ConciergeConfig {
   commitWindowMs?: number;
   /**
    * Window in which a repeated call returns the *same Promise by reference*,
-   * so an agent retrying cannot double-fire an effect.
+   * so a retrying agent cannot double-fire an effect.
    * @default 500
    */
   dedupeWindowMs?: number;
@@ -332,8 +500,31 @@ export interface Concierge {
    * which breaks deduplication by reference identity.
    */
   dispatch: (name: string, args: unknown, meta?: InvocationMeta) => Promise<ActionResult>;
-  registerHandler: (name: string, handler: ActionHandler<never, never>) => () => void;
-  /** Catalog for the stage matching `ctx`, ready to hand to a transport. */
+  /**
+   * Catalog for the stage matching `ctx`.
+   *
+   * Returns a memoized frozen array — a fresh array per call makes React's
+   * `useSyncExternalStore` loop forever once devtools subscribe.
+   */
   catalogFor: (ctx: StageContext) => ReadonlyArray<EmittedTool>;
   stageFor: (ctx: StageContext) => string | null;
+}
+
+/**
+ * Owns the loop nothing else does: pushes the catalog on stage change and
+ * reconnect, routes `onToolBatch → dispatch → respond`, and enforces the
+ * commit window.
+ *
+ * Without this, `catalogFor` produces tools and `setTools` consumes them with
+ * nothing in between.
+ */
+export interface Session {
+  setContext: (ctx: StageContext) => void;
+  stop: () => void;
+}
+
+export interface SessionConfig {
+  concierge: Concierge;
+  transport: Transport;
+  initialContext?: StageContext;
 }

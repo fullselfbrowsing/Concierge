@@ -40,6 +40,18 @@ They are complementary halves of the same problem, and they share a vocabulary o
 
 The catalog of actions **is** the security boundary. If you never defined a verb for it, no agent can do it — not by prompt injection, not by a clever selector, not at all.
 
+### Where this sits in 2026
+
+Being honest about the landscape, because it shapes what Concierge is *for*:
+
+**Tool registration is being standardized into the browser.** [WebMCP](https://github.com/webmachinelearning/webmcp) (W3C, Google and Microsoft editors) gives pages `document.modelContext.registerTool({name, description, inputSchema, execute}, {signal})`, and it has reached a Chrome origin trial. Its motivation section argues nearly exactly what the table above argues.
+
+**Framework-agnostic actuation is table stakes, not a differentiator.** CopilotKit ships a React-free core plus Angular, Vue, and web-component packages; assistant-ui ships an agnostic core runtime.
+
+So Concierge is deliberately **not** competing on "a way to register actions." That layer is commoditizing, and we treat WebMCP as a *transport* rather than a rival — its `{signal}` unregistration maps cleanly onto our identity-guarded unsubscriber.
+
+What is not commoditizing is everything that happens **between the agent deciding to act and the effect landing**. WebMCP's own open questions list user confirmation as unsolved. Every other library in this space ships a confirmation boolean. Graded consent, user-turn binding, snapshot-equality invalidation, reference-identity deduplication, and fail-closed redaction are the product.
+
 ---
 
 ## Design contract
@@ -85,15 +97,23 @@ This contract is identical across every framework. It is the single most portabl
 
 Irreversible actions (pay, send, delete, book) require a two-step handshake: a `review` action reads the details back, the **human responds in a genuinely new turn**, then `confirm` runs. Consent is bound to user-turn identity — an agent can create a new response by itself, it cannot create a new user turn — and to a field-by-field snapshot of what was reviewed. Any drift between review and confirm destroys the consent.
 
-But "the human definitely perceived the readback" is only guaranteed on some transports. Voice guarantees it; a text sidebar does not; a headless run has no human at all. So transports declare what they can promise, and actions declare what they require:
+The subtle part is what a transport can *honestly* promise about the readback reaching the human. Grades name the **hop actually measured**, not the outcome you wish you had:
+
+| Grade | Measures |
+|---|---|
+| `none` | No human in the loop. Gated actions cannot run. |
+| `delivered` | The agent's rendition was rendered. The human may not have read it. |
+| `relayed` | The agent's rendition demonstrably reached the human (playback completed). |
+| `attested` | The human received the **raw action payload**, rendered by the app — not paraphrased by the agent. |
+
+The gap between `relayed` and `attested` is the whole ballgame. On a conversational transport, `ActionResult.message` reaches the human **through the agent**, which reauthors it — so "audio finished playing" does not support the claim "the human learned the correct total." Treating the agent's own summary as the consent artifact is OWASP ASI09, Human-Agent Trust Exploitation, whose prescribed mitigation is to show the raw action rather than the agent's summary. `attested` is the only grade an irreversible action should accept.
 
 ```ts
-transport.capabilities.consentGrade  // "perceived" | "delivered" | "none"
-
 defineAction({
   name: "confirmBooking",
-  consent: { requires: "reviewBooking", bindTo: "userTurn", minGrade: "perceived" },
-  // → fails at catalog build time on any transport that can't guarantee it
+  effects: { destructive: true },
+  consent: { requires: "reviewBooking", bindTo: "userTurn", minGrade: "attested" },
+  // → throws at catalog build time on any transport that can't guarantee it
 });
 ```
 
@@ -117,6 +137,7 @@ Concierge core has no opinion about how the agent reaches it. Voice over WebRTC,
 | `@fullselfbrowsing/concierge-svelte` | Svelte 5 adapter | 📋 planned |
 | `@fullselfbrowsing/concierge-server` | Fetch-standard route handlers | 📋 planned |
 | `@fullselfbrowsing/concierge-realtime` | OpenAI Realtime + WebRTC transport | 📋 planned |
+| `@fullselfbrowsing/concierge-webmcp` | [WebMCP](https://github.com/webmachinelearning/webmcp) transport — `document.modelContext` | 📋 planned |
 | `@fullselfbrowsing/concierge-mcp` | MCP server executor | 📋 planned |
 | `@fullselfbrowsing/concierge-devtools` | Dev overlay — active stage, registered bridges, live catalog, action firing | 📋 planned |
 
@@ -139,8 +160,16 @@ const applyFilter = defineAction({
     "value for that key — to add a value, include the previous values in the new array.",
   schema: z.object({
     key: z.enum(["priceMax", "brand", "amenity"]),
-    value: z.unknown(),
+    // Never `z.unknown()` on its own — it emits `{}`, so the agent may send
+    // anything. Keep the root a flat object (see below) and narrow per key.
+    value: z.union([z.number().int().min(0), z.array(z.string().min(1)).min(1)]),
+  }).superRefine((data, ctx) => {
+    const ok = data.key === "priceMax"
+      ? typeof data.value === "number"
+      : Array.isArray(data.value);
+    if (!ok) ctx.addIssue({ code: "custom", path: ["value"], message: `bad value for ${data.key}` });
   }),
+  effects: { idempotent: true },
   redact: "passthrough",              // required — "drop" | "passthrough" | (args) => unknown
   handler: ({ args, bridge }) => {
     if (!bridge) return { ok: false, message: "Open the results page first." };
@@ -188,17 +217,26 @@ These are baked into the library as build-time errors, not documentation you hav
 - **Registration unsubscribers must be identity-guarded.** React StrictMode double-mount, Vue HMR, and Svelte remounts all produce a stale cleanup that would otherwise wipe a newer registration.
 - **Retries within the dedup window return the same Promise by reference**, so an agent retrying 200ms later cannot double-push a route or double-fire a payment.
 - **A commit window before side effects** gives the human a grace period to interrupt.
+- **ESM-only, deliberately.** The dual-package hazard loads two copies of the module graph, which splits the bridge registry (handlers see `bridge: null` on a page that is open), splits the dedup window (**a retried call double-fires — the exact double-payment this design exists to prevent**), and splits the consent kernel. ESM-only → dual is a non-breaking change later; the reverse is not.
+- **Snapshots must be detached from framework reactivity before storage**, not just copied. `structuredClone` throws `DataCloneError` on a Svelte proxy — hence the `SnapshotNormalizer` seam.
+- **Action descriptions must be static strings.** Building them from i18n, CMS, or per-tenant content reintroduces MCP-style tool poisoning into a catalog that is otherwise code-reviewed.
+- **`registerHandler` is same-origin and live**, so any analytics tag or transitive dependency can overwrite a destructive action. Core freezes the registry after build; this is MCP's rug-pull attack with no approval step to subvert.
+- **Client-side consent is an assertion, not proof.** The server must re-verify — there is no token scoping an in-page action, so every call carries the human's full ambient session authority.
 
 ---
 
 ## Roadmap
 
-- [ ] **v0.1** — core: catalog DSL, dispatcher, dedup, bridge registry, matching. React + one non-React adapter shipped together.
-- [ ] **v0.2** — consent kernel with graded transports; server handlers.
-- [ ] **v0.3** — devtools overlay.
-- [ ] **v0.4** — Realtime transport; MCP executor.
+- [ ] **v0.1** — core: catalog DSL, dispatcher, dedup, bridge registry, `createSession`, **and the consent kernel**. React + Svelte adapters shipped together. Packaging CI (`publint`, `attw`, pack-and-install).
+- [ ] **v0.2** — server handlers; server-side consent verification.
+- [ ] **v0.3** — devtools overlay; zero-bridge on-ramp.
+- [ ] **v0.4** — Realtime, WebMCP, and MCP transports.
 
-The first non-React adapter ships *with* v0.1, not after. Building React-first and porting later produces a hooks-shaped core.
+Two sequencing decisions worth stating, because both are counterintuitive:
+
+**Consent is in v0.1, not v0.2.** Framework-agnostic actuation stopped being a differentiator in 2026 — CopilotKit and assistant-ui both shipped agnostic cores, and WebMCP is standardizing tool registration into the browser itself. A v0.1 with catalog + dispatcher + bridge and no consent is a strictly worse version of tools that already exist. The safety kernel *is* the product. It also needs no transport to test: a stub declaring `consentGrade: "none"` exercises the whole build-time gate.
+
+**The non-React adapter is Svelte, and it ships *with* v0.1.** Not because Svelte is popular here, but because Svelte's `$state` returns a Proxy — so a consent snapshot captured at review time would be a *live view* that mutates with the app, turning "any drift destroys consent" into "there is never any drift." The gate would pass unconditionally while appearing to work, and that defect is **invisible in a React-only test suite**. Svelte is the adapter that keeps the core honest.
 
 ---
 

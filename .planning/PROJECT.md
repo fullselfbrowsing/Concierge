@@ -8,9 +8,11 @@ Its sibling is [FSB](https://github.com/fullselfbrowsing/FSB): **FSB drives apps
 
 ## Core Value
 
-An agent can take a consequential action in a real app — and the human is structurally guaranteed to have consented to it, or the action does not run.
+An agent can take a consequential action in a real app — and it is structurally guaranteed that **a human, not the agent, confirmed this specific payload**, or the action does not run.
 
 Everything else (framework breadth, transport breadth, DX) is in service of that. A library that makes agent actuation easy but consent optional is worse than nothing, because it will be used.
+
+*Wording note (2026-07-27): this previously read "the human is structurally guaranteed to have consented." Research pushed back, correctly — no library can guarantee a mental state, and the habituation literature says humans rubber-stamp confirmations. What is actually enforceable is the provenance of the confirmation and the identity of what was confirmed. The claim is narrower and true, rather than broader and unfalsifiable.*
 
 ## Requirements
 
@@ -27,7 +29,11 @@ Everything else (framework breadth, transport breadth, DX) is in service of that
 - [ ] Stage-scoped catalogs — the agent only sees actions valid for where the user is
 - [ ] Consent handshake: review → human responds in a genuinely new turn → confirm, with snapshot equality invalidating stale consent
 - [ ] Transports declare a consent grade; actions declare a minimum grade; mismatch fails at catalog build time
-- [ ] React adapter and one non-React adapter, shipped together
+- [ ] Consent snapshots are normalized out of framework reactivity before storage, so a proxy-backed store cannot make the drift check vacuously pass
+- [ ] `createSession` owns the transport loop — catalog push on stage change and reconnect, and `onToolBatch → dispatch → respond`
+- [ ] Actions declare side effects (`readOnly` / `destructive` / `idempotent`); a destructive action without a consent policy is a build warning
+- [ ] Server re-verifies consent rather than trusting the client's assertion
+- [ ] React adapter and Svelte adapter, shipped together
 - [ ] Fetch-standard server handlers that mount unchanged in Next, Nuxt, SvelteKit, Remix, Hono, Bun, Deno, and Workers
 - [ ] Catalog build validates emitted JSON Schema (root must be `type: "object"`) and throws naming the offending action
 - [ ] Redaction required for any action with a non-empty schema, defaulting to `drop`
@@ -38,7 +44,11 @@ Everything else (framework breadth, transport breadth, DX) is in service of that
 - **Generic actuation primitives (`click`, `execute_js`, coordinate tools)** — that is FSB's job, and on an owned DOM they add attack surface for no benefit. The action catalog *is* the security boundary; a generic escape hatch destroys it.
 - **Third-party site automation** — different product class with ToS, captcha, and 2FA exposure. Use FSB.
 - **Voice as the primary framing** — voice is transport #1, not the noun. Welding the core to WebRTC and one vendor's event names would cap the addressable audience at people building voice UIs.
-- **Hard dependency on Zod** — welds us to one validator's release cadence and excludes Valibot/ArkType/Effect Schema. Standard Schema v1 instead.
+- **Hard dependency on Zod** — welds us to one validator's release cadence and excludes Valibot/ArkType/Effect Schema. Standard Schema v1 instead (depended on as `@standard-schema/spec`, whose ESM runtime entry is verified 0 bytes).
+- **A `concierge-zod` JSON Schema bridge package** — an earlier draft committed to shipping one. Standard JSON Schema (`~standard.jsonSchema`) makes it largely unnecessary. The optional `jsonSchema?` field stays as the escape hatch, because valibot@1.4.2 does *not* implement the companion spec despite its documentation claiming otherwise.
+- **Dual ESM/CJS publishing** — the dual-package hazard would load two module graphs and split the bridge registry, the dedup window, and the consent kernel. A split dedup window double-fires a retried call, which is the precise failure this library exists to prevent. ESM-only → dual stays available later; the reverse does not.
+- **Generative UI / `render` props on actions** — pulls DOM concerns into a core promised to be DOM-free.
+- **Shipping a chat UI or an agent loop** — adjacent products, and both would compromise the transport-agnostic core.
 - **Non-JS full-stack framework adapters (Rails, Laravel, Django, Phoenix)** — the bridge pattern works there via a server-rendered JSON island plus `pushEvent`-style actions, but ship it as a documented pattern and one reference example, not as typed packages.
 - **Long-term procedural memory / site-guide layer** — irrelevant when the app declares its own verbs.
 - **Card capture or credential entry by voice or by agent** — structurally refused, not merely discouraged.
@@ -47,7 +57,14 @@ Everything else (framework breadth, transport breadth, DX) is in service of that
 
 **Provenance.** The design is extracted from a production system (`voyza-voice-browser-control-spec.md`, 2685 lines, captured 2026-07-27): 28 control actions across 6 stages, ~3,947 LOC non-test, 28 test files. That system shipped and its failure modes are documented, including a section on verified drift between its planning record and its implementation. Concierge is the generic ~60% of it — and per that spec's own assessment, it is the *hard* 60%: concurrency, cancellation, dedup, and consent semantics.
 
-**Prior art to position against.** CopilotKit's `useCopilotAction` is the closest thing in the React ecosystem and is the comparison in every conversation. The differentiator is not the registration hook — it is the safety kernel: graded consent, commit window, reference-identity dedup, stage-scoped catalogs, mandatory redaction. Vercel AI SDK tool calling is server-side and has no client actuation or consent story.
+**Prior art — corrected after research (2026-07-27).** An earlier draft of this section was wrong in two ways and the errors flattered us, so they are recorded rather than quietly deleted:
+
+- *Claimed:* Vercel AI SDK "is server-side and has no client actuation or consent story." **False on both halves.** Its `execute` is optional *specifically* so calls can be forwarded to the client, and AI SDK 6 shipped `needsApproval: boolean | fn`.
+- *Claimed:* CopilotKit is the React-ecosystem comparison. **Outdated.** It ships a React-free core, plus Angular, Vue, and web-component packages, and a web inspector. The hooks were also renamed: `useCopilotAction` → `useFrontendTool`, `useCopilotReadable` → `useAgentContext`. assistant-ui likewise shipped an agnostic core runtime.
+
+OpenAI Agents JS is also closer than assumed — `needsApproval`, `interruptions[]`, sticky approve/reject, durable `RunState`, and guardrails that re-run after approval "in case the tool call became unsafe while waiting," which is adjacent to snapshot equality. **We are hardening a known failure mode, not discovering one.**
+
+**Position after research.** Framework-agnostic actuation is table stakes, and WebMCP (`document.modelContext.registerTool`, Chrome origin trial) is standardizing tool registration into the browser. Concierge does not compete there — WebMCP becomes a *transport*. What remains uncommoditized is the interval between the agent deciding to act and the effect landing. Verified absent from CopilotKit, AI SDK 6, OpenAI Agents JS, MCP, and WebMCP: graded consent with build-time transport mismatch failure, user-turn binding, snapshot-equality invalidation, delivery-armed consent, reference-identity dedup, and fail-closed redaction. **Everyone else ships a confirmation boolean.**
 
 **Decisions already encoded in the repo.** `README.md` carries the six-point design contract. `packages/concierge/src/types.ts` is the type surface and compiles clean. `CONTRIBUTING.md` lists the non-negotiables. These are inputs to planning, not open questions.
 
@@ -80,6 +97,14 @@ Everything else (framework breadth, transport breadth, DX) is in service of that
 | Ship a non-React adapter *with* v0.1, not after | Building React-first and porting later produces a hooks-shaped core. The non-React adapter is what forces React-isms out. | — Pending |
 | MIT + public over BSL 1.1 | FSB is BSL, but BSL on a library people are meant to `npm install` blocks production use without a commercial license. | — Pending |
 | Devtools treated as a v0.3 deliverable, not a nice-to-have | Adoption risk is the instrumentation cost of bridges. People need to see the kernel working before instrumenting five pages. | — Pending |
+| Consent kernel moves into v0.1 | Framework-agnostic actuation is table stakes and WebMCP is commoditizing registration. Without consent, v0.1 is a strictly worse CopilotKit. Testable with a stub transport — no WebRTC needed. | — Pending |
+| The non-React adapter is Svelte, and ships with v0.1 | Svelte `$state` is a Proxy, so a stored consent snapshot is a live view and the drift check passes unconditionally. Invisible in a React-only suite. Solid would validate nothing — its `Accessor<T>` already *is* our contract. | — Pending |
+| Consent grades renamed: `perceived` → `relayed` / `attested` | `perceived` conflated "audio finished" with "the human learned the facts." `ActionResult.message` reaches the human *through* the agent, which reauthors it — OWASP ASI09. Only `attested` (raw payload rendered by the app) survives. | — Pending |
+| ESM-only | Dual-package hazard splits the bridge registry, dedup window, and consent kernel. Non-breaking to add CJS later. | — Pending |
+| `engines.node: ">=22.12.0"` | Node 20 reached EOL 2026-04-30, and 22.12 is the exact floor where `require(esm)` is unflagged — the previous `>=20` promised CJS consumers a runtime that would throw `ERR_REQUIRE_ESM`. | — Pending |
+| `isolatedDeclarations: true` | TypeScript 7.0 ships no compiler API, which degrades dts generation. This routes the build through oxc: measured 25ms vs 1064ms, and it also removes the case for Turborepo (per-task overhead exceeds the build). | — Pending |
+| **OPEN — how `attested` is actually achieved on a voice-only transport** | Options: app-rendered out-of-band readback surface, or app-side TTS of the exact string bypassing the model. Needs a product decision, not more research. Voice-only may be capped at `relayed`. | ⚠️ Needs owner |
+| **OPEN — core as `peerDependency` of adapters** | Structurally forces a single core instance, which matters because a split instance splits the safety kernel. TanStack does the opposite. | ⚠️ Needs owner |
 
 ## Evolution
 

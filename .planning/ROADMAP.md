@@ -1,0 +1,189 @@
+# Roadmap: Concierge
+
+**Milestone:** v0.1 — the first publishable release.
+
+## Overview
+
+v0.1 is *core + consent + two adapters + packaging*. The journey runs contract-first: finish correcting the public type surface, settle packaging while there is one package instead of eight, then build upward through the dependency graph — action declaration, catalog assembly, bridge registry, dispatcher, session — until there is enough machinery for the consent kernel to intercept. The kernel is the milestone's reason to exist; everything before it is scaffolding that the kernel needs, and the two adapters that close the milestone exist to prove the core stayed honest.
+
+Nothing publishes until the milestone completes. That is load-bearing: it means a type decision made in Phase 1 can still be amended in Phase 8 if the kernel's design forces it, at zero cost. The "no breaking change" property Phase 1 protects is a property of the *published* surface, and there is no published surface until v0.1 ships.
+
+## Phases
+
+**Phase Numbering:**
+- Integer phases (1, 2, 3): Planned milestone work
+- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+
+Decimal phases appear between their surrounding integers in numeric order.
+
+- [ ] **Phase 1: Type surface completion** - Close the six remaining defects in the committed public contract, so no post-publish breaking change is left in it
+- [ ] **Phase 2: Packaging, build, and release** - Make the package buildable, publishable, and installable while there is one package rather than eight
+- [ ] **Phase 3: Action declaration and build-time validation** - One declaration derives everything downstream, and every wrong declaration fails the build naming the action
+- [ ] **Phase 4: Stages, catalog assembly, and explain()** - The agent sees only the actions valid for where the user is, and a developer can find out why one wasn't offered
+- [ ] **Phase 5: Bridge registry and the no-bridge path** - Handlers read live app state through getters, and behave honestly when no component is mounted
+- [ ] **Phase 6: Dispatcher** - A retried, malformed, aborted, or crashing call produces exactly one honest result and never fires an effect twice
+- [ ] **Phase 7: Session and the transport seam** - Something owns the loop between catalog and transport, driven by a stub with no network
+- [ ] **Phase 8: Consent kernel** - A consequential action runs only when a human, not the agent, confirmed this exact payload
+- [ ] **Phase 9: React and Svelte adapters** - Two opposite reactivity models drive the same core through adapters small enough to prove no logic leaked out
+
+## Phase Details
+
+### Phase 1: Type surface completion
+**Goal**: Every public type the consent kernel and the adapters will be built against is final — the remaining defects that would become breaking changes after publish are closed.
+**Depends on**: Nothing (first phase)
+**Requirements**: TRN-01
+**Success Criteria** (what must be TRUE):
+  1. A transport can report that a readback was cut off 2.1 seconds into a 9-second playback — the delivery hook carries a completion reason and a played duration, so truncation is representable instead of indistinguishable from completion.
+  2. A handler returning an arbitrary failure string fails to typecheck; `reason` admits only a fixed set of codes, and the one string that always crosses a vendor boundary has a stated policy.
+  3. An app can hand core a readback it rendered itself and get back a hash of exactly those bytes, so the `attested` grade has a producer in the contract and not only a field on the ack.
+  4. A transport is definable end to end — capabilities, batch envelope, response — with no vendor event name anywhere in core, demonstrated by a second transport shape that shares no wire vocabulary with the first. (TRN-01)
+  5. A type-test suite fails when any corrected defect is reintroduced: a `snapshotEquality` degraded to `(a: unknown, b: unknown)`, a `requires` that widens the action's own name union, or a delivery hook that drops the completion reason.
+**Plans**: TBD
+**Research**: Light — resolve the *shapes* of the readback sink and the server consent token (not their mechanisms, which are Phase 8 and v2 respectively). Both are public types, which is why the shape cannot wait for the evidence.
+**Notes**: Scope is the verified remainder, not all sixteen defects SUMMARY listed. Ten are already fixed in the committed `types.ts` — the `ToolBatch` envelope, the regraded `ConsentGrade`, `respond(ActionResult)`, ordered stage array, `SnapshotNormalizer`, `Session`, the deleted `registerHandler`, the `jsonSchema?` escape hatch, the object-rooted `JsonSchemaObject`, and the memoized-`catalogFor` contract. The remainder, verified 2026-07-27: (a) `deferUntilDelivered` still passes only `deliveredResponseId: string`, so barge-in is invisible — this is the highest-severity item and the one that makes P2 exploitable; (b) `ActionResult.reason` is still open `string`; (c) no readback sink type, so `readbackHash` has no producer; (d) `ConsentPolicy<Name>` is threaded from the action's *own* name, so `Name` infers as a union of the action and its `requires` target and corrupts the name-union derivation; (e) no server consent-token shape; (f) no composition or taint metadata (`readsUntrusted`, `maxPerTurn`, `conflictsWith`, `impact`). Cheap additions belonging here: a `Snapshot` type parameter on `ActionDefinition` (without it `snapshotEquality` degrades to `unknown` exactly where correctness matters), a `scheduler?` seam, and `stage`/`onStageChange` on `Session`. `CONTRACT_VERSION` is deliberately *not* here — it is purely additive and lands in Phase 2 where the test that needs it lives.
+
+### Phase 2: Packaging, build, and release
+**Goal**: The package that will carry the kernel can be built, published, and installed correctly — settled at one package, because the cost of settling it later scales with package count.
+**Depends on**: Nothing — runs in parallel with Phase 1 (disjoint files: build config and CI, not `types.ts`)
+**Requirements**: PKG-01, PKG-02, PKG-03, PKG-04, PKG-05
+**Success Criteria** (what must be TRUE):
+  1. A scratch project outside the repo installs the packed tarball, imports `@fullselfbrowsing/concierge`, and typechecks against its shipped declarations. (PKG-02)
+  2. `publint` and `are-the-types-wrong` report no errors on the packed artifact, and a typecheck failure cannot pass the build because the bundler does not typecheck. (PKG-01)
+  3. The artifact imports successfully on the exact Node version the package declares as its floor, not merely on the developer's newer runtime. (PKG-03)
+  4. Two adapters resolving core independently share one core instance, and a version mismatch fails loudly with an actionable message rather than silently splitting the bridge registry, the dedup window, and the consent kernel. (PKG-04)
+  5. Core's installed dependency footprint is verified to add zero runtime bytes to a consumer bundle. (PKG-05)
+**Plans**: TBD
+**Research**: None — every choice here was empirically reproduced locally on 2026-07-27 with recorded commands.
+**Notes**: Concrete deltas from the current repo state: root `package.json` pins `typescript@^5.7.0` and `pnpm@10.33.0` against a plan that calls for TS 7.0.2 exactly and pnpm 11; there is no bundler, no test runner, no changesets, and no CI. Already correct and not to be disturbed: `engines.node: ">=22.12.0"`, `type: "module"`, `isolatedDeclarations: true`, and `lib: ["ES2022"]` in `tsconfig.base.json`. The second build toolchain (`svelte-package`, which cannot pre-bundle runes without silently killing reactivity) is scaffolded here rather than discovered in Phase 9. `CONTRACT_VERSION` is introduced here as the mechanism behind PKG-04.
+
+### Phase 3: Action declaration and build-time validation
+**Goal**: A developer declares an action once and everything downstream is derived — and every way to declare one wrongly is caught at build with a message naming the action and stating the fix.
+**Depends on**: Phase 1 (declares against the corrected surface); Phase 2 for the test runner
+**Requirements**: CAT-01, CAT-02, CAT-05, CAT-06, CAT-07, SEC-01, DX-03
+**Success Criteria** (what must be TRUE):
+  1. One declaration yields the action's literal name type, its emitted JSON Schema, and its redaction policy, with no second registry to keep in step. (CAT-01)
+  2. A wrong declaration fails the build with a message naming the offending action and the fix — a schema whose root is not `type: "object"`, a description assembled at runtime from i18n or CMS content, or a non-empty schema with no redaction policy. (CAT-02, CAT-07, SEC-01, DX-03)
+  3. An action declaring `destructive` with no consent policy still builds but reports itself, so the omission is visible without blocking a policy that legitimately lives a layer up. (CAT-05)
+  4. A validator that does not implement Standard JSON Schema still emits a correct schema, because an explicit `jsonSchema` is used in preference to derivation — and an unspecified redaction policy drops arguments rather than passing them through. (CAT-06, SEC-01)
+**Plans**: TBD
+**Research**: Light — re-probe the installed validators for `~standard.jsonSchema` support and emitted draft, rather than reading the spec site. The docs claimed a capability one shipped package does not have, and that claim would have deleted the escape hatch that is the only working path for one of three target validators.
+**Notes**: The schema-emission order is escape hatch → `~standard.jsonSchema.input(...)` → throw naming the action *and* the vendor. The `input` projection specifically: a schema with a transform or a default emits a different schema in each direction, and tool calling needs the input side.
+
+### Phase 4: Stages, catalog assembly, and explain()
+**Goal**: The agent is offered exactly the actions valid for where the user currently is, and a developer who expected an action to fire can find out why it didn't without reaching for a debugger.
+**Depends on**: Phase 3
+**Requirements**: CAT-03, STG-01, STG-02, STG-03, STG-04, SEC-03, DX-01
+**Success Criteria** (what must be TRUE):
+  1. An agent on the results page is offered the results actions plus the cross-stage actions, and the checkout actions are *absent from the catalog* rather than rejected when called. (STG-01)
+  2. Stage matching runs in declaration order with first match winning, decides on arbitrary app context rather than pathname alone, and does not change behavior when a stage is renamed. (STG-02, STG-03)
+  3. Two `catalogFor` calls with equivalent context return the identical array reference, so a subscriber cannot be driven into an infinite re-render. (STG-04)
+  4. A consent policy naming an action that does not exist fails the build, naming both the referring action and the missing target — the typo that would otherwise silently disable a safety gate. (CAT-03)
+  5. `explain()` answers "why didn't my action fire" by reporting the active stage, which bridges are registered, and the live catalog; and the built registry is frozen, so page script cannot swap a handler after build. (DX-01, SEC-03)
+**Plans**: TBD
+**Research**: None — standard patterns.
+**Notes**: CAT-03 sits here rather than in Phase 3 because it is the first check that needs the assembled name union; `defineAction` cannot know it at declaration time, so the runtime check in `buildCatalog` is the one that has to exist. This phase deliberately touches no transport — the catalog must not read a bridge or a transport, which is why the transport-capability gate (CAT-04) is in Phase 8 instead.
+
+### Phase 5: Bridge registry and the no-bridge path
+**Goal**: A handler reads live state from a page component that may or may not be mounted, without prop-drilling and without re-rendering the app — and behaves honestly when nothing is mounted.
+**Depends on**: Phase 1 (the registry is independent of the catalog and may run in parallel with Phases 3-4)
+**Requirements**: BRG-01, BRG-02, BRG-03, BRG-04, BRG-05, DX-02
+**Success Criteria** (what must be TRUE):
+  1. A handler invoked after the app's state has changed reads the new values, with no re-registration in between. (BRG-02)
+  2. A component that remounts and then unregisters late cannot clear the newer registration that replaced it — the stale cleanup is refused. (BRG-01, BRG-04)
+  3. A handler whose stage bridge is not mounted receives `bridge: null` and returns a sentence telling the human what to do, not an exception. (BRG-03)
+  4. A snapshot stored from a proxy-backed store does not move when the underlying store moves — demonstrated against a hand-rolled Proxy in core, before any framework adapter exists. (BRG-05)
+  5. An action reading router or DOM state runs with no bridge registered at all, so the first useful action costs no instrumentation. (DX-02)
+**Plans**: TBD
+**Research**: None — the source system solved this and supplies the test list.
+**Notes**: The identity guard is keyed on a monotonic token, not the bridge object: a component re-registering an object that is `===` its previous one (a memoized literal, a reused `$state` object) would otherwise let the stale cleanup match the live registration. Criterion 4 is the core-level half of the Svelte proxy defect; Phase 9 supplies the real-framework half. Guarding it twice is deliberate — it is a security defect that is invisible in a React-only suite.
+
+### Phase 6: Dispatcher
+**Goal**: A retried, malformed, aborted, or crashing call produces exactly one honest result, and no effect ever fires twice.
+**Depends on**: Phase 3 (actions to dispatch), Phase 5 (bridge to pass into the handler)
+**Requirements**: DSP-01, DSP-02, DSP-03, DSP-04, DSP-05, DSP-06, DSP-07, DSP-08, SEC-02, TRN-04
+**Success Criteria** (what must be TRUE):
+  1. Two calls sharing a `callId` inside the window yield the same Promise object — `p1 === p2` holds — and with no `callId` a name-and-arguments key is used, degrading to a no-dedup path rather than throwing when that key cannot be serialized. (DSP-01, DSP-02)
+  2. A handler that throws returns one generic sentence; neither the agent nor telemetry receives the thrown message, only the error class name. (DSP-03, SEC-02)
+  3. Arguments are re-validated before the handler runs regardless of what the agent claims to have validated, malformed JSON degrades to `{}` and is then rejected by that validation, and an action with no registered handler returns an honest result instead of throwing. (DSP-04, DSP-05, DSP-06)
+  4. A batch runs serially in `output_index` order, and every call in an aborted batch still produces a result, so the agent is never left waiting on a response that will not come. (DSP-07)
+  5. A non-read-only effect does not land until the commit window has elapsed and an abort inside that window cancels it — all of it drivable from an application's own agent loop with no transport present. (DSP-08, TRN-04)
+**Plans**: TBD
+**Research**: None — the source system solved this; the failure list is already enumerated.
+**Notes**: `dispatch` must not be `async`: an async wrapper allocates a fresh Promise per invocation and breaks dedup by identity, which is the mechanism criterion 1 tests. Handler lookup goes in a `Map`, not an object literal — `dispatch("__proto__")` and `dispatch("constructor")` are test cases. All mutable state (dedup map, timers, consent map) is allocated lazily on first dispatch and never during module evaluation, or a module-scoped instance bleeds across requests and tenants in production while looking fine in development.
+
+### Phase 7: Session and the transport seam
+**Goal**: Something owns the loop between the catalog and the transport, so a stage change or a reconnect never leaves the agent holding a stale catalog — provable with no network.
+**Depends on**: Phase 4 (catalogFor), Phase 6 (dispatch)
+**Requirements**: SES-01, SES-02, SES-03, SES-04, TRN-02
+**Success Criteria** (what must be TRUE):
+  1. The agent's tool list changes when the user changes page, and the same list is re-pushed after a reconnect, with the app doing nothing. (SES-01)
+  2. A tool batch arriving from the transport produces exactly one result per call, returned on the transport. (SES-02)
+  3. Turn identity and the delivery hook travel from the transport envelope through to the handler intact — so the data consent needs is already flowing before consent exists. (SES-03)
+  4. Stopping a session unregisters cleanly and cancels in-flight work, leaving no timer, listener, or pending promise behind. (SES-04)
+  5. A stub transport with configurable capabilities drives all of the above with no network, no WebRTC, and no vendor SDK. (TRN-02)
+**Plans**: TBD
+**Research**: None.
+**Notes**: The stub transport built here is the instrument Phase 8 uses to prove the build-time grade gate. Criterion 3 is the seam that makes Phase 8 possible at all: an earlier draft of `Transport` delivered a bare `ToolCall[]`, and the gate the whole design rests on had no data to read.
+
+### Phase 8: Consent kernel
+**Goal**: A consequential action runs only when a human — not the agent — confirmed this exact payload, or it does not run.
+**Depends on**: Phase 7 (turn envelope and delivery hook flowing through the session), Phase 4 (buildCatalog, for the grade gate)
+**Requirements**: CON-01, CON-02, CON-03, CON-04, CON-05, CON-06, CON-07, CON-08, CON-09, CAT-04, TRN-03, SEC-04
+**Success Criteria** (what must be TRUE):
+  1. A gated action with no prior review fails closed, and a review and a confirm inside the same user turn fails — so an agent generating its own follow-up cannot approve itself. (CON-01, CON-02)
+  2. Consent arms when the review reached the human, never when the review handler returned; an interrupted or truncated delivery does not arm it. A barge-in two seconds into a nine-second readback leaves the gate closed *even though it minted a genuinely new user turn*. (CON-03, CON-06)
+  3. Any compared field differing between review and confirm destroys the consent; a successful confirm destroys it; and the confirm handler receives the payload captured at review time, not one recomputed at confirm time. (CON-04, CON-05, CON-08)
+  4. An action requiring a grade its configured transport cannot promise refuses to build, naming the action and the grade; and a transport that cannot derive turn identity cannot be used with `bindTo: "userTurn"`. (CAT-04, CON-07, TRN-03)
+  5. An explicit refusal is distinguishable from a dismissal, so the agent knows whether re-offering is appropriate — and the documentation shows, with a worked example, that all of this is a client-side assertion the server must independently re-verify. (CON-09, SEC-04)
+**Plans**: TBD
+**Research**: **Yes — research before planning.** No prior art exists for any of it: graded consent with build-time transport mismatch, user-turn binding, snapshot-equality invalidation, and delivery-armed consent were each checked against five shipping competitors and two specs and found absent. The design also moved during research — the grade semantics were invalidated mid-flight — so the readback sink, turn classification, and the played-duration threshold are proposals rather than validated mechanisms.
+**Notes**: This is the milestone's reason to exist. Criterion 2 is the single most important test in the project: barge-in is the most natural human behavior on a voice transport and it defeats perception and satisfies the gate in one gesture. Criterion 5's second half is a deliberate statement of the kernel's honest limit; SEC-04 is documentation because server verification is v2, and overstating what the client half proves is the failure mode this milestone is built to avoid. One open decision blocks part of this phase: how `attested` is achieved on a voice-only transport is unresolved in PROJECT.md and needs an owner, not more research.
+
+### Phase 9: React and Svelte adapters
+**Goal**: Two frameworks with opposite reactivity models drive the same core, through adapters small enough to prove that no load-bearing logic leaked out of it.
+**Depends on**: Phase 5 (bridge registration), Phase 8 (a real kernel for the Svelte snapshot normalizer to be load-bearing against)
+**Requirements**: ADP-01, ADP-02, ADP-03, ADP-04
+**Success Criteria** (what must be TRUE):
+  1. A React component registers actions and a bridge and survives StrictMode's double-mount with its registration intact, without app code ever maintaining a ref itself. (ADP-01)
+  2. A Svelte component registers a `$state`-backed bridge, and a consent snapshot taken at review does not move when the store moves — the defect that a React-only suite cannot see, now demonstrated through the published tarball rather than in source. (ADP-02)
+  3. Each adapter's source stays within its stated budget and a test fails when it grows past it, so logic leaking out of core is caught rather than argued about. (ADP-03)
+  4. Core imports and constructs during a server render under a metaframework with no DOM global touched at module scope, demonstrated by one example app that exercises both adapters against the same catalog. (ADP-04)
+**Plans**: TBD
+**Research**: Light — `svelte-package` coexisting with the primary bundler in one workspace was not tested by anyone during research, and pre-bundling runes produces an adapter that compiles and is silently non-reactive.
+**Notes**: Both adapters ship in the same phase, never React first. Building React-first and porting later produces a hooks-shaped core, and by the time the second adapter arrives, fixing core is a breaking change. Svelte specifically, because it is the only choice that surfaces the `$state` proxy consent defect. The React adapter owns its ref-mirroring rather than telling apps to maintain refs — React is the sole framework where a syntactically identical getter is semantically wrong. No UI-design pass is warranted here despite the React/Svelte/component keywords: these are headless framework bindings and a throwaway example harness, with no interface being designed.
+
+## Notes on Departures from the Researched Structure
+
+SUMMARY.md proposed nine phases, of which 1-6 were v0.1. This roadmap keeps its ordering and its reasoning, and departs in four places:
+
+1. **Its Phase 3 (catalog + schema + explain) is split into Phases 3 and 4.** It carried fourteen requirements and two unrelated demonstrations — a build that throws by name, and an agent seeing a stage-scoped list. The split is per-action validation versus whole-catalog assembly.
+2. **Its Phase 4 (bridge + dispatcher + session) is split into Phases 5, 6, and 7.** Seventeen requirements across three separable components with three separate demonstrations; the dispatcher alone carries the trickiest concurrency semantics in the project and eight requirements of its own.
+3. **The build-time grade gate (CAT-04) moved from the catalog phase to the consent phase.** SUMMARY mentions it in both. It needs a transport to check against, and the stub transport arrives with the session — and keeping the catalog phase transport-free preserves the rule that the catalog must never read a bridge or a transport.
+4. **Phase 1 is much narrower than SUMMARY's**, because ten of its sixteen blocking defects are already fixed in the committed `types.ts`. The verified remainder is enumerated in Phase 1's notes.
+
+Its Phases 7-9 — server handlers, devtools overlay, and the Realtime/WebMCP/MCP transports — map to this project's v2 section in REQUIREMENTS.md and are deliberately absent here.
+
+## Parallelization
+
+`parallelization: true`. Independent tracks:
+
+- **Phases 1 and 2** touch disjoint files (the type surface versus build config and CI) and can run concurrently.
+- **Phase 5** depends only on Phase 1 and can run alongside Phases 3-4.
+- Everything from Phase 6 onward is serial: dispatcher needs actions and a bridge, session needs dispatch and a catalog, consent needs the session, adapters need the kernel.
+
+## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 1. Type surface completion | 0/TBD | Not started | - |
+| 2. Packaging, build, and release | 0/TBD | Not started | - |
+| 3. Action declaration and build-time validation | 0/TBD | Not started | - |
+| 4. Stages, catalog assembly, and explain() | 0/TBD | Not started | - |
+| 5. Bridge registry and the no-bridge path | 0/TBD | Not started | - |
+| 6. Dispatcher | 0/TBD | Not started | - |
+| 7. Session and the transport seam | 0/TBD | Not started | - |
+| 8. Consent kernel | 0/TBD | Not started | - |
+| 9. React and Svelte adapters | 0/TBD | Not started | - |

@@ -42,7 +42,10 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "@standard-schema/spec": "^1.0.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

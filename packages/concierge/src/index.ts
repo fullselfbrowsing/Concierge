@@ -4,9 +4,9 @@
  * Typed, consent-gated actions that let an AI agent operate your web app.
  *
  * Pre-alpha: this package currently exports the design contract only. The
- * runtime (`createConcierge`, `defineAction`, `defineStage`, `createBridge`)
- * is being implemented against these types — see the roadmap in the repository
- * README.
+ * runtime (`createConcierge`, `createSession`, `defineAction`, `defineStage`,
+ * `createBridge`) is being implemented against these types — see the roadmap
+ * in the repository README.
  */
 
 export type {
@@ -17,6 +17,7 @@ export type {
   AbortSignalLike,
   // Results
   ActionResult,
+  AbandonReason,
   // Invocation
   InvocationMeta,
   ActionHandler,
@@ -24,6 +25,10 @@ export type {
   ConsentGrade,
   ConsentPolicy,
   ConsentAck,
+  DeliveryReport,
+  SnapshotNormalizer,
+  // Side effects
+  SideEffects,
   // Redaction
   RedactionPolicy,
   // Actions
@@ -38,10 +43,13 @@ export type {
   Transport,
   TransportCapabilities,
   ToolCall,
+  ToolBatch,
   EmittedTool,
-  // Dispatcher
+  // Concierge
   Concierge,
   ConciergeConfig,
+  Session,
+  SessionConfig,
 } from "./types.js";
 
-export { USER_STOPPED } from "./types.js";
+export { USER_CANCELLED, USER_DECLINED, CONSENT_GRADE_ORDER } from "./types.js";
