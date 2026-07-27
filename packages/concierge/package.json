@@ -1,0 +1,50 @@
+{
+  "name": "@fullselfbrowsing/concierge",
+  "version": "0.0.0",
+  "description": "Typed, consent-gated actions that let an AI agent operate your web app",
+  "keywords": [
+    "ai",
+    "agent",
+    "llm",
+    "tool-calling",
+    "browser-control",
+    "web-app",
+    "mcp",
+    "typescript"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fullselfbrowsing/concierge.git",
+    "directory": "packages/concierge"
+  },
+  "homepage": "https://github.com/fullselfbrowsing/concierge#readme",
+  "bugs": {
+    "url": "https://github.com/fullselfbrowsing/concierge/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}
