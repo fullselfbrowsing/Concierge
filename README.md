@@ -6,6 +6,8 @@ Concierge is the layer a web application adds so that an agent can *drive it* â€
 
 > [!WARNING]
 > **Pre-alpha. Nothing is published yet.** This repository currently contains the design contract and the type surface. The API below is what we are building toward, not what you can install today. Watch the repo or check [Roadmap](#roadmap) for status.
+>
+> **Picking this up to work on it?** Start with **[HANDOFF.md](./HANDOFF.md)** â€” what's locked, what's open, where to start, and the traps that cost a day each if rediscovered.
 
 ---
 
