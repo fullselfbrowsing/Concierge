@@ -52,10 +52,11 @@ None yet.
 
 ### Blockers/Concerns
 
-Two open decisions in PROJECT.md need an owner before the phases that depend on them:
+One open decision in PROJECT.md needs an owner before the phase that depends on it:
 
-- **How `attested` is achieved on a voice-only transport** (blocks part of Phase 8). Options: an app-rendered out-of-band readback surface, or app-side TTS of the exact string bypassing the model. Voice-only may be capped at `relayed`. This is a product decision, not a research question.
 - **Core as `peerDependency` of adapters** (blocks Phase 2 packaging wiring). Structurally forces a single core instance; diverges from the dominant ecosystem pattern; expensive to reverse after publish.
+
+**Resolved 2026-07-27** — "how `attested` is achieved on a voice-only transport" was the wrong question and is closed. It smuggled modality back into a contract that had already rejected it. Grades turn on content provenance (agent paraphrase vs app-rendered payload) and confirmation provenance (inferred vs a human act bound to that payload's hash). `attested` needs an app-rendered raw-payload surface and an observed act on it; whether the app also speaks is irrelevant, and no product class is capped below `attested`.
 
 Two PROJECT.md Key Decisions rows are now stale and should be corrected at the next transition:
 

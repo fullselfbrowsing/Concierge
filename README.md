@@ -97,16 +97,21 @@ This contract is identical across every framework. It is the single most portabl
 
 Irreversible actions (pay, send, delete, book) require a two-step handshake: a `review` action reads the details back, the **human responds in a genuinely new turn**, then `confirm` runs. Consent is bound to user-turn identity — an agent can create a new response by itself, it cannot create a new user turn — and to a field-by-field snapshot of what was reviewed. Any drift between review and confirm destroys the consent.
 
-The subtle part is what a transport can *honestly* promise about the readback reaching the human. Grades name the **hop actually measured**, not the outcome you wish you had:
+The subtle part is what a transport can *honestly* promise about the readback reaching the human. Grades are **modality-free** — speech versus text was never the axis. Two things are:
+
+- **Content provenance** — did the human receive the agent's paraphrase, or the payload the app rendered?
+- **Confirmation provenance** — did the app observe a human act bound to *that specific payload*, or is consent being inferred?
 
 | Grade | Measures |
 |---|---|
 | `none` | No human in the loop. Gated actions cannot run. |
-| `delivered` | The agent's rendition was rendered. The human may not have read it. |
-| `relayed` | The agent's rendition demonstrably reached the human (playback completed). |
-| `attested` | The human received the **raw action payload**, rendered by the app — not paraphrased by the agent. |
+| `delivered` | The agent's rendition was emitted. Receipt unconfirmed. |
+| `relayed` | The agent's rendition demonstrably reached the human, in full. |
+| `attested` | The app rendered the **raw payload** itself and observed a human act bound to its hash. |
 
-The gap between `relayed` and `attested` is the whole ballgame. On a conversational transport, `ActionResult.message` reaches the human **through the agent**, which reauthors it — so "audio finished playing" does not support the claim "the human learned the correct total." Treating the agent's own summary as the consent artifact is OWASP ASI09, Human-Agent Trust Exploitation, whose prescribed mitigation is to show the raw action rather than the agent's summary. `attested` is the only grade an irreversible action should accept.
+The gap between `relayed` and `attested` is the whole ballgame, and it has nothing to do with modality. `ActionResult.message` reaches the human **through the agent**, which reauthors it — so "the readback finished" never supported the claim "the human learned the correct total." Treating the agent's own summary as the consent artifact is OWASP ASI09, Human-Agent Trust Exploitation, whose prescribed mitigation is to show the raw action rather than the agent's summary.
+
+`attested` is reachable by any app with a surface of its own to render into — which is every app.
 
 ```ts
 defineAction({

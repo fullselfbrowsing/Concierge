@@ -133,21 +133,20 @@ export interface InvocationMeta {
 /**
  * What actually happened when the agent's response was delivered.
  *
- * This carries an outcome rather than a bare id because barge-in must be
- * *representable*. An earlier draft passed only `deliveredResponseId: string`,
- * which made the truncation attack unfixable: a human interrupting two seconds
- * into a nine-second readback both destroys perception and produces a fresh
- * user turn, so consent would arm on content nobody received. A consumer that
- * cannot see `outcome` cannot refuse that.
+ * Carries an outcome rather than a bare id because *partial* delivery has to be
+ * representable. An earlier draft passed only `deliveredResponseId: string`,
+ * which made truncation unfixable — and truncation is not a voice problem. A
+ * readback can be cut short by an interruption, a dismissed toast, a closed
+ * modal, a navigation, or a disconnect. In every case the human received part
+ * of a payload and the app must not treat that as consent. A consumer that
+ * cannot see `outcome` cannot refuse it.
  */
 export interface DeliveryReport {
   responseId: string;
-  /** `interrupted` means the human cut it short — consent must not arm. */
+  /** Anything but `completed` means consent must not arm. */
   outcome: "completed" | "interrupted";
-  /** Fraction of intended content actually delivered, where measurable. */
-  deliveredFraction?: number;
   /**
-   * Hash of the exact bytes presented, when the app rendered them itself.
+   * Hash of the exact payload the app rendered.
    * The producer for {@link ConsentAck.readbackHash}, and therefore the only
    * route to an `attested` grade.
    */
@@ -170,25 +169,36 @@ export type ActionHandler<Args, Bridge, AckPayload = unknown> = (ctx: {
 /**
  * What a transport can honestly promise about a readback reaching the human.
  *
- * Ordered weakest to strongest. The names describe the *measured hop*, not the
- * hoped-for outcome — an earlier draft of this type had a `"perceived"` grade
- * that conflated "audio finished playing" with "the human learned the facts."
- * They are not the same claim, because on a conversational transport the
- * agent reauthors `ActionResult.message` before the human ever receives it.
- * Trusting the agent's own summary as the consent artifact is OWASP ASI09
- * (Human-Agent Trust Exploitation).
+ * Deliberately modality-free. Nothing here distinguishes speech from text —
+ * that axis never mattered. Two things do:
+ *
+ *   1. **Content provenance** — did the human receive the agent's paraphrase,
+ *      or the payload the app itself rendered?
+ *   2. **Confirmation provenance** — did the app observe a human act bound to
+ *      *that specific payload*, or is consent being inferred?
+ *
+ * Ordered weakest to strongest. Names describe what is measured, not what is
+ * hoped for. An earlier draft had a `"perceived"` grade that conflated
+ * "delivery finished" with "the human learned the facts." Those are different
+ * claims, because on a conversational transport the agent reauthors
+ * `ActionResult.message` before the human ever receives it — trusting the
+ * agent's own summary as the consent artifact is OWASP ASI09.
  */
 export type ConsentGrade =
   /** No human in the loop. Gated actions cannot run. */
   | "none"
-  /** The agent's rendition was rendered. The human may not have consumed it. */
+  /** The agent's rendition was emitted. Receipt is unconfirmed. */
   | "delivered"
-  /** The agent's rendition demonstrably reached the human (playback completed). */
+  /** The agent's rendition demonstrably reached the human, in full. */
   | "relayed"
   /**
-   * The human received the *raw action payload*, rendered by the app itself
-   * and not paraphrased by the agent. The only grade that survives ASI09, and
-   * the only one an irreversible action should accept.
+   * The app rendered the raw payload itself, and observed a human act bound to
+   * that payload's hash. The only grade that survives ASI09, and the only one
+   * an irreversible action should accept.
+   *
+   * Reachable by any app that has a surface of its own to render into, which
+   * is every app — a voice-only product qualifies by rendering the payload
+   * visually, or not at all.
    */
   | "attested";
 
