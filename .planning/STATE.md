@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: planning
-stopped_at: Phase 1 context gathered
-last_updated: "2026-07-28T04:17:49.886Z"
+stopped_at: Phase 1 context gathered; milestone correction pass applied (57->62 requirements)
+last_updated: "2026-07-28T04:39:57.665Z"
 last_activity: 2026-07-27 — Roadmap created; 57 v1 requirements mapped across 9 phases
 progress:
   total_phases: 9
@@ -55,6 +55,13 @@ Progress: [░░░░░░░░░░] 0%
 
 ## Accumulated Context
 
+### Roadmap Evolution
+
+- Phase 1 edited: milestone correction pass 2026-07-27: requirements 57->62 (TRN-05, SEC-05, SEC-06, DSP-09, CON-10)
+- Phase 3 edited: milestone correction pass 2026-07-27: requirements 57->62 (TRN-05, SEC-05, SEC-06, DSP-09, CON-10)
+- Phase 6 edited: milestone correction pass 2026-07-27: requirements 57->62 (TRN-05, SEC-05, SEC-06, DSP-09, CON-10)
+- Phase 8 edited: milestone correction pass 2026-07-27: requirements 57->62 (TRN-05, SEC-05, SEC-06, DSP-09, CON-10)
+
 ### Decisions
 
 Full log in PROJECT.md Key Decisions. Affecting current work:
@@ -63,6 +70,8 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - React and Svelte adapters ship together; Svelte is the only adapter that surfaces the `$state` proxy consent defect
 - ESM-only, `engines.node: ">=22.12.0"`, `isolatedDeclarations: true` — all three serve one invariant: exactly one core instance
 - Nothing publishes until v0.1 completes, so Phase 1 type decisions remain amendable through Phase 8 at zero cost
+- [Phase ?]: Turn identity needs declared provenance (TRN-05, Phase 1) — a recognizer-derived userTurnId can be minted by the agent's own TTS echo, satisfying bindTo:'userTurn' with no human involved; not covered by PITFALLS P2, and TransportCapabilities is consumer-implemented so widening it post-publish is breaking
+- [Phase ?]: Milestone corrected 2026-07-27: 57 to 62 v1 requirements — added TRN-05 (Phase 1), SEC-05 (Phase 3), SEC-06 and DSP-09 (Phase 6), CON-10 (Phase 8), from advisor research plus a second prior implementation at portfolio@audit-fsb-ai-control-loop
 
 ### Pending Todos
 
@@ -89,6 +98,6 @@ Two PROJECT.md Key Decisions rows are now stale and should be corrected at the n
 
 ## Session Continuity
 
-Last session: 2026-07-28T04:17:49.882Z
-Stopped at: Phase 1 context gathered
+Last session: 2026-07-28T04:38:59.144Z
+Stopped at: Phase 1 context gathered; milestone correction pass applied (57->62 requirements)
 Resume file: .planning/phases/01-type-surface-completion/01-CONTEXT.md
