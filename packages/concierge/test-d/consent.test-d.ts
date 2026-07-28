@@ -8,6 +8,13 @@
 // covers the consent ack itself (plan 01-05). Nothing in the first half touches
 // `ConsentAck`, which is what lets a failure name the half it came from.
 //
+// A third section closes the second half and is the one place the split is deliberately
+// crossed: the read-only guards (plan 01-10) cover the ack *and* the receipt together,
+// because they assert one invariant — that a construction-time guarantee survives
+// assignment — and separating them by artifact would have hidden that they are the same
+// defect. Attribution is carried there by the alias prefix (`_ack…` versus `_receipt…`)
+// rather than by position, so a failure still names its artifact.
+//
 // This file declares nothing to the outside world. The imports below already give it
 // module status, which is what keeps `isolatedDeclarations` from treating every
 // top-level `const` here as declaration-emitting (TS9010).
@@ -22,15 +29,19 @@
 //
 // Assertions are predicates wherever a predicate can express the invariant, because a
 // suppression directive asserts only that *some* error occurred on the next line and
-// is therefore satisfied by a typo. Exactly two such directives appear below. The
+// is therefore satisfied by a typo. Exactly three such directives appear below. The
 // first guards the one thing no predicate can express — a type reference that must
-// fail to accept a type argument. The second is deliberate redundancy next to a
-// predicate that already covers it, because the concrete line an app author would
-// actually write is worth having in the file.
+// fail to accept a type argument. The second and third are deliberate redundancy next
+// to predicates that already cover them, because the concrete line an app author would
+// actually write is worth having in the file: a `ServerChallenge` forged from a plain
+// string, and a property write that must fail — `mutableAck.grade = "attested"`, which
+// is the exact assignment that forged the attested branch before the ack's members
+// were made read-only.
 
 import type { Assignable, Equals, Expect, Not } from "./_assert.js";
 import type {
   ConsentAck,
+  ConsentGrade,
   DigestLike,
   Readback,
   ReadbackReceipt,
@@ -284,6 +295,68 @@ function narrowsThroughTheUnion(): string {
 }
 
 void narrowsThroughTheUnion;
+
+// --------------------------------------------------------------------------
+// CR-01 / WR-01 — the union constrains construction; only `readonly` constrains
+// mutation, and without it the narrowing directly above this block lies.
+// --------------------------------------------------------------------------
+
+// That sentence is the whole invariant. `narrowsThroughTheUnion` immediately above is
+// the reason it is critical rather than merely lax: the *write* type of a property on a
+// union-typed value is the union of the branches' write types, so with a writable
+// discriminant `ack.grade = "attested"` compiled on any ack — no cast, no `any`, no
+// suppression, zero diagnostics — and the very next line of `narrowsThroughTheUnion`
+// then returns `ack.readbackHash` as a plain `string` for a property that is absent at
+// runtime. The escape did not merely fail to block a forgery; it made the compiler
+// issue a false guarantee to whatever compares that hash, at precisely the idiom this
+// file teaches as correct. The two must be read together, which is why they are
+// adjacent and why `narrowsThroughTheUnion` is named here rather than merely implied.
+//
+// These are predicates, not directives, and the form is load-bearing:
+// `Equals<Pick<T, K>, { readonly K: V }>` evaluates `false` when the member is mutable
+// and `true` when it is read-only. Measured: `Pick` preserves the modifier *through*
+// the `ConsentAck` union and does not distribute, so `Pick<Ack, "grade">` is the single
+// object type `{ readonly grade: ConsentGrade }` rather than a union of two branches.
+// Writing the value side as the `ConsentGrade` alias rather than spelling the four
+// members out keeps each guard about the modifier alone — spelled out, it would also go
+// red when a grade is added, which is a different invariant with its own assertions.
+
+declare const mutableAck: ConsentAck<Booking, { id: string }>;
+
+/** The discriminant. Writable, it forges the attested branch and the narrowing above vouches for the forgery. */
+type _ackGradeIsReadonly = Expect<Equals<Pick<ConsentAck<Booking, { id: string }>, "grade">, { readonly grade: ConsentGrade }>>;
+
+/** What the human actually reviewed, captured at review time and replayed verbatim at confirm time. */
+type _ackPayloadIsReadonly = Expect<Equals<Pick<ConsentAck<Booking, { id: string }>, "payload">, { readonly payload: { id: string } }>>;
+
+/** The declaration's own prose promised "structurally frozen at arm time"; this is the half of that promise the type can keep. */
+type _ackSnapshotIsReadonly = Expect<Equals<Pick<ConsentAck<Booking, { id: string }>, "snapshot">, { readonly snapshot: Booking }>>;
+
+/** The turn the ack is bound to. Rewritable, the binding names a different turn than the one that armed. */
+type _ackTurnIdIsReadonly = Expect<Equals<Pick<ConsentAck<Booking, { id: string }>, "userTurnId">, { readonly userTurnId: string }>>;
+
+// The concrete line an app author would actually write, kept beside the predicate above
+// for the same reason `_forged` is kept beside `_challengeNotMintableFromString` —
+// having the literal in the file is worth one redundant assertion. The ack arrives in
+// exactly this shape through `ctx.ack`, handed by reference into handler code the
+// library does not control, so this is an ordinary aliasing bug and not a hypothetical
+// adversary. On one line, so the directive and the reported TS2540 land together.
+// @ts-expect-error - grade must not be writable: a written grade forges the attested branch
+mutableAck.grade = "attested";
+
+/** The receipt's binding to the bytes it describes. Severing it is what makes a receipt describe a payload that was never shown. */
+type _receiptHashIsReadonly = Expect<Equals<Pick<ReadbackReceipt, "hash">, { readonly hash: string }>>;
+
+// `canonical` needs the element type asserted, not just the modifier, and the two are
+// genuinely different mechanisms. A bare `readonly canonical: Uint8Array` stops the
+// reference being rebound and was measured to leave `receipt.canonical[0] = 0`
+// compiling — the bytes rewritten in place under a field whose name promises they are
+// the exact ones that were hashed. This single predicate sees both axes: it goes red
+// when the modifier is stripped *and* when the element type is degraded to a bare
+// `Uint8Array`, which is why plan 01-10 mutates it twice rather than once.
+
+/** WebAuthn made `clientDataJSON` opaque rather than asking intermediaries not to reserialize it; this is the type-level form of that refusal. */
+type _receiptCanonicalIsReadonly = Expect<Equals<Pick<ReadbackReceipt, "canonical">, { readonly canonical: Readonly<Uint8Array> }>>;
 
 // D-07's half of the hinge: both type parameters have to survive the split into
 // two branches, and *both* need an assertion. `Snapshot` erased to `unknown` is
