@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/fullselfbrowsing/concierge/issues"
   },
-  "packageManager": "pnpm@10.33.0",
+  "packageManager": "pnpm@11.17.0",
   "engines": {
     "node": ">=22.12.0"
   },
