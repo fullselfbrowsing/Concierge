@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/fullselfbrowsing/concierge/issues"
   },
-  "packageManager": "pnpm@10.33.0",
+  "packageManager": "pnpm@11.17.0",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -22,6 +22,12 @@
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
-    "typescript": "^5.7.0"
+    "@arethetypeswrong/cli": "0.18.5",
+    "@changesets/cli": "2.31.1",
+    "publint": "0.3.22",
+    "rolldown": "1.2.0",
+    "tsdown": "0.22.14",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
   }
 }
