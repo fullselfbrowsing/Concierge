@@ -12,6 +12,11 @@
 // `crossStage`, which is what proves `AnyActionDefinition` does its job rather than
 // merely compiling in isolation.
 //
+// The final block covers D-03's config half and D-08: the three injected `ConciergeConfig`
+// seams (`presentReadback`, `digest`, `scheduler`) and the two new `Session` members. They
+// live here rather than in a fifth file because the `ConciergeConfig` erasure positive is
+// already here, and one interface asserted from two files drifts.
+//
 // **This file exports nothing, and that is a phase-wide rule, not a style preference.**
 // The imports below already give it module status. `isolatedDeclarations` demands an
 // explicit annotation on anything reaching the declaration surface, and
@@ -54,6 +59,11 @@ import type {
   ConciergeConfig,
   ConsentAck,
   ConsentPolicy,
+  DigestLike,
+  ReadbackReceipt,
+  ReadbackSink,
+  Scheduler,
+  Session,
   StageDefinition,
   StandardSchemaV1,
 } from "../src/types.js";
@@ -256,4 +266,89 @@ const signOut = defineAction({
 const _config: ConciergeConfig = {
   stages: [_stage],
   crossStage: [signOut],
+};
+
+// --------------------------------------------------------------------------
+// D-03 config half / D-08 — the three injected `ConciergeConfig` seams
+// --------------------------------------------------------------------------
+
+// `Equals`, not `Assignable`, and the choice is the whole value of these three lines.
+// `Assignable<ReadbackSink, ConciergeConfig["presentReadback"]>` stays true when the field
+// is widened to `unknown`, to a bare function type, or to a union that swallows the
+// declared type — which is exactly the silent-widening regression worth guarding, since a
+// widened seam accepts an unrelated function and nothing else in the repository notices.
+// Each is pinned against the declared type unioned with `undefined`, because that is what
+// an indexed access on an optional member yields; asserting the bare type instead would
+// fail today and, worse, would keep passing if a seam were later made *required*.
+
+/** The sink's arrival point. `consent.test-d.ts` guards the seam's own shape; this guards the field. */
+type _configPresentReadback = Expect<Equals<ConciergeConfig["presentReadback"], ReadbackSink | undefined>>;
+
+/** The digest is injected because core owns no crypto — there is no `crypto` under `lib: ["ES2022"]`. */
+type _configDigest = Expect<Equals<ConciergeConfig["digest"], DigestLike | undefined>>;
+
+/** The clock is injected for the same structural reason: no `setTimeout` under `lib: ["ES2022"]` either. */
+type _configScheduler = Expect<Equals<ConciergeConfig["scheduler"], Scheduler | undefined>>;
+
+declare const receipt: ReadbackReceipt;
+declare const subtleish: DigestLike;
+
+/**
+ * All three seams populated at once, alongside `stages`.
+ *
+ * This proves two things the predicates above cannot. First, the group is
+ * *constructible together* — three optional members can each pin correctly in isolation
+ * and still conflict at a single object literal.
+ *
+ * Second, and the reason `presentReadback` is written with no parameter annotation: this
+ * is the ergonomic path an app actually writes, and contextual typing of a generic-function
+ * seam at a **field** position is a genuinely different question from contextual typing at
+ * a `const` annotation, which is what `consent.test-d.ts` covers. A defaulted-alias
+ * regression instantiates the payload parameter to `unknown` once at exactly this kind of
+ * position. If this literal stopped compiling the seam would be unusable in practice
+ * regardless of what the predicates say about its shape — so do not "simplify" it by
+ * annotating `rb`, which would supply the answer contextual typing is here to derive.
+ */
+const _configWithSeams: ConciergeConfig = {
+  stages: [_stage],
+  presentReadback: async (rb) => {
+    void rb.payload;
+    return receipt;
+  },
+  digest: subtleish,
+  scheduler: (fn, delayMs) => {
+    void fn;
+    void delayMs;
+    return () => {};
+  },
+};
+
+// --------------------------------------------------------------------------
+// D-08 — the session exposes its current stage and a change subscription
+// --------------------------------------------------------------------------
+
+/** A getter, never a value. A stage read once and stored is stale for the rest of the session. */
+type _sessionStage = Expect<Equals<Session["stage"], () => string | null>>;
+
+/** Subscribe-returns-unsubscriber, the shape `Transport.onToolBatch` established. */
+type _sessionOnStageChange = Expect<Equals<Session["onStageChange"], (cb: (stage: string | null) => void) => () => void>>;
+
+/**
+ * All four members implemented at once, proving the interface is satisfiable rather than
+ * merely describable — an interface can hold two individually-valid members that no single
+ * object can implement together.
+ *
+ * `stage` returns a literal here on purpose: `() => "checkout"` is accepted by
+ * `() => string | null` through return-type covariance, so this fixture would still compile
+ * if `stage` were narrowed, and it is the predicate above — not this literal — that pins the
+ * `| null`. The two are doing different jobs and neither substitutes for the other.
+ */
+const _session: Session = {
+  setContext: () => {},
+  stage: () => "checkout",
+  onStageChange: (cb) => {
+    void cb;
+    return () => {};
+  },
+  stop: () => {},
 };
