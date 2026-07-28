@@ -272,13 +272,37 @@ export interface DeliveryReport {
   readbackHash?: string;
 }
 
-export type ActionHandler<Args, Bridge, AckPayload = unknown> = (ctx: {
+/**
+ * A handler's entire view of the world: validated args, the live bridge, the
+ * invocation metadata, and — for gated actions — the ack that armed.
+ *
+ * **`AckPayload` sits at position 4, not position 3.** It moved when `Snapshot`
+ * was threaded through the declaration chain (D-07), which is a positional change
+ * to an exported type and therefore breaking for anyone who passed a third type
+ * argument positionally. Nothing has published yet, so the cost is zero today; it
+ * is recorded because it will not be zero again.
+ *
+ * **Both parameters must reach `ack`.** `Snapshot` is what
+ * {@link ConsentPolicy.snapshotEquality} compares; `AckPayload` is what the human
+ * actually reviewed. Forwarding only one produces a half-typed ack that still
+ * compiles everywhere and is wrong only where it matters — which is why
+ * `test-d/actions.test-d.ts` asserts `ack`, `args`, and `bridge` directly instead
+ * of trusting the consent assertions to notice. They do not: a `consent?:
+ * ConsentPolicy<Snapshot>` field still infers `Snapshot` correctly on its own
+ * even when the handler has stopped receiving it.
+ */
+export type ActionHandler<
+  Args,
+  Bridge,
+  Snapshot = unknown,
+  AckPayload = unknown,
+> = (ctx: {
   args: Args;
   /** `null` when the owning stage's bridge is not mounted. Always check it. */
   bridge: Bridge | null;
   meta: InvocationMeta;
   /** Present only for actions declaring `consent.requires`. */
-  ack?: ConsentAck<unknown, AckPayload>;
+  ack?: ConsentAck<Snapshot, AckPayload>;
 }) => ActionResult | Promise<ActionResult>;
 
 // ---------------------------------------------------------------------------
@@ -687,6 +711,8 @@ export interface ActionDefinition<
   Name extends string = string,
   Schema extends StandardSchemaV1 = StandardSchemaV1,
   Bridge = unknown,
+  Snapshot = unknown,
+  AckPayload = unknown,
 > {
   name: Name;
   /**
@@ -708,15 +734,94 @@ export interface ActionDefinition<
    */
   jsonSchema?: JsonSchemaObject;
   redact: RedactionPolicy<InferOutput<Schema>>;
-  handler: ActionHandler<InferOutput<Schema>, Bridge>;
+  /**
+   * Both `Snapshot` and `AckPayload` are forwarded, deliberately and together.
+   * Dropping either is invisible to every consent-shaped assertion — see
+   * {@link ActionHandler}.
+   */
+  handler: ActionHandler<InferOutput<Schema>, Bridge, Snapshot, AckPayload>;
   effects?: SideEffects;
-  consent?: ConsentPolicy;
+  /**
+   * This action reads attacker-controllable content — third-party pages, user
+   * submissions, inbound mail, scraped text, anything the app itself did not
+   * author.
+   *
+   * **Why this is the only taint marker on the declaration.** Of the four fields
+   * originally proposed (D-04), three were cut: `maxPerTurn` is runner-level in
+   * every framework checked and belongs beside `commitWindowMs` on
+   * {@link ConciergeConfig}; `impact?:` would be a second, weaker severity dial
+   * next to `consent.minGrade`, which `buildCatalog` already enforces, and the two
+   * could silently disagree; `conflictsWith` has no prior art as declaration
+   * metadata and overlaps stage scoping, `consent.requires`, and serial batch
+   * execution. Reinstating any of them because it is "cheap while we're in here"
+   * is the specific anti-pattern D-04 names. This one survived because two of the
+   * three lethal-trifecta legs are *structurally always on* here: an action runs
+   * inside the app the user is already logged into, and {@link ActionResult.message}
+   * returns to the model by design. Untrusted ingress is the single variable leg,
+   * so it is the only one worth declaring.
+   *
+   * **A sibling of `effects`, not a member of {@link SideEffects}, and the
+   * placement is load-bearing.** `SideEffects` is the MCP tool-hint mirror and its
+   * entire value is 1:1 fidelity. The hint this resembles is `openWorldHint`,
+   * which MCP is actively reconsidering precisely because it conflates ingress
+   * with egress; importing a defective name into a mirror block would corrupt it.
+   * A future `concierge-mcp` can still derive `openWorldHint: true` from this
+   * field — a safe over-approximation, since that hint already defaults to `true`.
+   *
+   * **Phase 1 ships this field and its type test, and nothing else reads it.**
+   * The build-time gate is **SEC-05, in Phase 3**: a predicate in CAT-05's exact
+   * shape, reporting a `readsUntrusted` action that carries no consent policy.
+   * Until that lands, setting this to `true` changes no behaviour. Saying so
+   * plainly is not a caveat but a requirement — an unenforced safety marker
+   * sitting beside a redaction policy that genuinely fails closed is this
+   * project's named failure mode, and a reader who mistakes this for a control
+   * has been misled by us rather than by their own optimism.
+   */
+  readsUntrusted?: boolean;
+  consent?: ConsentPolicy<Snapshot>;
   /**
    * Terminal actions tear down the session. They short-circuit their batch and
    * emit no result envelope, because nothing remains to receive it.
    */
   terminal?: boolean;
 }
+
+/**
+ * The erased collection view: an action of *some* shape, for the two places that
+ * hold many of them at once.
+ *
+ * **The `any` in the `Snapshot` and `AckPayload` positions is deliberate and
+ * load-bearing rather than laziness.** Threading `Snapshot` puts it in two
+ * contravariant positions — `snapshotEquality`'s parameters and the handler's
+ * `ctx.ack` — so `ActionDefinition<…, Booking, …>` is simply *not* assignable to
+ * `ActionDefinition<…, unknown, unknown>` (TS2375, verified). A collection cannot
+ * be typed at `unknown` at all; heterogeneous actions have to be admitted some
+ * other way, and omitting the erasure is not an option — `types.ts` does not
+ * compile without it.
+ *
+ * `never`-erasure also works and was verified. It was rejected because it types
+ * `snapshotEquality` as `(a: never, b: never) => boolean`, so the consent kernel —
+ * the one place that must actually *call* the comparator — needs a cast at the
+ * call site. Forcing a cast into the security-critical path is worse than one
+ * documented `any` in a collection type, and a cast there is far easier to get
+ * quietly wrong. Settled by D-12 item 2.
+ *
+ * What is **not** given up: the concrete `Snapshot` still lives on every
+ * individual declaration, which is where `snapshotEquality` is written and
+ * typechecked. Only the collection is erased, and a declaration that never enters
+ * one keeps full typing throughout.
+ *
+ * The cost surfaces in Phases 4, 6, and 8, where the catalog and the kernel read
+ * this type. **Revisit it in Phase 8 against a real kernel** — that is the first
+ * point at which the alternative's cost is measurable rather than predicted.
+ */
+export type AnyActionDefinition<Bridge = unknown> = ActionDefinition<
+  string,
+  StandardSchemaV1,
+  Bridge,
+  any,
+  any
+>;
 
 // ---------------------------------------------------------------------------
 // Bridges
@@ -766,7 +871,13 @@ export interface StageDefinition<B extends Bridge = Bridge> {
   /** Stable identifier, used in catalog keys and devtools. */
   id: string;
   match: (ctx: StageContext) => boolean;
-  actions: ReadonlyArray<ActionDefinition<string, StandardSchemaV1, B>>;
+  /**
+   * Erased in `Snapshot` and `AckPayload` — see {@link AnyActionDefinition}. A
+   * stage holds actions whose snapshots have nothing to do with each other, and
+   * the erased-to-`unknown` form this used to carry stopped accepting any of them
+   * the moment `Snapshot` became real.
+   */
+  actions: ReadonlyArray<AnyActionDefinition<B>>;
   bridge?: BridgeRegistry<B>;
 }
 
@@ -927,8 +1038,8 @@ export interface ConciergeConfig {
    * stage happened to be named `"2"`.
    */
   stages: ReadonlyArray<StageDefinition>;
-  /** Available in every stage. */
-  crossStage?: ReadonlyArray<ActionDefinition>;
+  /** Available in every stage. Erased like `StageDefinition.actions`. */
+  crossStage?: ReadonlyArray<AnyActionDefinition>;
   /**
    * Detaches snapshots from framework reactivity before storage. Supplied by
    * the framework adapter; defaults to a deep freeze.
