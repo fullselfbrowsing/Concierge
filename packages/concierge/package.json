@@ -48,6 +48,7 @@
     "@standard-schema/spec": "^1.0.0"
   },
   "scripts": {
+    "build": "tsdown",
     "typecheck": "tsc -p tsconfig.test-d.json"
   }
 }
