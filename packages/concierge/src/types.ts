@@ -382,25 +382,103 @@ export interface ConsentPolicy<Snapshot = unknown> {
   onMissing?: Pick<ActionResult, "reason" | "message">;
 }
 
-export interface ConsentAck<Snapshot = unknown, Payload = unknown> {
+/**
+ * The members every {@link ConsentAck} carries, whatever grade it reached.
+ *
+ * **Not exported, on purpose.** It exists so the two branches below can share five
+ * declarations without duplicating them, and a consumer who reached for this name
+ * directly would be routing around the very discrimination the split exists to
+ * create — writing against the common shape is writing against a value whose grade
+ * has not been checked.
+ */
+interface ConsentAckBase<Snapshot, Payload> {
   userTurnId: string;
   responseId: string;
   /** Normalized and structurally frozen at arm time. Never a live reference. */
   snapshot: Snapshot;
   /** Captured at review time and replayed verbatim at confirm time. */
   payload: Payload;
-  /** The grade actually achieved when this ack armed. */
-  grade: ConsentGrade;
   /**
-   * Hash of the exact bytes presented to the human.
+   * A server-issued, client-echoed, opaque token. See {@link ServerChallenge}.
    *
-   * Without this, the ack proves only that *a* readback occurred — not that it
-   * described *this* payload. Required at `attested`, where the app renders the
-   * raw payload itself and can therefore hash what it actually showed. Absent
-   * at lower grades, which is precisely why they are lower.
+   * **Nothing in v0.1 produces one.** The seam is reserved *inbound* so that
+   * nothing this library emits can be mistaken for proof, and the brand on
+   * `ServerChallenge` makes that a compile error rather than a promise — minting
+   * one requires an explicit cast a reviewer can see. Minting authority belongs
+   * somewhere page JavaScript cannot reach: an echoed-but-unstored challenge
+   * provides no replay protection at all (GHSA-gjjc-pcwp-c74m).
+   *
+   * **Omit this property when you do not have one — do not set it to nothing.**
+   * Under `exactOptionalPropertyTypes` an absent key and a present key holding
+   * `undefined` are different types, so spreading the key in with an explicitly
+   * empty value is rejected with TS2375. Build the object without the key.
    */
-  readbackHash?: string;
+  challenge?: ServerChallenge;
 }
+
+/**
+ * The consent artifact: what the app observed, bound to the payload it observed it
+ * about.
+ *
+ * **A union of two branches rather than one flat declaration, deliberately.** The
+ * cost is real and was accepted: consumers lose `extends` and declaration merging on
+ * this name. What it buys is that *`attested` implies `readbackHash`* is a compile
+ * error to violate rather than a doc comment — the strongest grade cannot be
+ * constructed at all without the evidence binding it to a payload. That trade was
+ * taken because an `attested` ack carrying no hash is a gate failing while appearing
+ * to work, and prose has never once stopped one from being built. A future tidy-up
+ * that flattens these two branches back together silently reopens it; the type-test
+ * suite has two independent detectors for exactly that edit.
+ *
+ * Narrowing behaves the way a flat declaration would. Inside `ack.grade ===
+ * "attested"` the hash is a plain `string` needing no fallback; outside it, it may be
+ * absent; and the common members read with no narrowing at all. Both type parameters
+ * survive the split — `Snapshot` reaches `snapshot` and `Payload` reaches `payload`
+ * through either branch.
+ *
+ * **What this is not, stated plainly.** It is a client-side assertion and nothing
+ * more. Serializing an ack and having a server read its `grade` off the wire is the
+ * path of least resistance and is worth nothing — a server cannot verify a grade the
+ * client minted, and treating one as proof is the exact shape of
+ * GHSA-gjjc-pcwp-c74m. Phase 1 cannot fix that; what it does is remove the
+ * affordance one level down, so the strongest shape a client can even build is
+ * internally consistent. Anything stronger needs a server-issued counterpart, which
+ * is what `challenge` reserves the seam for.
+ */
+export type ConsentAck<Snapshot = unknown, Payload = unknown> =
+  | (ConsentAckBase<Snapshot, Payload> & {
+      /** The grade actually achieved when this ack armed. */
+      grade: Exclude<ConsentGrade, "attested">;
+      /**
+       * Optional below the strongest grade — and their not requiring it is
+       * precisely what makes them lower. A readback may well have occurred; what
+       * is missing is any binding between it and this payload. See the attested
+       * branch for where the value comes from.
+       */
+      readbackHash?: string | undefined;
+    })
+  | (ConsentAckBase<Snapshot, Payload> & {
+      /** The grade actually achieved when this ack armed. */
+      grade: "attested";
+      /**
+       * Hash of the exact bytes presented to the human. **Required here, and that
+       * requirement is the whole point of this branch existing separately.**
+       *
+       * Without it the ack proves only that *a* readback occurred — not that it
+       * described *this* payload. At `attested` the app renders the raw payload
+       * itself and can therefore hash what it actually showed, which is the one
+       * route that survives the agent reauthoring the rendition on the way to the
+       * human (OWASP ASI09).
+       *
+       * **Where the value comes from.** {@link ReadbackSink} returns a
+       * {@link ReadbackReceipt}; that receipt's `hash` is carried on
+       * {@link DeliveryReport} and lands here. Take it from the receipt rather
+       * than hashing the payload yourself — the receipt is what fixes the
+       * canonicalization rule, and an app-derived hash reintroduces exactly the
+       * collision the receipt exists to prevent.
+       */
+      readbackHash: string;
+    });
 
 /**
  * Detaches a snapshot from the app's reactivity system before it is stored.
