@@ -221,6 +221,10 @@ export interface InvocationMeta {
    *
    * Supplied by the transport. A transport that cannot derive one is limited
    * to the weaker `bindTo: "response"`.
+   *
+   * Presence is not the whole story: see {@link TurnIdentityProvenance}, which
+   * a transport declares so the kernel can tell an id the agent could have
+   * minted from one it could not.
    */
   userTurnId?: string;
   /** Primary deduplication key. */
@@ -537,18 +541,98 @@ export interface ToolCall {
  */
 export interface ToolBatch {
   responseId: string;
-  /** Absent on transports that cannot derive turn identity. */
+  /**
+   * Absent on transports that cannot derive turn identity. Present does not
+   * mean trustworthy — {@link TurnIdentityProvenance} is what says whether the
+   * agent's own output could have minted it.
+   */
   userTurnId?: string;
   calls: ReadonlyArray<ToolCall>;
   signal?: AbortSignalLike;
-  deferUntilDelivered?: (effect: (deliveredResponseId: string) => void) => void;
+  /**
+   * Defer a side effect until the agent's response has reached the human.
+   *
+   * The transport-side twin of {@link InvocationMeta.deferUntilDelivered}. The
+   * two signatures must stay in agreement — this is the hook a transport author
+   * actually implements, and the one the dispatcher forwards. They are asserted
+   * equal in `test-d/transport.test-d.ts` precisely because nothing else reads
+   * this interface: a regression here is invisible to every consent-shaped test.
+   *
+   * The effect receives a {@link DeliveryReport}, not a bare response id,
+   * because a consumer that cannot see `outcome` cannot refuse a readback that
+   * was cut off partway. Interruption, dismissal, navigation, and disconnect all
+   * leave the human holding part of a payload, and part of a payload is not
+   * consent.
+   *
+   * Absent when the transport cannot promise delivery, in which case consent
+   * never arms and gated actions cannot proceed. That is the intended failure
+   * mode: closed.
+   */
+  deferUntilDelivered?: (effect: (report: DeliveryReport) => void) => void;
 }
+
+/**
+ * Where a transport's turn identity comes from — not merely whether it has one.
+ *
+ * The axis is **forgeability by the agent's own output**, and nothing else. It
+ * is not speech versus text: no member below names a modality, because grades
+ * and provenances in this file are modality-free and must stay so.
+ *
+ * **The failure this exists to make representable.** Where turn boundaries are
+ * derived by a recognizer, the agent's own readback can re-enter through the
+ * same input channel and be transcribed as though the human had produced it —
+ * the agent's own output mints a fresh {@link InvocationMeta.userTurnId}. That
+ * id is exactly what `bindTo: "userTurn"` accepts as proof that a human acted,
+ * so the gate the whole design rests on is satisfied by the agent talking to
+ * itself, with no human involved at any point.
+ *
+ * This is **not** the barge-in case, and turn classification does not catch it.
+ * Barge-in is a human interrupting: their turn carries content like `stop` /
+ * `wait` / `no` and classifies as non-affirmative. An echoed readback carries
+ * the readback's own content — *"confirm the booking for four thousand
+ * dollars"* — which reads as affirmative and passes classification cleanly.
+ *
+ * Phase 1's obligation is representability plus a type test. **The runtime gate
+ * that refuses `bindTo: "userTurn"` on an `"agent-forgeable"` transport is
+ * Phase 8** and must not be assumed present.
+ */
+export type TurnIdentityProvenance =
+  /**
+   * No turn identity at all. `bindTo: "userTurn"` is unavailable; such a
+   * transport is limited to the weaker `bindTo: "response"`.
+   */
+  | "none"
+  /**
+   * Derived from a channel the agent's own output feeds back into. The
+   * motivating case is a recognizer on an acoustic path, where a microphone
+   * hears the agent's own synthesized speech — but the property, not the
+   * medium, is what this member names. The identity is real and ordered; it is
+   * simply not evidence, because the agent can mint one.
+   */
+  | "agent-forgeable"
+  /**
+   * Derived from an explicit human act the agent cannot itself perform — a
+   * button, a click, a keypress. The only provenance under which a
+   * `userTurnId` is evidence rather than merely a value.
+   */
+  | "human-attested";
 
 export interface TransportCapabilities {
   /** What this transport can honestly promise. See {@link ConsentGrade}. */
   consentGrade: ConsentGrade;
-  /** Whether turn identity is derivable — required for `bindTo: "userTurn"`. */
-  userTurnIdentity: boolean;
+  /**
+   * Where turn identity comes from. See {@link TurnIdentityProvenance}.
+   *
+   * This replaced a `boolean`, which could record only *whether* turn identity
+   * was derivable. Presence is the wrong question: a recognizer-derived id and
+   * a keypress-derived id are both present, and only one of them is proof that
+   * a human acted.
+   *
+   * Self-declared, and the kernel has no independent way to verify it. A
+   * transport that overstates this defeats the gate; understating it only costs
+   * capability. Understate when unsure.
+   */
+  userTurnIdentity: TurnIdentityProvenance;
   /** Whether a single response may contain several calls. */
   parallelCalls: boolean;
   /** Whether the catalog can be swapped mid-session on stage change. */
