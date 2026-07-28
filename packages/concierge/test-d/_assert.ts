@@ -17,9 +17,19 @@ export {}; // makes this file's module status unconditional rather than dependen
 
 export type Expect<T extends true> = T;
 
-// Conditional-identity formulation — invariant, not the naive bidirectional-extends form.
-// The naive form silently equates `{ a?: string }` with `{ a: string | undefined }`, a
-// distinction `exactOptionalPropertyTypes` makes load-bearing throughout this phase.
+// Conditional-identity formulation. Do NOT "simplify" this to the naive bidirectional
+// `A extends B ? (B extends A ? true : false) : false` — that form is distributive, so it
+// returns `boolean` rather than a decision whenever an operand is a union or `any`, and
+// `Expect<boolean>` fails just like `Expect<false>`. Measured under this repo's flags:
+//
+//                                              conditional-identity | naive
+//   Equals<string | number, number | string>            true        | boolean  ← wrong
+//   Equals<any, string>                                 false       | boolean  ← wrong
+//   Equals<{ a?: string }, { a: string | undefined }>   false       | false    ← same
+//
+// Note the third row: both forms distinguish the optional-vs-`undefined` pair, because
+// `exactOptionalPropertyTypes` already blocks that assignability. The reason to prefer the
+// conditional-identity form is the first two rows, not that one.
 export type Equals<A, B> =
   (<G>() => G extends A ? 1 : 2) extends <G>() => G extends B ? 1 : 2 ? true : false;
 
