@@ -264,3 +264,11 @@ parallelized despite `parallelization: true` in `.planning/config.json`.
 
 Before 01-02 starts, resolve Finding 1 above: `01-CONTEXT.md` § D-12 item 4 says "thirteen" and
 01-02 is the plan that implements that union.
+
+## Self-Check: PASSED
+
+- `packages/concierge/tsconfig.test-d.json` — FOUND
+- `packages/concierge/test-d/_assert.ts` — FOUND
+- `.planning/phases/01-type-surface-completion/01-01-SUMMARY.md` — FOUND
+- Commits `4200007`, `0c75822`, `c4e1a19`, `bed49e4` — all FOUND in git log
+- Working tree clean; `.planning/STATE.md` and `.planning/ROADMAP.md` absent from the diff against base `cc27b2c`
