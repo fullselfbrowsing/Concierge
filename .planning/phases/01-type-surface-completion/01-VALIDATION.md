@@ -3,7 +3,7 @@ phase: 1
 slug: type-surface-completion
 status: draft
 nyquist_compliant: false
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-07-28
 ---
 
@@ -57,29 +57,37 @@ no cost argument for sampling less than everything, every time.**
 
 ## Per-Task Verification Map
 
-Task IDs are assigned by the planner; this map is requirement-level and must be expanded to
-per-task rows once PLAN.md files exist. All nine mapped items (2 requirement IDs + 7 success
-criteria) are reducible to compiler assertions — **none is manual-only.**
+One row per task across the nine PLAN.md files — **19 tasks**, inventoried with
+`grep -n "<name>Task" .planning/phases/01-type-surface-completion/01-0*-PLAN.md`. All nine mapped
+items (2 requirement IDs + 7 success criteria) are reducible to compiler assertions — **none is
+manual-only.** A task that ships without an automated check is visible here as a missing row rather
+than absorbed into a requirement-level cell.
 
-| Req / SC | Behavior | Threat Ref | Test Type | Automated Command | File Exists |
-|---|---|---|---|---|---|
-| **TRN-01** | Transport definable end to end, no vendor event name; second transport shares no wire vocabulary | V13 | type (structural) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ W0 → `test-d/transport.test-d.ts` |
-| **TRN-05** | `TransportCapabilities` declares turn-identity *provenance*; a boolean no longer satisfies the field | Spoofing / V4 | type (negative + positive) | same | ❌ W0 → `test-d/transport.test-d.ts` |
-| **SC-1** | *Both* delivery hooks carry a `DeliveryReport`; a bare-id hook is rejected | — | type (equality + negative) | same | ❌ W0 → `test-d/transport.test-d.ts` |
-| **SC-2** | Arbitrary `reason` fails; **12** codes exhaustively switchable; `MESSAGE_MAX_CHARS` is a literal | V5, V7 | type (negative + exhaustiveness + equality) | same | ❌ W0 → `test-d/results.test-d.ts` |
-| **SC-3** | Readback sink returning `{hash, alg, canonicalization, canonical}` declarable; seam is a generic *function* | V6 | type (equality + directive on a type argument) | same | ❌ W0 → `test-d/consent.test-d.ts` |
-| **SC-4** | = TRN-01 (`keyof Transport` is exactly four members) | V13 | type (structural) | same | ❌ W0 → `test-d/transport.test-d.ts` |
-| **SC-5** | = TRN-05 | V4 | type | same | ❌ W0 → `test-d/transport.test-d.ts` |
-| **SC-6** | Constructing an `attested` ack without `readbackHash` fails; narrowing on `grade` yields `string` | Tampering / ASI09 | type (predicate + narrowing) | same | ❌ W0 → `test-d/consent.test-d.ts` |
-| **SC-7a** | `snapshotEquality` degraded to `(a: unknown, b: unknown)` is caught | — | type (directive) | same | ❌ W0 → `test-d/actions.test-d.ts` |
-| **SC-7b** | A `requires` that widens the action's own name union is caught | — | type (equality on `Name` and on `requires`) | same | ❌ W0 → `test-d/actions.test-d.ts` |
-| **SC-7c** | A delivery hook dropping the completion reason is caught on *either* interface | — | type | same | ❌ W0 → `test-d/transport.test-d.ts` |
-| **SC-7d** | An arbitrary `reason` string is rejected | V5 | type | same | ❌ W0 → `test-d/results.test-d.ts` |
-| **SC-7e** | The readback sink form is pinned — **the naive assertion does not work, see Escapee 1** | — | type | same | ❌ W0 → `test-d/consent.test-d.ts` |
-| **SC-7f** | An `attested` ack with no hash is rejected | Tampering | type (predicate) | same | ❌ W0 → `test-d/consent.test-d.ts` |
-| **SC-7g** | `readsUntrusted` is on the declaration and absent from `SideEffects` | Elevation | type (equality + directive) | same | ❌ W0 → `test-d/actions.test-d.ts` |
-| *mechanics* | `ActionDefinition.handler` forwards `Snapshot` **and** `AckPayload` to `ctx.ack` — **Escapee 3** | — | type | same | ❌ W0 → `test-d/actions.test-d.ts` |
-| *mechanics* | Heterogeneous actions still assemble into `StageDefinition.actions` and `ConciergeConfig.crossStage` | — | type (positive) | same | ❌ W0 → `test-d/actions.test-d.ts` |
+Task IDs use the literal form `01-{plan}-T{n}`; the phase gate counts rows by matching `^| 01-0`.
+Where a task's own `<verify><automated>` block specifies more than the bare typecheck, that command
+is copied verbatim — with `|` written `\|` so it does not terminate the table cell.
+
+| Task | Req / SC | Behavior | Threat Ref | Test Type | Automated Command | File Exists |
+|---|---|---|---|---|---|---|
+| 01-01-T1 | SC-7 (harness) | Typecheck program covers `src` + `test-d`; an assertion under `test-d/` is checked by one command; build config untouched | T-01-02 | infrastructure | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ✅ `tsconfig.test-d.json`, `test-d/_assert.ts` |
+| 01-01-T2 | SC-7 (harness) | The harness goes red when it should: missing `rootDir` → TS6059; a false predicate → TS2344 naming the alias; `Equals` shown invariant | T-01-02 | falsification | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ✅ same two files |
+| 01-01-T3 | — | Validation strategy names real task IDs, agrees with the corrected 12-code count, and records Wave 0 closed | T-01-33 | bookkeeping (grep) | Four checks — `wave_0_complete: true` present, `## Open Questions (RESOLVED)` present in `01-RESEARCH.md`, `grep -c '^\| 01-0'` ≥ 19, and the reason-code miscount absent — then `echo VALIDATION_MAP_OK`. **Command lives in `01-01-PLAN.md` § Task 3 `<verify>` and is deliberately not inlined here:** its last clause greps for a literal that must not appear in this file, so quoting it verbatim would make the gate fail against itself. | ✅ this file |
+| 01-02-T1 | SC-2 | `reason` closed to a **12**-code union (3 `AbandonReason` + 9 `FailureReason`); message policy declared (D-01, D-02) | V5, V7 | type (source edit) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ → `src/types.ts` |
+| 01-02-T2 | SC-2, SC-7d | Arbitrary `reason` fails; **12** codes exhaustively switchable; `MESSAGE_MAX_CHARS` is a literal; an arbitrary `reason` string is rejected | V5, V7 | type (negative + exhaustiveness + equality) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ W0 → `test-d/results.test-d.ts` |
+| 01-03-T1 | SC-1, TRN-05/SC-5 | Transport-side delivery hook corrected to carry a `DeliveryReport`; the turn-identity boolean replaced by *provenance* (D-00a, D-10) | Spoofing / V4 | type (source edit) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ → `src/types.ts` |
+| 01-03-T2 | TRN-01/SC-4, TRN-05/SC-5, SC-1, SC-7c | Transport definable end to end with no vendor event name and `keyof Transport` exactly four members; a boolean no longer satisfies turn identity; *both* hooks carry a `DeliveryReport` and a bare-id hook is rejected; a hook dropping the completion reason is caught on *either* interface — **Escapee 2** | V13, V4 | type (structural + equality + negative) | `pnpm --filter @fullselfbrowsing/concierge typecheck && test -z "$(grep -rniE 'response\.done\|conversation\.item\|session\.update' packages/concierge/src packages/concierge/test-d)" && echo NO_VENDOR_VOCABULARY` | ❌ W0 → `test-d/transport.test-d.ts` |
+| 01-04-T1 | SC-3 | Readback seam declared as a generic *function*; injected digest (`DigestLike`, method syntax — deliberate opposite of `snapshotEquality`); server-challenge brand (D-03, D-05 first half) | V6 | type (source edit) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ → `src/types.ts` |
+| 01-04-T2 | SC-3, SC-7e | Readback sink returning `{hash, alg, canonicalization, canonical}` is declarable; the seam **rejects a type argument** (`ReadbackSink<Booking>` → TS2315) — **Escapee 1**, the naive assignability assertion proves nothing | V6 | type (equality + directive on a type argument) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ W0 → `test-d/consent.test-d.ts` |
+| 01-05-T1 | SC-6 | `ConsentAck` rewritten **once** — `challenge?` + `attested` union, interface → type alias, generics preserved (D-03 + D-05 + D-07) | Tampering / ASI09 | type (source edit) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ → `src/types.ts` |
+| 01-05-T2 | SC-6, SC-7f | Constructing an `attested` ack without `readbackHash` fails; an `attested` ack with no hash is rejected; narrowing on `grade` yields `string` | Tampering / ASI09 | type (predicate + narrowing) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ W0 → `test-d/consent.test-d.ts` (part 2) |
+| 01-06-T1 | SC-7a, SC-7b, SC-7g, *mechanics* | `Snapshot` and `AckPayload` threaded through `handler` to `ctx.ack`; `readsUntrusted` added to the declaration and kept **out** of `SideEffects`; `any`-erasure lands; `snapshotEquality` stays function-property syntax | Elevation | type (source edit) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ → `src/types.ts` |
+| 01-06-T2 | SC-7a, SC-7b, SC-7g, *mechanics* | `snapshotEquality` degraded to `(a: unknown, b: unknown)` is caught; a `requires` that widens the action's own name union is caught; `readsUntrusted` absent from `SideEffects`; `handler` forwards `Snapshot` **and** `AckPayload` to `ctx.ack` — **Escapee 3**; TS9010 demonstrated on `const confirm = defineAction({…})`, then removed | Elevation | type (equality + directive + predicate) | `pnpm --filter @fullselfbrowsing/concierge typecheck && test -z "$(grep -l '^[[:space:]]*export' packages/concierge/test-d/*.test-d.ts)" && echo NO_EXPORTS_IN_TEST_D` | ❌ W0 → `test-d/actions.test-d.ts` |
+| 01-07-T1 | *mechanics* | `ConciergeConfig` seams, the `Scheduler` type, and the `Session` stage members declared (D-03 config half, D-08) | — | type (source edit) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ → `src/types.ts` |
+| 01-07-T2 | *mechanics* | Heterogeneous actions still assemble into `StageDefinition.actions` and `ConciergeConfig.crossStage` | — | type (positive) | `pnpm --filter @fullselfbrowsing/concierge typecheck && test -z "$(grep -l '^[[:space:]]*export' packages/concierge/test-d/*.test-d.ts)" && echo NO_EXPORTS_IN_TEST_D` | ❌ W0 → `test-d/actions.test-d.ts` (appended) |
+| 01-08-T1 | — | The export surface in `index.ts` is complete — every declared public type is re-exported | — | type (source edit) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ → `src/index.ts` |
+| 01-08-T2 | SC-2 | `README.md`'s `ActionResult` block matches the shipped closed union — `reason?: ReasonCode`, zero occurrences of `reason?: string` | — | doc consistency (grep) | `grep -n "reason?: ReasonCode" README.md && grep -c "reason?: string" README.md \| grep -qx 0 && echo README_CONSISTENT` | ✅ `README.md` |
+| 01-09-T1 | *all* | Ten-mutant battery against the final type surface: **every** mutant produces a non-zero exit, and `types.ts` is restored byte-identical after each | *all* | mutation (falsification) | `git diff --exit-code packages/concierge/src/types.ts && pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ → all `test-d/*.test-d.ts` |
+| 01-09-T2 | *all* | Root typecheck green; a real build emits no `*.test-d.*` or `_assert` artifact into `dist`; validation strategy signed off | T-01-01 | phase gate | `pnpm typecheck && pnpm --filter @fullselfbrowsing/concierge exec tsc -p tsconfig.json && ls -R packages/concierge/dist \| grep -c "test-d\|_assert" \| grep -qx 0 && rm -rf packages/concierge/dist && grep -q "^nyquist_compliant: true" .planning/phases/01-type-surface-completion/01-VALIDATION.md && grep -q "^status: complete" .planning/phases/01-type-surface-completion/01-VALIDATION.md && echo GATE_PASS` | ✅ this file |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
