@@ -302,13 +302,13 @@ export interface DeliveryReport {
  */
 export type ActionHandler<
   Args,
-  Bridge,
+  B,
   Snapshot = unknown,
   AckPayload = unknown,
 > = (ctx: {
   args: Args;
   /** `null` when the owning stage's bridge is not mounted. Always check it. */
-  bridge: Bridge | null;
+  bridge: B | null;
   meta: InvocationMeta;
   /** Present only for actions declaring `consent.requires`. */
   ack?: ConsentAck<Snapshot, AckPayload>;
@@ -759,10 +759,34 @@ export type RedactionPolicy<Args> =
 // Actions
 // ---------------------------------------------------------------------------
 
+/**
+ * One declared verb: its name, its schema, its redaction policy, its handler,
+ * and — for consequential actions — the consent policy that gates it.
+ *
+ * **Naming convention, and it is load-bearing rather than cosmetic: `B` is a
+ * type parameter standing for *some* bridge; `Bridge` is the exported interface.
+ * A type parameter must never be named after the interface it would shadow.**
+ * This declaration, {@link ActionHandler}, and {@link AnyActionDefinition} all
+ * bound a parameter literally named `Bridge`, which shadowed
+ * {@link Bridge} inside their own bodies while {@link BridgeRegistry} and
+ * {@link StageDefinition} used `B` and meant the real interface — two spellings
+ * for two different things in one file. That collision is very likely how CR-02
+ * survived a whole phase: a reader scanning the unconstrained `B = unknown`
+ * below sees a parameter that accepts anything and never connects it to the
+ * `B extends Bridge` constraint hundreds of lines away, which was the broken
+ * one. Thread a new type through this file and keep the convention.
+ *
+ * **`B` here is deliberately unconstrained and deliberately defaults to
+ * `unknown`, and that is not an oversight left over from the rename.** An action
+ * may be handed a plain object, `null`, or a real {@link Bridge}; constraining
+ * this position to `B extends Bridge` would be a behavioural change wearing a
+ * rename's clothes. The constrained spelling lives on {@link BridgeRegistry} and
+ * {@link StageDefinition}, which is where a bridge is actually registered.
+ */
 export interface ActionDefinition<
   Name extends string = string,
   Schema extends StandardSchemaV1 = StandardSchemaV1,
-  Bridge = unknown,
+  B = unknown,
   Snapshot = unknown,
   AckPayload = unknown,
 > {
@@ -791,7 +815,7 @@ export interface ActionDefinition<
    * Dropping either is invisible to every consent-shaped assertion — see
    * {@link ActionHandler}.
    */
-  handler: ActionHandler<InferOutput<Schema>, Bridge, Snapshot, AckPayload>;
+  handler: ActionHandler<InferOutput<Schema>, B, Snapshot, AckPayload>;
   effects?: SideEffects;
   /**
    * This action reads attacker-controllable content — third-party pages, user
@@ -868,10 +892,10 @@ export interface ActionDefinition<
  * this type. **Revisit it in Phase 8 against a real kernel** — that is the first
  * point at which the alternative's cost is measurable rather than predicted.
  */
-export type AnyActionDefinition<Bridge = unknown> = ActionDefinition<
+export type AnyActionDefinition<B = unknown> = ActionDefinition<
   string,
   StandardSchemaV1,
-  Bridge,
+  B,
   any,
   any
 >;
