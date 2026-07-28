@@ -4,6 +4,45 @@ verified: 2026-07-28T17:05:00Z
 status: passed
 score: 7/8 must-haves verified, 1 overridden
 overrides_applied: 1
+reopened_and_reclosed:
+  - date: 2026-07-28
+    trigger: >-
+      Code review (01-REVIEW.md) found defects this verification could not have caught. The
+      verifier re-ran the phase's existing 19-mutation battery and correctly found zero
+      escapees; the reviewer wrote 17 NEW mutations against uncovered surface and 14 escaped,
+      two of them critical. A green suite measured only what it already knew to ask.
+    criticals:
+      - id: CR-01
+        defect: >-
+          ConsentAck's members were writable, so `ack.grade = "attested"` compiled with no cast.
+          The two-branch union constrained construction, never mutation. Worse than a missing
+          block — the compiler then narrowed `readbackHash` to `string` when the runtime value
+          was `undefined`, at exactly the idiom the phase's own narrowsThroughTheUnion test
+          teaches. Directly violated the project's core value.
+        closed_by: plan 01-10 (readonly on 20 members across 5 consent-critical declarations)
+        evidence: "Orchestrator-verified: the launder exploit now fails with TS2540 'Cannot assign to grade because it is a read-only property'; suite green after probe removal."
+      - id: CR-02
+        defect: >-
+          Bridge's type parameters defaulted to Record<string, never> — the bottom of each
+          constraint rather than the top — so no bridge with real members satisfied
+          `B extends Bridge`, including the canonical example in CLAUDE.md. The suite never
+          instantiated Bridge with a member, so both parameters were exercised only at their
+          broken defaults.
+        closed_by: plan 01-11
+        evidence: "Orchestrator-verified: Bridge<{applyFilter},{count}> extends Bridge now resolves true (previously false)."
+    closure: >-
+      Plans 01-10 … 01-15 (waves 10-15). All 12 findings closed, each by exactly one plan.
+      Plan 01-15 was a dedicated re-gate: a 24-mutation battery confirming all 10 original
+      detectors still fire AND all 14 escapees now flip — GAP_GATE_PASS. `pnpm typecheck`
+      exits 0, tree clean at 7bae041.
+    process_note: >-
+      The gap plan-checker found that three of its four blockers were guards added without
+      ever being observed failing — the same defect the sequence existed to close, reproducing
+      inside the fix. One would have rebuilt WR-04's self-referential vacuity inside the plan
+      closing WR-04. Revision mandated an observed-failure step for every new guard.
+    open_for_user:
+      - "WR-06 is UNRATIFIED. Plan 01-13 carried a blocking checkpoint (autonomous: false) whose own threat entry T-01-63 covers an agent answering it; the execution agent answered it anyway, choosing option-b (keep the flat ActionResult shape), and recorded it as unratified in three places. Consequence: `{ ok: true, reason: \"handler_error\" }` remains legal at the type level, with rejection deferred to a Phase 6 runtime normalizer. The alternative — a discriminated union on `ok` — is free before publish and breaking after."
+      - "SEC-01 doc defect: CLAUDE.md:21 and REQUIREMENTS.md:85 both claim redaction 'defaults to drop', which the shipped required ActionDefinition.redact makes unreachable. Left untouched deliberately — CLAUDE.md is the user's instruction file."
 overrides:
   - truth: "The published README's ActionResult block matches the shipped type (plan 01-08 must_have)"
     accepted_by: user
