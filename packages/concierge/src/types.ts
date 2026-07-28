@@ -63,9 +63,36 @@ export interface AbortSignalLike {
  */
 export interface ActionResult {
   ok: boolean;
-  /** Stable machine-readable failure code. */
-  reason?: string;
-  /** One sentence, safe to show or speak. Never a stack trace. */
+  /**
+   * Stable machine-readable failure code. Closed on purpose — see
+   * {@link ReasonCode}. An open `string` would let a handler place arbitrary
+   * text into a field the agent reads and reasons over, and would destroy the
+   * exhaustiveness every dispatcher and consent mapper depends on.
+   *
+   * The explicit `| undefined` is load-bearing under this repo's
+   * `exactOptionalPropertyTypes`, not decoration. A bare `reason?: ReasonCode`
+   * rejects an explicit `reason: undefined` *and* the natural
+   * `{ reason: computeReason(), … }` idiom whenever the computed value is
+   * `ReasonCode | undefined` — which is every real mapper. Do not remove it.
+   */
+  reason?: ReasonCode | undefined;
+  /**
+   * One sentence, safe to show or speak. Never a stack trace.
+   *
+   * Policy: `message` is a best-effort human-facing sentence and is **never a
+   * consent artifact**. Nothing may be gated on it having been read. The
+   * {@link ConsentGrade} ladder exists precisely because a conversational
+   * agent reauthors this text before a human ever sees it, and `attested`
+   * routes around it entirely by hashing app-rendered bytes.
+   *
+   * Bound: at most {@link MESSAGE_MAX_CHARS} characters. The type system
+   * cannot express a length constraint, which is why the bound is a constant
+   * rather than a branded type — branding `string` would reject
+   * `` `Filtered to ${x}.` ``, the single most-written line in the library.
+   * Enforcement is therefore a runtime obligation: Phase 6 (SEC-06) truncates
+   * to the bound and strips C0/C1 control characters at the dispatcher
+   * boundary. The constant is the shared contract between the two phases.
+   */
   message: string;
 }
 
@@ -85,6 +112,73 @@ export type AbandonReason =
   /** A newer turn superseded this call before it ran. */
   | "superseded";
 
+/**
+ * Why an action did not run, when the cause was the machine rather than the
+ * human. Nine codes — with {@link AbandonReason}'s three, that is the twelve
+ * {@link ReasonCode} admits.
+ *
+ * Adding a member here is a breaking change *by design*, and the breakage is
+ * the feature. Phase 6 will add codes; every exhaustive mapper stops compiling
+ * until it handles the new one. The alternative is a silent `default:` arm
+ * reporting a new failure mode as an old one — a repudiation risk, and exactly
+ * what a closed union exists to remove. Do not add a `default` that swallows.
+ *
+ * `batch_aborted` deliberately collapses into `aborted`: the agent has nothing
+ * usefully different to say about "your call was killed" versus "the batch was
+ * killed". Split it only if Phase 6 finds it needs the distinction.
+ *
+ * `grade_unavailable` is a *runtime* code, for capability degradation after a
+ * reconnect. A build-time grade mismatch never reaches this field — CAT-04
+ * throws from `buildCatalog` instead.
+ */
+export type FailureReason =
+  /** Arguments failed the action's schema. */
+  | "invalid_args"
+  /**
+   * The handler returned something that is not a valid {@link ActionResult}.
+   * The return type enforces the shape at compile time, but the dispatcher
+   * receives whatever actually arrives — a JavaScript consumer, a handler that
+   * falls off the end returning `undefined`, a promise resolving to a string.
+   * Phase 6 (DSP-09) owns the runtime half.
+   */
+  | "invalid_result"
+  /** No action by that name is registered in the current stage. */
+  | "unknown_action"
+  /** The action needs a bridge that no mounted component has registered. */
+  | "no_bridge"
+  /**
+   * The handler threw. The thrown message never reaches the model or
+   * telemetry: it echoes user input and would become a covert PII channel, so
+   * this code plus a generic sentence is the entire externally-visible surface
+   * of a crash.
+   */
+  | "handler_error"
+  /** The call was aborted before or during execution. */
+  | "aborted"
+  /** A consent gate applies and no ack has armed for this payload. */
+  | "consent_required"
+  /** An ack existed but no longer covers this payload — the snapshot drifted. */
+  | "consent_stale"
+  /**
+   * The transport cannot currently meet the action's `minGrade`. Runtime only,
+   * for degradation after reconnect.
+   */
+  | "grade_unavailable";
+
+/**
+ * Every code {@link ActionResult.reason} admits: **twelve** — three
+ * human-caused ({@link AbandonReason}) and nine machine-caused
+ * ({@link FailureReason}).
+ *
+ * Deliberately a pure closed union. A `` `app.${string}` `` escape hatch was
+ * rejected because a template member never narrows away, so no `switch` would
+ * ever fail to compile when a core code lands — it would silently destroy the
+ * exhaustiveness this type exists to provide. Making `ActionResult` generic
+ * over its reason type was rejected as verifiably dead: the specialization is
+ * not assignable to `Transport.respond`.
+ */
+export type ReasonCode = AbandonReason | FailureReason;
+
 export const USER_CANCELLED: Readonly<ActionResult> = Object.freeze({
   ok: false,
   reason: "cancelled",
@@ -96,6 +190,20 @@ export const USER_DECLINED: Readonly<ActionResult> = Object.freeze({
   reason: "declined",
   message: "Okay, I won't do that.",
 });
+
+/**
+ * Maximum length of an {@link ActionResult.message}, in characters.
+ *
+ * Deliberately unannotated: under `isolatedDeclarations` the literal type
+ * `180` survives into the emitted `.d.ts`, so a consumer — and this package's
+ * own type tests — can guard against a silent widening to `number` or a
+ * changed bound. Annotating it `: number` would discard exactly that signal.
+ *
+ * A constant, not a branded type, because a length constraint is not
+ * expressible in the type system. Phase 6 (SEC-06) enforces it at the
+ * dispatcher boundary.
+ */
+export const MESSAGE_MAX_CHARS = 180;
 
 // ---------------------------------------------------------------------------
 // Invocation
