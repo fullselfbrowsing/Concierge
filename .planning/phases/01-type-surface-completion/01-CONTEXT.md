@@ -134,7 +134,7 @@ documented-but-untrusted `message` is where the ecosystem is converging.
 
 **Amended 2026-07-27 — a documented policy is necessary but not sufficient; core must also ship a
 sanitizer.** The second prior implementation caps messages at 180 characters and runs every one
-through a normalizer that strips C0/C1 control characters (`[ -]`), collapses
+through a normalizer that strips C0/C1 control characters (the ranges U+0000-U+001F and U+007F), collapses
 whitespace, and truncates with an ellipsis. `PITFALLS.md:187` independently recommends the same
 thing — "strip control chars and newlines, cap length" — and this decision originally missed it.
 
@@ -454,10 +454,13 @@ re-open them:
 3. **Replace `TransportCapabilities.userTurnIdentity: boolean`, or supplement it?** → **Replace.**
    The type test only works under replacement, and nothing is published, so the breaking change is
    free right now — which is the entire reason TRN-05 was pulled into this phase.
-4. **Freeze `FailureReason` membership now, or mark it provisional?** → **Ship the thirteen**, with a
-   doc note stating that Phase 6 additions will *intentionally* break exhaustive mappers. That
-   breakage is the feature (D-01): it forces every mapper to be updated rather than silently
-   defaulting.
+4. **Freeze `FailureReason` membership now, or mark it provisional?** → **Ship the twelve** — 3
+   `AbandonReason` + 9 `FailureReason`, exactly as D-01's table lists — with a doc note stating that
+   Phase 6 additions will *intentionally* break exhaustive mappers. That breakage is the feature
+   (D-01): it forces every mapper to be updated rather than silently defaulting.
+   *(Count corrected 2026-07-28. This read "the thirteen" and was the last surviving instance of the
+   miscount described in D-01's callout — caught by the 01-01 executor, because this item is what
+   Plan 01-02 treats as settled law for the reason union. **Twelve.**)*
 5. **`packages/concierge/package.json` needs one script line.** → **Land it early in the phase.**
    Note this is the phase's only expected file overlap with Phase 2, so the roadmap's "Phases 1 and
    2 touch disjoint files" claim is *almost* true rather than exactly true. One line in one file;
