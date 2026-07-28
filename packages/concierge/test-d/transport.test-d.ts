@@ -21,11 +21,13 @@
 
 import type { Assignable, Equals, Expect, Not } from "./_assert.js";
 import type {
+  ConsentGrade,
   DeliveryReport,
   InvocationMeta,
   ToolBatch,
   Transport,
   TransportCapabilities,
+  TurnIdentityProvenance,
 } from "../src/types.js";
 
 // --------------------------------------------------------------------------
@@ -84,6 +86,39 @@ const _humanAttestedCaps: TransportCapabilities = {
   parallelCalls: false,
   dynamicCatalog: true,
 };
+
+// --------------------------------------------------------------------------
+// WR-01 — a declared capability is a declaration, not a starting position
+// --------------------------------------------------------------------------
+
+// Everything above this block tests *construction*: what a transport author may write
+// down, and what the field refuses to accept. None of it looked at assignment, and all
+// four members below were writable — so every guarantee the assertions above establish
+// was defeatable one line later, through a reference the kernel hands out itself.
+//
+// `Transport.capabilities` carries a `readonly` and always did. That modifier stops the
+// *reference* being rebound and says nothing about the members it points at, so while
+// these were mutable it read as protection while `t.capabilities.consentGrade =
+// "attested"` compiled cleanly — worse than no modifier, because a reader stopped
+// looking. The two levels must stay in step, and these guards are what keeps them so.
+//
+// Predicates, not directives: `Equals<Pick<T, K>, { readonly K: V }>` is `false` when
+// the member is mutable and `true` when it is read-only, and it names the invariant on
+// the line `tsc` echoes. The value side is written as the declared alias rather than
+// spelled out, which keeps each guard about the modifier alone — `_provenanceNotBoolean`
+// above already owns the question of what values are legal.
+
+/** "Anything but `completed` means consent must not arm" is unenforceable while the field can be relabelled: a truncated readback becomes a complete one by assignment. */
+type _deliveryOutcomeIsReadonly = Expect<Equals<Pick<DeliveryReport, "outcome">, { readonly outcome: "completed" | "interrupted" }>>;
+
+/** The only route to an `attested` grade. Writable, the hash the ack inherits can be swapped for one describing a payload the human never saw. */
+type _deliveryReadbackHashIsReadonly = Expect<Equals<Pick<DeliveryReport, "readbackHash">, { readonly readbackHash?: string }>>;
+
+/** `TurnIdentityProvenance` exists so the kernel can tell an id the agent could have minted from one it could not; a value upgradable in place from `agent-forgeable` to `human-attested` after declaration carries none of that distinction, and converts a value the kernel is told not to trust into one it is told to trust. */
+type _capsProvenanceIsReadonly = Expect<Equals<Pick<TransportCapabilities, "userTurnIdentity">, { readonly userTurnIdentity: TurnIdentityProvenance }>>;
+
+/** Self-declared and unverifiable by the kernel, so a grade raised after declaration is a capability nothing ever checked — understating costs capability, overstating defeats the gate. */
+type _capsGradeIsReadonly = Expect<Equals<Pick<TransportCapabilities, "consentGrade">, { readonly consentGrade: ConsentGrade }>>;
 
 // --------------------------------------------------------------------------
 // SC-4 / TRN-01 — two transports sharing no wire vocabulary, one interface
