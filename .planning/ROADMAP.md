@@ -51,7 +51,7 @@ Plans:
 - [x] 01-04-PLAN.md — `Readback` / `ReadbackReceipt` / `ReadbackSink` / `DigestLike` / `ServerChallenge` + `consent.test-d.ts` part 1 (D-03, D-05 first half)
 - [x] 01-05-PLAN.md — THE HINGE: `ConsentAck` interface → discriminated union, `challenge?`, preserved generics, in one edit (D-03 + D-05 + D-07)
 - [x] 01-06-PLAN.md — Thread `Snapshot`/`AckPayload`, add `readsUntrusted`, land `AnyActionDefinition` erasure — atomic — + `actions.test-d.ts` (D-07, D-04)
-- [ ] 01-07-PLAN.md — `ConciergeConfig` seams (`presentReadback`, `digest`, `scheduler`) and `Session.stage`/`onStageChange` (D-03, D-08)
+- [x] 01-07-PLAN.md — `ConciergeConfig` seams (`presentReadback`, `digest`, `scheduler`) and `Session.stage`/`onStageChange` (D-03, D-08)
 - [ ] 01-08-PLAN.md — `index.ts` export surface (10 types + `MESSAGE_MAX_CHARS`) and the `README.md:72` correction
 - [ ] 01-09-PLAN.md — Phase gate: the ten-mutant battery, root typecheck, dist hygiene, README agreement, and the validation sign-off
 **Research**: ✅ **Done in two passes.** (1) 2026-07-27, during discussion — four gray areas researched in parallel, findings verified against this repo's exact `tsconfig.base.json` flags. (2) 2026-07-28, `01-RESEARCH.md` — a full phase research pass that built a working 319-line prototype and ran a ten-mutant battery against a first-draft type-test suite. **That second pass was nearly skipped and would have been a mistake:** three of ten mutants escaped, and it falsified two claims the discussion had recorded as settled — the readback-sink variance justification, and `@ts-expect-error` as the assertion mechanism. Both are corrected in `01-CONTEXT.md` with callouts. The lesson generalizes: verified-by-reasoning is not verified-by-mutation.
@@ -217,7 +217,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Type surface completion | 6/9 | In Progress|  |
+| 1. Type surface completion | 7/9 | In Progress|  |
 | 2. Packaging, build, and release | 0/TBD | Not started | - |
 | 3. Action declaration and build-time validation | 0/TBD | Not started | - |
 | 4. Stages, catalog assembly, and explain() | 0/TBD | Not started | - |
