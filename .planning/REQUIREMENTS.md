@@ -67,11 +67,11 @@
 
 ### Transport
 
-- [ ] **TRN-01**: A transport is defined entirely by an interface with no vendor event names in core
+- [x] **TRN-01**: A transport is defined entirely by an interface with no vendor event names in core
 - [ ] **TRN-02**: A stub transport with configurable capabilities exercises the full consent kernel without any network or WebRTC
 - [ ] **TRN-03**: A transport that cannot derive turn identity is prevented from being used with `bindTo: "userTurn"`
 - [ ] **TRN-04**: Concierge is usable with no transport at all, driven directly from an application's own agent loop
-- [ ] **TRN-05**: A transport declares the *provenance* of its turn identity, not merely whether it has one, and a transport whose turn identity can be minted by the agent's own output cannot satisfy the strongest user-turn binding
+- [x] **TRN-05**: A transport declares the *provenance* of its turn identity, not merely whether it has one, and a transport whose turn identity can be minted by the agent's own output cannot satisfy the strongest user-turn binding
 
 ### Adapters
 
@@ -193,11 +193,11 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | SES-02 | Phase 7 — Session and the transport seam | Pending |
 | SES-03 | Phase 7 — Session and the transport seam | Pending |
 | SES-04 | Phase 7 — Session and the transport seam | Pending |
-| TRN-01 | Phase 1 — Type surface completion | Pending |
+| TRN-01 | Phase 1 — Type surface completion | Complete |
 | TRN-02 | Phase 7 — Session and the transport seam | Pending |
 | TRN-03 | Phase 8 — Consent kernel | Pending |
 | TRN-04 | Phase 6 — Dispatcher | Pending |
-| TRN-05 | Phase 1 — Type surface completion | Pending |
+| TRN-05 | Phase 1 — Type surface completion | Complete |
 | ADP-01 | Phase 9 — React and Svelte adapters | Pending |
 | ADP-02 | Phase 9 — React and Svelte adapters | Pending |
 | ADP-03 | Phase 9 — React and Svelte adapters | Pending |

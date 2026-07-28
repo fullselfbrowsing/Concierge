@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Phase 1 context gathered; milestone correction pass applied (57->62 requirements)
-last_updated: "2026-07-28T06:24:12.560Z"
-last_activity: 2026-07-28 -- Phase 1 execution started
+stopped_at: Phase 1 complete and verified (status passed, 1 override accepted); Phase 2 not started
+last_updated: "2026-07-28T17:20:00.000Z"
+last_activity: 2026-07-28 -- Phase 1 complete: all 9 plans executed and verified
 progress:
   total_phases: 9
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 9
-  completed_plans: 0
-  percent: 0
+  completed_plans: 9
+  percent: 11
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-27)
 
 **Core value:** An agent can take a consequential action in a real app — and it is structurally guaranteed that a human, not the agent, confirmed this specific payload, or the action does not run.
-**Current focus:** Phase 1 — Type surface completion
+**Current focus:** Phase 2 — Packaging, build, and release
 
 ## Current Position
 
-Phase: 1 (Type surface completion) — EXECUTING
-Plan: 1 of 9
-Status: Executing Phase 1
-Last activity: 2026-07-28 -- Phase 1 execution started
+Phase: 1 (Type surface completion) — COMPLETE ✓
+Plan: 9 of 9
+Status: Phase 1 verified (`passed`, 7/8 must-haves + 1 accepted override). Phase 2 not started.
+Last activity: 2026-07-28 -- Phase 1 complete: all 9 plans executed and verified
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 11%
 
 ## Performance Metrics
 
@@ -94,7 +94,11 @@ Two PROJECT.md Key Decisions rows are now stale and should be corrected at the n
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| *(none)* | | | |
+| Test coverage | M9 second, *named* detector for `snapshotEquality` method-syntax regression — its only current symptom is a lone TS2578 unused-directive, the failure mode a reviewer silently deletes. Verifier confirmed non-blocking: SC-7a as roadmap-worded is caught by 3× TS2322. | Deferred → Phase 2 | Phase 1 / plan 01-09 |
+| Test coverage | `MESSAGE_MAX_CHARS` export-placement guard. `verbatimModuleSyntax` is one-directional: a value in the type block escapes at exit 0 while erasing the runtime binding. **The guard must import from `../src/index.js`** — `results.test-d.ts`'s existing `_messageBound` imports from `../src/types.js` and cannot see this regression. Current state verified correct today. | Deferred → Phase 2 | Phase 1 / plan 01-09 |
+| Test coverage | `Scheduler`'s own shape is pinned by nothing — the three `ConciergeConfig` assertions pin field-to-alias, not alias shape. Deliberately not pinned: RESEARCH A3 marks the signature MEDIUM-risk and expects Phase 6 to refine it, so a pin would fire on a sanctioned edit. | Deferred → Phase 6 | Phase 1 / plan 01-07 |
+| Docs | README documents no type contract at all after the rewrite (commit `bc9ca88`). Threat T-01-26 is closed, but validation row 01-08-T2 now passes **vacuously**. Doc-coverage gap, not a correctness gap. | Accepted (override) | Phase 1 / plan 01-08 |
+| Runtime | `Scheduler` is optional but there is **no `setTimeout` in scope to default to** — it is TS2304 under `lib: ["ES2022"]`. Phase 6 must either reach a platform timer structurally or make the seam required. | Deferred → Phase 6 | Phase 1 / plan 01-07 |
 
 ## Session Continuity
 
