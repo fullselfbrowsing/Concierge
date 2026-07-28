@@ -1054,7 +1054,7 @@ The phase has two mapped requirement IDs (TRN-01, TRN-05) and seven ROADMAP Succ
 | **TRN-01** | A transport is definable end to end with no vendor event name in core, demonstrated by a second transport sharing no wire vocabulary with the first | type (structural) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ Wave 0 → `test-d/transport.test-d.ts` |
 | **TRN-05** | `TransportCapabilities` declares turn-identity *provenance*; a boolean no longer satisfies the field | type (negative + positive) | same | ❌ Wave 0 → `test-d/transport.test-d.ts` |
 | **SC-1** | *Both* `InvocationMeta.deferUntilDelivered` and `ToolBatch.deferUntilDelivered` carry a `DeliveryReport`; a bare-id hook is rejected | type (equality + negative) | same | ❌ Wave 0 → `test-d/transport.test-d.ts` |
-| **SC-2** | An arbitrary `reason` string fails to typecheck; the 13 codes are exhaustively switchable; `MESSAGE_MAX_CHARS` is a literal | type (negative + exhaustiveness + equality) | same | ❌ Wave 0 → `test-d/results.test-d.ts` |
+| **SC-2** | An arbitrary `reason` string fails to typecheck; the **12** codes are exhaustively switchable; `MESSAGE_MAX_CHARS` is a literal | type (negative + exhaustiveness + equality) | same | ❌ Wave 0 → `test-d/results.test-d.ts` |
 | **SC-3** | A readback sink returning `{hash, alg, canonicalization, canonical}` is declarable and the seam is a generic *function* | type (equality + `@ts-expect-error` on a type argument) | same | ❌ Wave 0 → `test-d/consent.test-d.ts` |
 | **SC-4** | = TRN-01 (two structurally unrelated transports; `keyof Transport` is exactly four members) | type (structural) | same | ❌ Wave 0 → `test-d/transport.test-d.ts` |
 | **SC-5** | = TRN-05 | type | same | ❌ Wave 0 → `test-d/transport.test-d.ts` |

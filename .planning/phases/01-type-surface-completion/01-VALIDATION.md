@@ -66,7 +66,7 @@ criteria) are reducible to compiler assertions — **none is manual-only.**
 | **TRN-01** | Transport definable end to end, no vendor event name; second transport shares no wire vocabulary | V13 | type (structural) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ W0 → `test-d/transport.test-d.ts` |
 | **TRN-05** | `TransportCapabilities` declares turn-identity *provenance*; a boolean no longer satisfies the field | Spoofing / V4 | type (negative + positive) | same | ❌ W0 → `test-d/transport.test-d.ts` |
 | **SC-1** | *Both* delivery hooks carry a `DeliveryReport`; a bare-id hook is rejected | — | type (equality + negative) | same | ❌ W0 → `test-d/transport.test-d.ts` |
-| **SC-2** | Arbitrary `reason` fails; 13 codes exhaustively switchable; `MESSAGE_MAX_CHARS` is a literal | V5, V7 | type (negative + exhaustiveness + equality) | same | ❌ W0 → `test-d/results.test-d.ts` |
+| **SC-2** | Arbitrary `reason` fails; **12** codes exhaustively switchable; `MESSAGE_MAX_CHARS` is a literal | V5, V7 | type (negative + exhaustiveness + equality) | same | ❌ W0 → `test-d/results.test-d.ts` |
 | **SC-3** | Readback sink returning `{hash, alg, canonicalization, canonical}` declarable; seam is a generic *function* | V6 | type (equality + directive on a type argument) | same | ❌ W0 → `test-d/consent.test-d.ts` |
 | **SC-4** | = TRN-01 (`keyof Transport` is exactly four members) | V13 | type (structural) | same | ❌ W0 → `test-d/transport.test-d.ts` |
 | **SC-5** | = TRN-05 | V4 | type | same | ❌ W0 → `test-d/transport.test-d.ts` |
