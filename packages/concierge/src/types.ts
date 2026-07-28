@@ -209,9 +209,25 @@ export const MESSAGE_MAX_CHARS = 180;
 // Invocation
 // ---------------------------------------------------------------------------
 
+/**
+ * What the transport knows about *this* call, as distinct from its arguments.
+ *
+ * **Every optional member below carries an explicit `| undefined`.** Under this
+ * repo's `exactOptionalPropertyTypes` a bare `x?: T` rejects `{ x: maybeX }`, and
+ * a transport builds this object out of values that may be absent — so the
+ * natural object literal is TS2375 without the widening. {@link ActionResult.reason}
+ * carries the full reasoning; it is the same rule, applied here rather than once.
+ *
+ * Do not tidy the `| undefined` away. Removing it narrows the *write* type and
+ * breaks every real constructor, while the *read* type stays identical:
+ * `Equals<{x?: T}, {x?: T | undefined}>` is `true` under this flag — measured, not
+ * assumed — so nothing goes red at the declaration site, and no read-shaped
+ * assertion anywhere in the suite would notice. The detectors are the construction
+ * positives in `test-d/transport.test-d.ts`, and they are the whole of the alarm.
+ */
 export interface InvocationMeta {
   /** Agent response this call belongs to. Metadata only — never a consent key. */
-  responseId?: string;
+  responseId?: string | undefined;
   /**
    * Identity of the human turn that caused this call.
    *
@@ -226,20 +242,25 @@ export interface InvocationMeta {
    * a transport declares so the kernel can tell an id the agent could have
    * minted from one it could not.
    */
-  userTurnId?: string;
+  userTurnId?: string | undefined;
   /** Primary deduplication key. */
-  callId?: string;
+  callId?: string | undefined;
   /** Position within the batch. Execution is serial in this order. */
-  outputIndex?: number;
-  signal?: AbortSignalLike;
+  outputIndex?: number | undefined;
+  signal?: AbortSignalLike | undefined;
   /**
    * Defer a side effect until the agent's response has reached the human.
    *
    * Absent when the transport cannot promise delivery, in which case consent
    * never arms and gated actions cannot proceed. That is the intended failure
    * mode: closed.
+   *
+   * The function type is parenthesised before the union deliberately. Without the
+   * parentheses the `| undefined` binds inside the return position, silently
+   * changing the member from "an optional hook" to "a hook returning
+   * `void | undefined`" — a different type that still compiles.
    */
-  deferUntilDelivered?: (effect: (report: DeliveryReport) => void) => void;
+  deferUntilDelivered?: ((effect: (report: DeliveryReport) => void) => void) | undefined;
 }
 
 /**
@@ -277,8 +298,16 @@ export interface DeliveryReport {
    * Take the value from the receipt rather than hashing the payload yourself.
    * The receipt is what fixes the canonicalization rule, and an app-derived hash
    * reintroduces exactly the collision the receipt exists to prevent.
+   *
+   * The explicit `| undefined` is what lets that prescribed idiom compile.
+   * `receipt?.hash` is `string | undefined`, and under this repo's
+   * `exactOptionalPropertyTypes` a bare `readbackHash?: string` rejects
+   * `{ …, readbackHash: receipt?.hash }` with TS2375 — the type refusing the exact
+   * line the paragraph above instructs the author to write. A type that rejects
+   * its own documented idiom does not stop the author; it teaches them to cast,
+   * on the one field that is the sole route to an `attested` grade.
    */
-  readonly readbackHash?: string;
+  readonly readbackHash?: string | undefined;
 }
 
 /**
@@ -299,6 +328,14 @@ export interface DeliveryReport {
  * of trusting the consent assertions to notice. They do not: a `consent?:
  * ConsentPolicy<Snapshot>` field still infers `Snapshot` correctly on its own
  * even when the handler has stopped receiving it.
+ *
+ * **`ack` admits an explicit `undefined`.** The dispatcher builds one context shape
+ * for gated and non-gated actions alike, so it writes `{ args, bridge, meta, ack }`
+ * with an `ack` of `ConsentAck<…> | undefined`. Against a bare
+ * `ack?: ConsentAck<…>` that is TS2375 under `exactOptionalPropertyTypes`, and the
+ * only ways out are two divergent context shapes or a cast — on the consent path,
+ * which is the one place in this library a cast must never be the path of least
+ * resistance. See {@link ActionResult.reason} for the general rule.
  */
 export type ActionHandler<
   Args,
@@ -311,7 +348,7 @@ export type ActionHandler<
   bridge: B | null;
   meta: InvocationMeta;
   /** Present only for actions declaring `consent.requires`. */
-  ack?: ConsentAck<Snapshot, AckPayload>;
+  ack?: ConsentAck<Snapshot, AckPayload> | undefined;
 }) => ActionResult | Promise<ActionResult>;
 
 // ---------------------------------------------------------------------------
@@ -1007,6 +1044,17 @@ export interface ToolCall {
  * earlier draft delivered a bare `ToolCall[]`, which carries no `responseId`,
  * no `userTurnId`, and no delivery hook — so `bindTo: "userTurn"`, the gate the
  * whole design rests on, had no data to read.
+ *
+ * **Every optional member below carries an explicit `| undefined`**, the same rule
+ * recorded on {@link InvocationMeta} and, in full, on {@link ActionResult.reason}.
+ * A transport assembles this envelope out of values that may be absent, and
+ * `{ responseId, calls, userTurnId: maybeId }` is TS2375 against a bare
+ * `userTurnId?: string` under `exactOptionalPropertyTypes`.
+ *
+ * Do not tidy it away. Narrowing the write type back leaves the read type
+ * identical, so the declaration site stays quiet and no read-shaped assertion
+ * moves; the construction positives in `test-d/transport.test-d.ts` are the only
+ * thing that goes red.
  */
 export interface ToolBatch {
   responseId: string;
@@ -1015,9 +1063,9 @@ export interface ToolBatch {
    * mean trustworthy — {@link TurnIdentityProvenance} is what says whether the
    * agent's own output could have minted it.
    */
-  userTurnId?: string;
+  userTurnId?: string | undefined;
   calls: ReadonlyArray<ToolCall>;
-  signal?: AbortSignalLike;
+  signal?: AbortSignalLike | undefined;
   /**
    * Defer a side effect until the agent's response has reached the human.
    *
@@ -1036,8 +1084,12 @@ export interface ToolBatch {
    * Absent when the transport cannot promise delivery, in which case consent
    * never arms and gated actions cannot proceed. That is the intended failure
    * mode: closed.
+   *
+   * Parenthesised before the union for the reason recorded on the
+   * {@link InvocationMeta} twin: unparenthesised, the `| undefined` binds inside
+   * the return position and the two signatures stop agreeing while both compile.
    */
-  deferUntilDelivered?: (effect: (report: DeliveryReport) => void) => void;
+  deferUntilDelivered?: ((effect: (report: DeliveryReport) => void) => void) | undefined;
 }
 
 /**
