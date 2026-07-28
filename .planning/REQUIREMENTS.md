@@ -28,6 +28,7 @@
 - [ ] **DSP-06**: Malformed JSON in call arguments degrades to `{}` and is then rejected by validation, rather than crashing the dispatch loop
 - [ ] **DSP-07**: A batch executes serially in `output_index` order, and every call in an aborted batch still produces a result so the agent is never left waiting
 - [ ] **DSP-08**: A configurable commit window elapses before any non-read-only effect lands, and an abort during that window cancels the effect
+- [ ] **DSP-09**: A handler returning a value that is not a valid `ActionResult` produces an honest failure rather than propagating the malformed value to the agent
 
 ### Bridge
 
@@ -55,6 +56,7 @@
 - [ ] **CON-07**: `ConsentGrade` values name the hop actually measured, and a transport declaring a lower grade cannot satisfy an action requiring a higher one
 - [ ] **CON-08**: The confirm handler receives the exact payload captured at review time, not a payload recomputed at confirm time
 - [ ] **CON-09**: An action can distinguish an explicit human refusal from a dismissal, so the agent can choose whether re-offering is appropriate
+- [ ] **CON-10**: A failed action's outcome reaches the human as the app composed it, not as the agent reauthored it — the agent cannot narrate a failure in its own words
 
 ### Session
 
@@ -69,6 +71,7 @@
 - [ ] **TRN-02**: A stub transport with configurable capabilities exercises the full consent kernel without any network or WebRTC
 - [ ] **TRN-03**: A transport that cannot derive turn identity is prevented from being used with `bindTo: "userTurn"`
 - [ ] **TRN-04**: Concierge is usable with no transport at all, driven directly from an application's own agent loop
+- [ ] **TRN-05**: A transport declares the *provenance* of its turn identity, not merely whether it has one, and a transport whose turn identity can be minted by the agent's own output cannot satisfy the strongest user-turn binding
 
 ### Adapters
 
@@ -83,6 +86,8 @@
 - [ ] **SEC-02**: Telemetry never carries thrown error messages, only error class names
 - [ ] **SEC-03**: The action registry is frozen after catalog build, so a handler cannot be replaced at runtime by third-party page script
 - [ ] **SEC-04**: Documentation states, with a worked example, that client-side consent is an assertion the server must re-verify
+- [ ] **SEC-05**: An action that reads attacker-controllable content declares it, and catalog build reports an action that does so without a consent policy
+- [ ] **SEC-06**: `ActionResult.message` is sanitized before it leaves the dispatcher — control characters stripped, whitespace collapsed, and length capped
 
 ### Packaging
 
@@ -131,7 +136,21 @@ Deferred to v0.2–v0.4. Each is understood, none is needed to prove the kernel.
 
 ## Traceability
 
-All 57 v1 requirements are mapped to exactly one phase in ROADMAP.md. No orphans, no duplicates.
+All 62 v1 requirements are mapped to exactly one phase in ROADMAP.md. No orphans, no duplicates.
+
+**Amended 2026-07-27**, during Phase 1 discussion. Five requirements were added after two sources of
+evidence the original 57 did not have:
+
+- **Advisor research on the Phase 1 gray areas** produced SEC-05 — the `readsUntrusted` marker is
+  only honest if something enforces it.
+- **A second prior implementation** was located and read: the `portfolio` repository, branch
+  `audit-fsb-ai-control-loop` (2026-07-16). It is a shipped in-app AI control loop with typed action
+  results, and it supplied DSP-09, SEC-06, CON-10, and TRN-05. This is distinct from the
+  `voyza-voice-browser-control-spec.md` provenance recorded in PROJECT.md — a second, independent
+  system that reached many of the same conclusions.
+
+TRN-05 is the one that could not have waited: `TransportCapabilities` is an interface consumers
+*implement*, so widening it after publish is a breaking change, unlike the other four.
 
 | REQ-ID | Phase | Status |
 |---|---|---|
@@ -150,6 +169,7 @@ All 57 v1 requirements are mapped to exactly one phase in ROADMAP.md. No orphans
 | DSP-06 | Phase 6 — Dispatcher | Pending |
 | DSP-07 | Phase 6 — Dispatcher | Pending |
 | DSP-08 | Phase 6 — Dispatcher | Pending |
+| DSP-09 | Phase 6 — Dispatcher | Pending |
 | BRG-01 | Phase 5 — Bridge registry and the no-bridge path | Pending |
 | BRG-02 | Phase 5 — Bridge registry and the no-bridge path | Pending |
 | BRG-03 | Phase 5 — Bridge registry and the no-bridge path | Pending |
@@ -168,6 +188,7 @@ All 57 v1 requirements are mapped to exactly one phase in ROADMAP.md. No orphans
 | CON-07 | Phase 8 — Consent kernel | Pending |
 | CON-08 | Phase 8 — Consent kernel | Pending |
 | CON-09 | Phase 8 — Consent kernel | Pending |
+| CON-10 | Phase 8 — Consent kernel | Pending |
 | SES-01 | Phase 7 — Session and the transport seam | Pending |
 | SES-02 | Phase 7 — Session and the transport seam | Pending |
 | SES-03 | Phase 7 — Session and the transport seam | Pending |
@@ -176,6 +197,7 @@ All 57 v1 requirements are mapped to exactly one phase in ROADMAP.md. No orphans
 | TRN-02 | Phase 7 — Session and the transport seam | Pending |
 | TRN-03 | Phase 8 — Consent kernel | Pending |
 | TRN-04 | Phase 6 — Dispatcher | Pending |
+| TRN-05 | Phase 1 — Type surface completion | Pending |
 | ADP-01 | Phase 9 — React and Svelte adapters | Pending |
 | ADP-02 | Phase 9 — React and Svelte adapters | Pending |
 | ADP-03 | Phase 9 — React and Svelte adapters | Pending |
@@ -184,6 +206,8 @@ All 57 v1 requirements are mapped to exactly one phase in ROADMAP.md. No orphans
 | SEC-02 | Phase 6 — Dispatcher | Pending |
 | SEC-03 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
 | SEC-04 | Phase 8 — Consent kernel | Pending |
+| SEC-05 | Phase 3 — Action declaration and build-time validation | Pending |
+| SEC-06 | Phase 6 — Dispatcher | Pending |
 | PKG-01 | Phase 2 — Packaging, build, and release | Pending |
 | PKG-02 | Phase 2 — Packaging, build, and release | Pending |
 | PKG-03 | Phase 2 — Packaging, build, and release | Pending |
