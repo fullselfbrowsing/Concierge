@@ -18,6 +18,8 @@ export type {
   // Results
   ActionResult,
   AbandonReason,
+  FailureReason,
+  ReasonCode,
   // Invocation
   InvocationMeta,
   ActionHandler,
@@ -27,12 +29,18 @@ export type {
   ConsentAck,
   DeliveryReport,
   SnapshotNormalizer,
+  Readback,
+  ReadbackReceipt,
+  ReadbackSink,
+  DigestLike,
+  ServerChallenge,
   // Side effects
   SideEffects,
   // Redaction
   RedactionPolicy,
   // Actions
   ActionDefinition,
+  AnyActionDefinition,
   // Bridges
   Bridge,
   BridgeRegistry,
@@ -42,14 +50,21 @@ export type {
   // Transport
   Transport,
   TransportCapabilities,
+  TurnIdentityProvenance,
   ToolCall,
   ToolBatch,
   EmittedTool,
   // Concierge
+  Scheduler,
   Concierge,
   ConciergeConfig,
   Session,
   SessionConfig,
 } from "./types.js";
 
-export { USER_CANCELLED, USER_DECLINED, CONSENT_GRADE_ORDER } from "./types.js";
+export {
+  USER_CANCELLED,
+  USER_DECLINED,
+  CONSENT_GRADE_ORDER,
+  MESSAGE_MAX_CHARS,
+} from "./types.js";
