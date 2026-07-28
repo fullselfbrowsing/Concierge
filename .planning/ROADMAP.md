@@ -62,7 +62,7 @@ that becomes a breaking change after publish — exactly this phase's stated sco
 last free moment, because nothing publishes until v0.1 completes.
 
 - [x] 01-10-PLAN.md — The `readonly` class: `ConsentAck`, `DeliveryReport`, `ReadbackReceipt`, `TransportCapabilities` (CR-01, WR-01)
-- [ ] 01-11-PLAN.md — The generic-parameter class: `Bridge`'s defaults, `B` erased at the collection site, the shadowing rename, and the nullable-bridge pins (CR-02, IN-02, WR-03)
+- [x] 01-11-PLAN.md — The generic-parameter class: `Bridge`'s defaults, `B` erased at the collection site, the shadowing rename, and the nullable-bridge pins (CR-02, IN-02, WR-03)
 - [ ] 01-12-PLAN.md — The `exactOptionalPropertyTypes` class: explicit `| undefined` across the invocation and consent path (WR-02)
 - [ ] 01-13-PLAN.md — **CHECKPOINT** — the `ActionResult` shape decision, then the frozen constants' literal types (WR-06, IN-03)
 - [ ] 01-14-PLAN.md — The unguarded contracts: `ConsentPolicy` members, the receipt's remaining two fields, four required/closed pins, and the redaction doc (WR-04, WR-05, WR-07, IN-01)
@@ -244,7 +244,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Type surface completion | 10/15 | In Progress|  |
+| 1. Type surface completion | 11/15 | In Progress|  |
 | 2. Packaging, build, and release | 0/TBD | Not started | - |
 | 3. Action declaration and build-time validation | 0/TBD | Not started | - |
 | 4. Stages, catalog assembly, and explain() | 0/TBD | Not started | - |
