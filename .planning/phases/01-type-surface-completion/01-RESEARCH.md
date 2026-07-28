@@ -1178,7 +1178,9 @@ Nothing exists yet. Wave 0 must create all of it before any type edit can be val
 
 **Everything else in this document was compiled.** Every table row marked `[VERIFIED]` was produced by running `tsc` against a sandbox mirroring `packages/concierge` — same `tsconfig.base.json`, same resolved `@standard-schema/spec@1.1.0` — under both TypeScript 5.9.3 and 7.0.2.
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> **All five were resolved in `01-CONTEXT.md` § D-12 on 2026-07-28**, in order: (1) **defer** `ReadbackAttestation` to Phase 8 — Phase 1 ships the receipt types only; (2) **`any`**-erasure for `AnyActionDefinition`, with a doc comment explaining the tradeoff; (3) **replace** rather than supplement `TransportCapabilities.userTurnIdentity`, since two fields would be two sources of truth and the type test only works under replacement; (4) **ship the closed `reason` union now** with a doc note that Phase 6 additions will *intentionally* break exhaustive mappers — that breakage is the feature; and (5) **land the `packages/concierge/package.json` script line early**, acknowledging it as the phase's only expected file overlap with Phase 2. The questions below are retained as the reasoning that fed those decisions — they are not open work.
 
 1. **Does Phase 1 declare `ReadbackAttestation`, or leave it entirely to Phase 8?**
    - *What we know:* CONTEXT's Deferred list says "Phase 1 **may** declare the type; Phase 8 makes the kernel require it." D-03 wants presentation and observation kept as distinct types.
