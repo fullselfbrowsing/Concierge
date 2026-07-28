@@ -20,7 +20,8 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "check:artifact": "pnpm --filter @fullselfbrowsing/concierge exec publint --strict && pnpm exec attw --pack packages/concierge --profile esm-only"
+    "check:artifact": "pnpm --filter @fullselfbrowsing/concierge exec publint --strict && pnpm exec attw --pack packages/concierge --profile esm-only",
+    "check:deps": "node scripts/pkg05-zero-runtime-deps.mjs packages/concierge/dist/index.js"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.5",
