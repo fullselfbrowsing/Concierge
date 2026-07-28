@@ -748,8 +748,9 @@ export interface ActionDefinition<
    *
    * **Why this is the only taint marker on the declaration.** Of the four fields
    * originally proposed (D-04), three were cut: `maxPerTurn` is runner-level in
-   * every framework checked and belongs beside `commitWindowMs` on
-   * {@link ConciergeConfig}; `impact?:` would be a second, weaker severity dial
+   * every framework checked, so {@link ConciergeConfig} — beside
+   * `commitWindowMs` — is where it *would* belong **if it ever shipped, which is
+   * not scheduled**; `impact?:` would be a second, weaker severity dial
    * next to `consent.minGrade`, which `buildCatalog` already enforces, and the two
    * could silently disagree; `conflictsWith` has no prior art as declaration
    * metadata and overlaps stage scoping, `consent.requires`, and serial batch
@@ -1029,6 +1030,67 @@ export interface EmittedTool {
 // Concierge
 // ---------------------------------------------------------------------------
 
+/**
+ * Injectable timing seam: run `fn` after `delayMs`, and return a function that
+ * cancels it if it has not run yet.
+ *
+ * It exists so the two windows on {@link ConciergeConfig} —
+ * {@link ConciergeConfig.commitWindowMs} and
+ * {@link ConciergeConfig.dedupeWindowMs} — are driven through a seam the app
+ * injects rather than a hard-wired global timer. Three things follow, and the
+ * third is the one that makes this structural rather than merely tidy:
+ *
+ * 1. **Testable without fake timers.** A test passes a scheduler that records
+ *    the callback and fires it on demand, so a 600 ms commit window costs no
+ *    wall-clock time. Timer mocking is global, process-wide state; a seam is
+ *    local to the instance under test and cannot leak into a neighbouring one.
+ * 2. **Controllable where the clock is not standard.** A throttled background
+ *    tab, a virtualized runtime, or a server rendering pass can supply a timer
+ *    that matches its own notion of elapsed time instead of inheriting the
+ *    platform's.
+ * 3. **Core has no timer to hard-wire in the first place.** `setTimeout` is
+ *    declared by the DOM lib and by the Node typings, and this package imports
+ *    neither — under `lib: ["ES2022"]` the identifier is TS2304, measured, not
+ *    assumed. So this joins {@link AbortSignalLike} and {@link DigestLike} as a
+ *    structural stand-in for a platform capability, and injection is the only
+ *    route by which core gets a clock at all.
+ *
+ * **The returned canceller is load-bearing, not a convenience.** "A human
+ * interrupted — do not land the effect" is a cancellation, and it is the entire
+ * purpose of the commit window; a scheduler returning `void` cannot express it.
+ * Returning a plain function rather than a platform handle keeps core free of a
+ * timer-id type, whose spelling differs between the DOM (`number`) and Node
+ * (`Timeout`) — the same `BufferSource` split that shapes {@link DigestLike}.
+ *
+ * **Phase 6 (DSP-08) implements both windows against this and may refine this
+ * signature.** Nothing publishes until v0.1 completes, so that change is free
+ * now and will not be free later. Phase 6 also owns what an *omitted* scheduler
+ * means: because of point 3 there is no `setTimeout` in scope to fall back to,
+ * so a default has to reach a platform timer through a structural access or the
+ * seam has to become required. Phase 1 declares the shape and does not decide
+ * that.
+ */
+export type Scheduler = (fn: () => void, delayMs: number) => () => void;
+
+/**
+ * Everything core needs to build a catalog and run a dispatch, and nothing it
+ * can reach for on its own.
+ *
+ * The optional members below fall into two groups, and the split is worth
+ * reading before adding a member here. `normalizeSnapshot`, `presentReadback`,
+ * `digest`, and `scheduler` are **injected capabilities**: each is something
+ * core structurally cannot do — detach a framework proxy, render a payload to a
+ * human, hash bytes, read a clock — and every one of them is unreachable under
+ * `lib: ["ES2022"]` or unknowable without the app. `commitWindowMs` and
+ * `dedupeWindowMs` are **policy numbers**. Keep the two groups apart.
+ *
+ * **`maxPerTurn` is deliberately absent, and it is not merely misplaced — it is
+ * unscheduled.** D-04 cut it along with `impact` and `conflictsWith`; the note
+ * on {@link ActionDefinition.readsUntrusted} explains why. `ConciergeConfig` is
+ * where it would belong *if it ever shipped*, which is exactly why the
+ * temptation to add it lands on this interface. Reinstating a cut field because
+ * it is "cheap while we're in here" is the specific anti-pattern D-04 names.
+ */
 export interface ConciergeConfig {
   /**
    * Ordered — first match wins.
@@ -1045,6 +1107,53 @@ export interface ConciergeConfig {
    * the framework adapter; defaults to a deep freeze.
    */
   normalizeSnapshot?: SnapshotNormalizer;
+  /**
+   * The app's readback presentation seam. See {@link ReadbackSink}.
+   *
+   * App-supplied and core-called: core hands it the payload under review, the
+   * app renders that payload itself, and the {@link ReadbackReceipt} it returns
+   * binds the bytes that were shown. This field is what gives
+   * {@link DeliveryReport.readbackHash} a producer — declaring the sink without
+   * a seam to arrive through left the hash with a consumer and no source.
+   *
+   * It is also the only route to an `attested` grade, because that grade is
+   * defined by the raw payload — rather than the agent's rendition of it —
+   * reaching the human, and this is the only point at which it does.
+   *
+   * **Write your sink generically — it is called with every payload type your
+   * app reviews.** A sink narrowed to one payload
+   * (`(rb: Readback<Booking>) => …`) is rejected *at this field*, because the
+   * parameter position is contravariant and core calls the seam with
+   * `Readback<X>` for every `X` that goes through review. The diagnostic is an
+   * unhelpful chain about `P` not being assignable to `Booking`; this sentence
+   * exists so that costs a reader seconds rather than an afternoon.
+   *
+   * Optional here because an app whose actions need no readback never calls it.
+   * Whether a *missing* sink downgrades an `attested` action or fails its build
+   * is Phase 8's decision, not Phase 1's.
+   */
+  presentReadback?: ReadbackSink;
+  /**
+   * The platform digest, injected. See {@link DigestLike}.
+   *
+   * Injected rather than bundled because `crypto` does not exist under
+   * `lib: ["ES2022"]` — it is TS2304, as is anything to encode UTF-8 with — and
+   * because owning unaudited crypto in the security-critical path buys nothing.
+   * Core hashes nothing itself.
+   *
+   * A browser app passes `crypto.subtle`. A server app passes
+   * `webcrypto.subtle` from `node:crypto`. **Both are accepted unmodified** — no
+   * wrapper, no adapter, no cast. That is exactly what {@link DigestLike}'s
+   * method syntax buys, and why normalizing it to a function-valued property
+   * would break one of the two.
+   */
+  digest?: DigestLike;
+  /**
+   * Timer seam for the two windows below. See {@link Scheduler}, which records
+   * why core cannot simply call `setTimeout` and what an omitted scheduler is
+   * left for Phase 6 to decide.
+   */
+  scheduler?: Scheduler;
   /**
    * Grace period before any side effect lands, so a human can interrupt.
    * @default 600
@@ -1084,6 +1193,45 @@ export interface Concierge {
  */
 export interface Session {
   setContext: (ctx: StageContext) => void;
+  /**
+   * The stage the session is currently in, or `null` when no stage matches.
+   *
+   * **A getter function, never a value, and that is the file's standing rule
+   * rather than a preference here.** Bridge snapshots are getters for the same
+   * reason ({@link BridgeRegistry.read}): a value captured at registration goes
+   * stale inside every closure that captured it, and a stale *stage* is worse
+   * than a stale snapshot — it is what a devtools panel renders and what an
+   * adapter compares against to decide whether to republish the catalog. A field
+   * would read correct at the moment of destructuring and be wrong forever after.
+   *
+   * Returns `string | null`, matching {@link Concierge.stageFor} exactly. The
+   * session's stage *is* `stageFor` applied to the current context, so two
+   * different spellings of "no stage" would be a defect waiting to be written.
+   *
+   * Phase 7 implements this.
+   */
+  stage: () => string | null;
+  /**
+   * Subscribe to stage changes; returns an unsubscriber. The shape follows
+   * {@link Transport.onToolBatch}, which is the file's subscription convention.
+   *
+   * **The implementation MUST identity-guard the unsubscriber** — remove the
+   * subscription only if the entry is still the one this call created — for
+   * precisely the reason {@link BridgeRegistry.register} does. React StrictMode
+   * double-mount, Vue HMR, and Svelte remount all run a cleanup *after* its
+   * replacement has already subscribed; an unguarded unsubscriber then detaches
+   * the live listener instead of the dead one, and the session silently stops
+   * republishing the catalog on stage change. The symptom is an agent holding a
+   * stale action set on a page that has plainly moved on, which is
+   * indistinguishable from a stage-matching bug and will be debugged as one.
+   *
+   * The callback takes `string | null` rather than `string` because entering "no
+   * matching stage" is itself a change subscribers must see — that is when the
+   * catalog empties.
+   *
+   * Phase 7 implements this.
+   */
+  onStageChange: (cb: (stage: string | null) => void) => () => void;
   stop: () => void;
 }
 
