@@ -1141,27 +1141,42 @@ Lockfile churn from a major package-manager bump is unreviewable when mixed with
 | Silent provenance downgrade | Repudiation | Treat a successful publish without an attestation as a failed publish; verify on the first real release |
 | Malicious `postinstall` in a new dependency | Elevation | Core has one dependency with no install scripts; `check:deps` makes adding a second visible in CI |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-Stated honestly rather than resolved by assertion.
+Stated honestly rather than resolved by assertion. **All six are now resolved by a locking decision
+in a specific plan** — each carries a `RESOLVED:` line naming the decision and the plan that owns
+it. The original text is preserved unedited above each resolution, because the reasoning is what
+makes the decision reviewable.
 
 **1. pnpm 11's lockfile version — not confirmed.**
 The repo is on `lockfileVersion: '9.0'`, which pnpm 10.33.0 writes. Whether pnpm 11.17.0 writes 9.0 or a newer format was **not verified** in this session (pnpm 11 was never installed here; it was only queried on the registry and observed refusing to start on the floor runtime). *Impact if wrong:* a large, unreviewable lockfile diff appearing in an unrelated commit. *Handling:* Wave 0 step 2 isolates the bump in its own commit and runs `--no-frozen-lockfile` explicitly, which makes the answer visible without depending on it. **Confidence: LOW — verify at execution time, cheaply, by running the bump first.**
 
+**RESOLVED:** *observe rather than predict* — plan **02-01 Task 2** isolates the pnpm 11 bump in a commit containing only `package.json` and `pnpm-lock.yaml`, and its acceptance criteria require the SUMMARY to record the **observed** `lockfileVersion` from `pnpm-lock.yaml` line 1 plus the `git diff --stat` line count. The question is answered by measurement at execution time; no plan depends on the answer.
+
 **2. The OIDC release workflow cannot be proven in this phase.**
 ROADMAP: nothing publishes until v0.1 completes. So `release.yml` ships unexecuted. The version requirements behind it are HIGH confidence (pnpm ≥ 11.1.3 from a dated release note and a merged PR; npm ≥ 11.5.1 and Node ≥ 22.14.0 from npm docs), but the assembled workflow is MEDIUM. *Handling:* a plan task should record the first-publish checklist somewhere durable (`CONTRIBUTING.md` or a `RELEASING.md`), including "verify the attestation appears on the npm page" — because the silent-downgrade failure is invisible from the workflow's own exit code.
+
+**RESOLVED:** *unexecutable — static review only* — locked in plan **02-10 Task 2**. `release.yml` is verified by inspection against six named properties, an acceptance criterion forbids any SUMMARY statement implying execution, `RELEASING.md` carries the first-publish checklist including the attestation check (and the rule that a publish without an attestation is a **failed** publish), and plan **02-12 Task 3** keeps this as the sole row in § Manual-Only Verifications.
 
 **3. Whether `sourcesContent` should ship at all.**
 Recommendation is (a) add `"src"` to `files`, but this is genuinely a taste call with a real trade (58 kB and verbatim publication of the design rationale, vs. a working debugging story). Flagged as a decision the plan must make explicitly rather than inherit from `tsconfig.base.json`'s defaults.
 
+**RESOLVED:** *option (a) — add `"src"` to `files`* — locked in plan **02-03 Task 2**, with the data-protection consequence (`serverChallengeBrand` and `ConsentAckBase` ship as readable source text) stated as a decision in the SUMMARY and registered as accepted threat T-02-12. Plan **02-12 Task 1** re-reviews the packed file list against that record by eye.
+
 **4. Whether the F3 fixture adapters should be real workspace packages or synthesized in a temp dir at test time.**
 Real workspace packages give a true install graph but add two entries to `pnpm-workspace.yaml` that must be kept out of publishing for seven phases. Temp-dir synthesis is self-contained but re-runs `pnpm install` inside a test, which is slow and network-dependent. Recommendation is real workspace packages under `test/fixtures/` (the `packages/*` glob does not match them, so they need an explicit workspace entry or to be excluded — check this at implementation time). **Confidence: MEDIUM.**
+
+**RESOLVED:** *real workspace packages* — locked in plan **02-08 Task 1**. `pnpm-workspace.yaml` gains an explicit `packages/concierge/test/fixtures/*` entry (the `packages/*` glob matches one level only), both fixtures are `private: true`, and plan **02-10 Task 2** sets `privatePackages: false` so changesets never offers to version them. Temp-dir synthesis was rejected: it re-runs `pnpm install` inside a test and produces an install graph that is not the one that ships.
 
 **5. Whether `CONTRACT_VERSION` should be a literal integer or a string.**
 Recommended integer literal (`1`), because comparison is trivial and the `.d.ts` keeps the literal type. A string like `"1"` or a semver-ish `"0.1"` buys nothing until there is a compatibility *range* to express, which there is not. Low risk either way; noted because it is a one-way door once published.
 
+**RESOLVED:** *integer literal `1`, written unannotated* — locked in plan **02-06 Task 1**. Under `isolatedDeclarations` the literal type `1` survives into the emitted `.d.ts` either way, so the annotation is dropped to match `MESSAGE_MAX_CHARS`'s house style in `types.ts`; the bump policy (integer, bumped only on an incompatible shared-runtime-contract change) is recorded in the doc comment.
+
 **6. Whether `assertSingleInstance` should also be called from a `dist`-level side-effectful subpath for consumers who want the check without calling core's API.**
 Not recommended for v0.1 — it reintroduces the `sideEffects` problem through a side door. Noted because it is the obvious follow-up question once someone reads the tree-shaking finding.
+
+**RESOLVED:** *rejected for v0.1* — locked in plan **02-06 Task 1**, which forbids both a side-effectful subpath export and a `sideEffects: ["./dist/contract.js"]` carve-out, with an acceptance criterion asserting `packages/concierge/package.json` is unchanged. tsdown emits a single bundled entry, so the carve-out would name the whole package and trade PKG-05 away to buy PKG-04.
 
 ## Assumptions Log
 
