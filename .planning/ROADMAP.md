@@ -45,7 +45,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 9 plans — **single serial sequence**, waves 1→9, one plan at a time. `config.json` sets `parallelization: true`; that is deliberately overridden for this phase because every plan edits the same 540-line `types.ts`.
 
 Plans:
-- [ ] 01-01-PLAN.md — Wave 0: `tsconfig.test-d.json`, the four assertion aliases, the repointed `typecheck` script, and proof the harness fails when it should
+- [ ] 01-01-PLAN.md — Wave 0: `tsconfig.test-d.json`, the four assertion aliases, the repointed `typecheck` script, proof the harness fails when it should, and the per-task expansion of the validation map
 - [ ] 01-02-PLAN.md — `FailureReason` / `ReasonCode` / `ActionResult.reason` / `MESSAGE_MAX_CHARS` + `results.test-d.ts` (D-01, D-02)
 - [ ] 01-03-PLAN.md — `ToolBatch` delivery hook + `TurnIdentityProvenance` + `transport.test-d.ts` (D-00a, D-10, TRN-01, TRN-05)
 - [ ] 01-04-PLAN.md — `Readback` / `ReadbackReceipt` / `ReadbackSink` / `DigestLike` / `ServerChallenge` + `consent.test-d.ts` part 1 (D-03, D-05 first half)
@@ -53,7 +53,7 @@ Plans:
 - [ ] 01-06-PLAN.md — Thread `Snapshot`/`AckPayload`, add `readsUntrusted`, land `AnyActionDefinition` erasure — atomic — + `actions.test-d.ts` (D-07, D-04)
 - [ ] 01-07-PLAN.md — `ConciergeConfig` seams (`presentReadback`, `digest`, `scheduler`) and `Session.stage`/`onStageChange` (D-03, D-08)
 - [ ] 01-08-PLAN.md — `index.ts` export surface (10 types + `MESSAGE_MAX_CHARS`) and the `README.md:72` correction
-- [ ] 01-09-PLAN.md — Phase gate: the ten-mutant battery, root typecheck, dist hygiene, README agreement
+- [ ] 01-09-PLAN.md — Phase gate: the ten-mutant battery, root typecheck, dist hygiene, README agreement, and the validation sign-off
 **Research**: ✅ **Done in two passes.** (1) 2026-07-27, during discussion — four gray areas researched in parallel, findings verified against this repo's exact `tsconfig.base.json` flags. (2) 2026-07-28, `01-RESEARCH.md` — a full phase research pass that built a working 319-line prototype and ran a ten-mutant battery against a first-draft type-test suite. **That second pass was nearly skipped and would have been a mistake:** three of ten mutants escaped, and it falsified two claims the discussion had recorded as settled — the readback-sink variance justification, and `@ts-expect-error` as the assertion mechanism. Both are corrected in `01-CONTEXT.md` with callouts. The lesson generalizes: verified-by-reasoning is not verified-by-mutation.
 **Notes**: Scope is the verified remainder, not all sixteen defects SUMMARY listed. Ten are already fixed in the committed `types.ts` — the `ToolBatch` envelope, the regraded `ConsentGrade`, `respond(ActionResult)`, ordered stage array, `SnapshotNormalizer`, `Session`, the deleted `registerHandler`, the `jsonSchema?` escape hatch, the object-rooted `JsonSchemaObject`, and the memoized-`catalogFor` contract. One more was closed after this roadmap was drafted: `ConsentPolicy` no longer threads the action's own `Name` (it was inferring as a union of the action and its `requires` target and corrupting the name-union derivation) — it takes `string` and CAT-03 checks it at build time, where the catalog actually exists.
 
