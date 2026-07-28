@@ -130,7 +130,7 @@ const _humanAttestedCaps: TransportCapabilities = {
 type _deliveryOutcomeIsReadonly = Expect<Equals<Pick<DeliveryReport, "outcome">, { readonly outcome: "completed" | "interrupted" }>>;
 
 /** The only route to an `attested` grade. Writable, the hash the ack inherits can be swapped for one describing a payload the human never saw. */
-type _deliveryReadbackHashIsReadonly = Expect<Equals<Pick<DeliveryReport, "readbackHash">, { readonly readbackHash?: string }>>;
+type _deliveryReadbackHashIsReadonly = Expect<Equals<Pick<DeliveryReport, "readbackHash">, { readonly readbackHash?: string | undefined }>>;
 
 /** `TurnIdentityProvenance` exists so the kernel can tell an id the agent could have minted from one it could not; a value upgradable in place from `agent-forgeable` to `human-attested` after declaration carries none of that distinction, and converts a value the kernel is told not to trust into one it is told to trust. */
 type _capsProvenanceIsReadonly = Expect<Equals<Pick<TransportCapabilities, "userTurnIdentity">, { readonly userTurnIdentity: TurnIdentityProvenance }>>;
