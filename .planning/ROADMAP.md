@@ -45,7 +45,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 9 plans — **single serial sequence**, waves 1→9, one plan at a time. `config.json` sets `parallelization: true`; that is deliberately overridden for this phase because every plan edits the same 540-line `types.ts`.
 
 Plans:
-- [ ] 01-01-PLAN.md — Wave 0: `tsconfig.test-d.json`, the four assertion aliases, the repointed `typecheck` script, proof the harness fails when it should, and the per-task expansion of the validation map
+- [x] 01-01-PLAN.md — Wave 0: `tsconfig.test-d.json`, the four assertion aliases, the repointed `typecheck` script, proof the harness fails when it should, and the per-task expansion of the validation map
 - [ ] 01-02-PLAN.md — `FailureReason` / `ReasonCode` / `ActionResult.reason` / `MESSAGE_MAX_CHARS` + `results.test-d.ts` (D-01, D-02)
 - [ ] 01-03-PLAN.md — `ToolBatch` delivery hook + `TurnIdentityProvenance` + `transport.test-d.ts` (D-00a, D-10, TRN-01, TRN-05)
 - [ ] 01-04-PLAN.md — `Readback` / `ReadbackReceipt` / `ReadbackSink` / `DigestLike` / `ServerChallenge` + `consent.test-d.ts` part 1 (D-03, D-05 first half)
@@ -217,7 +217,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Type surface completion | 0/TBD | Not started | - |
+| 1. Type surface completion | 1/9 | In Progress|  |
 | 2. Packaging, build, and release | 0/TBD | Not started | - |
 | 3. Action declaration and build-time validation | 0/TBD | Not started | - |
 | 4. Stages, catalog assembly, and explain() | 0/TBD | Not started | - |
