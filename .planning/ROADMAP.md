@@ -16,7 +16,7 @@ Nothing publishes until the milestone completes. That is load-bearing: it means 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [x] **Phase 1: Type surface completion** - Close the six remaining defects in the committed public contract, so no post-publish breaking change is left in it (completed 2026-07-28)
+- [x] **Phase 1: Type surface completion** - Close the six remaining defects in the committed public contract, so no post-publish breaking change is left in it (completed 2026-07-28; **gap closure in progress — 12 code-review findings, plans 01-10–01-15**)
 - [ ] **Phase 2: Packaging, build, and release** - Make the package buildable, publishable, and installable while there is one package rather than eight
 - [ ] **Phase 3: Action declaration and build-time validation** - One declaration derives everything downstream, and every wrong declaration fails the build naming the action
 - [ ] **Phase 4: Stages, catalog assembly, and explain()** - The agent sees only the actions valid for where the user is, and a developer can find out why one wasn't offered
@@ -42,7 +42,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   7. A type-test suite fails when any corrected defect is reintroduced: a `snapshotEquality` degraded to `(a: unknown, b: unknown)`, a `requires` that widens the action's own name union, a delivery hook that drops the completion reason on *either* interface, an arbitrary `reason` string, a readback sink seam that accepts a type argument, or an `attested` ack with no hash. Adequacy is proven by a ten-mutant battery, not by the suite being green — a first-draft suite let three of ten through.
 
   > *Sub-criterion 7e amended 2026-07-28.* It previously read "a readback sink that **rejects a typed app sink**". Research falsified the premise: **neither** the generic-function form nor the defaulted-alias form accepts a payload-specific app sink, so there is no non-defective contrast state and the criterion was unachievable as written. The real, testable discriminator is that the seam rejects a *type argument* (`ReadbackSink<Booking>` → TS2315). The conclusion the criterion was protecting is unchanged; only the phrasing was wrong.
-**Plans**: 9 plans — **single serial sequence**, waves 1→9, one plan at a time. `config.json` sets `parallelization: true`; that is deliberately overridden for this phase because every plan edits the same 540-line `types.ts`.
+**Plans**: 15 plans — 9 original + **6 gap-closure plans added 2026-07-28** — **single serial sequence**, waves 1→15, one plan at a time. `config.json` sets `parallelization: true`; that is deliberately overridden for this phase because every plan edits or transiently mutates the same `types.ts`.
 
 Plans:
 - [x] 01-01-PLAN.md — Wave 0: `tsconfig.test-d.json`, the four assertion aliases, the repointed `typecheck` script, proof the harness fails when it should, and the per-task expansion of the validation map
@@ -54,6 +54,19 @@ Plans:
 - [x] 01-07-PLAN.md — `ConciergeConfig` seams (`presentReadback`, `digest`, `scheduler`) and `Session.stage`/`onStageChange` (D-03, D-08)
 - [x] 01-08-PLAN.md — `index.ts` export surface (10 types + `MESSAGE_MAX_CHARS`) and the `README.md:72` correction
 - [x] 01-09-PLAN.md — Phase gate: the ten-mutant battery, root typecheck, dist hygiene, README agreement, and the validation sign-off
+
+**Gap closure (added 2026-07-28).** The phase verified `passed` and was signed off; an independent
+code review (`01-REVIEW.md`) then wrote 17 new mutations against surface the battery does not cover
+and **14 escaped**, two of them critical. All 12 findings are planned below. Every one is a defect
+that becomes a breaking change after publish — exactly this phase's stated scope — and this is the
+last free moment, because nothing publishes until v0.1 completes.
+
+- [ ] 01-10-PLAN.md — The `readonly` class: `ConsentAck`, `DeliveryReport`, `ReadbackReceipt`, `TransportCapabilities` (CR-01, WR-01)
+- [ ] 01-11-PLAN.md — The generic-parameter class: `Bridge`'s defaults, `B` erased at the collection site, the shadowing rename, and the nullable-bridge pins (CR-02, IN-02, WR-03)
+- [ ] 01-12-PLAN.md — The `exactOptionalPropertyTypes` class: explicit `| undefined` across the invocation and consent path (WR-02)
+- [ ] 01-13-PLAN.md — **CHECKPOINT** — the `ActionResult` shape decision, then the frozen constants' literal types (WR-06, IN-03)
+- [ ] 01-14-PLAN.md — The unguarded contracts: `ConsentPolicy` members, the receipt's remaining two fields, four required/closed pins, and the redaction doc (WR-04, WR-05, WR-07, IN-01)
+- [ ] 01-15-PLAN.md — Gap-closure gate: both batteries re-run against the final surface, Phase 2's pinned-pattern recheck, and the validation-map append
 **Research**: ✅ **Done in two passes.** (1) 2026-07-27, during discussion — four gray areas researched in parallel, findings verified against this repo's exact `tsconfig.base.json` flags. (2) 2026-07-28, `01-RESEARCH.md` — a full phase research pass that built a working 319-line prototype and ran a ten-mutant battery against a first-draft type-test suite. **That second pass was nearly skipped and would have been a mistake:** three of ten mutants escaped, and it falsified two claims the discussion had recorded as settled — the readback-sink variance justification, and `@ts-expect-error` as the assertion mechanism. Both are corrected in `01-CONTEXT.md` with callouts. The lesson generalizes: verified-by-reasoning is not verified-by-mutation.
 **Notes**: Scope is the verified remainder, not all sixteen defects SUMMARY listed. Ten are already fixed in the committed `types.ts` — the `ToolBatch` envelope, the regraded `ConsentGrade`, `respond(ActionResult)`, ordered stage array, `SnapshotNormalizer`, `Session`, the deleted `registerHandler`, the `jsonSchema?` escape hatch, the object-rooted `JsonSchemaObject`, and the memoized-`catalogFor` contract. One more was closed after this roadmap was drafted: `ConsentPolicy` no longer threads the action's own `Name` (it was inferring as a union of the action and its `requires` target and corrupting the name-union derivation) — it takes `string` and CAT-03 checks it at build time, where the catalog actually exists.
 
@@ -231,7 +244,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Type surface completion | 9/9 | Complete   | 2026-07-28 |
+| 1. Type surface completion | 9/15 | Gap closure | 2026-07-28 (original 9) |
 | 2. Packaging, build, and release | 0/TBD | Not started | - |
 | 3. Action declaration and build-time validation | 0/TBD | Not started | - |
 | 4. Stages, catalog assembly, and explain() | 0/TBD | Not started | - |
