@@ -302,13 +302,13 @@ export interface DeliveryReport {
  */
 export type ActionHandler<
   Args,
-  Bridge,
+  B,
   Snapshot = unknown,
   AckPayload = unknown,
 > = (ctx: {
   args: Args;
   /** `null` when the owning stage's bridge is not mounted. Always check it. */
-  bridge: Bridge | null;
+  bridge: B | null;
   meta: InvocationMeta;
   /** Present only for actions declaring `consent.requires`. */
   ack?: ConsentAck<Snapshot, AckPayload>;
@@ -759,10 +759,34 @@ export type RedactionPolicy<Args> =
 // Actions
 // ---------------------------------------------------------------------------
 
+/**
+ * One declared verb: its name, its schema, its redaction policy, its handler,
+ * and — for consequential actions — the consent policy that gates it.
+ *
+ * **Naming convention, and it is load-bearing rather than cosmetic: `B` is a
+ * type parameter standing for *some* bridge; `Bridge` is the exported interface.
+ * A type parameter must never be named after the interface it would shadow.**
+ * This declaration, {@link ActionHandler}, and {@link AnyActionDefinition} all
+ * bound a parameter literally named `Bridge`, which shadowed
+ * {@link Bridge} inside their own bodies while {@link BridgeRegistry} and
+ * {@link StageDefinition} used `B` and meant the real interface — two spellings
+ * for two different things in one file. That collision is very likely how CR-02
+ * survived a whole phase: a reader scanning the unconstrained `B = unknown`
+ * below sees a parameter that accepts anything and never connects it to the
+ * `B extends Bridge` constraint hundreds of lines away, which was the broken
+ * one. Thread a new type through this file and keep the convention.
+ *
+ * **`B` here is deliberately unconstrained and deliberately defaults to
+ * `unknown`, and that is not an oversight left over from the rename.** An action
+ * may be handed a plain object, `null`, or a real {@link Bridge}; constraining
+ * this position to `B extends Bridge` would be a behavioural change wearing a
+ * rename's clothes. The constrained spelling lives on {@link BridgeRegistry} and
+ * {@link StageDefinition}, which is where a bridge is actually registered.
+ */
 export interface ActionDefinition<
   Name extends string = string,
   Schema extends StandardSchemaV1 = StandardSchemaV1,
-  Bridge = unknown,
+  B = unknown,
   Snapshot = unknown,
   AckPayload = unknown,
 > {
@@ -791,7 +815,7 @@ export interface ActionDefinition<
    * Dropping either is invisible to every consent-shaped assertion — see
    * {@link ActionHandler}.
    */
-  handler: ActionHandler<InferOutput<Schema>, Bridge, Snapshot, AckPayload>;
+  handler: ActionHandler<InferOutput<Schema>, B, Snapshot, AckPayload>;
   effects?: SideEffects;
   /**
    * This action reads attacker-controllable content — third-party pages, user
@@ -868,10 +892,10 @@ export interface ActionDefinition<
  * this type. **Revisit it in Phase 8 against a real kernel** — that is the first
  * point at which the alternative's cost is measurable rather than predicted.
  */
-export type AnyActionDefinition<Bridge = unknown> = ActionDefinition<
+export type AnyActionDefinition<B = unknown> = ActionDefinition<
   string,
   StandardSchemaV1,
-  Bridge,
+  B,
   any,
   any
 >;
@@ -889,10 +913,40 @@ export type AnyActionDefinition<Bridge = unknown> = ActionDefinition<
  * convergent across the ecosystem: TanStack's Svelte adapter exports the
  * identical `Accessor<T> = () => T`, Solid's is verbatim the same, Angular
  * signals *are* getters, and Vue's `toValue` accepts them.
+ *
+ * **Each type parameter defaults to the top of its own constraint, and the rule
+ * behind that is worth stating because the wrong form looks reasonable:** a
+ * default that is the *bottom* of its own constraint admits nothing; the *top*
+ * admits everything the constraint admits.
+ *
+ * These two parameters used to default to a record whose value type was `never`
+ * — which reads like "no members yet" and is in fact the bottom of each
+ * constraint, since such a record requires every property it has to be `never`.
+ * A bridge carrying any real member was therefore not assignable to it, and that
+ * default is precisely what {@link BridgeRegistry} and {@link StageDefinition}
+ * constrain against. Measured before the fix:
+ * `Bridge<{applyFilter: (k: string) => void}, {count: () => number}> extends Bridge`
+ * evaluated to **false**, so `BridgeRegistry<ResultsBridge>` was TS2344 and this
+ * project's own canonical example — an app exposing `applyFilter({key, value})`
+ * — did not compile. Do not "restore" the empty-looking form; it is the defect.
+ *
+ * Consequently the bare spelling `Bridge`, as it appears in
+ * `BridgeRegistry<B extends Bridge = Bridge>` and
+ * `StageDefinition<B extends Bridge = Bridge>`, means **the widest bridge, not
+ * the empty one**. A `BridgeRegistry` written with no type argument accepts any
+ * bridge rather than none; it is a permissive supertype, not a placeholder
+ * waiting to be filled in.
+ *
+ * Guarded by `_realBridgeSatisfiesConstraint` and the two-bridge assembly in
+ * `test-d/actions.test-d.ts`, both observed red under a mutation that puts the
+ * old defaults back.
  */
 export interface Bridge<
-  Actions extends Record<string, (...args: never[]) => unknown> = Record<string, never>,
-  Snapshot extends Record<string, () => unknown> = Record<string, never>,
+  Actions extends Record<string, (...args: never[]) => unknown> = Record<
+    string,
+    (...args: never[]) => unknown
+  >,
+  Snapshot extends Record<string, () => unknown> = Record<string, () => unknown>,
 > {
   actions: Actions;
   snapshot: Snapshot;
@@ -1171,8 +1225,34 @@ export interface ConciergeConfig {
    * An array rather than a keyed object because object key iteration puts
    * integer-like keys first, which would make match order depend on whether a
    * stage happened to be named `"2"`.
+   *
+   * **`B` is erased with `any` here, and {@link AnyActionDefinition} is the
+   * precedent rather than a coincidence** — this is the same erasure that alias
+   * already applies to `Snapshot` and `AckPayload`, applied to the third
+   * variance-affected parameter at the one site that collects many stages at
+   * once. The mechanism: `B` reaches contravariant positions through
+   * `AnyActionDefinition<B>`'s handler — `ctx.bridge` — so a
+   * `StageDefinition<ResultsBridge>` is simply *not* assignable to a
+   * `StageDefinition<Bridge>` (TS2375, verified), and widening the default does
+   * not help, because widening a parameter never repairs a contravariant
+   * position. A real app has one bridge per stage sharing nothing with the next,
+   * so the collection cannot be typed at any single concrete `B`, and
+   * `unknown`-erasure does not compile here for the identical reason it does not
+   * compile in {@link AnyActionDefinition}, whose doc comment records the
+   * measurement.
+   *
+   * What is **not** given up: the concrete `B` still lives on every individual
+   * {@link StageDefinition}, which is where its registry and its actions are
+   * written and typechecked. Only the collection is erased.
+   *
+   * **Revisit in Phase 8 against a real kernel**, together with
+   * {@link AnyActionDefinition}'s erasure — that is the first point at which the
+   * alternative's cost is measurable rather than predicted.
+   *
+   * Guarded by `_multiBridgeConfig` in `test-d/actions.test-d.ts`, observed red
+   * under a mutation that collects at the defaulted `B` again.
    */
-  stages: ReadonlyArray<StageDefinition>;
+  stages: ReadonlyArray<StageDefinition<any>>;
   /** Available in every stage. Erased like `StageDefinition.actions`. */
   crossStage?: ReadonlyArray<AnyActionDefinition>;
   /**

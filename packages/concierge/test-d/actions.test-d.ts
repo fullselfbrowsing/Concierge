@@ -17,6 +17,18 @@
 // live here rather than in a fifth file because the `ConciergeConfig` erasure positive is
 // already here, and one interface asserted from two files drifts.
 //
+// **The bridge block (CR-02, added in plan 01-11) is here for the same reason and is the
+// one section whose absence was itself the defect.** Until it existed, nothing in this
+// suite instantiated `Bridge` with a member, so its two type parameters were exercised
+// only at their defaults — and the defaults were the bottom of each constraint rather than
+// the top, meaning no bridge carrying a real action or snapshot satisfied `B extends
+// Bridge`. Nine plans and a 19-mutation battery went past it. The block sits beside the
+// `ConciergeConfig` erasure positive on purpose: the second half of CR-02 is that same
+// erasure, applied to `Bridge` at the `stages` collection site, and reading the two apart
+// makes neither legible. `_handlerBridge` and `_registryReadIsNullable` (WR-03) pin the
+// `| null` on both sides of the no-bridge contract; the note on `_handlerBridge` records
+// how the old form managed to assert nothing at all while looking correct.
+//
 // **This file exports nothing, and that is a phase-wide rule, not a style preference.**
 // The imports below already give it module status. `isolatedDeclarations` demands an
 // explicit annotation on anything reaching the declaration surface, and
@@ -53,9 +65,11 @@
 // guard something a predicate cannot express: an object-literal property that must fail
 // to accept a value, and a property reference that must fail to resolve.
 
-import type { Equals, Expect } from "./_assert.js";
+import type { Assignable, Equals, Expect } from "./_assert.js";
 import type {
   ActionDefinition,
+  Bridge,
+  BridgeRegistry,
   ConciergeConfig,
   ConsentAck,
   ConsentPolicy,
@@ -97,16 +111,21 @@ declare const schema: StandardSchemaV1<unknown, { q: string }>;
  * must read an *inferred* `ActionDefinition`. An explicitly annotated one would supply
  * the very answer — `Name`, `Snapshot` — that the test is supposed to derive, and would
  * pass just as happily over a broken declaration chain.
+ *
+ * The third parameter is `B`, not `Bridge`, and the spelling is deliberate now that this
+ * file imports the interface: a parameter named `Bridge` would shadow it here exactly as
+ * it did in `types.ts` before IN-02, in the one file whose job is to prove that collision
+ * is gone. `B` is a parameter standing for some bridge; `Bridge` is the interface.
  */
 declare function defineAction<
   Name extends string,
   Schema extends StandardSchemaV1,
-  Bridge = unknown,
+  B = unknown,
   Snapshot = unknown,
   AckPayload = unknown,
 >(
-  def: ActionDefinition<Name, Schema, Bridge, Snapshot, AckPayload>,
-): ActionDefinition<Name, Schema, Bridge, Snapshot, AckPayload>;
+  def: ActionDefinition<Name, Schema, B, Snapshot, AckPayload>,
+): ActionDefinition<Name, Schema, B, Snapshot, AckPayload>;
 
 // --------------------------------------------------------------------------
 // SC-7a — `snapshotEquality` must not degrade to `(a: unknown, b: unknown)`
@@ -184,15 +203,29 @@ type _snapshotInferred = Expect<Equals<NonNullable<(typeof confirm)["consent"]>,
 // --------------------------------------------------------------------------
 
 /**
+ * The bridge type `Ctx` is instantiated at.
+ *
+ * A **plain structural object**, deliberately not the `Bridge<…>` instantiation
+ * `ResultsBridge` further down, because `ActionDefinition`'s third parameter is
+ * deliberately *unconstrained* — an action may be handed a plain object, `null`, or a
+ * real bridge — and the assertion below has to keep exercising it that way. Using
+ * `ResultsBridge` here would quietly turn a test of the unconstrained position into a
+ * test of the constrained one.
+ *
+ * What matters about it is only that it is **not itself `null`**. See `_handlerBridge`.
+ */
+type PlainBridge = { actions: { applyFilter: (k: string) => void }; snapshot: { count: () => number } };
+
+/**
  * The handler's context, extracted from a fully explicit declaration so that a dropped
  * forward has nowhere to hide behind inference.
  *
- * Reverting `handler` to `ActionHandler<InferOutput<Schema>, Bridge>` leaves every
- * assertion above green: the consent policy still infers `Booking`, `ctx.ack` still
- * exists, and it still typechecks — as `ConsentAck<unknown, unknown>`. The gate would be
- * reading a snapshot it cannot see the shape of, and only these three lines would say so.
+ * Reverting `handler` to `ActionHandler<InferOutput<Schema>, B>` leaves every assertion
+ * above green: the consent policy still infers `Booking`, `ctx.ack` still exists, and it
+ * still typechecks — as `ConsentAck<unknown, unknown>`. The gate would be reading a
+ * snapshot it cannot see the shape of, and only these three lines would say so.
  */
-type Ctx = Parameters<ActionDefinition<"x", typeof schema, null, Booking, AckShape>["handler"]>[0];
+type Ctx = Parameters<ActionDefinition<"x", typeof schema, PlainBridge, Booking, AckShape>["handler"]>[0];
 
 /** Both type arguments reach the ack, in the right order. M8's detector. */
 type _handlerAck = Expect<Equals<Ctx["ack"], ConsentAck<Booking, AckShape> | undefined>>;
@@ -200,8 +233,22 @@ type _handlerAck = Expect<Equals<Ctx["ack"], ConsentAck<Booking, AckShape> | und
 /** The schema's output still reaches `args` — the forward did not displace it. */
 type _handlerArgs = Expect<Equals<Ctx["args"], { q: string }>>;
 
-/** And `Bridge` still reaches `bridge`, nullable because the component may be unmounted. */
-type _handlerBridge = Expect<Equals<Ctx["bridge"], null>>;
+/**
+ * The bridge reaches `bridge` **and arrives nullable** — WR-03's detector, and the `| null`
+ * half is the part that only started being observed here in plan 01-11.
+ *
+ * This line used to read `Equals<Ctx["bridge"], null>`, because `Ctx` instantiated the
+ * bridge parameter as `null` — the single argument for which `B | null` collapses to
+ * `null` and the union becomes unobservable. The assertion was therefore blind to exactly
+ * the `| null` its own doc comment claimed it guarded, and the measured consequence was
+ * that `bridge: B | null` → `bridge: B` **escaped the entire four-file suite at exit 0**.
+ *
+ * That contract is load-bearing rather than decorative: `ActionHandler` tells handlers
+ * "Always check it", and `FailureReason` carries `no_bridge` as the code for precisely
+ * this state. Deleting the `| null` deletes the represented state the code exists to
+ * report. Never instantiate this parameter as `null` again.
+ */
+type _handlerBridge = Expect<Equals<Ctx["bridge"], PlainBridge | null>>;
 
 // --------------------------------------------------------------------------
 // SC-7g — `readsUntrusted` is on the declaration, not inside `SideEffects`
@@ -267,6 +314,81 @@ const _config: ConciergeConfig = {
   stages: [_stage],
   crossStage: [signOut],
 };
+
+// --------------------------------------------------------------------------
+// CR-02 — a bridge with real members, which nothing in this suite ever had
+// --------------------------------------------------------------------------
+//
+// What the block below proves, and why its absence hid a critical defect for a whole
+// phase: **nothing in this suite had ever instantiated `Bridge` with a member.** Every
+// use went through the bare spelling, so both of its type parameters were exercised only
+// at their defaults — and the defaults were the broken values. `Bridge` defaulted each
+// parameter to the *bottom* of its own constraint (a record whose value type is `never`,
+// which requires every property it has to be `never`) rather than the top, and that
+// default is exactly what `BridgeRegistry<B extends Bridge = Bridge>` and
+// `StageDefinition<B extends Bridge = Bridge>` constrain against. The consequence was
+// that **no bridge carrying an actual action or snapshot satisfied its own constraint**:
+// `BridgeRegistry<ResultsBridge>` was TS2344, and this project's own headline example —
+// an app exposing `applyFilter({key, value})` — did not compile. A 19-mutation battery
+// and nine plans went past it, because a parameter never instantiated is a parameter
+// never tested.
+//
+// The two bridges are deliberately unrelated, for the same reason `Booking` and
+// `Shipment` are unrelated in the erasure positives above: two bridges sharing one shape
+// would assemble even under the broken form and prove nothing.
+//
+// This is also where the project's headline claim stops being a sentence in a README and
+// becomes a compiled assertion.
+
+/** The canonical example, verbatim in shape from the project's own description. */
+type ResultsBridge = Bridge<{ applyFilter: (key: string, value: string) => void }, { visibleCount: () => number }>;
+
+/** A second bridge sharing nothing with the first — different verbs, different snapshot. */
+type CartBridge = Bridge<{ removeItem: (id: string) => void }, { total: () => number }>;
+
+/** CR-02's direct detector: a bridge with real members satisfies its own constraint. Under the old defaults this is `false`. */
+type _realBridgeSatisfiesConstraint = Expect<Assignable<ResultsBridge, Bridge>>;
+
+/** The object-argument spelling of the same verb — `applyFilter({key, value})`, literally as the project describes it — satisfies the constraint too. */
+type _canonicalObjectArgBridge = Expect<Assignable<Bridge<{ applyFilter: (filter: { key: string; value: string }) => void }, { visibleCount: () => number }>, Bridge>>;
+
+/**
+ * The registry half of WR-03, which had no assertion anywhere in this suite.
+ *
+ * `read` returns `ResultsBridge | null`, and the `| null` is the entire representation of
+ * "no component has registered" — the state `FailureReason`'s `no_bridge` code exists to
+ * report, and the reason `ActionHandler`'s own doc comment instructs handlers to always
+ * check. Measured before this line existed: `read: () => B | null` → `() => B` escaped the
+ * full four-file suite at exit 0.
+ */
+type _registryReadIsNullable = Expect<Equals<BridgeRegistry<ResultsBridge>["read"], () => ResultsBridge | null>>;
+
+declare const resultsRegistry: BridgeRegistry<ResultsBridge>;
+declare const cartRegistry: BridgeRegistry<CartBridge>;
+
+/** A stage at a concrete bridge type, carrying its own registry. TS2344 under the old defaults. */
+const _resultsStage: StageDefinition<ResultsBridge> = { id: "results", match: () => true, actions: [], bridge: resultsRegistry };
+
+/** The second one, at an unrelated concrete bridge type. */
+const _cartStage: StageDefinition<CartBridge> = { id: "cart", match: () => true, actions: [], bridge: cartRegistry };
+
+/**
+ * The second, independent half of CR-02: two unrelated concrete-bridge stages collecting
+ * into one config, **with no cast anywhere.**
+ *
+ * Fixing the defaults alone does not get here. `B` reaches contravariant positions through
+ * `AnyActionDefinition<B>`'s handler, so a `StageDefinition<ResultsBridge>` is not
+ * assignable to a `StageDefinition<Bridge>` however wide `Bridge` is made — widening a
+ * parameter never repairs a contravariant position. `ConciergeConfig.stages` therefore
+ * erases `B` with `any`, the same erasure `AnyActionDefinition` already applies to
+ * `Snapshot` and `AckPayload`, and this literal is what proves it works rather than merely
+ * compiling in isolation.
+ *
+ * If a cast were ever needed here the erasure would have failed and the whole collection
+ * story with it — and worse, a constraint nothing satisfies does not stop a developer, it
+ * teaches them to write `as` in the stage path the consent kernel later reads.
+ */
+const _multiBridgeConfig: ConciergeConfig = { stages: [_resultsStage, _cartStage] };
 
 // --------------------------------------------------------------------------
 // D-03 config half / D-08 — the three injected `ConciergeConfig` seams
