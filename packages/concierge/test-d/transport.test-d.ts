@@ -21,6 +21,7 @@
 
 import type { Assignable, Equals, Expect, Not } from "./_assert.js";
 import type {
+  AbortSignalLike,
   ConsentGrade,
   DeliveryReport,
   InvocationMeta,
@@ -170,3 +171,91 @@ const commandPaletteTransport: Transport = {
  * covers the places a type-level assertion cannot reach.
  */
 type _transportKeys = Expect<Equals<keyof Transport, "capabilities" | "setTools" | "onToolBatch" | "respond">>;
+
+// --------------------------------------------------------------------------
+// WR-02 — the computed idiom, on every optional member a transport builds
+// --------------------------------------------------------------------------
+
+// Positives, not predicates, and the distinction is forced rather than stylistic. The
+// invariant here is "this object literal compiles", which no `Expect<…>` can phrase,
+// because a predicate reads the type and both spellings of an optional member read
+// *identically*: `Equals<{x?: T}, {x?: T | undefined}>` is `true` under
+// `exactOptionalPropertyTypes` — measured in plan 01-12, not assumed. Every read-shaped
+// assertion in this suite therefore stays green when the widening is removed, including
+// `_deliveryReadbackHashIsReadonly` twenty lines above. Only a construction site moves.
+//
+// That asymmetry is the entire finding. `ActionResult.reason` documents it at length and
+// `results.test-d.ts`'s `_computedReasonAssigns` was the suite's only detector for it,
+// which is precisely how the same defect on eleven other members survived unseen. Each
+// constant below is TS2375 the moment its member loses `| undefined`, and nothing else in
+// the repository would say a word. Do not "simplify" one by giving its fixture a
+// non-optional type: that deletes the guard and leaves it green, which is the failure
+// mode these exist to end.
+//
+// TS2375 is reported on the constant's *declaration* line, so the constant name is the
+// only carrier of meaning in the diagnostic — the same role an alias name plays for a
+// predicate. Named accordingly.
+
+/** Stands for whatever the transport could not derive: a turn id it has no source for, a receipt's `hash` when there is no receipt. */
+declare const maybeStr: string | undefined;
+declare const maybeNum: number | undefined;
+declare const maybeSig: AbortSignalLike | undefined;
+declare const maybeHook: ((e: (r: DeliveryReport) => void) => void) | undefined;
+
+/**
+ * Five members in one literal, because they fail and pass together. A transport that
+ * cannot derive turn identity generally cannot derive a call id or an index either, and
+ * it writes the whole of this object as a single expression rather than five guarded
+ * assignments — which is the shape the widening exists to permit.
+ */
+const _metaFromOptionalSources: InvocationMeta = {
+  responseId: maybeStr,
+  userTurnId: maybeStr,
+  callId: maybeStr,
+  outputIndex: maybeNum,
+  signal: maybeSig,
+};
+
+/**
+ * The hook, deliberately separate from the five above: the parenthesisation is its own
+ * failure mode. Written unparenthesised, `| undefined` binds inside the *return*
+ * position — a different type, which still compiles, and which would leave this constant
+ * green while the member stopped meaning what `_metaHook` asserts it means.
+ */
+const _metaHookFromOptionalSource: InvocationMeta = { deferUntilDelivered: maybeHook };
+
+/**
+ * The exact line `DeliveryReport.readbackHash`'s own doc comment instructs the author to
+ * write. `maybeStr` stands for `receipt?.hash` — the receipt is a `ReadbackReceipt` the
+ * app may not have, so its `hash` reaches this field as `string | undefined`.
+ *
+ * While the field was bare this was TS2375: the type rejected the idiom the prose beside
+ * it prescribed. The shortest way past that is to hash the payload locally instead, which
+ * reintroduces exactly the canonicalization collision the receipt exists to prevent — on
+ * the one field that is the sole route to an `attested` grade.
+ */
+const _deliveryFromReceipt: DeliveryReport = {
+  responseId: "r",
+  outcome: "completed",
+  readbackHash: maybeStr,
+};
+
+/**
+ * The transport-side envelope, assembled the way a real transport assembles it. The
+ * dispatcher then forwards `userTurnId`, `signal`, and `deferUntilDelivered` straight into
+ * an `InvocationMeta`, and every one of the three is optional on both sides — so either
+ * both accept the same possibly-absent value or the forward needs a cast at the boundary
+ * the consent gate reads.
+ */
+const _batchFromOptionalSources: ToolBatch = {
+  responseId: "r",
+  calls: [],
+  userTurnId: maybeStr,
+  signal: maybeSig,
+  deferUntilDelivered: maybeHook,
+};
+
+void _metaFromOptionalSources;
+void _metaHookFromOptionalSource;
+void _deliveryFromReceipt;
+void _batchFromOptionalSources;

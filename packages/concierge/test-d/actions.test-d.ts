@@ -74,6 +74,7 @@ import type {
   ConsentAck,
   ConsentPolicy,
   DigestLike,
+  InvocationMeta,
   ReadbackReceipt,
   ReadbackSink,
   Scheduler,
@@ -249,6 +250,25 @@ type _handlerArgs = Expect<Equals<Ctx["args"], { q: string }>>;
  * report. Never instantiate this parameter as `null` again.
  */
 type _handlerBridge = Expect<Equals<Ctx["bridge"], PlainBridge | null>>;
+
+/**
+ * WR-02, the consent-path half. A **positive, not a predicate**, and it has to be: the
+ * three assertions above read `Ctx` and read `x?: T` and `x?: T | undefined` identically
+ * under `exactOptionalPropertyTypes`, so `_handlerAck` stays green when `ack` loses its
+ * `| undefined`. Only building the object moves.
+ *
+ * This is the dispatcher's own construction. One context shape serves gated and non-gated
+ * actions alike — `ack` is simply absent for the latter — so the dispatcher holds a
+ * `ConsentAck<…> | undefined` and spreads it in. Against a bare `ack?: ConsentAck<…>`
+ * that is TS2375, leaving two ways out: build two divergent context shapes, or cast. A
+ * cast here is a cast into the consent path, at the one boundary where the library's
+ * whole claim is that nothing may be asserted past the compiler.
+ */
+declare const maybeAck: ConsentAck<Booking, AckShape> | undefined;
+declare const plainBridge: PlainBridge;
+declare const meta: InvocationMeta;
+const _ctxWithMaybeAck: Ctx = { args: { q: "x" }, bridge: plainBridge, meta, ack: maybeAck };
+void _ctxWithMaybeAck;
 
 // --------------------------------------------------------------------------
 // SC-7g — `readsUntrusted` is on the declaration, not inside `SideEffects`
