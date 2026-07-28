@@ -1,8 +1,8 @@
 ---
 phase: 1
 slug: type-surface-completion
-status: draft
-nyquist_compliant: false
+status: complete
+nyquist_compliant: true
 wave_0_complete: true
 created: 2026-07-28
 ---
@@ -50,7 +50,12 @@ no cost argument for sampling less than everything, every time.**
   1. `pnpm typecheck` from the repo root exits 0
   2. the ten-mutant battery below has been run and **every** mutant produced a non-zero exit
   3. `ls packages/concierge/dist` after a build attempt shows no `*.test-d.*` artifact
-  4. `README.md:72` matches the shipped `ActionResult`
+  4. `README.md` carries no stale type contract — the establishing grep returns no line that
+     contradicts the shipped `packages/concierge/src/types.ts`. **Amended 2026-07-28:** this
+     previously read "`README.md:72` matches the shipped `ActionResult`". The user rewrote
+     `README.md` in `bc9ca88`, deleting the design-contract section and with it the
+     `ActionResult` block that line 72 named, so the item as written could never be satisfied.
+     See the note under the per-task map.
 - **Max feedback latency:** < 1 second
 
 ---
@@ -85,11 +90,38 @@ is copied verbatim — with `|` written `\|` so it does not terminate the table 
 | 01-07-T1 | *mechanics* | `ConciergeConfig` seams, the `Scheduler` type, and the `Session` stage members declared (D-03 config half, D-08) | — | type (source edit) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ → `src/types.ts` |
 | 01-07-T2 | *mechanics* | Heterogeneous actions still assemble into `StageDefinition.actions` and `ConciergeConfig.crossStage` | — | type (positive) | `pnpm --filter @fullselfbrowsing/concierge typecheck && test -z "$(grep -l '^[[:space:]]*export' packages/concierge/test-d/*.test-d.ts)" && echo NO_EXPORTS_IN_TEST_D` | ❌ W0 → `test-d/actions.test-d.ts` (appended) |
 | 01-08-T1 | — | The export surface in `index.ts` is complete — every declared public type is re-exported | — | type (source edit) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ → `src/index.ts` |
-| 01-08-T2 | SC-2 | `README.md`'s `ActionResult` block matches the shipped closed union — `reason?: ReasonCode`, zero occurrences of `reason?: string` | — | doc consistency (grep) | `grep -n "reason?: ReasonCode" README.md && grep -c "reason?: string" README.md \| grep -qx 0 && echo README_CONSISTENT` | ✅ `README.md` |
+| 01-08-T2 | SC-2 | `README.md` carries no stale type contract: zero occurrences of `reason?: string`, the one claim that would contradict the shipped closed union. **Row rewritten 2026-07-28 — see the note below this table** | T-01-26 | doc consistency (grep) | `grep -c "reason?: string" README.md \| grep -qx 0 && echo README_NO_STALE_CONTRACT` | ✅ `README.md` |
 | 01-09-T1 | *all* | Ten-mutant battery against the final type surface: **every** mutant produces a non-zero exit, and `types.ts` is restored byte-identical after each | *all* | mutation (falsification) | `git diff --exit-code packages/concierge/src/types.ts && pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ → all `test-d/*.test-d.ts` |
 | 01-09-T2 | *all* | Root typecheck green; a real build emits no `*.test-d.*` or `_assert` artifact into `dist`; validation strategy signed off | T-01-01 | phase gate | `pnpm typecheck && pnpm --filter @fullselfbrowsing/concierge exec tsc -p tsconfig.json && ls -R packages/concierge/dist \| grep -c "test-d\|_assert" \| grep -qx 0 && rm -rf packages/concierge/dist && grep -q "^nyquist_compliant: true" .planning/phases/01-type-surface-completion/01-VALIDATION.md && grep -q "^status: complete" .planning/phases/01-type-surface-completion/01-VALIDATION.md && echo GATE_PASS` | ✅ this file |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+
+> ⚠️ **Row 01-08-T2 rewritten 2026-07-28 by plan 01-09 (the phase gate). The command it replaced
+> could never pass, so marking the row red would have been wrong.**
+>
+> The original command began `grep -n "reason?: ReasonCode" README.md && …`. Between this
+> strategy being authored and plan 01-08 executing, the user rewrote `README.md` (commit
+> `bc9ca88`) as a short positioning page, **deleting the entire design-contract section
+> including the `ActionResult` block**. The first clause therefore matches nothing and the
+> conjunction short-circuits to exit 1 — measured, not assumed. The second clause (zero
+> `reason?: string`) passes and always did.
+>
+> **T-01-26 is genuinely closed, but by removal of the claim rather than by correction of it.**
+> The threat was a published README asserting an open `reason?: string` against a shipped
+> twelve-member closed union. A README that documents no type contract cannot contradict one.
+>
+> The replacement asserts exactly that — the *absence of the false claim* — which is what the
+> threat actually requires, and nothing about the *presence* of a section the user deliberately
+> deleted. That asymmetry is the point: the row must not fight the user's editorial decision,
+> and it must still fire if a future README regrows a contract section carrying the stale type.
+> Asserting presence would have made the row a standing demand to undo `bc9ca88`.
+>
+> **What this row no longer covers, stated plainly:** it does not verify that the README
+> documents the contract *correctly*, only that it does not document it *wrongly*. Nothing
+> mechanical can cover the former now, because there is no contract block to compare against.
+> The broader establishing grep — gate item 4 under § Sampling Rate — remains the human-read
+> half and currently returns **no lines at all**, so it is satisfied vacuously. Recorded so a
+> later reader does not mistake a vacuous pass for a substantive one.
 
 ---
 
@@ -197,7 +229,7 @@ Nothing exists yet. Wave 0 must create all of it before any type edit can be val
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| `README.md:72` renders `reason?: string` | SC-2 | Documentation prose; the compiler cannot see it | Confirm the README's `ActionResult` block matches the shipped closed union. Verified by inspection during code review. |
+| `README.md` prose agrees with the shipped contract | SC-2 | Documentation prose; the compiler cannot see it | Run the establishing grep — `grep -n "userTurnIdentity\|deferUntilDelivered\|readbackHash\|ConsentAck\|reason?:\|TransportCapabilities\|snapshotEquality" README.md` — and confirm every returned line agrees with `packages/concierge/src/types.ts`. **Amended 2026-07-28:** this row named `README.md:72` and its `ActionResult` block, both deleted upstream in `bc9ca88` (see the note under the per-task map). The grep now returns **zero** lines, so the check is satisfied vacuously — and stays meaningful if the README ever regrows a contract section. |
 
 *Everything else has automated verification.*
 
@@ -205,13 +237,22 @@ Nothing exists yet. Wave 0 must create all of it before any type edit can be val
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 1s
-- [ ] Ten-mutant battery run, all ten exit non-zero
-- [ ] The three escapees have purpose-built assertions
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies — all **19** rows above carry a command; none is manual-only
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify — the gap is zero, not three
+- [x] Wave 0 covers all MISSING references — all six artifacts exist on disk (`tsconfig.test-d.json`, `test-d/_assert.ts`, and the four `*.test-d.ts` files)
+- [x] No watch-mode flags — the only script is `tsc -p tsconfig.test-d.json`; a repo-wide grep for `--watch` / `watchOptions` returns nothing
+- [x] Feedback latency < 1s — **225 / 231 / 247 ms** measured over three runs on TypeScript 5.9.3
+- [x] Ten-mutant battery run, all ten exit non-zero — every mutant exited **2** and named the guard its own row lists; full record in `01-09-SUMMARY.md`
+- [x] The three escapees have purpose-built assertions — M2 → `_batchHook` + `_batchRejectsBareId`; M5 → `_sinkShape` + `_sinkTakesNoTypeArgs` (**both** observed firing); M8 → `_handlerAck`, the **sole** diagnostic in the entire repository
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** **Signed off 2026-07-28** by plan 01-09, the Phase 1 gate. Evidence:
+`.planning/phases/01-type-surface-completion/01-09-SUMMARY.md` — the ten-row battery table
+(mutant, exit code, diagnostic codes, guard names matched), the workspace typecheck, the
+dist-hygiene build, and the README agreement check.
+
+Two expected silences are recorded there as **correct, not as holes**, because both were once
+written into this file as expectations that could not be met and would have sent an executor to
+edit a working suite: **M4 does not fire TS2578** (no directive in the suite becomes unused when
+`ConsentAck` flattens) and **M10 does not fire `_requiresIsString`** (`ConsentPolicy<Booking>["requires"]`
+is still `string` once `Name` carries its default). Both were verified silent at the gate.
