@@ -72,15 +72,38 @@ const receipt: ReadbackReceipt = {
 };
 
 // The fixture above pins which fields exist — remove one and the literal stops
-// compiling — but it says nothing about whether the two self-describing fields are
-// still literals, because `"SHA-256"` assigns happily to a widened `string`. These
-// two lines are what make the literals load-bearing rather than decorative.
+// compiling — but it says nothing about whether the fields still hold the types
+// they are declared with, because a value assigns just as happily to a widened
+// type: `"SHA-256"` fits a widened `string`, and every value in the fixture fits
+// `unknown`. A fixture detects *removal*; only a predicate detects *widening*.
+// The four lines below are what make the declared types load-bearing rather than
+// decorative, and there are four of them because the coverage is now complete
+// across all four fields. It was not: `alg` and `canonicalization` had predicates
+// and `hash` and `canonical` were left on the fixture alone, which is how
+// `canonical: Readonly<Uint8Array>` → `canonical: unknown` came to be a silent
+// edit. Extend all four together if a fifth field is ever added.
 
 /** Widening this to `string` would let two different algorithms share one receipt shape. */
 type _receiptAlgIsLiteral = Expect<Equals<ReadbackReceipt["alg"], "SHA-256">>;
 
 /** The canonicalization rule belongs to core, so there is exactly one legal answer. */
 type _receiptCanonicalizationIsLiteral = Expect<Equals<ReadbackReceipt["canonicalization"], "JCS">>;
+
+/** The value that feeds `DeliveryReport.readbackHash` and, through it, the attested branch's `readbackHash` — the sole route to an `attested` grade. Widened, whatever a sink hands back becomes the hash. */
+type _receiptHashIsString = Expect<Equals<ReadbackReceipt["hash"], string>>;
+
+// `canonical` is the one field where a widening is worse than a lost guarantee.
+// Its entire justification is WebAuthn's rule that intermediaries must not
+// parse-and-reserialize — which is why `clientDataJSON` is an opaque byte array
+// rather than a string. Widened to `unknown`, a sink can hand back a re-serialized
+// *string* in the field whose name promises these are the exact bytes that were
+// hashed, and nothing in this repository would notice. The pin names
+// `Readonly<Uint8Array>` because that is the type plan 01-10 landed, element
+// modifier included; if the declaration and this line ever disagree, this line is
+// the one that is wrong.
+
+/** The bytes themselves, not merely a reference to them. `unknown` here reopens exactly the hazard the field exists to close. */
+type _receiptCanonicalIsBytes = Expect<Equals<ReadbackReceipt["canonical"], Readonly<Uint8Array>>>;
 
 // --------------------------------------------------------------------------
 // SC-3 — the sink shapes an app will actually write
