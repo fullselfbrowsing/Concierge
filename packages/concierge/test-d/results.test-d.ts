@@ -18,7 +18,7 @@
 
 import type { Assignable, Equals, Expect, Not } from "./_assert.js";
 import type { ActionResult } from "../src/types.js";
-import { MESSAGE_MAX_CHARS } from "../src/types.js";
+import { MESSAGE_MAX_CHARS, USER_CANCELLED, USER_DECLINED } from "../src/types.js";
 
 // --------------------------------------------------------------------------
 // SC-2 — the union is closed, and both halves of it reach the field
@@ -106,3 +106,43 @@ const _computedReasonAssigns: ActionResult = {
 
 /** Guards against a silent widening to `number` (an added `: number`) or a changed bound. */
 type _messageBound = Expect<Equals<typeof MESSAGE_MAX_CHARS, 180>>;
+
+// --------------------------------------------------------------------------
+// IN-03 — the two frozen constants keep their literal types too
+// --------------------------------------------------------------------------
+
+// These four detect two distinct regressions, and nothing else in the suite sees
+// either one.
+//
+// The annotation widening back to `Readonly<ActionResult>` — which is what both
+// constants carried until 2026-07-28 — compiles, freezes the same value, emits a
+// valid `.d.ts`, and leaves every other assertion in this file green. Its only
+// symptom is that `ok` becomes `boolean` and `reason` becomes
+// `ReasonCode | undefined`, so a consumer can no longer narrow on either.
+//
+// The constants' *values* changing is the second, and it is the one a consumer
+// would never see coming: `declined` and `cancelled` are shape-identical, and the
+// distinction between them is exactly what `AbandonReason` exists to carry — an
+// explicit refusal is a decision, a dismissal is not.
+//
+// One line each, for the reason stated at the top of this file: `tsc` echoes only
+// the line the failing type argument sits on, so the alias name has to be on it.
+
+/** `USER_CANCELLED.ok` is `false`, not `boolean`. Red if the annotation widens. */
+type _cancelledOkIsLiteral = Expect<Equals<(typeof USER_CANCELLED)["ok"], false>>;
+
+/** `USER_CANCELLED.reason` is `"cancelled"`. Red if the annotation widens or the value changes. */
+type _cancelledReasonIsLiteral = Expect<Equals<(typeof USER_CANCELLED)["reason"], "cancelled">>;
+
+/** `USER_DECLINED.ok` is `false`, not `boolean`. Red if the annotation widens. */
+type _declinedOkIsLiteral = Expect<Equals<(typeof USER_DECLINED)["ok"], false>>;
+
+/** `USER_DECLINED.reason` is `"declined"`. Red if the annotation widens or the value changes. */
+type _declinedReasonIsLiteral = Expect<Equals<(typeof USER_DECLINED)["reason"], "declined">>;
+
+// A narrower annotation must not overshoot: both constants are still what an
+// action returns, so both must still satisfy `ActionResult` itself. Without these
+// two, narrowing `reason` to a literal that is not a `ReasonCode` member — or
+// dropping `message` — would pass the four pins above and break every consumer.
+type _cancelledIsActionResult = Expect<Assignable<typeof USER_CANCELLED, ActionResult>>;
+type _declinedIsActionResult = Expect<Assignable<typeof USER_DECLINED, ActionResult>>;

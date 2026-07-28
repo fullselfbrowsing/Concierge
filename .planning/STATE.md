@@ -96,6 +96,7 @@ None yet.
 | Test coverage | `Scheduler`'s own shape is pinned by nothing — the three `ConciergeConfig` assertions pin field-to-alias, not alias shape. Deliberately not pinned: RESEARCH A3 marks the signature MEDIUM-risk and expects Phase 6 to refine it, so a pin would fire on a sanctioned edit. | Deferred → Phase 6 | Phase 1 / plan 01-07 |
 | Docs | README documents no type contract at all after the rewrite (commit `bc9ca88`). Threat T-01-26 is closed, but validation row 01-08-T2 now passes **vacuously**. Doc-coverage gap, not a correctness gap. | Accepted (override) | Phase 1 / plan 01-08 |
 | Runtime | `Scheduler` is optional but there is **no `setTimeout` in scope to default to** — it is TS2304 under `lib: ["ES2022"]`. Phase 6 must either reach a platform timer structurally or make the seam required. | Deferred → Phase 6 | Phase 1 / plan 01-07 |
+| Runtime | `ActionResult` admits contradictory states by design; the dispatcher normalizer must reject a success carrying a `reason` and a failure carrying none. Belongs beside `invalid_result` (DSP-09) and the SEC-06 sanitizer. **This is a scheduling obligation, not an assumption** — it arises from an *unratified orchestrator decision* on WR-06 (option-b: keep the flat shape), recorded verbatim in `01-13-SUMMARY.md`; the user has not ratified it. If ratification is withheld the alternative is the discriminated union on `ok`, which is free before publish and breaking after — Phase 8 is the last free moment. | Deferred → Phase 6 | Phase 1 / plan 01-13 |
 
 ## Session Continuity
 

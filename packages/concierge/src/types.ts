@@ -60,6 +60,45 @@ export interface AbortSignalLike {
  *
  * Note what this type cannot promise: on a conversational transport the agent
  * *reauthors* this text before the human sees it. See {@link ConsentGrade}.
+ *
+ * **The shape is flat on purpose, and the trade is real.** `ok` and `reason`
+ * are independent members, so two contradictory states are legal at the type
+ * level: `{ ok: true, reason: "handler_error", message: "Done." }` — a success
+ * carrying a failure code, which runs an exhaustive failure mapper on a result
+ * that did not fail — and `{ ok: false, message: "Failed." }` — a failure
+ * carrying no code, which is the under-reporting the closed {@link ReasonCode}
+ * union exists to make impossible. Both cross {@link Transport.respond} to the
+ * model. They are written out literally here so the next reader recognises them
+ * rather than re-deriving them.
+ *
+ * The discriminated union on `ok` that would make both of those compile errors
+ * was rejected, and the reason is mechanical rather than aesthetic: `keyof` a
+ * union is the *intersection* of its branches' keys, so `keyof ActionResult`
+ * would collapse to `"ok" | "message"` and {@link ConsentPolicy.onMissing} —
+ * declared `Pick<ActionResult, "reason" | "message">` — becomes TS2344,
+ * `Type '"reason" | "message"' does not satisfy the constraint
+ * '"ok" | "message"'`. Beyond that one breakage, every `.reason` read in the
+ * dispatcher and the consent kernel would first need an `ok === false` guard.
+ * Recorded in `01-CONTEXT.md` § D-01 under "Rejected — do not revive", beside
+ * the generic-over-reason and `` `app.${string}` `` variants {@link ReasonCode}
+ * documents.
+ *
+ * **So the property is enforced at runtime, not in this type.** Phase 6
+ * normalizes at the dispatcher boundary — the same boundary where
+ * `invalid_result` (DSP-09) already rejects a handler return that is not a
+ * valid result, and the SEC-06 sanitizer already truncates `message` to
+ * {@link MESSAGE_MAX_CHARS} and strips control characters. A success carrying a
+ * `reason`, and a failure carrying none, belong to that normalizer. The
+ * obligation is tracked as a Deferred Item in `.planning/STATE.md` rather than
+ * left here, because a mitigation living only in a doc comment is an unenforced
+ * marker beside a control that genuinely fails closed — the pattern
+ * {@link SideEffects} already exhibits, where `destructive: true` merely *warns*
+ * when it carries no {@link ConsentPolicy}.
+ *
+ * Re-examined 2026-07-28, after a code review demonstrated both contradictory
+ * states, and the trade was re-affirmed rather than merely inherited — see
+ * `01-13-SUMMARY.md`, which records who made that call and that it is pending
+ * user ratification.
  */
 export interface ActionResult {
   ok: boolean;
@@ -179,17 +218,51 @@ export type FailureReason =
  */
 export type ReasonCode = AbandonReason | FailureReason;
 
-export const USER_CANCELLED: Readonly<ActionResult> = Object.freeze({
-  ok: false,
-  reason: "cancelled",
-  message: "Cancelled.",
-});
+/**
+ * The result to return when the human interrupted or dismissed.
+ *
+ * **The annotation is deliberately narrower than {@link ActionResult}, and the
+ * narrowness is the point.** Under `isolatedDeclarations` a `const` initialized
+ * from a call expression requires *an* annotation (TS9010), so it cannot simply
+ * be dropped — but a `Readonly` of the whole {@link ActionResult} interface,
+ * which is what this carried until 2026-07-28, widens `ok` to `boolean` and
+ * `reason` to `ReasonCode | undefined`. That leaves a consumer unable to narrow
+ * on either, and leaves this constant's *value* undetectable if it changes.
+ * Spelling the literals out carries them into the emitted `.d.ts` instead.
+ *
+ * This is the same trade {@link MESSAGE_MAX_CHARS} below makes by carrying no
+ * annotation at all, and that constant is the precedent: an annotation which
+ * discards the literal discards exactly the signal a guard would read. Do not
+ * tidy this back toward the wide interface — `_cancelledOkIsLiteral` and
+ * `_cancelledReasonIsLiteral` in `test-d/results.test-d.ts` go red if you do.
+ */
+export const USER_CANCELLED: Readonly<{
+  ok: false;
+  reason: "cancelled";
+  message: string;
+}> = Object.freeze({ ok: false, reason: "cancelled", message: "Cancelled." });
 
-export const USER_DECLINED: Readonly<ActionResult> = Object.freeze({
-  ok: false,
-  reason: "declined",
-  message: "Okay, I won't do that.",
-});
+/**
+ * The result to return when the human explicitly refused.
+ *
+ * **The annotation is deliberately narrower than {@link ActionResult}**, for the
+ * reason given on {@link USER_CANCELLED} above and modelled on
+ * {@link MESSAGE_MAX_CHARS} below: a `Readonly` of the whole interface would
+ * widen `ok` to `boolean` and `reason` to `ReasonCode | undefined`, discarding
+ * the literals a consumer narrows on and a type test reads.
+ * `_declinedOkIsLiteral` and `_declinedReasonIsLiteral` in
+ * `test-d/results.test-d.ts` are what stop that.
+ *
+ * `reason` is `"declined"` and not `"cancelled"`: the split is load-bearing for
+ * what the agent says next — see {@link AbandonReason}. A pin exists on this
+ * literal specifically because swapping the two values is the one regression
+ * that changes behaviour while leaving every shape assertion green.
+ */
+export const USER_DECLINED: Readonly<{
+  ok: false;
+  reason: "declined";
+  message: string;
+}> = Object.freeze({ ok: false, reason: "declined", message: "Okay, I won't do that." });
 
 /**
  * Maximum length of an {@link ActionResult.message}, in characters.
