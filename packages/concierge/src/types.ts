@@ -60,6 +60,45 @@ export interface AbortSignalLike {
  *
  * Note what this type cannot promise: on a conversational transport the agent
  * *reauthors* this text before the human sees it. See {@link ConsentGrade}.
+ *
+ * **The shape is flat on purpose, and the trade is real.** `ok` and `reason`
+ * are independent members, so two contradictory states are legal at the type
+ * level: `{ ok: true, reason: "handler_error", message: "Done." }` — a success
+ * carrying a failure code, which runs an exhaustive failure mapper on a result
+ * that did not fail — and `{ ok: false, message: "Failed." }` — a failure
+ * carrying no code, which is the under-reporting the closed {@link ReasonCode}
+ * union exists to make impossible. Both cross {@link Transport.respond} to the
+ * model. They are written out literally here so the next reader recognises them
+ * rather than re-deriving them.
+ *
+ * The discriminated union on `ok` that would make both of those compile errors
+ * was rejected, and the reason is mechanical rather than aesthetic: `keyof` a
+ * union is the *intersection* of its branches' keys, so `keyof ActionResult`
+ * would collapse to `"ok" | "message"` and {@link ConsentPolicy.onMissing} —
+ * declared `Pick<ActionResult, "reason" | "message">` — becomes TS2344,
+ * `Type '"reason" | "message"' does not satisfy the constraint
+ * '"ok" | "message"'`. Beyond that one breakage, every `.reason` read in the
+ * dispatcher and the consent kernel would first need an `ok === false` guard.
+ * Recorded in `01-CONTEXT.md` § D-01 under "Rejected — do not revive", beside
+ * the generic-over-reason and `` `app.${string}` `` variants {@link ReasonCode}
+ * documents.
+ *
+ * **So the property is enforced at runtime, not in this type.** Phase 6
+ * normalizes at the dispatcher boundary — the same boundary where
+ * `invalid_result` (DSP-09) already rejects a handler return that is not a
+ * valid result, and the SEC-06 sanitizer already truncates `message` to
+ * {@link MESSAGE_MAX_CHARS} and strips control characters. A success carrying a
+ * `reason`, and a failure carrying none, belong to that normalizer. The
+ * obligation is tracked as a Deferred Item in `.planning/STATE.md` rather than
+ * left here, because a mitigation living only in a doc comment is an unenforced
+ * marker beside a control that genuinely fails closed — the pattern
+ * {@link SideEffects} already exhibits, where `destructive: true` merely *warns*
+ * when it carries no {@link ConsentPolicy}.
+ *
+ * Re-examined 2026-07-28, after a code review demonstrated both contradictory
+ * states, and the trade was re-affirmed rather than merely inherited — see
+ * `01-13-SUMMARY.md`, which records who made that call and that it is pending
+ * user ratification.
  */
 export interface ActionResult {
   ok: boolean;
