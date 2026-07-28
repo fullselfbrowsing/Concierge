@@ -3,9 +3,10 @@
 // canonicalization rule, and the canonical bytes. SC-7e — that seam is pinned to the
 // generic-FUNCTION form by the one assertion pair that actually detects a regression.
 //
-// **Part 1 of 2.** This half covers the readback seam, the injected digest, and the
-// server-challenge brand. The consent-ack half is appended below the marker at the
-// foot of this file by plan 01-05; nothing above that marker touches it.
+// **Two halves.** The first covers the readback seam, the injected digest, and the
+// server-challenge brand (plan 01-04). The second, below the marker further down,
+// covers the consent ack itself (plan 01-05). Nothing in the first half touches
+// `ConsentAck`, which is what lets a failure name the half it came from.
 //
 // This file declares nothing to the outside world. The imports below already give it
 // module status, which is what keeps `isolatedDeclarations` from treating every
@@ -29,6 +30,7 @@
 
 import type { Assignable, Equals, Expect, Not } from "./_assert.js";
 import type {
+  ConsentAck,
   DigestLike,
   Readback,
   ReadbackReceipt,
@@ -193,7 +195,108 @@ const _forged: ServerChallenge = "i-made-this-up";
 void _forged;
 
 // --------------------------------------------------------------------------
-// Part 2 — the consent-ack assertions (SC-6, SC-7f) are appended below this line
-// by plan 01-05. Nothing above asserts anything about that type; keeping the two
-// halves disjoint is what lets a failure name which half it came from.
+// Part 2 — the consent-ack assertions (SC-6, SC-7f) begin below this line.
+// Nothing above asserts anything about `ConsentAck`, and nothing below re-tests
+// the readback seam; keeping the two halves disjoint is what lets a failure name
+// which half it came from. The only thing they share is the `Booking` fixture.
 // --------------------------------------------------------------------------
+
+// --------------------------------------------------------------------------
+// SC-6 — `attested` implies `readbackHash`, enforced by the compiler
+// --------------------------------------------------------------------------
+
+/**
+ * The shape is constructible: a fully populated attested ack with both type
+ * parameters carrying real types rather than falling back to their `unknown`
+ * defaults.
+ *
+ * The hash is the SHA-256 of `"test"` — the same digest part 1's receipt fixture
+ * carries, so the file stays internally honest, but written as a literal rather
+ * than read off that fixture on purpose. A failure here must not be attributable
+ * to anything above the marker.
+ */
+const _attestedOk: ConsentAck<Booking, { id: string }> = {
+  userTurnId: "t1",
+  responseId: "r1",
+  snapshot: booking,
+  payload: { id: "a" },
+  grade: "attested",
+  readbackHash: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+};
+
+void _attestedOk;
+
+// --------------------------------------------------------------------------
+// SC-7f — the invariant itself, as a predicate rather than a directive
+// --------------------------------------------------------------------------
+
+// The choice of a predicate here is not stylistic. A suppression directive asserts
+// only that *something* on the following line failed, so a misspelled `userTurnId`
+// would satisfy one just as well as the missing hash does — and the invariant this
+// file exists for would be untested while looking tested. `Expect<…>` fails with
+// TS2344 and puts the alias name on the source line `tsc` echoes, so a failure says
+// which guarantee broke. It also models `exactOptionalPropertyTypes` faithfully,
+// which the challenge assertion further down depends on entirely.
+//
+// This pair is mutant M4's primary detector. Flatten `ConsentAck` back into one
+// declaration and `readbackHash` becomes optional at every grade, the object below
+// starts assigning, and this line goes red.
+
+/** An attested ack with no hash proves only that *a* readback happened — not that it described this payload. */
+type _attestedNeedsHash = Expect<Not<Assignable<{ userTurnId: string; responseId: string; snapshot: Booking; payload: null; grade: "attested" }, ConsentAck<Booking, null>>>>;
+
+/** Control, not a guard: the same object *with* a hash does assign, so the line above is about the hash and not about unrelated drift in the object. */
+type _attestedWithHashAssigns = Expect<Assignable<{ userTurnId: string; responseId: string; snapshot: Booking; payload: null; grade: "attested"; readbackHash: string }, ConsentAck<Booking, null>>>;
+
+// --------------------------------------------------------------------------
+// D-05 — omit the challenge, do not spread an empty one into it
+// --------------------------------------------------------------------------
+
+/** Under `exactOptionalPropertyTypes` an absent key and a present-but-empty key are different types, and only the absent one is legal here (TS2375 at a construction site). */
+type _challengeMustBeOmitted = Expect<Not<Assignable<{ userTurnId: string; responseId: string; snapshot: Booking; payload: null; grade: "relayed"; challenge: undefined }, ConsentAck<Booking, null>>>>;
+
+/** Control, not a guard: drop the key entirely and the same ack assigns. This is what makes the line above about the challenge rather than about anything else. */
+type _challengeAbsentAssigns = Expect<Assignable<{ userTurnId: string; responseId: string; snapshot: Booking; payload: null; grade: "relayed" }, ConsentAck<Booking, null>>>;
+
+// --------------------------------------------------------------------------
+// Narrowing survives the union-of-intersections
+// --------------------------------------------------------------------------
+
+declare const ack: ConsentAck<Booking, { id: string }>;
+
+/**
+ * The ergonomic half of the refactor, and M4's second detector.
+ *
+ * Discriminant narrowing reaches *through* the intersections, so inside the guard
+ * `readbackHash` is a plain `string` and the `return` needs no fallback — that
+ * missing `??` is the entire assertion. Outside the guard it may be absent and the
+ * fallback is genuinely required. If `ConsentAck` is ever flattened back into one
+ * declaration the first `return` stops compiling with TS2322, independently of the
+ * predicates above.
+ *
+ * The declared return type is load-bearing. Drop it and inference widens the
+ * function to `string | undefined`, both branches go quiet, and this detector
+ * disappears without anything going red.
+ */
+function narrowsThroughTheUnion(): string {
+  if (ack.grade === "attested") return ack.readbackHash;
+  return ack.readbackHash ?? "";
+}
+
+void narrowsThroughTheUnion;
+
+// D-07's half of the hinge: both type parameters have to survive the split into
+// two branches, and *both* need an assertion. `Snapshot` erased to `unknown` is
+// caught by the first line below. `Payload` erased the same way was measured to
+// produce **zero** diagnostics before the second line existed — the SC-6 positive
+// stays green because any payload assigns to `unknown`, and both negatives stay
+// green because they are already negative for other reasons. Plan 01-06 asserts
+// that `ActionDefinition.handler` forwards `Snapshot` *and* `AckPayload` through to
+// `ctx.ack`; if `Payload` quietly stopped reaching this member, that assertion
+// would be measuring a chain with a hole in it and would still pass.
+
+/** The `Snapshot` parameter reaches the common members with no narrowing at all. */
+type _commonSnapshot = Expect<Equals<(typeof ack)["snapshot"], Booking>>;
+
+/** …and so does `Payload`, which is what plan 01-06's handler assertion binds against. */
+type _commonPayload = Expect<Equals<(typeof ack)["payload"], { id: string }>>;
