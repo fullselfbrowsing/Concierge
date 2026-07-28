@@ -254,9 +254,18 @@ export interface InvocationMeta {
  * cannot see `outcome` cannot refuse it.
  */
 export interface DeliveryReport {
-  responseId: string;
-  /** Anything but `completed` means consent must not arm. */
-  outcome: "completed" | "interrupted";
+  readonly responseId: string;
+  /**
+   * Anything but `completed` means consent must not arm.
+   *
+   * Read-only, so a truncated readback cannot be relabelled as a completed one.
+   * While this was writable, `report.outcome = "completed"` compiled with no cast
+   * and no diagnostic, which turned the refusal this field exists to make possible
+   * into a suggestion. The whole reason `outcome` replaced a bare
+   * `deliveredResponseId: string` was to make partial delivery *representable*; a
+   * consumer that can overwrite the representation is back where it started.
+   */
+  readonly outcome: "completed" | "interrupted";
   /**
    * Hash of the exact payload the app rendered.
    *
@@ -269,7 +278,7 @@ export interface DeliveryReport {
    * The receipt is what fixes the canonicalization rule, and an app-derived hash
    * reintroduces exactly the collision the receipt exists to prevent.
    */
-  readbackHash?: string;
+  readonly readbackHash?: string;
 }
 
 /**
@@ -416,12 +425,25 @@ export interface ConsentPolicy<Snapshot = unknown> {
  * has not been checked.
  */
 interface ConsentAckBase<Snapshot, Payload> {
-  userTurnId: string;
-  responseId: string;
-  /** Normalized and structurally frozen at arm time. Never a live reference. */
-  snapshot: Snapshot;
+  readonly userTurnId: string;
+  readonly responseId: string;
+  /**
+   * Normalized and structurally frozen at arm time. Never a live reference.
+   *
+   * The `readonly` is what *backs* that sentence. It was prose alone until now, in
+   * the one file whose stated thesis is that prose has never once stopped a defect
+   * from being built — and the ack is handed by reference into app-authored handler
+   * code through {@link ActionHandler}'s `ctx.ack`, so an ordinary aliasing bug was
+   * enough to rewrite what the human reviewed.
+   *
+   * The two halves are not interchangeable and neither is sufficient alone. The
+   * modifier stops a write *through this reference* at compile time; `Object.freeze`
+   * at the producer remains the runtime half and stops a write through an alias
+   * obtained before arming, which the type cannot see at all.
+   */
+  readonly snapshot: Snapshot;
   /** Captured at review time and replayed verbatim at confirm time. */
-  payload: Payload;
+  readonly payload: Payload;
   /**
    * A server-issued, client-echoed, opaque token. See {@link ServerChallenge}.
    *
@@ -437,7 +459,7 @@ interface ConsentAckBase<Snapshot, Payload> {
    * `undefined` are different types, so spreading the key in with an explicitly
    * empty value is rejected with TS2375. Build the object without the key.
    */
-  challenge?: ServerChallenge;
+  readonly challenge?: ServerChallenge;
 }
 
 /**
@@ -453,6 +475,21 @@ interface ConsentAckBase<Snapshot, Payload> {
  * to work, and prose has never once stopped one from being built. A future tidy-up
  * that flattens these two branches back together silently reopens it; the type-test
  * suite has two independent detectors for exactly that edit.
+ *
+ * **The union constrains construction; only `readonly` constrains mutation, and both
+ * halves are load-bearing.** Removing either one reopens the hole, so they must be
+ * read as a single mechanism rather than a rule and a decoration. Concretely: the
+ * *write* type of a property on a union-typed value is the union of the branches'
+ * write types, so with a writable discriminant `ack.grade = "attested"` compiled on
+ * any ack at all — no cast, no `any`, no suppression, zero diagnostics — and forged
+ * the attested branch. What made that critical rather than merely lax is what
+ * happens next: narrowing on the forged discriminant types an *absent*
+ * `readbackHash` as a plain `string`. So the escape did not merely fail to block a
+ * forgery; it made the compiler issue a **false guarantee** to whatever compares
+ * that hash, at precisely the narrowing idiom this file's own type tests teach as
+ * correct (`test-d/consent.test-d.ts`, `narrowsThroughTheUnion`). A guarantee the
+ * runtime does not back is worse than no guarantee, because the consumer stops
+ * writing the fallback.
  *
  * Narrowing behaves the way a flat declaration would. Inside `ack.grade ===
  * "attested"` the hash is a plain `string` needing no fallback; outside it, it may be
@@ -471,19 +508,19 @@ interface ConsentAckBase<Snapshot, Payload> {
  */
 export type ConsentAck<Snapshot = unknown, Payload = unknown> =
   | (ConsentAckBase<Snapshot, Payload> & {
-      /** The grade actually achieved when this ack armed. */
-      grade: Exclude<ConsentGrade, "attested">;
+      /** The grade actually achieved when this ack armed. Read-only: see the note on the union above — a written discriminant forges the branch below. */
+      readonly grade: Exclude<ConsentGrade, "attested">;
       /**
        * Optional below the strongest grade — and their not requiring it is
        * precisely what makes them lower. A readback may well have occurred; what
        * is missing is any binding between it and this payload. See the attested
        * branch for where the value comes from.
        */
-      readbackHash?: string | undefined;
+      readonly readbackHash?: string | undefined;
     })
   | (ConsentAckBase<Snapshot, Payload> & {
-      /** The grade actually achieved when this ack armed. */
-      grade: "attested";
+      /** The grade actually achieved when this ack armed. Read-only: this is the branch a written discriminant forges its way into. */
+      readonly grade: "attested";
       /**
        * Hash of the exact bytes presented to the human. **Required here, and that
        * requirement is the whole point of this branch existing separately.**
@@ -501,7 +538,7 @@ export type ConsentAck<Snapshot = unknown, Payload = unknown> =
        * canonicalization rule, and an app-derived hash reintroduces exactly the
        * collision the receipt exists to prevent.
        */
-      readbackHash: string;
+      readonly readbackHash: string;
     });
 
 /**
@@ -559,10 +596,10 @@ export interface Readback<Payload = unknown> {
  * declares the rule; it does not implement it.
  */
 export interface ReadbackReceipt {
-  /** Feeds {@link DeliveryReport.readbackHash} and {@link ConsentAck.readbackHash}. */
-  hash: string;
-  alg: "SHA-256";
-  canonicalization: "JCS";
+  /** Feeds {@link DeliveryReport.readbackHash} and {@link ConsentAck.readbackHash}. Read-only: the receipt's binding to the bytes below is the artifact, and severing it must not be a plain assignment. */
+  readonly hash: string;
+  readonly alg: "SHA-256";
+  readonly canonicalization: "JCS";
   /**
    * The exact bytes that were hashed. Re-read, never re-derived.
    *
@@ -571,8 +608,23 @@ export interface ReadbackReceipt {
    * must not parse-and-reserialize. Phase 8's confirm step, and any future
    * server-side verification, read these bytes instead of canonicalizing
    * `payload` a second time and hoping they agree.
+   *
+   * **`Readonly<Uint8Array>`, not a bare `Uint8Array`, and the difference is the
+   * whole point.** The property modifier and the element type are two different
+   * mechanisms: `readonly canonical: Uint8Array` stops rebinding the reference and
+   * was measured to leave `receipt.canonical[0] = 0` compiling — the bytes rewritten
+   * in place, under a field whose name promises they are the exact ones that were
+   * hashed. The element-level `Readonly<>` makes that TS2542. It costs nothing that
+   * matters: `.length`, indexed reads, `for…of`, `new Uint8Array(receipt.canonical)`,
+   * and the `ArrayBufferView` parameter position of {@link DigestLike.digest} all
+   * still typecheck.
+   *
+   * A by-convention freeze at the producer was the alternative and was rejected,
+   * because a convention is exactly what the paragraph above says WebAuthn refused
+   * to rely on when it made `clientDataJSON` opaque rather than merely asking
+   * intermediaries not to reserialize it.
    */
-  canonical: Uint8Array;
+  readonly canonical: Readonly<Uint8Array>;
 }
 
 /**
@@ -981,8 +1033,8 @@ export type TurnIdentityProvenance =
   | "human-attested";
 
 export interface TransportCapabilities {
-  /** What this transport can honestly promise. See {@link ConsentGrade}. */
-  consentGrade: ConsentGrade;
+  /** What this transport can honestly promise. See {@link ConsentGrade}. Read-only: a grade raised after declaration is a capability nothing ever verified. */
+  readonly consentGrade: ConsentGrade;
   /**
    * Where turn identity comes from. See {@link TurnIdentityProvenance}.
    *
@@ -994,12 +1046,21 @@ export interface TransportCapabilities {
    * Self-declared, and the kernel has no independent way to verify it. A
    * transport that overstates this defeats the gate; understating it only costs
    * capability. Understate when unsure.
+   *
+   * **Fixed at declaration and not upgradable in place.** This whole member exists
+   * so the kernel can tell an id the agent could have minted from one it could not.
+   * A value that can be raised from `agent-forgeable` to `human-attested` after the
+   * fact carries none of that distinction — it converts a value the kernel is told
+   * not to trust into one it is told to trust, which is the exact substitution the
+   * type was introduced to make impossible. The `readonly` is what closes it; with
+   * the member writable, `t.capabilities.userTurnIdentity = "human-attested"`
+   * compiled with no cast.
    */
-  userTurnIdentity: TurnIdentityProvenance;
+  readonly userTurnIdentity: TurnIdentityProvenance;
   /** Whether a single response may contain several calls. */
-  parallelCalls: boolean;
+  readonly parallelCalls: boolean;
   /** Whether the catalog can be swapped mid-session on stage change. */
-  dynamicCatalog: boolean;
+  readonly dynamicCatalog: boolean;
 }
 
 /**
@@ -1007,6 +1068,18 @@ export interface TransportCapabilities {
  * arrives over WebRTC, SSE, MCP stdio, WebMCP, or a command palette.
  */
 export interface Transport {
+  /**
+   * What this transport can honestly promise. See {@link TransportCapabilities}.
+   *
+   * **This `readonly` is now genuinely protective, and it was not before.** A
+   * `readonly` property stops the *reference* being rebound and says nothing about
+   * the members it points at, so while `TransportCapabilities` was writable this
+   * modifier read as protection while `t.capabilities.consentGrade = "attested"`
+   * compiled cleanly — worse than no modifier, because a reader stopped looking.
+   * The two levels must stay in step: dropping `readonly` from any member of
+   * `TransportCapabilities` restores the misleading state rather than merely
+   * loosening this one.
+   */
   readonly capabilities: TransportCapabilities;
   /** Publish the catalog for the current stage. */
   setTools: (tools: ReadonlyArray<EmittedTool>) => void;
