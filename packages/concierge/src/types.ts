@@ -857,8 +857,25 @@ export interface SideEffects {
 // ---------------------------------------------------------------------------
 
 /**
- * Required for any action with a non-empty schema. Defaults to `"drop"` —
- * telemetry leaks are opt-in, never accidental.
+ * How an action's validated arguments are exposed to telemetry.
+ *
+ * **Required on every action, with no implicit default and no way to omit it.**
+ * {@link ActionDefinition.redact} carries no optionality, so there is no
+ * unstated policy to fall back to and no shape of declaration that leaves the
+ * question open. The choice is made once, explicitly, by the author who knows
+ * what the arguments actually contain.
+ *
+ * **Choose `"drop"` when in doubt.** Telemetry leaks are opt-in and never
+ * accidental. `"passthrough"` and a projection function are both deliberate
+ * acts of disclosure, and only the declaring author can know that a particular
+ * argument is safe to record.
+ *
+ * **Enforcement of the wider requirement lives in Phase 3, under SEC-01** — the
+ * declaration-time redaction rule, checked at `buildCatalog` with the rest of
+ * the catalog validation. Phase 1 declares the shape and makes the member
+ * mandatory; it validates no catalogs and reads no schemas. The owner is named
+ * here so a reader who finds nothing checking this at runtime concludes the
+ * requirement is *elsewhere* rather than unowned.
  */
 export type RedactionPolicy<Args> =
   | "drop"
