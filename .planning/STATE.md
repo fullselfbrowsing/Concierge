@@ -79,16 +79,13 @@ None yet.
 
 ### Blockers/Concerns
 
-One open decision in PROJECT.md needs an owner before the phase that depends on it:
+**No open blockers.**
 
-- **Core as `peerDependency` of adapters** (blocks Phase 2 packaging wiring). Structurally forces a single core instance; diverges from the dominant ecosystem pattern; expensive to reverse after publish.
+**Resolved 2026-07-28** — *Core as `peerDependency` of adapters*, which blocked Phase 2 packaging wiring, is decided: **peer dependency**. Two core instances is a correctness failure, not a performance one — it nulls the bridge registry, splits the dedup window into two (so a retried call double-fires), and hides consent armed on one instance from the other. A peer range turns a version mismatch into a loud install-time error; a pinned dependency lets duplicates resolve silently. Diverging from TanStack's pinning is the accepted cost. Recorded in PROJECT.md Key Decisions; Phase 2 implements it as PKG-04.
 
 **Resolved 2026-07-27** — "how `attested` is achieved on a voice-only transport" was the wrong question and is closed. It smuggled modality back into a contract that had already rejected it. Grades turn on content provenance (agent paraphrase vs app-rendered payload) and confirmation provenance (inferred vs a human act bound to that payload's hash). `attested` needs an app-rendered raw-payload surface and an observed act on it; whether the app also speaks is irrelevant, and no product class is capped below `attested`.
 
-Two PROJECT.md Key Decisions rows are now stale and should be corrected at the next transition:
-
-- "Standard Schema v1, **inlined**" — the repo already takes `@standard-schema/spec` as a real dependency, which research recommended (types-only, 0-byte runtime).
-- The same row promises a `concierge-zod` bridge package, which REQUIREMENTS.md Out of Scope deletes.
+**Closed 2026-07-28** — the two "stale PROJECT.md rows" noted here were re-checked and are already correct. The Key Decisions row reads "Standard Schema v1 as a real dependency… `@standard-schema/spec` is depended on rather than inlined" and explicitly states "No `concierge-zod` bridge". This note was itself the stale artifact.
 
 ## Deferred Items
 
