@@ -118,13 +118,13 @@ a green one over a broken contract.
 | M1 | `reason` back to open `string` | 5 errors incl. TS2578, TS2322 on the `never` arm, TS2375 on the computed idiom |
 | M2 | `ToolBatch` hook drops the outcome | 2 × TS2344 (`_batchHook`, `_batchRejectsBareId`) |
 | M3 | `ActionDefinition` drops the `ConsentPolicy` type argument | TS2322 + TS2344 (`_snapshotInferred`) |
-| M4 | `ConsentAck` flattened back to one interface | TS2578 + TS2322 in the narrowing function |
+| M4 | `ConsentAck` flattened back to one interface | **TS2344 on `_attestedNeedsHash`** + TS2322 in the narrowing function. *(Corrected 2026-07-28: previously said TS2578. No directive in `consent.test-d.ts` becomes unused when `ConsentAck` flattens, so TS2578 will not fire — that row was stale relative to D-06's predicates-not-directives correction.)* |
 | M5 | `ReadbackSink` as a defaulted generic alias | TS2344 (`_sinkShape`) + TS2578 (`_sinkTakesNoTypeArgs`) |
 | M6 | `userTurnIdentity` back to `boolean` | 5 errors incl. TS2344 (`_provenanceNotBoolean`) |
 | M7 | `readsUntrusted` moved into `SideEffects` | TS2339 + TS2578 |
 | M8 | `handler` drops `Snapshot`/`AckPayload` | TS2344 (`_handlerAck`) |
 | M9 | `snapshotEquality` switched to method syntax | TS2578 on `_policyDegraded` |
-| M10 | `requires` typed as the action's name union | TS2344 (`_requiresIsString`) |
+| M10 | `requires` typed as the action's name union — **exact mutation:** `ConsentPolicy<Snapshot, Name extends string = string>` with `requires: Name`, threaded through `ActionDefinition.consent` | **TS2344 on `_nameNotWidened` + TS2344 on `_snapshotInferred`.** *(Corrected 2026-07-28: previously expected `_requiresIsString`, which stays silent — `ConsentPolicy<Booking>["requires"]` is still `string` once `Name` carries its default. The mutant IS caught, just by different guards. `_requiresIsString` remains a valid static pin; it is simply not M10's detector.)* |
 
 **M9 is the subtle one.** `snapshotEquality` must stay function-property syntax; under method
 syntax bivariance silently un-breaks the very defect the test exists to catch. This is the
@@ -152,7 +152,7 @@ name the invariant in the echoed source line, so a failure says *which* guarante
 Nothing exists yet. Wave 0 must create all of it before any type edit can be validated.
 
 - [ ] `packages/concierge/tsconfig.test-d.json` — `extends: "./tsconfig.json"`, `noEmit: true`, **`rootDir: "."`** (omitting it is TS6059), `include: ["src/**/*.ts", "test-d/**/*.ts"]`
-- [ ] `packages/concierge/test-d/_assert.ts` — the four aliases plus `export {}` (it has no imports, and without module-hood `isolatedDeclarations` fires TS9010)
+- [ ] `packages/concierge/test-d/_assert.ts` — the four aliases plus `export {}`. Keep `export {}` (harmless, costs nothing), but see the corrected trap table below: **TS9010 cannot fire here.**
 - [ ] `packages/concierge/test-d/results.test-d.ts` — SC-2, SC-7d
 - [ ] `packages/concierge/test-d/consent.test-d.ts` — SC-3, SC-6, SC-7e, SC-7f
 - [ ] `packages/concierge/test-d/actions.test-d.ts` — SC-7a, SC-7b, SC-7g, handler-forwarding, erasure
@@ -160,13 +160,28 @@ Nothing exists yet. Wave 0 must create all of it before any type edit can be val
 - [ ] `packages/concierge/package.json` — repoint `"typecheck"` to `"tsc -p tsconfig.test-d.json"` so one command covers `src` **and** `test-d`. **This is the phase's only shared-file touch with Phase 2** — land it early.
 - [ ] Framework install: **none required** — TypeScript 5.9.3 is installed and working
 
-### Three verified traps Wave 0 must avoid
+### Traps Wave 0 must avoid
 
-| Trap | Symptom | Fix |
-|---|---|---|
-| Missing `rootDir` | TS6059 | Set `rootDir: "."` in `tsconfig.test-d.json` |
-| `_assert.ts` has no imports/exports | TS9010 under `isolatedDeclarations` | Add `export {}` for module-hood |
-| `test-d/` reachable from the build | `*.test-d.*` lands in `dist` | Keep `test-d` out of the emit program; assert absence in the phase gate |
+| Trap | Symptom | Fix | Status |
+|---|---|---|---|
+| Missing `rootDir` | TS6059 (`File 'test-d/_assert.ts' is not under 'rootDir'`) | Set `rootDir: "."` in `tsconfig.test-d.json` | ✅ reproduced |
+| `test-d/` reachable from the build | `*.test-d.*` lands in `dist` | Keep `test-d` out of the emit program; assert absence in the phase gate | ✅ real |
+| ~~`_assert.ts` has no imports/exports → TS9010~~ | — | — | ❌ **FALSE, see below** |
+
+> ⚠️ **Corrected 2026-07-28 by the plan checker — the TS9010 trap was misplaced.**
+> `_assert.ts` contains only *type aliases*. TS9010 is a **variable**-annotation diagnostic and
+> cannot fire on a file of pure type aliases in any configuration. All three variants were compiled
+> and every one exits 0: with `export {}`, with it removed, and with no `export` at all.
+>
+> **The trap is real but lives elsewhere.** It fires in `actions.test-d.ts`, on
+> `const confirm = defineAction({…})`, the moment any *exported* alias reads `typeof confirm` —
+> reproduced as `actions.ts(14,7): error TS9010`.
+>
+> **Consequences:** keep `export {}` in `_assert.ts` (harmless), do **not** write a Wave-0 breakage
+> test for TS9010 there — it can never go non-zero and would stall the phase's first gate — and
+> demonstrate TS9010 in the plan that owns `actions.test-d.ts` instead. Practical rule for the
+> executor: **export nothing from the `test-d/*.test-d.ts` files**; their `import`s already make
+> them modules.
 
 ---
 
