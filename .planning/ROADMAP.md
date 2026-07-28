@@ -82,7 +82,21 @@ Cheap additions belonging here: a `Snapshot` type parameter on `ActionDefinition
   3. The artifact imports successfully on the exact Node version the package declares as its floor, not merely on the developer's newer runtime. (PKG-03)
   4. Two adapters resolving core independently share one core instance, and a version mismatch fails loudly with an actionable message rather than silently splitting the bridge registry, the dedup window, and the consent kernel. (PKG-04)
   5. Core's installed dependency footprint is verified to add zero runtime bytes to a consumer bundle. (PKG-05)
-**Plans**: TBD
+**Plans**: 12 plans across **8 waves**. Unlike Phase 1 this phase genuinely parallelizes — waves 1, 3, 6 and 7 each run two plans on disjoint files, and every wave was checked for `files_modified` overlap. The hinge is `assertSingleInstance()` (plan 02-06): the PKG-05 probe must be written and baselined *before* it lands, and the PKG-04 tests must run against `dist/`, not `src/`.
+
+Plans:
+- [ ] 02-01-PLAN.md — Wave 1: TS 7.0.2 exact, pnpm 11.17.0 (its own commit), the six dev tools, `packages/concierge/LICENSE`, a `*.tgz` gitignore line, and the per-task validation map
+- [ ] 02-02-PLAN.md — Wave 1: `scripts/mutate-and-prove.sh` and proof it fails four ways, including the slash-in-pattern case the research body cannot handle
+- [ ] 02-03-PLAN.md — Wave 2: tsdown build, `publint`/`attw` as build-failing gates at the `esm-only` profile, the sourcemap decision (`src` into `files`), and `check:artifact`
+- [ ] 02-04-PLAN.md — Wave 3: PKG-01 defect-first battery — P1, P2, P3a/b, and P4, the pair where `pnpm typecheck` fires while `pnpm build` exits 0
+- [ ] 02-05-PLAN.md — Wave 3: `scripts/pkg05-zero-runtime-deps.mjs`, `check:deps`, the pre-hinge baseline, and P5 proven in both halves
+- [ ] 02-06-PLAN.md — Wave 4: **THE HINGE** — `src/contract.ts`, `assertSingleInstance` on a reachable path, export surface 43 → 45, PKG-04 / PKG-05 reconciled
+- [ ] 02-07-PLAN.md — Wave 5: Vitest, the single-instance / artifact / export-surface suites, and mutants P6, P7, P11
+- [ ] 02-08-PLAN.md — Wave 6: F3 workspace fixture adapters, the extended workspace glob, and the one-physical-copy proof
+- [ ] 02-09-PLAN.md — Wave 6: the PKG-02 pack-and-install harness and the PKG-03 Node-floor harness, plus mutant P10
+- [ ] 02-10-PLAN.md — Wave 7: `ci.yml`, changesets + the OIDC `release.yml`, `RELEASING.md`, catalog pins, and the two build-toolchain non-negotiables
+- [ ] 02-11-PLAN.md — Wave 7: the two Phase 1 deferrals — `exports.test-d.ts` (P8) and `_policyNotBivariant` (P9)
+- [ ] 02-12-PLAN.md — Wave 8: phase gate — clean-checkout suite, the eleven-mutant battery re-run, tarball review, and validation sign-off
 **Research**: None — every choice here was empirically reproduced locally on 2026-07-27 with recorded commands.
 **Notes**: Concrete deltas from the current repo state: root `package.json` pins `typescript@^5.7.0` and `pnpm@10.33.0` against a plan that calls for TS 7.0.2 exactly and pnpm 11; there is no bundler, no test runner, no changesets, and no CI. Already correct and not to be disturbed: `engines.node: ">=22.12.0"`, `type: "module"`, `isolatedDeclarations: true`, and `lib: ["ES2022"]` in `tsconfig.base.json`. The second build toolchain (`svelte-package`, which cannot pre-bundle runes without silently killing reactivity) is scaffolded here rather than discovered in Phase 9. `CONTRACT_VERSION` is introduced here as the mechanism behind PKG-04.
 
