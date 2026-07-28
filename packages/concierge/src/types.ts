@@ -259,8 +259,15 @@ export interface DeliveryReport {
   outcome: "completed" | "interrupted";
   /**
    * Hash of the exact payload the app rendered.
-   * The producer for {@link ConsentAck.readbackHash}, and therefore the only
-   * route to an `attested` grade.
+   *
+   * Produced by {@link ReadbackSink}, which returns a {@link ReadbackReceipt};
+   * this field carries that receipt's `hash`. It is in turn the producer for
+   * {@link ConsentAck.readbackHash}, and therefore the only route to an
+   * `attested` grade.
+   *
+   * Take the value from the receipt rather than hashing the payload yourself.
+   * The receipt is what fixes the canonicalization rule, and an app-derived hash
+   * reintroduces exactly the collision the receipt exists to prevent.
    */
   readbackHash?: string;
 }
@@ -346,6 +353,24 @@ export interface ConsentPolicy<Snapshot = unknown> {
    * and confirm destroys the consent.
    *
    * Compared against a *normalized* snapshot — see {@link SnapshotNormalizer}.
+   *
+   * **The function-property syntax is deliberate. Do not rewrite this as a
+   * method** — that is, do not move the parameter list onto the member name and
+   * turn the arrow into a return-type colon. Method parameters are bivariant, so
+   * under that form a `(a: Booking, b: Booking)` comparator would silently
+   * assign to a `ConsentPolicy<unknown>` and this guard would stop guarding. Its
+   * only symptom is one unused suppression directive in the type-test suite —
+   * the kind of thing a reviewer "fixes" by deleting the test.
+   *
+   * **This is the deliberate opposite of {@link DigestLike}, which must use
+   * method syntax**, because bivariance is the only thing that lets one
+   * declaration accept both the browser's and Node's `SubtleCrypto`. Two
+   * adjacent seams, two opposite syntaxes, both load-bearing: a reviewer who
+   * normalizes them breaks one of them.
+   *
+   * Enforcement is asymmetric too, and in this seam's favour — the phase's
+   * mutation battery reproduces this defect (M9) and the suite goes red.
+   * `DigestLike`'s syntax has no mutant at all and is guarded by review only.
    */
   snapshotEquality?: (a: Snapshot, b: Snapshot) => boolean;
   /**
@@ -390,6 +415,154 @@ export interface ConsentAck<Snapshot = unknown, Payload = unknown> {
  * proxy-based reactivity supply a deep freeze.
  */
 export type SnapshotNormalizer = <T>(value: T) => T;
+
+/**
+ * What the app rendered, handed to the readback sink.
+ *
+ * `payload` is the structured value core snapshot-compares at confirm time.
+ * `presented` optionally carries the literal string shown to the human.
+ *
+ * Canonicalization runs over `{payload, presented?}` as a whole, so the two are
+ * hashed together and neither can drift from the other. This follows Secure
+ * Payment Confirmation, which hashes the *structured values that were
+ * displayed* rather than pixels — a screenshot proves nothing about what the app
+ * will later act on, and a payload alone proves nothing about what the human
+ * actually saw.
+ */
+export interface Readback<Payload = unknown> {
+  payload: Payload;
+  /** The literal text shown to the human, when there is one. */
+  presented?: string;
+}
+
+/**
+ * What a readback presentation produced: a self-describing hash artifact.
+ *
+ * Deliberately not a bare hash string. A bare `=> Promise<string>` makes
+ * canonicalization the app's problem, and the app gets it wrong in a way nothing
+ * detects: `JSON.stringify({amount: 4180, coupon: undefined})` is byte-identical
+ * to `JSON.stringify({amount: 4180})`, so two semantically different payloads
+ * hash the same. A payload-level `toJSON` silently rehashes something other than
+ * what was shown. That is the gate failing while appearing to work, which is the
+ * one failure class this whole design exists to prevent.
+ *
+ * `alg` and `canonicalization` are literals rather than open strings so the
+ * receipt describes itself and a type test can pin both. Widening either later
+ * is additive.
+ *
+ * The canonicalization rule is JCS (RFC 8785) and it belongs to **core**, not to
+ * the app — that is the entire point of returning a receipt rather than a hash.
+ * The literal above admits exactly one answer, and Phase 8 ships the encoder
+ * that produces it, so a sink never has to reach for `JSON.stringify`. Phase 1
+ * declares the rule; it does not implement it.
+ */
+export interface ReadbackReceipt {
+  /** Feeds {@link DeliveryReport.readbackHash} and {@link ConsentAck.readbackHash}. */
+  hash: string;
+  alg: "SHA-256";
+  canonicalization: "JCS";
+  /**
+   * The exact bytes that were hashed. Re-read, never re-derived.
+   *
+   * Carried alongside `hash` on purpose. It is WebAuthn's own reason for making
+   * `clientDataJSON` an opaque byte array rather than a string: intermediaries
+   * must not parse-and-reserialize. Phase 8's confirm step, and any future
+   * server-side verification, read these bytes instead of canonicalizing
+   * `payload` a second time and hoping they agree.
+   */
+  canonical: Uint8Array;
+}
+
+/**
+ * The app's readback presentation seam. Core calls it with the payload under
+ * review; the app renders that payload itself and returns a
+ * {@link ReadbackReceipt} binding the bytes that were shown. It is the only
+ * route to an `attested` grade, because it is the only point at which the raw
+ * payload — rather than the agent's rendition of it — reaches the human.
+ *
+ * **Write your sink generically — it is called with every payload type your app
+ * reviews.** A sink narrowed to one payload (`(rb: Readback<Booking>) => …`) is
+ * rejected here, because the parameter position is contravariant and this seam
+ * is called with `Readback<X>` for every `X` the app ever puts through review.
+ * The diagnostic is an unhelpful chain about `P` not being assignable to
+ * `Booking`; this sentence exists so that costs a reader seconds rather than an
+ * afternoon.
+ *
+ * A **generic function**, following {@link SnapshotNormalizer} exactly — not a
+ * *defaulted generic alias*, meaning an alias that itself takes the payload as a
+ * `<Payload = unknown>` parameter. The two look interchangeable and are not: at
+ * a field position, such as the `ConciergeConfig` seam that carries this sink, a
+ * defaulted alias instantiates its parameter to `unknown` once, so core loses
+ * the payload type at every call site. A generic function infers it per call.
+ *
+ * That difference is invisible to the obvious test, because every app-sink shape
+ * — generic, `unknown`-typed, contextually typed, and payload-specific — behaves
+ * identically under both forms. The observable, testable difference is that a
+ * generic function accepts no type argument: `ReadbackSink<Booking>` is TS2315.
+ */
+export type ReadbackSink = <P>(readback: Readback<P>) => Promise<ReadbackReceipt>;
+
+/**
+ * Structural stand-in for the platform `SubtleCrypto`, injected by the app.
+ *
+ * Core hashes nothing itself. Under `lib: ["ES2022"]` there is no `crypto` and
+ * nothing to encode UTF-8 with — both are TS2304 — and that is the design rather
+ * than an obstacle: owning unaudited crypto in the security-critical path buys
+ * nothing, because consent arms on delivery through an already callback-shaped
+ * hook, so an async digest costs no synchronous invariant. Follows
+ * {@link AbortSignalLike} verbatim, so no DOM or Node typing enters core.
+ *
+ * **Declared as a METHOD, not a function-valued property, and that is
+ * load-bearing.** Method parameters are bivariant, and bivariance is the only
+ * thing that lets one declaration accept both the browser's `crypto.subtle` and
+ * Node's `webcrypto.subtle`: the two define `BufferSource` differently — the DOM
+ * lib as `ArrayBufferView<ArrayBuffer> | ArrayBuffer`, the Node typings as a
+ * union of concrete typed-array types — and every function-property form was
+ * measured to fail against at least one of them with TS2322.
+ *
+ * **This is the deliberate opposite of {@link ConsentPolicy.snapshotEquality},
+ * which must stay function-property syntax**, because there bivariance would
+ * silently un-break the very defect its guard exists to catch. Two adjacent
+ * seams, two opposite syntaxes, both load-bearing: a reviewer who normalizes
+ * them breaks one of them.
+ *
+ * **Read this before changing the line below.** The enforcement here is
+ * asymmetric and not in this seam's favour. `snapshotEquality`'s syntax is
+ * caught by a mutant in the phase battery (M9); this one **has no mutant and
+ * cannot get one** — the discriminator is the DOM-vs-Node `BufferSource`
+ * difference, and neither typing may be installed in this repo, so no in-repo
+ * edit can make a wrong `DigestLike` fail to compile. The positive in
+ * `test-d/consent.test-d.ts` stays green under the wrong syntax and is not a
+ * guard. The only defences are code review, this comment, and a grep asserting
+ * method syntax. Treat them as the last line of defence, because they are.
+ */
+export interface DigestLike {
+  digest(algorithm: "SHA-256", data: ArrayBuffer | ArrayBufferView): Promise<ArrayBuffer>;
+}
+
+declare const serverChallengeBrand: unique symbol;
+
+/**
+ * An opaque challenge: issued by a server, echoed by the client.
+ *
+ * **Inbound only. Nothing in v0.1 produces one.** The brand is the mechanism,
+ * not decoration: `const forged: ServerChallenge = "i-made-this-up"` is TS2322,
+ * so "typed but never minted here" is compiler-enforced rather than merely
+ * documented. A value received from a server and echoed back assigns fine; a
+ * string an app invents does not, without an explicit cast a reviewer can see.
+ *
+ * Page JavaScript has no minting authority worth trusting, and every prior art
+ * puts the authority out of its reach. WebAuthn's challenge is server-generated
+ * *and server-stored*, because an echoed-but-unstored challenge provides no
+ * replay protection at all (GHSA-gjjc-pcwp-c74m). Secure Payment Confirmation
+ * has the browser, not the merchant, write the amount into the signed data. A
+ * token minted in the same page context as every analytics tag and transitive
+ * dependency would read far stronger than it is.
+ *
+ * The brand symbol is module-private on purpose and is not exported;
+ * `isolatedDeclarations` emits it as a module-private `declare const`.
+ */
+export type ServerChallenge = string & { readonly [serverChallengeBrand]: true };
 
 // ---------------------------------------------------------------------------
 // Side-effect annotations
