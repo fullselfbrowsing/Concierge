@@ -49,7 +49,7 @@ Plans:
 - [x] 01-02-PLAN.md — `FailureReason` / `ReasonCode` / `ActionResult.reason` / `MESSAGE_MAX_CHARS` + `results.test-d.ts` (D-01, D-02)
 - [x] 01-03-PLAN.md — `ToolBatch` delivery hook + `TurnIdentityProvenance` + `transport.test-d.ts` (D-00a, D-10, TRN-01, TRN-05)
 - [x] 01-04-PLAN.md — `Readback` / `ReadbackReceipt` / `ReadbackSink` / `DigestLike` / `ServerChallenge` + `consent.test-d.ts` part 1 (D-03, D-05 first half)
-- [ ] 01-05-PLAN.md — THE HINGE: `ConsentAck` interface → discriminated union, `challenge?`, preserved generics, in one edit (D-03 + D-05 + D-07)
+- [x] 01-05-PLAN.md — THE HINGE: `ConsentAck` interface → discriminated union, `challenge?`, preserved generics, in one edit (D-03 + D-05 + D-07)
 - [ ] 01-06-PLAN.md — Thread `Snapshot`/`AckPayload`, add `readsUntrusted`, land `AnyActionDefinition` erasure — atomic — + `actions.test-d.ts` (D-07, D-04)
 - [ ] 01-07-PLAN.md — `ConciergeConfig` seams (`presentReadback`, `digest`, `scheduler`) and `Session.stage`/`onStageChange` (D-03, D-08)
 - [ ] 01-08-PLAN.md — `index.ts` export surface (10 types + `MESSAGE_MAX_CHARS`) and the `README.md:72` correction
@@ -217,7 +217,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Type surface completion | 4/9 | In Progress|  |
+| 1. Type surface completion | 5/9 | In Progress|  |
 | 2. Packaging, build, and release | 0/TBD | Not started | - |
 | 3. Action declaration and build-time validation | 0/TBD | Not started | - |
 | 4. Stages, catalog assembly, and explain() | 0/TBD | Not started | - |
