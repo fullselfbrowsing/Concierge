@@ -256,3 +256,81 @@ written into this file as expectations that could not be met and would have sent
 edit a working suite: **M4 does not fire TS2578** (no directive in the suite becomes unused when
 `ConsentAck` flattens) and **M10 does not fire `_requiresIsString`** (`ConsentPolicy<Booking>["requires"]`
 is still `string` once `Name` carries its default). Both were verified silent at the gate.
+
+---
+
+## Gap-Closure Validation Map
+
+> **Appended 2026-07-28 by plan 01-15, the gap-closure re-gate. The sign-off above is unmodified and
+> still refers to the original nine plans only.**
+>
+> An independent code review (`01-REVIEW.md`) ran seventeen mutations against surface the ten-mutant
+> battery does not cover. **Fourteen escaped**, two of them critical. Plans 01-10 through 01-14 closed
+> all twelve findings (CR-01, CR-02, WR-01…WR-07, IN-01…IN-03); plan 01-15 closes none of its own and
+> re-gates the sequence collectively.
+>
+> **The phase gate's existing row-count command (`grep -c '^| 01-0'`) matches only the original
+> nineteen rows by construction** — every task ID below begins `01-1`, not `01-0`, so the rows added
+> here cannot inflate that count and the original gate remains valid as written.
+
+| Task | Finding ID | Behavior | Threat Ref | Test Type | Automated Command | File Exists |
+|---|---|---|---|---|---|---|
+| 01-10-T1 | CR-01, WR-01 | `readonly` on `ConsentAckBase`, both `ConsentAck` branches, `DeliveryReport`, `ReadbackReceipt` (with `Readonly<Uint8Array>` on `canonical`), and `TransportCapabilities` | T-01-37, T-01-38 | type (source edit) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ✅ `src/types.ts` |
+| 01-10-T2 | CR-01, WR-01 | The six-write forgery exploit is rejected; `Pick`-shaped modifier pins added defect-first, each observed red before green | T-01-39, T-01-58 | mutation (defect-first) | `pnpm --filter @fullselfbrowsing/concierge typecheck && git diff --exit-code -- packages/concierge/src/types.ts` | ✅ `test-d/consent.test-d.ts`, `test-d/transport.test-d.ts` |
+| 01-11-T1 | CR-02 | Each `Bridge` parameter defaults to the **top** of its own constraint; `B` erased at `ConciergeConfig.stages` | T-01-42 | type (source edit) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ✅ `src/types.ts` |
+| 01-11-T2 | IN-02 | The shadowing type parameter named `Bridge` renamed to `B` on `ActionDefinition`, `ActionHandler`, `AnyActionDefinition` | T-01-43 | type (rename) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ✅ `src/types.ts` |
+| 01-11-T3 | CR-02, WR-03 | A real bridge satisfies its own constraint; two concrete-bridge stages assemble into one config; `read` and `ctx.bridge` nullability pinned | T-01-49, T-01-59 | type (positive + predicate) | `pnpm --filter @fullselfbrowsing/concierge typecheck && git diff --exit-code -- packages/concierge/src/types.ts` | ✅ `test-d/actions.test-d.ts` |
+| 01-12-T1 | WR-02 | Explicit `\| undefined` on every optional member of the invocation and consent path, not just `ActionResult.reason` | T-01-52 | type (source edit) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ✅ `src/types.ts` |
+| 01-12-T2 | WR-02 | The computed-idiom construction positives that would have caught it — the only detectors, since the read type is unchanged | T-01-60, T-01-61 | type (construction positive) | `pnpm --filter @fullselfbrowsing/concierge typecheck && git diff --exit-code -- packages/concierge/src/types.ts` | ✅ `test-d/transport.test-d.ts`, `test-d/results.test-d.ts` |
+| 01-13-T1 | WR-06 | DECISION: reshape `ActionResult` into a discriminated union, or keep the flat shape. Resolved **option-b (flat)** — see the caveat below this table | T-01-46 | checkpoint:decision (blocking) | *none — decision gate, no automated command by design* | ✅ `01-13-SUMMARY.md` |
+| 01-13-T2 | WR-06 | Flat shape kept; both contradictory states written out literally in the doc comment and deferred to Phase 6's dispatcher normalizer | T-01-47 | type (source edit) | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ✅ `src/types.ts` |
+| 01-13-T3 | IN-03 | `USER_CANCELLED` / `USER_DECLINED` carry literal-preserving annotations instead of `Readonly<ActionResult>`, so `ok` and `reason` survive into the `.d.ts` | T-01-53, T-01-63 | type (equality) | `pnpm --filter @fullselfbrowsing/concierge typecheck && git diff --exit-code -- packages/concierge/src/types.ts` | ✅ `test-d/results.test-d.ts` |
+| 01-14-T1 | IN-01 | `RedactionPolicy`'s doc comment describes the type that actually shipped (required, no implicit default) | T-01-44 | doc consistency | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ✅ `src/types.ts` |
+| 01-14-T2 | WR-04, WR-05 | `ConsentPolicy`'s members and the receipt's remaining two fields pinned against their literal spellings | T-01-45, T-01-54 | type (equality) | `pnpm --filter @fullselfbrowsing/concierge typecheck && git diff --exit-code -- packages/concierge/src/types.ts` | ✅ `test-d/actions.test-d.ts`, `test-d/consent.test-d.ts` |
+| 01-14-T3 | WR-07 | The four required/closed contracts that had no assertion anywhere are pinned | T-01-48, T-01-55 | type (equality) | `pnpm --filter @fullselfbrowsing/concierge typecheck && git diff --exit-code -- packages/concierge/src/types.ts` | ✅ `test-d/results.test-d.ts`, `test-d/consent.test-d.ts`, `test-d/transport.test-d.ts` |
+| 01-15-T1 | *(re-gate — closes nothing)* | All ten original mutants re-run against the final surface; every one exits non-zero naming the guards in its own row, so no gap-closure fix disarmed an existing guard | T-01-57, T-01-58 | mutation (regression) | `git diff --exit-code packages/concierge/src/types.ts && pnpm --filter @fullselfbrowsing/concierge typecheck` | ✅ all four `test-d/*.test-d.ts` |
+| 01-15-T2 | *(re-gate — closes nothing)* | All fourteen review escapees re-run collectively; thirteen flip ESCAPED → CAUGHT and `MUT-C` flips BROKEN → COMPILES at exit 0 with no cast | T-01-57, T-01-58 | mutation (regression) | `git diff --exit-code packages/concierge/src/types.ts && pnpm --filter @fullselfbrowsing/concierge typecheck` | ✅ all four `test-d/*.test-d.ts` + `/tmp` probe sandbox |
+| 01-15-T3 | *(re-gate — closes nothing)* | Phase 2's six pinned patterns rechecked verbatim; export surface proven untouched **ref-pinned to `8c5b1a3`**; this map appended | T-01-30, T-01-50, T-01-51 | phase gate | `pnpm typecheck && pnpm --filter @fullselfbrowsing/concierge exec tsc -p tsconfig.json && ls -R packages/concierge/dist \| grep -c "test-d\|_assert" \| grep -qx 0 && rm -rf packages/concierge/dist && git diff --exit-code 8c5b1a3 -- packages/concierge/src/index.ts && test -z "$(git log --oneline 8c5b1a3..HEAD -- packages/concierge/src/index.ts)" && git diff --exit-code pnpm-lock.yaml && grep -q "Gap-Closure Validation Map" .planning/phases/01-type-surface-completion/01-VALIDATION.md && echo GAP_GATE_PASS` | ✅ this file |
+
+*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+
+> ⚠️ **Caveat carried forward on row 01-13-T1, recorded rather than smoothed over.** WR-06 was
+> resolved as `option-b` (keep the flat `ActionResult`) by the **execute-phase orchestrator, not by
+> the user**. That plan's `<human-check>` required a user selection and is therefore **not satisfied
+> as written**; `01-13-SUMMARY.md` records it as pending user ratification. The shipped type is flat,
+> which is what plan 01-15's M1, MUT-M, and MUT-N were restated against.
+
+### Line-number drift handed to Phase 2
+
+Phase 2's mutation harness matches by **pattern, not by line number**, and its published exit code
+`3` means *pattern never matched*. Every pinned pattern below still matches **verbatim**, so no
+Phase 2 mutant aborts. The **prose** line numbers in four Phase 2 plans are now stale and are
+recorded here with their correct values.
+
+| Pinned artifact | Phase 2 plan | Prose claims | Actual now | Pattern still matches |
+|---|---|---|---|---|
+| `export const MESSAGE_MAX_CHARS = 180;` | 02-02 (:104), 02-04 (P4) | line 206 | **line 279** | ✅ verbatim |
+| `MESSAGE_MAX_CHARS` declaration + doc comment read window | 02-04 (:156) | lines 194–210 | **lines 267–279** | ✅ region intact |
+| `  snapshotEquality?: (a: Snapshot, b: Snapshot) => boolean;` (two leading spaces) | 02-11 (:179, :245, P9) | line 399 | **line 518** | ✅ verbatim, whitespace included |
+| The frozen constants read-only window | 02-07 (:246) | lines 182–206 | **lines 221–279** | ✅ all three constants intact |
+| `CONSENT_GRADE_ORDER` frozen array | 02-07 (:246, :315) | lines 348–354 | **lines 467–472** | ✅ four elements, order unchanged |
+| `  MESSAGE_MAX_CHARS,` then `} from "./types.js";` | 02-07 (P11) | *(uniqueness, not a line)* | **lines 69–70**, occurs exactly once | ✅ verbatim |
+| `  SessionConfig,` → end of the `./types.js` value block | 02-11 (P8) | lines 62–70 | **lines 62–70, unchanged** | ✅ verbatim |
+
+`src/index.ts` was never touched by the gap-closure sequence: `git diff --exit-code 8c5b1a3 --
+packages/concierge/src/index.ts` exits 0 **and** `git log --oneline 8c5b1a3..HEAD --
+packages/concierge/src/index.ts` is empty, so both P8 and P11 are unaffected including by a
+change-and-revert.
+
+### What this sequence establishes, and what it does not
+
+It establishes two measured things: that fourteen specific mutations which escaped an independent
+adversarial review are now caught by named guards, and that all ten of Phase 1's prior detectors
+still fire against the final surface, so no fix bought coverage by costing coverage.
+
+It does **not** establish that no further uncovered surface exists. The reviewer found fourteen
+escapees against a suite that had already survived nineteen mutations and two independent
+verification passes. Running fourteen more does not prove there is no fifteenth. **A battery
+measures only the surface it was written for** — that is the honest residual (T-01-65, accepted),
+and it is stated here rather than resolved, because a second false all-clear would be strictly worse
+than a disclosed limit.
