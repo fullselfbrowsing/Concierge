@@ -390,9 +390,16 @@ type _receiptCanonicalIsReadonly = Expect<Equals<Pick<ReadbackReceipt, "canonica
 // that `ActionDefinition.handler` forwards `Snapshot` *and* `AckPayload` through to
 // `ctx.ack`; if `Payload` quietly stopped reaching this member, that assertion
 // would be measuring a chain with a hole in it and would still pass.
+//
+// The third line closes the set. Two of the shared members were pinned here and
+// the one that carries the *identity* the strongest binding compares was not —
+// which is the same shape of gap `_commonPayload` was added to fill.
 
 /** The `Snapshot` parameter reaches the common members with no narrowing at all. */
 type _commonSnapshot = Expect<Equals<(typeof ack)["snapshot"], Booking>>;
 
 /** …and so does `Payload`, which is what plan 01-06's handler assertion binds against. */
 type _commonPayload = Expect<Equals<(typeof ack)["payload"], { id: string }>>;
+
+/** The value `bindTo: "userTurn"` compares. Optional, an ack arms with no turn identity at all and the strongest binding in the design has nothing to check — while every shape assertion above stays green. */
+type _ackCarriesTurnIdentity = Expect<Equals<ConsentAck<Booking, null>["userTurnId"], string>>;
