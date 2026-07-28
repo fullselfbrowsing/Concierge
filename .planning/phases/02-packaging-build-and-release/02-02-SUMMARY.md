@@ -221,6 +221,15 @@ None — no external service configuration required.
 - **Carry-forward for 02-09:** its PKG-02 negative control targets a file the task creates itself. That file must be `git add`ed before the harness sees it, or the run aborts with exit 2 and the untracked message. This is now a clear diagnostic rather than a confusing exit 3.
 - **Carry-forward for whoever runs the P8 mutant:** the pattern `} from "./types.js";` occurs **twice** in `src/index.ts` (lines 63 and 70). The substitution is non-global and hits **line 63**, the type-export block — verified. That is the occurrence P8 wants.
 
+## Self-Check: PASSED
+
+- `scripts/mutate-and-prove.sh` — FOUND, and git records mode **100755**, so the executable bit survives the merge
+- `.planning/phases/02-packaging-build-and-release/02-02-SUMMARY.md` — FOUND
+- Commit `01a8e20` — FOUND
+- Commit `f5bd4d6` — FOUND
+- `git diff --name-status 65875b0..HEAD` lists **exactly two files**, both additions, both inside this plan's declared scope. No source file, `README.md`, `pnpm-lock.yaml`, `STATE.md` or `ROADMAP.md` appears.
+- Harness re-run once more against the committed tree after both commits: `PASS: gate fired (exit 3), tree clean`, `git status --porcelain` empty.
+
 ---
 *Phase: 02-packaging-build-and-release*
 *Completed: 2026-07-28*
