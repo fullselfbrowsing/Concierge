@@ -66,7 +66,7 @@ last free moment, because nothing publishes until v0.1 completes.
 - [x] 01-12-PLAN.md — The `exactOptionalPropertyTypes` class: explicit `| undefined` across the invocation and consent path (WR-02)
 - [x] 01-13-PLAN.md — **CHECKPOINT** — the `ActionResult` shape decision, then the frozen constants' literal types (WR-06, IN-03)
 - [x] 01-14-PLAN.md — The unguarded contracts: `ConsentPolicy` members, the receipt's remaining two fields, four required/closed pins, and the redaction doc (WR-04, WR-05, WR-07, IN-01)
-- [ ] 01-15-PLAN.md — Gap-closure gate: both batteries re-run against the final surface, Phase 2's pinned-pattern recheck, and the validation-map append
+- [x] 01-15-PLAN.md — Gap-closure gate: both batteries re-run against the final surface, Phase 2's pinned-pattern recheck, and the validation-map append
 **Research**: ✅ **Done in two passes.** (1) 2026-07-27, during discussion — four gray areas researched in parallel, findings verified against this repo's exact `tsconfig.base.json` flags. (2) 2026-07-28, `01-RESEARCH.md` — a full phase research pass that built a working 319-line prototype and ran a ten-mutant battery against a first-draft type-test suite. **That second pass was nearly skipped and would have been a mistake:** three of ten mutants escaped, and it falsified two claims the discussion had recorded as settled — the readback-sink variance justification, and `@ts-expect-error` as the assertion mechanism. Both are corrected in `01-CONTEXT.md` with callouts. The lesson generalizes: verified-by-reasoning is not verified-by-mutation.
 **Notes**: Scope is the verified remainder, not all sixteen defects SUMMARY listed. Ten are already fixed in the committed `types.ts` — the `ToolBatch` envelope, the regraded `ConsentGrade`, `respond(ActionResult)`, ordered stage array, `SnapshotNormalizer`, `Session`, the deleted `registerHandler`, the `jsonSchema?` escape hatch, the object-rooted `JsonSchemaObject`, and the memoized-`catalogFor` contract. One more was closed after this roadmap was drafted: `ConsentPolicy` no longer threads the action's own `Name` (it was inferring as a union of the action and its `requires` target and corrupting the name-union derivation) — it takes `string` and CAT-03 checks it at build time, where the catalog actually exists.
 
@@ -108,7 +108,7 @@ Plans:
 - [ ] 02-08-PLAN.md — Wave 6: F3 workspace fixture adapters, the extended workspace glob, and the one-physical-copy proof
 - [ ] 02-09-PLAN.md — Wave 6: the PKG-02 pack-and-install harness and the PKG-03 Node-floor harness, plus mutant P10
 - [ ] 02-10-PLAN.md — Wave 7: `ci.yml`, changesets + the OIDC `release.yml`, `RELEASING.md`, catalog pins, and the two build-toolchain non-negotiables
-- [ ] 02-11-PLAN.md — Wave 7: the two Phase 1 deferrals — `exports.test-d.ts` (P8) and `_policyNotBivariant` (P9)
+- [x] 02-11-PLAN.md — Wave 7: the two Phase 1 deferrals — `exports.test-d.ts` (P8) and `_policyNotBivariant` (P9) (completed 2026-07-28)
 - [ ] 02-12-PLAN.md — Wave 8: phase gate — clean-checkout suite, the eleven-mutant battery re-run, tarball review, and validation sign-off
 **Research**: Completed 2026-07-28 — `02-RESEARCH.md`. *Supersedes this entry's original "None".* Tool **selection** was indeed settled on 2026-07-27 and was deliberately not re-litigated; research was fenced to implementation mechanics only. It nonetheless falsified three things this entry had treated as settled: (1) `tsdown`'s `attw: true` reports problems and **exits 0** — it is not a gate, and the correct form is `attw: { level: "error", profile: "esm-only" }`; (2) `attw`'s **default profile fails a correctly-authored ESM-only package**, and its natural "fix" would reverse a locked decision; (3) the core-as-`peerDependency` range is **advisory under pnpm** (`unmet peer`, exit 0) and hard-errors only under npm, so PKG-04's runtime check is its primary enforcement rather than its backstop. A fourth finding reshaped the phase: `sideEffects: false` and a module-scope registry are mutually exclusive, which is why `assertSingleInstance()` must sit on a reachable path.
 **Notes**: Concrete deltas from the current repo state: root `package.json` pins `typescript@^5.7.0` and `pnpm@10.33.0` against a plan that calls for TS 7.0.2 exactly and pnpm 11; there is no bundler, no test runner, no changesets, and no CI. Already correct and not to be disturbed: `engines.node: ">=22.12.0"`, `type: "module"`, `isolatedDeclarations: true`, and `lib: ["ES2022"]` in `tsconfig.base.json`. The second build toolchain (`svelte-package`, which cannot pre-bundle runes without silently killing reactivity) is scaffolded here rather than discovered in Phase 9. `CONTRACT_VERSION` is introduced here as the mechanism behind PKG-04.
@@ -244,7 +244,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Type surface completion | 14/15 | In Progress|  |
+| 1. Type surface completion | 15/15 | Complete   | 2026-07-28 |
 | 2. Packaging, build, and release | 0/TBD | Not started | - |
 | 3. Action declaration and build-time validation | 0/TBD | Not started | - |
 | 4. Stages, catalog assembly, and explain() | 0/TBD | Not started | - |
