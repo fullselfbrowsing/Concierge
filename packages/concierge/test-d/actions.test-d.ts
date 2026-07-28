@@ -72,11 +72,13 @@ import type {
   BridgeRegistry,
   ConciergeConfig,
   ConsentAck,
+  ConsentGrade,
   ConsentPolicy,
   DigestLike,
   InvocationMeta,
   ReadbackReceipt,
   ReadbackSink,
+  ReasonCode,
   Scheduler,
   Session,
   StageDefinition,
@@ -198,6 +200,49 @@ type _nameNotWidened = Expect<Equals<(typeof confirm)["name"], "confirmBooking">
 
 /** M10 detector 2, and M3's: `Snapshot` was inferred from the comparator, not defaulted. */
 type _snapshotInferred = Expect<Equals<NonNullable<(typeof confirm)["consent"]>, ConsentPolicy<Booking>>>;
+
+// --------------------------------------------------------------------------
+// WR-04 — `ConsentPolicy`'s members, pinned against their literal spellings
+// --------------------------------------------------------------------------
+
+// **`_snapshotInferred` directly above guards none of what follows, and saying
+// why plainly is the point of this block.** It expresses *both* sides in terms
+// of `ConsentPolicy`, so any change made *inside* `ConsentPolicy` changes both
+// sides identically and the assertion stays true. It pins the `Snapshot` type
+// argument and nothing else — which is exactly what it was written to do, and it
+// stays exactly as it is: it is M3's and M10's detector, and the fault found here
+// is that it is insufficient, not that it is wrong. The pins below name the
+// literal spellings instead, and naming them is the whole of what makes a pin
+// able to see a widening.
+//
+// Measured before these four existed, against the full four-file suite:
+// `bindTo: "userTurn" | "response"` → `bindTo: string` exits **0**. So does
+// `minGrade?: string`, so does dropping `reason` from `onMissing`, and so does a
+// sixth member appearing beside `minGrade`. `ConsentPolicy` — the consent gate's
+// own declaration — had no member-level assertion anywhere in the suite.
+
+/** The selector between the strong gate and the weak one. Widened to `string`, `bindTo: "usreTurn"` typechecks; whether the Phase 8 runtime then falls back to `"response"` or gates nothing at all, the compiler said nothing either way. */
+type _bindToIsClosed = Expect<Equals<ConsentPolicy["bindTo"], "userTurn" | "response">>;
+
+/** The dial `buildCatalog` enforces at build time (CAT-04), and the reason D-04 cut `impact` rather than shipping a second, weaker severity axis beside it. Widened to `string`, every word is a grade and the throw never fires. */
+type _minGradeIsGrade = Expect<Equals<ConsentPolicy["minGrade"], ConsentGrade | undefined>>;
+
+// `_onMissingShape`'s right-hand side spells its members out on purpose, and the
+// spelling is the assertion rather than a style choice. `onMissing` is *declared*
+// as a `Pick` over {@link ActionResult}, so writing the right-hand side that same
+// way would put both sides through `ActionResult` — after which any change inside
+// `ActionResult` changes both sides identically and the line stays true forever.
+// That is the exact mechanism described for `_snapshotInferred` twenty lines up,
+// and reproducing it in the block that exists to close it would be this suite
+// failing on its own terms. Written for the flat `ActionResult` that plan 01-13
+// recorded and kept; if that shape ever moves, this line is expected to go red and
+// be re-derived from the new declaration rather than relaxed.
+
+/** The result an action returns when its consent policy was never armed. Drop `reason` and the dispatcher loses the machine-readable half of "why nothing happened". */
+type _onMissingShape = Expect<Equals<ConsentPolicy["onMissing"], { reason?: ReasonCode | undefined; message: string } | undefined>>;
+
+/** Modelled on `_transportKeys` in `transport.test-d.ts`, and for the same reason: the member set is closed, so a second severity dial cannot appear beside `minGrade` unnoticed — which is the failure D-04 spent four entries preventing. */
+type _policyKeys = Expect<Equals<keyof ConsentPolicy, "requires" | "bindTo" | "snapshotEquality" | "minGrade" | "onMissing">>;
 
 // --------------------------------------------------------------------------
 // Escapee 3 — the handler forward. The assertion nothing else catches.

@@ -146,3 +146,31 @@ type _declinedReasonIsLiteral = Expect<Equals<(typeof USER_DECLINED)["reason"], 
 // dropping `message` — would pass the four pins above and break every consumer.
 type _cancelledIsActionResult = Expect<Assignable<typeof USER_CANCELLED, ActionResult>>;
 type _declinedIsActionResult = Expect<Assignable<typeof USER_DECLINED, ActionResult>>;
+
+// --------------------------------------------------------------------------
+// WR-07 — the two members that are required, and had no assertion anywhere
+// --------------------------------------------------------------------------
+
+// Everything above this line is about `reason` — a member that is *deliberately*
+// optional — and about the two frozen constants. Neither of the two members an
+// action can never omit was pinned at all, in this file or any other: making `ok`
+// optional and making `message` optional were both measured to exit **0** against
+// the full four-file suite.
+//
+// Written for the **flat `ActionResult`** that plan 01-13 recorded and kept
+// (WR-06, option-b). Under a discriminated union an indexed access still resolves
+// — `ActionResult["ok"]` would be `boolean`, the union of the branches — so these
+// two lines would survive that change silently. Say so here rather than let the
+// next reader infer a guarantee they do not have: if the shape ever moves, re-read
+// the declaration and re-derive these, do not assume they still mean what they
+// mean today.
+//
+// The mechanism is the indexed access, not the annotation. An optional member's
+// indexed access carries `| undefined` regardless of `exactOptionalPropertyTypes`,
+// which is what makes a one-line predicate able to see optionality at all.
+
+/** The flag every dispatcher branches on. Optional, `result.ok` is `boolean | undefined` and a handler that returns neither outcome reads as a failure to some callers and a success to others. */
+type _resultOkRequired = Expect<Equals<ActionResult["ok"], boolean>>;
+
+/** The field `MESSAGE_MAX_CHARS` and the whole `ConsentGrade` ladder are written about. Optional, the one sentence a human might actually be shown becomes something a handler may simply not supply. */
+type _resultMessageRequired = Expect<Equals<ActionResult["message"], string>>;

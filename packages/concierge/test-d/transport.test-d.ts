@@ -55,6 +55,23 @@ type _batchHook = Expect<Equals<NonNullable<ToolBatch["deferUntilDelivered"]>, (
  */
 type _batchRejectsBareId = Expect<Not<Assignable<(effect: (id: string) => void) => void, NonNullable<ToolBatch["deferUntilDelivered"]>>>>;
 
+// What the three lines above do *not* cover, stated exactly: all three pin the
+// hook's **parameter type**, so battery mutant M2 catches a hook that stops
+// carrying a report — and none of them looks inside the report. Widened to
+// `string`, `outcome === "completed"` still compiles, every other value silently
+// passes an exhaustive check, and a readback the human only partly received arms
+// consent. `01-VERIFICATION.md` cites this literal union as the evidence for
+// SC-1, so it is a contract the phase has already claimed as verified.
+//
+// `_deliveryOutcomeIsReadonly` further down sees this widening too, because it
+// spells the union out on the value side. The two are still separate invariants
+// and both are wanted: strip the modifier alone and only that one fires; widen
+// the union alone and only this one is *about* what broke. A guard whose name
+// says "readonly" is not where a reader looks for "closed".
+
+/** The union SC-1 rests on. Open it and partial delivery stops being representable at the type level, which was the entire reason `outcome` replaced a bare delivered-id. */
+type _deliveryOutcomeIsClosed = Expect<Equals<DeliveryReport["outcome"], "completed" | "interrupted">>;
+
 // --------------------------------------------------------------------------
 // SC-5 / TRN-05 — provenance, not presence
 // --------------------------------------------------------------------------
