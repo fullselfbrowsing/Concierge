@@ -3,10 +3,13 @@
  *
  * Typed, consent-gated actions that let an AI agent operate your web app.
  *
- * Pre-alpha: this package currently exports the design contract only. The
- * runtime (`createConcierge`, `createSession`, `defineAction`, `defineStage`,
- * `createBridge`) is being implemented against these types — see the roadmap
- * in the repository README.
+ * Pre-alpha: this package exports the design contract, plus the single-instance
+ * contract guard (`CONTRACT_VERSION`, `assertSingleInstance`) that stops two
+ * independently-resolved copies of core from splitting the bridge registry, the
+ * dedup window, and the consent kernel. The rest of the runtime
+ * (`createConcierge`, `createSession`, `defineAction`, `defineStage`,
+ * `createBridge`) is still being implemented against these types — see the
+ * roadmap in the repository README.
  */
 
 export type {
@@ -68,3 +71,5 @@ export {
   CONSENT_GRADE_ORDER,
   MESSAGE_MAX_CHARS,
 } from "./types.js";
+
+export { CONTRACT_VERSION, assertSingleInstance } from "./contract.js";
