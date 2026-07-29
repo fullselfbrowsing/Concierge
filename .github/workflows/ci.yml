@@ -1,0 +1,175 @@
+name: ci
+
+# Every gate this phase built exists as a local command in the root package.json.
+# This workflow is what makes them run on every change, in the order that makes
+# them mean something. Two jobs, artifact-passed:
+#
+#   build       — the full toolchain on a modern runtime, ending in a packed tarball
+#   the floor    — that same tarball, installed with npm and imported on Node 22.12.0
+#
+# The second is a SEPARATE JOB rather than a matrix entry on the first, because
+# its *steps* differ, not just its Node version: no pnpm, no install of the
+# workspace, no build — it takes a tarball as input. A matrix entry can only vary
+# inputs to identical steps, so expressing this as a matrix would force the floor
+# to run the build steps, which is precisely what it must not do.
+#
+# This workflow has never executed. It is created in plan 02-10 and its first
+# real run on GitHub is its first genuine test. The action versions below are
+# pinned by major tag on 02-RESEARCH assumption A3; an "unable to resolve action"
+# error on that first run is that assumption failing, not a repo defect.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # No `version` input on purpose. pnpm/action-setup@v4 resolves pnpm from
+      # the root package.json `packageManager` field, which pins pnpm@11.17.0
+      # exactly. Passing a version here would create a second place for that pin
+      # to live, and the two would drift.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # 02-RESEARCH assumption A2 — that pnpm/action-setup@v4 resolves pnpm from
+      # `packageManager` with no further configuration — is an assumption, not a
+      # measurement. Two things go quiet if it is wrong. A pnpm that did not
+      # write pnpm-lock.yaml is the one reading it under --frozen-lockfile; and
+      # any pnpm below 11.1.3 reintroduces the OIDC 404 on the PUT in
+      # release.yml, after provenance signing appears to have succeeded. Assert
+      # the major here so that failure surfaces in CI rather than at publish.
+      - name: Assert pnpm is 11.x
+        run: |
+          pnpm --version
+          case "$(pnpm --version)" in
+            11.*) ;;
+            *) echo "expected pnpm 11.x, got $(pnpm --version)" >&2; exit 1 ;;
+          esac
+
+      # --frozen-lockfile is the dependency-substitution gate (T-02-48): the
+      # install may not silently re-resolve anything the lockfile did not record.
+      - run: pnpm install --frozen-lockfile
+
+      # typecheck runs BEFORE build, and the order is load-bearing rather than
+      # cosmetic.
+      #
+      # Mutant P4 (plan 02-04) is a program on which `pnpm build` exits 0 and
+      # `pnpm typecheck` exits non-zero. tsdown/rolldown transpiles without
+      # typechecking, so a program that does not typecheck still builds cleanly.
+      # A workflow that runs only `build`, or that runs `build` first and treats
+      # its success as the signal, is green on exactly that mutant.
+      #
+      # Mutant P8 (plan 02-11) is the other half of the same finding: on a build
+      # whose dist/index.js had LOST an exported binding, both `attw` and
+      # `publint` reported "No problems found" and exited 0. Only `typecheck`
+      # saw it. So typecheck must stay its own required step and must never be
+      # folded into `build` on the theory that the build's own gates cover it.
+      - run: pnpm typecheck
+
+      # `pnpm build` runs tsdown, with publint --strict and attw --profile
+      # esm-only gating inside it.
+      - run: pnpm build
+
+      # Bare `pnpm test`, never `pnpm test -- <name>`. Measured four independent
+      # times in this phase (plans 02-07, 02-08, 02-09, 02-11): Vitest's cac CLI
+      # discards everything after `--`, so the filter is silently dropped and the
+      # whole suite runs. Here the whole suite is what we want anyway, so the
+      # only cost of the `--` form would be a false belief about what ran — but
+      # the form must not be copied out of this file into a filtered invocation.
+      - run: pnpm test
+
+      - run: pnpm run check:artifact
+      - run: pnpm run check:deps
+
+      # PKG-02. The same script a developer runs locally: pack, install the
+      # tarball into a scratch project OUTSIDE the workspace, and typecheck the
+      # shipped .d.ts with skipLibCheck off. It needs a modern Node and pnpm, so
+      # it belongs here and not on the floor.
+      - run: pnpm run check:pack
+
+      # `pnpm run check:node-floor` is deliberately NOT a step in this job. The
+      # floor is the other job's entire purpose, and that script builds and packs
+      # with pnpm before switching runtimes, which needs a modern Node.
+      - name: Pack the tarball the floor job consumes
+        run: pnpm pack --pack-destination "${{ runner.temp }}"
+        working-directory: packages/concierge
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarball
+          path: ${{ runner.temp }}/*.tgz
+          if-no-files-found: error
+
+  node-floor:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarball
+          path: .
+
+      # The version below is QUOTED AND EXACT, and both properties matter.
+      # `node-version: 22.12` silently resolves to the newest 22.12.x release and
+      # `node-version: 22` to the newest 22.x — either of which is the
+      # "developer's newer runtime" this job exists to exclude. An unquoted
+      # 22.12.0 is a string in YAML today, but an unquoted 22.12 would be parsed
+      # as a float, so quoting is what keeps the value stable if it is ever
+      # shortened by someone who does not know why it is long.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22.12.0'
+
+      # The pin above is a request; this assertion is what turns it into a
+      # checked claim. Without it, a resolution that quietly handed back a newer
+      # 22.x would leave the job green and the floor unproven — which is exactly
+      # the shape of failure that makes a green CI worse than no CI.
+      - name: Assert the runtime is exactly the declared floor
+        run: |
+          node -e "if (process.version !== 'v22.12.0') { throw new Error('floor drifted: ' + process.version); }"
+
+      # No pnpm in this job, anywhere, at all. pnpm@11.17.0 refuses to start on
+      # Node 22.12.0 ("This version of pnpm requires at least Node.js v22.13";
+      # `npm view pnpm@11.17.0 engines` reports {"node":">=22.13"}). A floor job
+      # written with pnpm therefore fails on its TOOLING rather than on the
+      # artifact, and the obvious remedy — raising engines.node to >=22.13 —
+      # abandons the requirement while appearing to fix it (T-02-43). npm and
+      # node only, on a tarball. Do not add a caching step keyed on pnpm either.
+      - name: Install the packed tarball with npm only
+        run: npm init -y && npm install --no-audit --no-fund ./*.tgz
+
+      # The local equivalent of this job is scripts/node-floor-check.sh, run as
+      # `pnpm run check:node-floor`. This job deliberately does not call it: the
+      # script downloads and caches a Node runtime and builds and packs with pnpm
+      # before switching to it, whereas here setup-node supplies the runtime and
+      # download-artifact supplies the tarball. The steps genuinely differ, so
+      # the two are written twice on purpose — this comment is what makes each
+      # findable from the other.
+      #
+      # Two consequences, both recorded rather than smoothed over:
+      #   1. scripts/node-floor-check.sh is exercised only locally and at plan
+      #      02-12's phase gate. Nothing in CI runs it, so it can rot without CI
+      #      noticing. (No contradiction with plan 02-09's "CI and local run the
+      #      same file" — that applies to check:pack, which the build job calls.)
+      #   2. That script fetches a Node tarball from nodejs.org/dist over HTTPS
+      #      and EXECUTES it with no checksum verification (threat T-02-44,
+      #      accepted for v0.1). Keeping it out of CI is what stops an unverified
+      #      download from running on every job. If it is ever wired into CI,
+      #      verify against the published SHASUMS256.txt first.
+      - name: Import the published artifact on the floor runtime
+        run: |
+          node --input-type=module -e '
+            const m = await import("@fullselfbrowsing/concierge");
+            m.assertSingleInstance();
+            if (m.MESSAGE_MAX_CHARS !== 180) {
+              throw new Error("runtime binding erased: MESSAGE_MAX_CHARS is " + String(m.MESSAGE_MAX_CHARS));
+            }
+          '

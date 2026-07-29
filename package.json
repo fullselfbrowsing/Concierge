@@ -23,7 +23,8 @@
     "check:artifact": "pnpm --filter @fullselfbrowsing/concierge exec publint --strict && pnpm exec attw --pack packages/concierge --profile esm-only",
     "check:deps": "node scripts/pkg05-zero-runtime-deps.mjs packages/concierge/dist/index.js",
     "check:pack": "bash scripts/pack-install-check.sh",
-    "check:node-floor": "bash scripts/node-floor-check.sh"
+    "check:node-floor": "bash scripts/node-floor-check.sh",
+    "release": "changeset publish"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.5",
