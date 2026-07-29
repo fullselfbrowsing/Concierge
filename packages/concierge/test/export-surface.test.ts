@@ -98,6 +98,11 @@ function readSurface(): Surface {
   };
 }
 
+// The third `it` title below states this list's LENGTH and its assertion is a
+// `for…of` loop carrying no number at all. So a reviewer checking "does the
+// title match the assertion beneath it" structurally cannot catch a stale
+// number there — the only thing it can be checked against is this array. Grow
+// one, reread the other.
 const VALUE_EXPORTS = [
   "USER_CANCELLED",
   "USER_DECLINED",
@@ -105,6 +110,14 @@ const VALUE_EXPORTS = [
   "MESSAGE_MAX_CHARS",
   "CONTRACT_VERSION",
   "assertSingleInstance",
+  "JSON_SCHEMA_TARGET",
+  "defineAction",
+  "buildCatalog",
+  // A class is both a value and a type. It must appear here, in the VALUE half
+  // of the parsed surface, with no `type ` prefix — if it were ever re-exported
+  // through the `export type { … }` block the parser would file it under types
+  // and `new CatalogValidationError(…)` would be unreachable for a consumer.
+  "CatalogValidationError",
 ];
 
 beforeAll(() => {
@@ -117,18 +130,18 @@ beforeAll(() => {
 });
 
 describe("the published export surface of dist/index.d.ts", () => {
-  it("is exactly 45 names — an export added or dropped by a build-config change lands here", () => {
+  it("is exactly 59 names — an export added or dropped by a build-config change lands here", () => {
     const { names } = readSurface();
-    expect(names).toHaveLength(45);
+    expect(names).toHaveLength(59);
   });
 
-  it("splits 39 types to 6 values", () => {
+  it("splits 49 types to 10 values", () => {
     const { types, values } = readSurface();
-    expect(types).toHaveLength(39);
-    expect(values).toHaveLength(6);
+    expect(types).toHaveLength(49);
+    expect(values).toHaveLength(10);
   });
 
-  it("carries all six runtime value exports by name", () => {
+  it("carries all ten runtime value exports by name", () => {
     const { values } = readSurface();
     for (const name of VALUE_EXPORTS) {
       expect(values).toContain(name);
