@@ -137,10 +137,17 @@ type Holder = Record<symbol, ContractRecord | undefined>;
  * that a crash is one generic sentence does not govern it; what does govern it
  * is that it must never become a channel for anything but its own two integers.
  *
- * There is no call site in this phase — `createConcierge` does not exist yet.
- * The call sites arrive with the runtime in later phases. Here this function is
- * exercised by the tests in plan 02-07 and by the Node-floor import harness in
- * plan 02-09.
+ * **`buildCatalog` in `./catalog.ts` is the first production call site**, added
+ * in Phase 3, and it calls this on its first line. That is the earliest entry
+ * point every consumer necessarily reaches — there is no way to use this package
+ * without building a catalog — so it is the one place a single call covers every
+ * app. Phase 2 shipped this guard with no production call site at all; the
+ * instruction above is therefore satisfied rather than aspirational, though the
+ * `createConcierge` and adapter-registration call sites it also names remain
+ * future work and should be added when those arrive.
+ *
+ * Secondarily, this function is exercised by the tests in plan 02-07 and by the
+ * Node-floor import harness in plan 02-09.
  */
 export function assertSingleInstance(): void {
   const holder: Holder = globalThis as unknown as Holder;
