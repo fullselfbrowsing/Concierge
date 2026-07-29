@@ -91,11 +91,11 @@
 
 ### Packaging
 
-- [ ] **PKG-01**: Published packages pass `publint` and `are-the-types-wrong` with no errors
-- [ ] **PKG-02**: A pack-and-install test imports the built artifact from a scratch project and typechecks against it
-- [ ] **PKG-03**: The declared Node floor matches the runtime the package actually works on
-- [ ] **PKG-04**: The package publishes ESM-only, and a test asserts a single core instance is shared across adapters
-- [ ] **PKG-05**: Core's runtime dependency footprint is verified to be zero-cost
+- [x] **PKG-01**: Published packages pass `publint` and `are-the-types-wrong` with no errors
+- [x] **PKG-02**: A pack-and-install test imports the built artifact from a scratch project and typechecks against it
+- [x] **PKG-03**: The declared Node floor matches the runtime the package actually works on
+- [x] **PKG-04**: The package publishes ESM-only, and a test asserts a single core instance is shared across adapters
+- [x] **PKG-05**: Core's runtime dependency footprint is verified to be zero-cost
 
 ### Developer experience
 
@@ -208,11 +208,11 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | SEC-04 | Phase 8 — Consent kernel | Pending |
 | SEC-05 | Phase 3 — Action declaration and build-time validation | Pending |
 | SEC-06 | Phase 6 — Dispatcher | Pending |
-| PKG-01 | Phase 2 — Packaging, build, and release | Pending |
-| PKG-02 | Phase 2 — Packaging, build, and release | Pending |
-| PKG-03 | Phase 2 — Packaging, build, and release | Pending |
-| PKG-04 | Phase 2 — Packaging, build, and release | Pending |
-| PKG-05 | Phase 2 — Packaging, build, and release | Pending |
+| PKG-01 | Phase 2 — Packaging, build, and release | Complete |
+| PKG-02 | Phase 2 — Packaging, build, and release | Complete |
+| PKG-03 | Phase 2 — Packaging, build, and release | Complete |
+| PKG-04 | Phase 2 — Packaging, build, and release | Complete |
+| PKG-05 | Phase 2 — Packaging, build, and release | Complete |
 | DX-01 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
 | DX-02 | Phase 5 — Bridge registry and the no-bridge path | Pending |
 | DX-03 | Phase 3 — Action declaration and build-time validation | Pending |
