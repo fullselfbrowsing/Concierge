@@ -17,7 +17,7 @@ Nothing publishes until the milestone completes. That is load-bearing: it means 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Type surface completion** - Close the six remaining defects in the committed public contract, so no post-publish breaking change is left in it (completed 2026-07-28; **gap closure in progress — 12 code-review findings, plans 01-10–01-15**)
-- [ ] **Phase 2: Packaging, build, and release** - Make the package buildable, publishable, and installable while there is one package rather than eight
+- [x] **Phase 2: Packaging, build, and release** - Make the package buildable, publishable, and installable while there is one package rather than eight (completed 2026-07-29)
 - [ ] **Phase 3: Action declaration and build-time validation** - One declaration derives everything downstream, and every wrong declaration fails the build naming the action
 - [ ] **Phase 4: Stages, catalog assembly, and explain()** - The agent sees only the actions valid for where the user is, and a developer can find out why one wasn't offered
 - [ ] **Phase 5: Bridge registry and the no-bridge path** - Handlers read live app state through getters, and behave honestly when no component is mounted
@@ -109,7 +109,7 @@ Plans:
 - [x] 02-09-PLAN.md — Wave 6: the PKG-02 pack-and-install harness and the PKG-03 Node-floor harness, plus mutant P10
 - [x] 02-10-PLAN.md — Wave 7: `ci.yml`, changesets + the OIDC `release.yml`, `RELEASING.md`, catalog pins, and the two build-toolchain non-negotiables
 - [x] 02-11-PLAN.md — Wave 7: the two Phase 1 deferrals — `exports.test-d.ts` (P8) and `_policyNotBivariant` (P9) (completed 2026-07-28)
-- [ ] 02-12-PLAN.md — Wave 8: phase gate — clean-checkout suite, the eleven-mutant battery re-run, tarball review, and validation sign-off
+- [x] 02-12-PLAN.md — Wave 8: phase gate — clean-checkout suite, the eleven-mutant battery re-run, tarball review, and validation sign-off
 **Research**: Completed 2026-07-28 — `02-RESEARCH.md`. *Supersedes this entry's original "None".* Tool **selection** was indeed settled on 2026-07-27 and was deliberately not re-litigated; research was fenced to implementation mechanics only. It nonetheless falsified three things this entry had treated as settled: (1) `tsdown`'s `attw: true` reports problems and **exits 0** — it is not a gate, and the correct form is `attw: { level: "error", profile: "esm-only" }`; (2) `attw`'s **default profile fails a correctly-authored ESM-only package**, and its natural "fix" would reverse a locked decision; (3) the core-as-`peerDependency` range is **advisory under pnpm** (`unmet peer`, exit 0) and hard-errors only under npm, so PKG-04's runtime check is its primary enforcement rather than its backstop. A fourth finding reshaped the phase: `sideEffects: false` and a module-scope registry are mutually exclusive, which is why `assertSingleInstance()` must sit on a reachable path.
 **Notes**: Concrete deltas from the current repo state: root `package.json` pins `typescript@^5.7.0` and `pnpm@10.33.0` against a plan that calls for TS 7.0.2 exactly and pnpm 11; there is no bundler, no test runner, no changesets, and no CI. Already correct and not to be disturbed: `engines.node: ">=22.12.0"`, `type: "module"`, `isolatedDeclarations: true`, and `lib: ["ES2022"]` in `tsconfig.base.json`. The second build toolchain (`svelte-package`, which cannot pre-bundle runes without silently killing reactivity) is scaffolded here rather than discovered in Phase 9. `CONTRACT_VERSION` is introduced here as the mechanism behind PKG-04.
 
@@ -245,7 +245,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Type surface completion | 15/15 | Complete   | 2026-07-28 |
-| 2. Packaging, build, and release | 11/12 | In Progress|  |
+| 2. Packaging, build, and release | 12/12 | Complete   | 2026-07-29 |
 | 3. Action declaration and build-time validation | 0/TBD | Not started | - |
 | 4. Stages, catalog assembly, and explain() | 0/TBD | Not started | - |
 | 5. Bridge registry and the no-bridge path | 0/TBD | Not started | - |
