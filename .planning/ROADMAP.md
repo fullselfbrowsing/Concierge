@@ -129,7 +129,7 @@ Plans:
 Plans:
 - [x] 03-01-PLAN.md — Wave 1: the CAT-07 six-branch literal-description guard, `defineAction`, both assertion families, and the `actions.test-d.ts` placeholder swap (CAT-07, DX-03, SEC-01 type half)
 - [x] 03-02-PLAN.md — Wave 1: the structural converter types, the narrowing predicate, the locked emission order, three exact-pinned validators, and twelve schema fixtures (CAT-02, CAT-06)
-- [ ] 03-03-PLAN.md — Wave 2: **THE HINGE** — `src/host.ts`, `buildCatalog`, the rule table, `CatalogValidationError`, the recursive freeze, and `assertSingleInstance` on the first line (CAT-01/02/05/06, SEC-01/03/05, DX-03, PKG-04 SC-5)
+- [x] 03-03-PLAN.md — Wave 2: **THE HINGE** — `src/host.ts`, `buildCatalog`, the rule table, `CatalogValidationError`, the recursive freeze, and `assertSingleInstance` on the first line (CAT-01/02/05/06, SEC-01/03/05, DX-03, PKG-04 SC-5)
 - [ ] 03-04-PLAN.md — Wave 3: the barrel, the export-surface pin moved in lockstep across its four sites (45 names to an expected 59), and the consumer-side pin in `test/fixtures/probe.ts` — the only file any foreign program compiles against the shipped `dist/index.d.ts`, and therefore the only place a widened `LiteralDescription` is visible
 - [ ] 03-05-PLAN.md — Wave 3: `test-d/catalog.test-d.ts` — CAT-01's derived literal name union, and mutant M-03-3
 - [ ] 03-06-PLAN.md — Wave 4: `test/catalog.test.ts`, the SC-5 registry case, and five catalog mutants (CAT-01/02/05, SEC-01/03/05, DX-03, PKG-04)
@@ -258,7 +258,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 |-------|----------------|--------|-----------|
 | 1. Type surface completion | 15/15 | Complete   | 2026-07-28 |
 | 2. Packaging, build, and release | 12/12 | Complete   | 2026-07-29 |
-| 3. Action declaration and build-time validation | 2/8 | In Progress|  |
+| 3. Action declaration and build-time validation | 3/8 | In Progress|  |
 | 4. Stages, catalog assembly, and explain() | 0/TBD | Not started | - |
 | 5. Bridge registry and the no-bridge path | 0/TBD | Not started | - |
 | 6. Dispatcher | 0/TBD | Not started | - |
