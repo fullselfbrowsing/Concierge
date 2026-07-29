@@ -31,17 +31,48 @@
  * `isolatedDeclarations` slip widens it to `number`, the build stays green, the
  * repo's own type tests stay green, and only a consumer compiling against the
  * shipped `.d.ts` can see it. That is exactly what this file is.
+ *
+ * PHASE 3 — THE SAME DEFECT CLASS, ON THE CAT-07 GUARD (T-03-48)
+ *
+ * The paragraph above described `MESSAGE_MAX_CHARS`. Phase 3 added a guard that
+ * fails the same way and matters more. `defineAction`'s `description` parameter
+ * is narrowed to `LiteralDescription<N, D>`, which resolves to the literal `D`
+ * for a static string and to a long error sentence otherwise — that is CAT-07,
+ * the defence against a tool description assembled from i18n, a CMS, or any
+ * other attacker-reachable runtime value.
+ *
+ * Every CAT-07 assertion in this repository lives in `test-d/`, and
+ * `tsconfig.test-d.json` compiles `src/**` — so all of them read the SOURCE. No
+ * consumer compiles `src/`. If `LiteralDescription` emitted widened, or failed
+ * to resolve at all, into `dist/index.d.ts`, **CAT-07 would be dead for every
+ * real consumer while every gate in this repository stayed green**:
+ * `export-surface.test.ts` reads only the trailing name list,
+ * `artifact.test.ts` asserts only `typeof defineAction === "function"`, and
+ * `attw` and `publint` were both measured reporting "No problems found" on a
+ * build that had LOST an export outright, never mind widened one.
+ *
+ * So the description slot is pinned below, in this file, because this file is
+ * compiled by the only foreign program that reads the shipped declarations.
+ * Proved rather than assumed: rewriting the shipped
+ * `description: LiteralDescription<N, D>` to `description: string` makes the
+ * `descSlotSurvived` annotation `TS2322: Type 'string' is not assignable to
+ * type '"Probe description."'`, and changing the annotation's own literal makes
+ * it `TS2322` the other way. Both were run; both failed as intended; the
+ * unmodified pair passes.
  */
 
 import {
   MESSAGE_MAX_CHARS,
   CONTRACT_VERSION,
   assertSingleInstance,
+  defineAction,
+  buildCatalog,
 } from "@fullselfbrowsing/concierge";
 import type {
   ActionResult,
   ConsentAck,
   Transport,
+  StandardSchemaV1,
 } from "@fullselfbrowsing/concierge";
 
 /**
@@ -77,3 +108,48 @@ export const f: () => void = assertSingleInstance;
  */
 export type ProbeAck = ConsentAck;
 export type ProbeTransport = Transport;
+
+/**
+ * A structural stand-in for a validator. `StandardSchemaV1` is already a
+ * published type export, so this costs nothing and pulls no dependency into the
+ * scratch project — which has zod, arktype and valibot nowhere, by design.
+ */
+declare const probeSchema: StandardSchemaV1;
+
+/**
+ * CAT-07, read out of the shipped declarations.
+ *
+ * `Parameters<typeof f<A, B, C>>` is an instantiation expression in a type
+ * query. TS 7.0.2 accepts it in this position — measured, not assumed, because
+ * the fallback (`type FirstArg<F> = F extends (a: infer A, ...rest: never[]) =>
+ * unknown ? A : never`) would have been needed if it did not. The parameter
+ * shipped as `Omit<ActionDefinition<…>, "description"> & { description: … }`,
+ * and `["description"]` indexes straight through that intersection: `Omit`
+ * removed the key, so the intersection contributes the only member there is.
+ */
+type DescSlot = Parameters<typeof defineAction<"probeAction", "Probe description.", typeof probeSchema>>[0]["description"];
+
+/**
+ * The assertion. `DescSlot` must resolve — through the shipped declarations
+ * alone — to the literal `"Probe description."`. The moment the emitted slot
+ * widens to `string`, or `LiteralDescription` fails to resolve in a foreign
+ * program, this line is `TS2322` and CAT-07 is reported dead before it ships
+ * rather than after.
+ *
+ * Do NOT "fix" a red here by relaxing the annotation to `string`. A red here IS
+ * the finding.
+ */
+export const descSlotSurvived: "Probe description." = null as unknown as DescSlot;
+
+/**
+ * `buildCatalog` imported as a VALUE and annotated — the same thing the `f`
+ * binding above does for `assertSingleInstance`, for the same reason. It proves the runtime
+ * binding survived the build and is not a type-only export, which `attw` and
+ * `publint` were both measured unable to detect.
+ *
+ * The annotation is deliberately loose. Pinning `buildCatalog`'s real generic
+ * signature here would restate what `test-d/` already covers against the
+ * source; what this file uniquely proves is that a consumer can reach the
+ * binding at all.
+ */
+export const bc: (a: readonly never[]) => unknown = buildCatalog;
