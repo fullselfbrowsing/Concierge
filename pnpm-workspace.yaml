@@ -1,3 +1,18 @@
 packages:
   - "packages/*"
   - "examples/*"
+  # `packages/*` matches ONE level only. The PKG-04c fixture adapters live at
+  # packages/concierge/test/fixtures/adapter-{alpha,beta}/ — three levels deeper
+  # — so the glob above does not match them. Without this third entry they are
+  # invisible to pnpm, neither gets a node_modules link for core, and the
+  # realpath-equality assertion in packages/concierge/test/fixtures.test.ts
+  # silently tests nothing while reporting green.
+  #
+  # This resolves 02-RESEARCH Open Question 4 in favour of REAL workspace
+  # packages rather than temp-directory synthesis. Synthesis would re-run
+  # `pnpm install` inside a test — slow, network-dependent, and it produces an
+  # install graph that is not the one that ships.
+  #
+  # Only directories containing a package.json are picked up, so plan 02-09's
+  # packages/concierge/test/fixtures/probe.ts is not swallowed by this glob.
+  - "packages/concierge/test/fixtures/*"
