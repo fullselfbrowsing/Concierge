@@ -77,4 +77,47 @@ describe("the built artifact still carries every value export", () => {
     // tolerate: every call site would be a silent no-op rather than an error.
     expect(typeof m.assertSingleInstance).toBe("function");
   });
+
+  it("defineAction reaches dist/index.js as a callable function", async () => {
+    const m = await import(DIST_URL.href);
+
+    // `defineAction` is identity at runtime, so an `undefined` export is not a
+    // crash a consumer can read — `defineAction({…})` throws
+    // `TypeError: defineAction is not a function` only at the declaration site,
+    // which in most apps is module scope. It reads as "the package is broken",
+    // not "one export moved into the type block", which is what it is.
+    expect(typeof m.defineAction).toBe("function");
+  });
+
+  it("buildCatalog reaches dist/index.js as a callable function", async () => {
+    const m = await import(DIST_URL.href);
+
+    // The entire build-time validation surface is behind this one binding. Lost
+    // to the `export type { … }` block, every rule in `catalog.ts` — SEC-01's
+    // redaction requirement, CAT-02's root-object check, the duplicate-name
+    // check — stops running, and the only symptom is a call that never happens.
+    expect(typeof m.buildCatalog).toBe("function");
+  });
+
+  it("CatalogValidationError reaches dist/index.js as a constructible class", async () => {
+    const m = await import(DIST_URL.href);
+
+    // A class is a value AND a type, which is exactly what makes it the easiest
+    // of the four to move into the type block by accident: the `export type`
+    // form compiles, and `catch (e) { if (e instanceof CatalogValidationError) }`
+    // in consumer code then becomes `instanceof undefined` — a TypeError raised
+    // while handling the real error, so the developer sees the wrong failure.
+    expect(typeof m.CatalogValidationError).toBe("function");
+    expect(Object.getPrototypeOf(m.CatalogValidationError)).toBe(Error);
+  });
+
+  it("JSON_SCHEMA_TARGET reaches dist/index.js as the draft-2020-12 string", async () => {
+    const m = await import(DIST_URL.href);
+
+    // Unlike the three functions above, this one degrades quietly: `undefined`
+    // flows into `options?.jsonSchemaTarget ?? JSON_SCHEMA_TARGET` at a consumer
+    // call site and reaches the vendor's converter as an undefined target, where
+    // zod silently emits without `$schema` and arktype throws `ParseError`.
+    expect(m.JSON_SCHEMA_TARGET).toBe("draft-2020-12");
+  });
 });

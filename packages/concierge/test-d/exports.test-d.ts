@@ -47,9 +47,28 @@
 // line however long — `tsc` echoes only the line the failing type argument sits
 // on, so the alias name is the entire carrier of meaning. Do not let a formatter
 // wrap it.
+//
+// EVERY PREDICATE BELOW INHERITS THE TS1485-AT-THE-IMPORT-LINE BEHAVIOUR
+//
+// Phase 3 added four more runtime values to the entrypoint and each one gets a
+// predicate here. They all fail the same way the original does, and it is worth
+// restating because the failure is counter-intuitive at four names as much as at
+// one: move `buildCatalog` into `index.ts`'s `export type { … }` block and the
+// diagnostic is TS1485 on the single shared IMPORT line below, naming
+// `buildCatalog` — not TS2344 on the predicate line named after it. The import
+// is shared, so the line number is identical whichever of the five regressed.
+// Read the NAME in the message, not the line.
+//
+// The two `Assignable` predicates are deliberately loose about the signature:
+// `(...args: never[]) => unknown` asserts only "this is a function value", which
+// is all the export-PLACEMENT guarantee needs. Signature shape is pinned
+// elsewhere — `description-literal.test-d.ts` for `defineAction`, and
+// `test/fixtures/probe.ts` for the shipped `.d.ts`. Tightening these would
+// duplicate that and make this file fail for reasons that have nothing to do
+// with export placement.
 
-import type { Equals, Expect } from "./_assert.js";
-import { MESSAGE_MAX_CHARS } from "../src/index.js";   // ← index.js. NOT types.js. This is the whole point.
+import type { Assignable, Equals, Expect } from "./_assert.js";
+import { MESSAGE_MAX_CHARS, JSON_SCHEMA_TARGET, defineAction, buildCatalog, CatalogValidationError } from "../src/index.js";   // ← index.js. NOT types.js. This is the whole point.
 
 // --------------------------------------------------------------------------
 // SC-7d — the bound reaches the public entrypoint as a value, not just a type
@@ -57,3 +76,19 @@ import { MESSAGE_MAX_CHARS } from "../src/index.js";   // ← index.js. NOT type
 
 /** MESSAGE_MAX_CHARS reaches the public entrypoint as a VALUE, not only as a type. */
 type _messageBoundExportedAsValue = Expect<Equals<typeof MESSAGE_MAX_CHARS, 180>>;
+
+// --------------------------------------------------------------------------
+// Phase 3 — the four values this phase adds to the entrypoint
+// --------------------------------------------------------------------------
+
+/** JSON_SCHEMA_TARGET reaches the public entrypoint as a VALUE, still at its literal type. */
+type _jsonSchemaTargetExportedAsValue = Expect<Equals<typeof JSON_SCHEMA_TARGET, "draft-2020-12">>;
+
+/** defineAction reaches the public entrypoint as a callable VALUE, not only as a type. */
+type _defineActionExportedAsValue = Expect<Assignable<typeof defineAction, (...args: never[]) => unknown>>;
+
+/** buildCatalog reaches the public entrypoint as a callable VALUE, not only as a type. */
+type _buildCatalogExportedAsValue = Expect<Assignable<typeof buildCatalog, (...args: never[]) => unknown>>;
+
+/** CatalogValidationError is a class — a value AND a type. This pins the VALUE half: it stays constructible. */
+type _catalogValidationErrorExportedAsValue = Expect<Assignable<typeof CatalogValidationError, new (...args: never[]) => Error>>;
