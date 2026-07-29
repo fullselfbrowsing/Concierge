@@ -107,7 +107,7 @@ Plans:
 - [x] 02-07-PLAN.md — Wave 5: Vitest, the single-instance / artifact / export-surface suites, and mutants P6, P7, P11
 - [x] 02-08-PLAN.md — Wave 6: F3 workspace fixture adapters, the extended workspace glob, and the one-physical-copy proof
 - [x] 02-09-PLAN.md — Wave 6: the PKG-02 pack-and-install harness and the PKG-03 Node-floor harness, plus mutant P10
-- [ ] 02-10-PLAN.md — Wave 7: `ci.yml`, changesets + the OIDC `release.yml`, `RELEASING.md`, catalog pins, and the two build-toolchain non-negotiables
+- [x] 02-10-PLAN.md — Wave 7: `ci.yml`, changesets + the OIDC `release.yml`, `RELEASING.md`, catalog pins, and the two build-toolchain non-negotiables
 - [x] 02-11-PLAN.md — Wave 7: the two Phase 1 deferrals — `exports.test-d.ts` (P8) and `_policyNotBivariant` (P9) (completed 2026-07-28)
 - [ ] 02-12-PLAN.md — Wave 8: phase gate — clean-checkout suite, the eleven-mutant battery re-run, tarball review, and validation sign-off
 **Research**: Completed 2026-07-28 — `02-RESEARCH.md`. *Supersedes this entry's original "None".* Tool **selection** was indeed settled on 2026-07-27 and was deliberately not re-litigated; research was fenced to implementation mechanics only. It nonetheless falsified three things this entry had treated as settled: (1) `tsdown`'s `attw: true` reports problems and **exits 0** — it is not a gate, and the correct form is `attw: { level: "error", profile: "esm-only" }`; (2) `attw`'s **default profile fails a correctly-authored ESM-only package**, and its natural "fix" would reverse a locked decision; (3) the core-as-`peerDependency` range is **advisory under pnpm** (`unmet peer`, exit 0) and hard-errors only under npm, so PKG-04's runtime check is its primary enforcement rather than its backstop. A fourth finding reshaped the phase: `sideEffects: false` and a module-scope registry are mutually exclusive, which is why `assertSingleInstance()` must sit on a reachable path.
@@ -245,7 +245,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Type surface completion | 15/15 | Complete   | 2026-07-28 |
-| 2. Packaging, build, and release | 10/12 | In Progress|  |
+| 2. Packaging, build, and release | 11/12 | In Progress|  |
 | 3. Action declaration and build-time validation | 0/TBD | Not started | - |
 | 4. Stages, catalog assembly, and explain() | 0/TBD | Not started | - |
 | 5. Bridge registry and the no-bridge path | 0/TBD | Not started | - |
