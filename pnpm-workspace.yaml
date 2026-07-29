@@ -16,3 +16,22 @@ packages:
   # Only directories containing a package.json are picked up, so plan 02-09's
   # packages/concierge/test/fixtures/probe.ts is not swallowed by this glob.
   - "packages/concierge/test/fixtures/*"
+
+# Version pins for the SECOND build toolchain, declared here before its consumer
+# exists. Nothing installs these today — a `catalog:` entry is a pin waiting for
+# a dependent, not a dependency — so `pnpm-lock.yaml` is unchanged by their
+# presence.
+#
+# They are written down in Phase 2 rather than discovered in Phase 9 because of
+# a failure that produces no error: `concierge-svelte` must be built with
+# `@sveltejs/package`, never with tsdown. Runes are compiler-transformed, and
+# pre-bundling them yields code that runs and is not reactive — no error, no
+# warning, and a symptom ("the snapshot doesn't update") indistinguishable from
+# a bridge bug. @sveltejs/package transpiles file-by-file, deliberately does not
+# bundle, and requires a `svelte` export condition.
+#
+# See CONTRIBUTING.md § Non-negotiables for the rule this pin serves, and for
+# why the build is deliberately NOT centralized.
+catalog:
+  svelte: ^5.0.0
+  "@sveltejs/package": ^2.5.8
