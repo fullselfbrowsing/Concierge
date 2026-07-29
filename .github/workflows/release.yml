@@ -1,0 +1,109 @@
+name: release
+
+# THIS WORKFLOW HAS NEVER BEEN EXECUTED.
+#
+# Nothing publishes until v0.1 completes (see .planning/ROADMAP.md), so this file
+# ships unexecuted and its verification to date is STATIC REVIEW ONLY — six named
+# properties checked by inspection and grep in plan 02-10, not a run. Treat the
+# first real release as the first test of this file, and follow RELEASING.md,
+# which exists because the worst failure here is invisible from the exit code.
+#
+# Supply-chain posture: npm trusted publishing over OIDC. Publish rights are bound
+# to this repository and this workflow on the npm side, not to a transferable
+# secret that lives in repository settings.
+
+on:
+  push:
+    branches: [main]
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  # changesets pushes the version commit and the tag.
+  contents: write
+  # changesets opens and updates the "Version Packages" PR.
+  pull-requests: write
+  # REQUIRED for OIDC trusted publishing. Omit it and there is no token to
+  # exchange, so the publish falls back to token auth and fails with ENEEDAUTH
+  # or a 404 that reads like a trusted-publisher misconfiguration.
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      # fetch-depth: 0 is REQUIRED, not a tuning knob. changesets diffs against
+      # released versions to decide what to version and what to publish; with
+      # the default shallow clone (depth 1) it cannot determine what was already
+      # released, and version/publish misbehave rather than fail loudly.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # No `version` input: pnpm resolves from the root `packageManager` field,
+      # pinned at pnpm@11.17.0.
+      #
+      # The pnpm version is load-bearing here in a way it is nowhere else.
+      # `changeset publish` shells out to `pnpm publish` in this workspace —
+      # verified by reading @changesets/cli@2.31.1's getPublishTool, which
+      # branches on the detected tool and spawns `pnpm publish` for a pnpm
+      # workspace, not `npm publish`. OIDC support therefore lives in pnpm, not
+      # in npm, and pnpm below 11.1.3 returns a 404 ON THE PUT: actions/setup-node
+      # writes `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}` into a
+      # project-level .npmrc, there is deliberately no NODE_AUTH_TOKEN under
+      # OIDC, and an older pnpm passes the unresolved placeholder through — so
+      # the client concludes auth is already configured and never performs the
+      # OIDC exchange. Provenance signing appears to succeed first, which makes
+      # it the most misleading failure in the set. Fixed in pnpm 11.1.3
+      # (2026-05-18, pnpm/pnpm#11526). 11.17.0 is far past it.
+      - uses: pnpm/action-setup@v4
+
+      # DO NOT add `auth-token-line: false` here. That input does not exist in
+      # actions/setup-node's current action.yml — it was proposed in
+      # actions/setup-node#1551 and closed as a duplicate. An unknown `with:`
+      # key is ignored silently, so writing it produces a workflow that looks
+      # like it disabled the .npmrc token line and did not.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+          cache: pnpm
+
+      # The runner's bundled npm may be older than 11.5.1, which is the floor
+      # for the OIDC exchange on the npm side. See RELEASING.md for where each
+      # of the three version floors comes from.
+      - run: npm install -g npm@latest
+
+      - run: pnpm install --frozen-lockfile
+
+      # typecheck first, for the same reason ci.yml runs it before build:
+      # rolldown transpiles without typechecking, so mutant P4 (plan 02-04) is
+      # a program on which `pnpm build` exits 0 and `pnpm typecheck` does not.
+      # The `&&` chain is what makes the order enforceable in one step.
+      - run: pnpm typecheck && pnpm build && pnpm test
+
+      # NO `NPM_TOKEN` — not in this env block, not in repository secrets used by
+      # this workflow, not anywhere under .github/. This is the one prohibition
+      # in this file whose violation produces a GREEN build and a degraded
+      # artifact: token auth wins over OIDC, the publish succeeds, and it
+      # succeeds WITHOUT a provenance attestation. Nothing in the workflow's own
+      # exit code reveals it, which is why RELEASING.md makes a human check the
+      # npm package page on the first real release and treats a publish without
+      # an attestation as a FAILED publish. (Threats T-02-46, T-02-47.)
+      #
+      # NO `--provenance` flag either. Provenance attestations are generated
+      # automatically for public repositories on GitHub Actions; passing the flag
+      # by hand is at best redundant and at worst a second, divergent code path.
+      #
+      # Both strings appear above deliberately. The assertions that keep them out
+      # of this file are scoped to non-comment lines and, for NPM_TOKEN, to
+      # assignment or `secrets.` reference context — precisely so that going
+      # green by deleting this comment is not an option. This workflow does not
+      # execute in phase 02, so this comment is the only recorded mitigation
+      # those two threats have.
+      - uses: changesets/action@v1
+        with:
+          version: pnpm changeset version
+          publish: pnpm changeset publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
