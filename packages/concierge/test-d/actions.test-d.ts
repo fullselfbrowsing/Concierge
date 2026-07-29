@@ -84,6 +84,7 @@ import type {
   StageDefinition,
   StandardSchemaV1,
 } from "../src/types.js";
+import { defineAction } from "../src/define-action.js";
 
 // --------------------------------------------------------------------------
 // Fixtures — every one local, none exported
@@ -108,27 +109,24 @@ type AckShape = { quotedTotal: number };
 
 declare const schema: StandardSchemaV1<unknown, { q: string }>;
 
-/**
- * Stand-in for the real `defineAction`, which **Phase 3 owns**. A `declare function`
- * with no runtime body, never exported, existing for one reason: the assertions below
- * must read an *inferred* `ActionDefinition`. An explicitly annotated one would supply
- * the very answer — `Name`, `Snapshot` — that the test is supposed to derive, and would
- * pass just as happily over a broken declaration chain.
- *
- * The third parameter is `B`, not `Bridge`, and the spelling is deliberate now that this
- * file imports the interface: a parameter named `Bridge` would shadow it here exactly as
- * it did in `types.ts` before IN-02, in the one file whose job is to prove that collision
- * is gone. `B` is a parameter standing for some bridge; `Bridge` is the interface.
- */
-declare function defineAction<
-  Name extends string,
-  Schema extends StandardSchemaV1,
-  B = unknown,
-  Snapshot = unknown,
-  AckPayload = unknown,
->(
-  def: ActionDefinition<Name, Schema, B, Snapshot, AckPayload>,
-): ActionDefinition<Name, Schema, B, Snapshot, AckPayload>;
+// A `declare function` stand-in for the real `defineAction` stood here for two phases.
+// **Phase 3 owns the real function**, and plan 03-01 swapped it for the value imported
+// above. Its ambient spelling is deliberately not reproduced in this prose, so that a
+// grep for it confirms the placeholder is gone.
+//
+// The real signature has SIX type parameters, not five: `D` — the description — sits at
+// position 2, ahead of the schema, and carries the CAT-07 literal guard. The parameter
+// is `Omit<ActionDefinition<…>, "description"> & { description: LiteralDescription<N, D> }`
+// rather than a plain `ActionDefinition<…>`, so inference now runs through a mapped type
+// and an intersection instead of a bare generic reference.
+//
+// All three call sites in this file survived the swap unchanged and none is annotated.
+// They rely on pure inference and their descriptions are inline literals — valid CAT-07
+// accept cases — which is exactly why they are the canary: if the guard ever
+// over-rejects, or if `Name`/`Snapshot` stop being inferable through the `Omit`,
+// `_nameNotWidened` and `_snapshotInferred` below go red. Do not repair that by
+// annotating a call site; both predicates exist only to read an inferred type, and
+// annotating one hands it the answer. Fix `src/define-action.ts` instead.
 
 // --------------------------------------------------------------------------
 // SC-7a — `snapshotEquality` must not degrade to `(a: unknown, b: unknown)`
@@ -144,7 +142,8 @@ const _policyTyped: ConsentPolicy<Booking> = {
 };
 
 /**
- * The negative — and **mutant M9's sole detector**.
+ * The negative — and **M9's *first* detector; the second is `_policyNotBivariant` in
+ * `consent-variance.test-d.ts`**.
  *
  * A `Booking` comparator must not fit a `ConsentPolicy<unknown>`. The directive sits
  * directly above the *property*, not above the declaration, because that is where the
@@ -152,9 +151,10 @@ const _policyTyped: ConsentPolicy<Booking> = {
  *
  * Switching `snapshotEquality` to method syntax makes its parameters bivariant, the
  * assignment above starts succeeding, and this directive goes unused — a lone TS2578 is
- * then the *only* symptom that the guard has stopped guarding. Nothing else in this
- * repository notices. That is the shape of "fix" a reviewer applies by deleting a test,
- * which is why {@link ConsentPolicy.snapshotEquality}'s own doc comment points here.
+ * then this file's only symptom that the guard has stopped guarding; since plan 02-11
+ * `_policyNotBivariant` fails with TS2344 in the same run. That is the shape of "fix" a
+ * reviewer applies by deleting a test, which is why
+ * {@link ConsentPolicy.snapshotEquality}'s own doc comment points here.
  */
 const _policyDegraded: ConsentPolicy = {
   requires: "reviewBooking",
@@ -331,6 +331,13 @@ type _readsUntrustedOnDefinition = Expect<Equals<ActionDefinition["readsUntruste
  */
 // @ts-expect-error - readsUntrusted must NOT be a SideEffects member (D-04, SC-7g)
 type _notInSideEffects = NonNullable<ActionDefinition["effects"]>["readsUntrusted"];
+
+// --------------------------------------------------------------------------
+// SEC-01 — `redact` is required, and the declaration is where that is decided
+// --------------------------------------------------------------------------
+
+/** SEC-01's declaration-time half: redaction defaults to nothing because it cannot be omitted at all. `{} extends Pick<…>` is `true` exactly when the member is optional, so this goes red the moment a `?` appears on `redact` — the one edit that would turn a fail-closed policy into an opt-in one. `buildCatalog` owns the runtime half. */
+type _redactIsRequired = Expect<Equals<{} extends Pick<ActionDefinition, "redact"> ? true : false, false>>;
 
 // --------------------------------------------------------------------------
 // The erasure positives — heterogeneous actions must still assemble
