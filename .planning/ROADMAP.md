@@ -124,8 +124,18 @@ Plans:
   3b. An action declaring `readsUntrusted` with no consent policy reports itself the same way, so the taint marker is a gate rather than an annotation nothing reads. (SEC-05)
   4. A validator that does not implement Standard JSON Schema still emits a correct schema, because an explicit `jsonSchema` is used in preference to derivation — and an unspecified redaction policy drops arguments rather than passing them through. (CAT-06, SEC-01)
   5. `assertSingleInstance` is called from the first entry point a consumer actually reaches, not only from tests. Phase 2 shipped the guard with **no production call site** — every invocation is a test, a harness, or CI, and `src/contract.ts:140` admits it. A guard that is armed and never fired does not prevent the split bridge registry, the doubled dedup window, or the invisible consent state it exists to prevent. (PKG-04; carried from 02-VERIFICATION.md finding W5)
-**Plans**: TBD
-**Research**: Light — re-probe the installed validators for `~standard.jsonSchema` support and emitted draft, rather than reading the spec site. The docs claimed a capability one shipped package does not have, and that claim would have deleted the escape hatch that is the only working path for one of three target validators.
+**Plans**: 8 plans across **5 waves**. Waves 1, 3 and 4 each run two or three plans on disjoint files; every wave was checked for `files_modified` overlap. The hinge is `src/catalog.ts` (plan 03-03): it is the only place a freeze can happen, the only place a check can be forgotten, and the first production call site `assertSingleInstance` has ever had.
+
+Plans:
+- [ ] 03-01-PLAN.md — Wave 1: the CAT-07 five-probe literal-description guard, `defineAction`, both assertion families, and the `actions.test-d.ts` placeholder swap (CAT-07, DX-03, SEC-01 type half)
+- [ ] 03-02-PLAN.md — Wave 1: the structural converter types, the narrowing predicate, the locked emission order, three exact-pinned validators, and eleven schema fixtures (CAT-02, CAT-06)
+- [ ] 03-03-PLAN.md — Wave 2: **THE HINGE** — `src/host.ts`, `buildCatalog`, the rule table, `CatalogValidationError`, the recursive freeze, and `assertSingleInstance` on the first line (CAT-01/02/05/06, SEC-01/03/05, DX-03, PKG-04 SC-5)
+- [ ] 03-04-PLAN.md — Wave 3: the barrel, and the export-surface pin moved in lockstep across its four sites (45 names to an expected 59)
+- [ ] 03-05-PLAN.md — Wave 3: `test-d/catalog.test-d.ts` — CAT-01's derived literal name union, and mutant M-03-3
+- [ ] 03-06-PLAN.md — Wave 4: `test/catalog.test.ts`, the SC-5 registry case, and five catalog mutants (CAT-01/02/05, SEC-01/03/05, DX-03, PKG-04)
+- [ ] 03-07-PLAN.md — Wave 4: `test/emission.test.ts` against three real published validators, and four emission mutants (CAT-02, CAT-06, DX-03)
+- [ ] 03-08-PLAN.md — Wave 5: phase gate — the four `types.ts` prose corrections, three `/* @__PURE__ */` annotations, the fifteen-mutant battery re-run, all seven gate scripts, and the validation sign-off
+**Research**: ✅ **Done 2026-07-29** — `03-RESEARCH.md`, 20 compiled probes against the installed TS 7.0.2 plus all four candidate validators installed and executed. The re-probe this entry asked for was done and confirms the finding: **valibot 1.4.2 still does not implement Standard JSON Schema**, so the `jsonSchema` escape hatch remains the only working path for one of three target validators. Research also corrected three decisions `03-CONTEXT.md` had recorded as settled: (1) "warn on the console by default" does not compile — `console` is not type-visible under `lib: ["ES2022"]`, and the working form is the structural `globalThis` reach `contract.ts:92-99` already established; (2) a shallow `Object.freeze` does **not** satisfy SEC-03 — measured, `catalog[0].handler = attackerFn` succeeds *silently* and the replacement handler runs, so a recursive freeze is required; (3) the obvious CAT-07 guard `string extends D` **accepts** an interpolated template literal, which is precisely the per-tenant content vector CAT-07 exists to block, so a five-probe predicate ships instead. One residual gap is **accepted explicitly** rather than discovered later: `${number}` and `${bigint}` description holes defeated all six candidate predicates, and the acceptance, its reasoning and its residual risk are recorded in `src/define-action.ts`'s shipped doc comment with a pin that fires if a future compiler closes it.
 **Notes**: The schema-emission order is escape hatch → `~standard.jsonSchema.input(...)` → throw naming the action *and* the vendor. The `input` projection specifically: a schema with a transform or a default emits a different schema in each direction, and tool calling needs the input side.
 
 ### Phase 4: Stages, catalog assembly, and explain()
@@ -248,7 +258,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 |-------|----------------|--------|-----------|
 | 1. Type surface completion | 15/15 | Complete   | 2026-07-28 |
 | 2. Packaging, build, and release | 12/12 | Complete   | 2026-07-29 |
-| 3. Action declaration and build-time validation | 0/TBD | Not started | - |
+| 3. Action declaration and build-time validation | 0/8 | Planned    | - |
 | 4. Stages, catalog assembly, and explain() | 0/TBD | Not started | - |
 | 5. Bridge registry and the no-bridge path | 0/TBD | Not started | - |
 | 6. Dispatcher | 0/TBD | Not started | - |
