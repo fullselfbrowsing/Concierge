@@ -103,7 +103,7 @@ Plans:
 - [x] 02-03-PLAN.md — Wave 2: tsdown build, `publint`/`attw` as build-failing gates at the `esm-only` profile, the sourcemap decision (`src` into `files`), and `check:artifact`
 - [x] 02-04-PLAN.md — Wave 3: PKG-01 defect-first battery — P1, P2, P3a/b, and P4, the pair where `pnpm typecheck` fires while `pnpm build` exits 0
 - [x] 02-05-PLAN.md — Wave 3: `scripts/pkg05-zero-runtime-deps.mjs`, `check:deps`, the pre-hinge baseline, and P5 proven in both halves
-- [ ] 02-06-PLAN.md — Wave 4: **THE HINGE** — `src/contract.ts`, `assertSingleInstance` on a reachable path, export surface 43 → 45, PKG-04 / PKG-05 reconciled
+- [x] 02-06-PLAN.md — Wave 4: **THE HINGE** — `src/contract.ts`, `assertSingleInstance` on a reachable path, export surface 43 → 45, PKG-04 / PKG-05 reconciled
 - [ ] 02-07-PLAN.md — Wave 5: Vitest, the single-instance / artifact / export-surface suites, and mutants P6, P7, P11
 - [ ] 02-08-PLAN.md — Wave 6: F3 workspace fixture adapters, the extended workspace glob, and the one-physical-copy proof
 - [ ] 02-09-PLAN.md — Wave 6: the PKG-02 pack-and-install harness and the PKG-03 Node-floor harness, plus mutant P10
@@ -245,7 +245,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Type surface completion | 15/15 | Complete   | 2026-07-28 |
-| 2. Packaging, build, and release | 5/12 | In Progress|  |
+| 2. Packaging, build, and release | 6/12 | In Progress|  |
 | 3. Action declaration and build-time validation | 0/TBD | Not started | - |
 | 4. Stages, catalog assembly, and explain() | 0/TBD | Not started | - |
 | 5. Bridge registry and the no-bridge path | 0/TBD | Not started | - |
