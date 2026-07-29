@@ -195,10 +195,13 @@ declare const subtleish: {
  * doc comment on the declaration itself.
  *
  * Contrast `ConsentPolicy.snapshotEquality`, whose *opposite* syntax genuinely is
- * guarded: mutant M9 reproduces, and its single symptom is an unused directive on
- * `_policyDegraded` in `actions.test-d.ts` (plan 01-06). Two adjacent seams, two
- * opposite syntaxes, two different levels of enforcement — and only one of them has
- * the suite behind it.
+ * guarded: mutant M9 reproduces, and since plan 02-11 it has **two** detectors.
+ * The first is an unused directive on `_policyDegraded` in `actions.test-d.ts`
+ * (plan 01-06) — a bare TS2578, which is the failure mode a reviewer deletes. The
+ * second is `_policyNotBivariant` in `consent-variance.test-d.ts`, which fails
+ * with TS2344 on a line whose echoed source text names the invariant. Two adjacent
+ * seams, two opposite syntaxes, two different levels of enforcement — and only one
+ * of them has the suite behind it.
  */
 const _digestAccepted: DigestLike = subtleish;
 
