@@ -308,22 +308,35 @@ export type SchemaEmission =
  * **The root shapes this check actually sees.** Measured on the installed
  * packages at target `draft-2020-12`:
  *
- * | Schema                      | Emitted root                                | Root check |
- * |-----------------------------|---------------------------------------------|------------|
- * | `z.object({...})`           | `{type:"object", properties, required}`     | passes     |
- * | arktype `type({...})`       | `{type:"object", properties, required}`     | passes     |
- * | `z.record(k, v)`            | `{type:"object", propertyNames, …}`         | passes     |
- * | `z.discriminatedUnion(...)` | `{$schema, oneOf:[…]}` — no `type`          | FAILS      |
- * | `z.union([...])`            | `{$schema, anyOf:[…]}` — no `type`          | FAILS      |
- * | arktype `.or(...)`          | `{$schema, anyOf:[…]}` — no `type`          | FAILS      |
- * | valibot `v.union` → hatch   | `{anyOf:[…]}` — no `type`                   | FAILS      |
- * | valibot `v.variant` → hatch | `{oneOf:[…]}` — no `type`                   | FAILS      |
- * | `z.string()`                | `{type:"string"}`                           | FAILS      |
- * | `z.array(...)`              | `{type:"array", items}`                     | FAILS      |
+ * | Schema                      | Emitted root keys, in order                    | Root check |
+ * |-----------------------------|------------------------------------------------|------------|
+ * | `z.object({...})`           | `$schema, type, properties, required`          | passes     |
+ * | `z.object({})`              | `$schema, type, properties` (`properties` `{}`)| passes     |
+ * | `z.record(k, v)`            | `$schema, type, propertyNames, additionalProperties` | passes |
+ * | arktype `type({...})`       | `$schema, type, properties, required`          | passes     |
+ * | arktype `type({})`          | `$schema, type` — **no `properties`**          | passes     |
+ * | `z.discriminatedUnion(...)` | `$schema, oneOf` — **no `type`**               | FAILS      |
+ * | `z.union([...])`            | `$schema, anyOf` — **no `type`**               | FAILS      |
+ * | arktype `.or(...)`          | `$schema, anyOf` — **no `type`**               | FAILS      |
+ * | `z.string()`                | `$schema, type` where `type` is `"string"`     | FAILS      |
+ * | `z.array(...)`              | `$schema, type, items`                         | FAILS      |
  *
- * Note the `z.record` row: it passes the root check while carrying **no
- * `properties` key at all**. Any downstream "is this schema empty?" test that
- * reads `properties` has to account for that, or it classifies the most
+ * **`$schema` is on every row, and it is first.** `03-RESEARCH.md:612-635`
+ * records the passing rows as `{type:"object", properties, required}` and shows
+ * `$schema` only where the root check fails. Re-measured against the installed
+ * packages, every zod and arktype emission at this target carries `$schema` as
+ * its leading key. RESEARCH is right about what fails; it is incomplete about
+ * the key list, which matters here because {@link describeRoot} prints that
+ * list — `z.string()` reports `keys: $schema, type`, not `keys: type`. The two
+ * valibot rows RESEARCH carries were produced with `@valibot/to-json-schema`,
+ * which this repository deliberately does not install, so they are dropped
+ * rather than repeated unverified.
+ *
+ * Note the `z.record` and arktype `type({})` rows: both pass the root check
+ * while carrying **no `properties` key at all**, and they get there by
+ * different routes — zod spells "no members" as `properties: {}` while arktype
+ * omits the key. Any downstream "is this schema empty?" test that reads
+ * `properties` has to tolerate its absence, or it classifies the most
  * redaction-sensitive shape there is — arbitrary caller-supplied keys *and*
  * values — as empty.
  *
