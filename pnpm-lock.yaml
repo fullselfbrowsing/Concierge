@@ -36,6 +36,18 @@ importers:
         specifier: ^1.0.0
         version: 1.1.0
 
+  packages/concierge/test/fixtures/adapter-alpha:
+    devDependencies:
+      '@fullselfbrowsing/concierge':
+        specifier: workspace:*
+        version: link:../../..
+
+  packages/concierge/test/fixtures/adapter-beta:
+    devDependencies:
+      '@fullselfbrowsing/concierge':
+        specifier: workspace:*
+        version: link:../../..
+
 packages:
 
   '@andrewbranch/untar.js@1.0.3':
