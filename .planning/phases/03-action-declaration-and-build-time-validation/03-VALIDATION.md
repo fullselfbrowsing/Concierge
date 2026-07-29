@@ -75,15 +75,15 @@ exits **1**. Every expectation below says 1; the prose in the harness is stale, 
 | 3-03-02 | 03 | 2 | CAT-01, CAT-02, CAT-05, CAT-06, SEC-01, SEC-03, SEC-05, DX-03, PKG-04 | T-03-11..T-03-18 | Aggregate throw; both diagnostics; SEC-01 fails closed both ways; recursive freeze; guard armed on the first line | type + build | `pnpm typecheck && pnpm build && pnpm test && pnpm check:deps` | ❌ W0 → `src/catalog.ts` | ⬜ pending |
 | 3-03-03 | 03 | 2 | PKG-04 | T-03-18 | The shipped doc comment names the real call site | build | `pnpm typecheck && pnpm build && pnpm test` | ✅ `src/contract.ts` | ⬜ pending |
 | 3-04-01 | 04 | 3 | CAT-01, CAT-06, CAT-07 | T-03-20 / T-03-21 | Every new value is a real runtime binding; internals stay internal | unit + CLI | `pnpm build && pnpm check:artifact` + dynamic-import probe | ✅ `src/index.ts` | ⬜ pending |
-| 3-04-02 | 04 | 3 | CAT-01, DX-03 | T-03-20 / T-03-22 / T-03-23 | The pin equals the measured surface in all four places; P8-equivalent proved | unit + type + mutation | `pnpm build && pnpm typecheck && pnpm test` · P8-equivalent mutant | ✅ three guard files | ⬜ pending |
+| 3-04-02 | 04 | 3 | CAT-01, CAT-07, DX-03 | T-03-20 / T-03-22 / T-03-23 / T-03-48 | The pin equals the measured surface in all four places, incl. the third count-bearing `it` title; P8-equivalent proved; the SHIPPED `defineAction` description slot is pinned by the one foreign program that compiles `dist/index.d.ts` | unit + type + mutation | `pnpm build && pnpm typecheck && pnpm test && pnpm check:pack` · P8-equivalent mutant · probe negative control | ✅ four guard files (incl. `test/fixtures/probe.ts`) | ⬜ pending |
 | 3-05-01 | 05 | 3 | CAT-01, CAT-07, SEC-01 | T-03-24 / T-03-25 / T-03-26 | One declaration yields the literal name union; the lookup is keyed by it | type + mutation | `pnpm typecheck` · M-03-3 | ❌ W0 → `test-d/catalog.test-d.ts` | ⬜ pending |
-| 3-06-01 | 06 | 4 | CAT-01, CAT-02, CAT-05, SEC-01, SEC-03, SEC-05, DX-03 | T-03-27..T-03-30 | Errors aggregate and name their actions; both markers report without blocking; the tamper attempt leaves the handler unchanged | unit | `pnpm build && pnpm test catalog` | ❌ W0 → `test/catalog.test.ts` | ⬜ pending |
+| 3-06-01 | 06 | 4 | CAT-01, CAT-02, CAT-05, SEC-01, SEC-03, SEC-05, DX-03 | T-03-27..T-03-30 / T-03-49 | Errors aggregate and name their actions; both markers report without blocking; the default sink actually reaches the host; a record-shaped schema with no `redact` FAILS rather than defaulting; the tamper attempt leaves the handler unchanged | unit | `pnpm build && pnpm test catalog` | ❌ W0 → `test/catalog.test.ts` | ⬜ pending |
 | 3-06-02 | 06 | 4 | PKG-04 | T-03-31 | Registry empty after import, populated after `buildCatalog([])` | unit | `pnpm build && pnpm test single-instance` | ✅ `test/single-instance.test.ts` | ⬜ pending |
-| 3-06-03 | 06 | 4 | SEC-01, SEC-03, DX-03, PKG-04 | T-03-32 / T-03-33 | Five catalog rules each proved to fire; artifact rebuilt from clean source | mutation | M-03-7 · M-03-8 · M-03-9 · M-03-11 · M-03-12 | ✅ (created 3-06-01/02) | ⬜ pending |
+| 3-06-03 | 06 | 4 | CAT-05, SEC-01, SEC-03, DX-03, PKG-04 | T-03-32 / T-03-33 / T-03-49 | Six catalog rules each proved to fire; artifact rebuilt from clean source | mutation | M-03-7 · M-03-8 · M-03-9 · M-03-11 · M-03-12 · M-03-13 | ✅ (created 3-06-01/02) | ⬜ pending |
 | 3-07-01 | 07 | 4 | CAT-02, CAT-06, DX-03 | T-03-34..T-03-38 | Both failure shapes read differently; the escape hatch is proved to win; the INPUT projection ships | unit | `pnpm build && pnpm test emission` | ❌ W0 → `test/emission.test.ts` | ⬜ pending |
 | 3-07-02 | 07 | 4 | CAT-02, CAT-06, DX-03 | T-03-39 / T-03-40 | Four emission rules each proved to fire | mutation | M-03-4 · M-03-5 · M-03-6 · M-03-10 | ✅ (created 3-07-01) | ⬜ pending |
-| 3-08-01 | 08 | 5 | CAT-05, SEC-01, SEC-05 | T-03-41..T-03-44 | No false prose ships; the freeze annotations do not drop a live freeze | unit + CLI | `pnpm build && pnpm typecheck && pnpm test && pnpm check:deps && pnpm check:artifact` | ✅ `src/types.ts` | ⬜ pending |
-| 3-08-02 | 08 | 5 | all eight | T-03-45 | Fourteen mutants observed firing against the FINAL tree | mutation | the twelve-row battery plus two guard mutants | ✅ | ⬜ pending |
+| 3-08-01 | 08 | 5 | CAT-05, SEC-01, SEC-05 | T-03-41..T-03-44 | No false prose ships; the third `Object.isFrozen` assertion lands FIRST so the safety net covers all three annotated sites; the annotations do not drop a live freeze | unit + CLI | `pnpm build && pnpm typecheck && pnpm test && pnpm check:deps && pnpm check:artifact` | ✅ `src/types.ts`, `test/artifact.test.ts` | ⬜ pending |
+| 3-08-02 | 08 | 5 | all eight | T-03-45 | Sixteen mutants observed firing against the FINAL tree | mutation | the thirteen-row numbered battery plus three guard mutants | ✅ | ⬜ pending |
 | 3-08-03 | 08 | 5 | all eight | T-03-46 / T-03-47 | Every gate green on a clean tree; the sign-off is honest | CLI | `pnpm build && typecheck && test && check:artifact && check:deps && check:pack && check:node-floor` | ✅ this file | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
@@ -108,16 +108,19 @@ re-asserted honestly by 3-08-03.
 | CAT-07 | widened `string` rejected; the message names the action and states the fix | type | `pnpm typecheck` + message proof | 3-01-02, 3-01-03 |
 | CAT-07 | every `${string}` hole position rejected | type | `pnpm typecheck` | 3-01-02 |
 | CAT-07 | every accept case in the measured matrix compiles | type | `pnpm typecheck` | 3-01-02 |
+| CAT-07 | the description slot survives `.d.ts` emission as a LITERAL, seen by a program that compiles only the shipped declarations | type (consumer-side) | `pnpm check:pack` + the probe negative control | 3-04-02 |
+| CAT-05 | the default diagnostic sink actually reaches the host — deleting the call fails a test | unit | `pnpm test catalog` · M-03-13 | 3-06-01, 3-06-03 |
 | SEC-01 | `redact` is non-optional at the type level | type | `pnpm typecheck` | 3-01-03 |
 | SEC-01 | a non-empty schema with no `redact` throws, naming the action | unit | `pnpm test catalog` | 3-06-01 |
 | SEC-01 | an empty schema with no `redact` resolves to `"drop"` | unit | `pnpm test catalog` | 3-06-01 |
+| SEC-01 | a RECORD-shaped schema (no `properties`, but `propertyNames`) with no `redact` FAILS rather than defaulting | unit | `pnpm test catalog` · M-03-12 | 3-06-01 |
 | SEC-03 | a built handler cannot be replaced, and neither can the `byName` lookup | unit | `pnpm test catalog` | 3-06-01 |
 | SEC-05 | `readsUntrusted` without consent yields a diagnostic under a DISTINCT code | unit | `pnpm test catalog` | 3-06-01 |
 | DX-03 | every issue carries `{action, fix}` as fields, not substrings | unit | `pnpm test catalog` | 3-06-01 |
 | DX-03 | errors aggregate — N bad actions yield N issues in one throw | unit | `pnpm test catalog` | 3-06-01 |
 | DX-03 | the compile-time error names the action in terse non-TTY `tsc` output | type | message proof over captured `tsc` output | 3-01-03 |
 | PKG-04 (SC-5) | `assertSingleInstance` is called from `buildCatalog` | unit | `pnpm test single-instance` | 3-06-02 |
-| — | the export surface moves in step across all four sites | unit + type | `pnpm build && pnpm typecheck && pnpm test export-surface` | 3-04-02 |
+| — | the export surface moves in step across all four sites, including the third count-bearing `it` title whose assertion carries no number | unit + type | `pnpm build && pnpm typecheck && pnpm test export-surface` | 3-04-02 |
 
 ---
 
@@ -136,15 +139,18 @@ Every build-gated mutant is followed by `pnpm build`.
 | M-03-6 | `src/json-schema.ts` | remove the root-`type` check | build + `pnpm test emission` | the `discriminatedUnion` and string-root cases fail | 3-07-02 |
 | M-03-7 | `src/catalog.ts` | `deepFreeze(...)` → shallow `Object.freeze(...)` | build + `pnpm test catalog` | the handler-replacement case fails | 3-06-03 |
 | M-03-8 | `src/catalog.ts` | remove `assertSingleInstance();` | build + `pnpm test single-instance` | the SC-5 case fails | 3-06-03 |
-| M-03-9 | `src/catalog.ts` | throw on first issue instead of aggregating | build + `pnpm test catalog` | the four-issues case fails | 3-06-03 |
+| M-03-9 | `src/catalog.ts` | `new CatalogValidationError(issues)` → `…(issues.slice(0, 1))`. **NOT** `issues.length > 0` → `> 1`: the throw is after the loop, the harness cannot move a statement, and `4 > 1` leaves the four-issue case passing so that mutant escapes | build + `pnpm test catalog` | the four-issues case fails on `err.issues.length` | 3-06-03 |
 | M-03-10 | `src/json-schema.ts` | drop `vendor` from the not-emittable failure | build + `pnpm test emission` | the vendor-named case fails | 3-07-02 |
 | M-03-11 | `src/catalog.ts` | `Object.create(null)` → `{}` | build + `pnpm test catalog` | the null-prototype case fails | 3-06-03 |
-| M-03-12 | `src/catalog.ts` | delete the `redaction_missing` issue push | build + `pnpm test catalog` | SEC-01's non-empty-schema case fails | 3-06-03 |
+| M-03-12 | `src/catalog.ts` | delete the `redaction_missing` issue push | build + `pnpm test catalog` | SEC-01's non-empty-schema cases (10 and 11b) fail | 3-06-03 |
+| M-03-13 | `src/catalog.ts` | `warnHost(` → `void (` in the default diagnostic sink (fallback: `host.console?.warn(message)` → `void message;` in `src/host.ts`) | build + `pnpm test catalog` | case 9b fails — the default warning CONTEXT locks is otherwise deletable with nothing noticing | 3-06-03 |
 | guard A | `src/types.ts` | `redact:` → `redact?:` | `pnpm typecheck` | `_redactIsRequired` goes red | 3-01-03 |
 | guard B | `src/json-schema.ts` | annotate `JSON_SCHEMA_TARGET: JsonSchemaTarget` | `pnpm typecheck` | `_targetDefaultIsTheLiteral` goes red | 3-02-03 |
 | guard C | `src/index.ts` | move one new value into the `export type` block | `pnpm typecheck` | the P8-equivalent hazard reproduces on this phase's own surface | 3-04-02 |
 
-All fifteen are re-run against the final tree by task 3-08-02.
+All **sixteen** — thirteen numbered plus three guards — are re-run against the final tree by task
+3-08-02. Task 3-08-02's own list is the same sixteen; if the two ever disagree, this table is the
+authority.
 
 ---
 
@@ -157,8 +163,9 @@ plan's own gates cover the tasks that precede it.
       the accept/reject matrix, the known-gap pin — **created by 03-01 Task 2**
 - [ ] `packages/concierge/test-d/json-schema.test-d.ts` — the target literal and converter contract
       — **created by 03-02 Task 3**
-- [ ] `packages/concierge/test/fixtures/schemas.ts` — eleven schema fixtures across three real
-      validators plus two hand-rolled — **created by 03-02 Task 2**
+- [ ] `packages/concierge/test/fixtures/schemas.ts` — twelve schema fixtures across three real
+      validators plus two hand-rolled, `zodRecord` among them (the only one that exercises SEC-01's
+      emptiness heuristic) — **created by 03-02 Task 2**
 - [ ] `packages/concierge/test-d/catalog.test-d.ts` — CAT-01's derived name union —
       **created by 03-05 Task 1**
 - [ ] `packages/concierge/test/catalog.test.ts` — CAT-01/02/05, SEC-01/03/05, DX-03 —
@@ -193,10 +200,16 @@ Written down rather than asserted, following the precedent at
 `packages/concierge/test/export-surface.test.ts:31-46` — a vacuously-passing guard reads in a diff
 and a test report exactly like coverage, and must not be counted as one.
 
-1. **Console output from the default diagnostic sink is NOT asserted.** `console` is not
-   type-visible under `lib: ["ES2022"]`, the sink reaches it structurally through `globalThis`, and
-   the host may not have one. The assertable surface is `catalog.diagnostics` and the
-   `onDiagnostic` hook; both are asserted.
+1. **What a host WITHOUT a `console` does is not asserted** — and that is now the whole of the
+   non-assertion. An earlier draft of this document declined to assert the console path at all,
+   which left the default warning CONTEXT locks deletable with nothing in the repository noticing.
+   `test/catalog.test.ts` case 9b closes that: it installs a capturing stand-in on
+   `globalThis.console` (a plain assignment — the repo bans `vi.`, not global assignment), restores
+   it in a `finally`, and asserts both that the sink fired and that what it emitted carried the
+   diagnostic code. M-03-13 proves the case. What remains unasserted is only the host-absent branch:
+   core reaches `globalThis.console?.warn` structurally and a host may legitimately have none.
+   `catalog.diagnostics` and the `onDiagnostic` hook remain the primary assertable surface and are
+   both asserted independently.
 2. **Targets outside `{draft-2020-12, draft-07}` are NOT asserted cross-vendor.** Measured: zod
    silently emits for a nonsense target while arktype throws `ParseError`. Asserting outside the
    intersection would encode one vendor's tolerance as a contract.
@@ -213,7 +226,7 @@ and a test report exactly like coverage, and must not be counted as one.
 - [ ] Wave 0 covers all MISSING references
 - [ ] No watch-mode flags
 - [ ] Feedback latency < 3 s on the typecheck path
-- [ ] All fifteen mutants observed firing against the FINAL tree
+- [ ] All sixteen mutants observed firing against the FINAL tree
 - [ ] All seven gate scripts green on a clean tree
 - [ ] `nyquist_compliant: true` is honest
 - [ ] `wave_0_complete: true` set

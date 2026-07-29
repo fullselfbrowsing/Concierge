@@ -60,8 +60,11 @@ rather than designing one. A change to `types.ts` here is a deviation, not a tas
     **accepts** `` `Tenant ${tenant} filter.` `` — a template literal interpolating a `string`
     infers the *pattern type*, not `string`. That is exactly the per-tenant content vector
     CAT-07 exists to block, so the naive predicate would have shipped a guard that passes
-    its own tests and admits the attack. A five-probe O(1) predicate closes every
+    its own tests and admits the attack. A six-branch O(1) predicate closes every
     `${string}` hole position; the full 25-case accept/reject matrix is in RESEARCH.md.
+    (This bullet originally read "five-probe" while the measured chain in RESEARCH
+    *Pattern 1* has always listed SIX branches. Only the word was wrong. Corrected here so
+    no reader deletes a branch to reach a count.)
   - **One residual gap, unclosed:** `${number}` / `${bigint}` holes defeated all six
     candidate predicates. The planner must either accept this narrower gap explicitly or
     find a sixth approach — it must not be discovered silently at execution time.

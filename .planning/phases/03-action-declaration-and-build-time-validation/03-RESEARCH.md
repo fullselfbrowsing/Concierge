@@ -20,7 +20,7 @@ literature reaches for — lets `` `Tenant ${tenant} filter.` `` straight throug
 expression interpolating a `string` does not widen to `string`; it infers the *pattern type*
 `` `Tenant ${string} filter.` ``, and `string extends <pattern>` is false. Per-tenant interpolation is
 precisely the vector CAT-07 exists to block, so the naive guard would have shipped with its central case
-open. A five-probe predicate closes every `${string}` hole position; a residual `${number}`/`${bigint}` gap
+open. A SIX-branch predicate closes every `${string}` hole position; a residual `${number}`/`${bigint}` gap
 is documented below and is not closable with any predicate I could construct.
 
 **Second, `Object.freeze` on the catalog array does not satisfy SEC-03.** Measured: with the array frozen
@@ -372,14 +372,16 @@ itself*, so `tsc`'s "Type X is not assignable to type Y" prints the message verb
  * True when `D` is the widened `string` OR a template-literal PATTERN carrying a
  * `${…}` hole, rather than one concrete literal.
  *
- * Five probes, and each catches a hole position the others miss. Measured:
+ * SIX branches, and each catches a hole position the others miss. (An earlier draft of this
+ * comment said "five" while listing six; six is correct and the listing below is the authority.)
+ * Measured:
  *   string extends D        -> fully widened            (`i18n(k)`, `let`, `as string`)
  *   `~${D}` extends D       -> LEADING hole             (`${tenant} filter.`)
  *   `${D}~` extends D       -> TRAILING hole            (`Filter for ${tenant}`)
  *   `${D}0` extends D       -> trailing numeric-ish hole
  *   `0${D}` extends D       -> leading numeric-ish hole
  *   `${D}${D}` extends D    -> INTERIOR hole            (`Tenant ${tenant} filter.`)
- * A concrete literal fails all five: prefixing, suffixing or doubling a concrete
+ * A concrete literal fails all six: prefixing, suffixing or doubling a concrete
  * string always yields a longer, therefore unassignable, string. Verified that a
  * description containing "~" or a digit is NOT a false positive.
  */
@@ -593,7 +595,7 @@ typed by a parameter constrained to `string`, infers the **pattern type** `` `Te
 — not `string`. `string extends <pattern>` is `false`, so the guard's condition never fires.
 **Measured evidence:** `capture(\`Tenant ${tenant} filter.\`)` produced
 `` Type '`Tenant ${string} filter.`' is not assignable to type '1'. ``
-**How to avoid:** the five-probe `HoleProbe` in *Pattern 1*.
+**How to avoid:** the six-branch `HoleProbe` in *Pattern 1*.
 **Warning signs:** a CAT-07 test suite whose only negative case is `i18n(k)`. That case passes with the
 broken guard.
 
@@ -937,7 +939,15 @@ catalog frozen: true | entries frozen: true
 | A5 | A union of concrete literals (`flag ? "A." : "B."`) *should* pass | Pattern 1 matrix | Both branches are code-reviewable, so this reads as within CAT-07's intent. Not stated in the requirement. |
 | A6 | The four candidate validator packages will be added as `devDependencies` rather than vendored fixtures | Standard Stack | If the planner prefers zero lockfile churn, the CAT-02 `discriminatedUnion` reproduction becomes a hand-written fixture and proves less. |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All six were decided at planning time and every recommendation is executed by a named plan:
+Q1 → 03-01 (guard on `defineAction` only, no `types.ts` amendment) · Q2 → 03-02 and 03-03
+(`draft-2020-12` default, `jsonSchemaTarget` on `BuildCatalogOptions`) · **Q3 → 03-08 Task 3(d)**
+(leave `$schema` in, and record the question as a hand-off where Phase 7 will read it) ·
+Q4 → 03-08 Task 3(e) (CAT-03 stays in Phase 4, CAT-04 in Phase 8) · Q5 → 03-03 and 03-08 Task 3(e)
+(close the `buildCatalog` half of SEC-03 here; the `catalogFor` re-freeze stays open in Phase 4) ·
+Q6 → 03-03 Task 2 (`deepFreeze` skips `action.schema`).
 
 1. **Does `buildCatalog` re-check descriptions, and therefore does `types.ts` get amended?**
    - *What we know (measured):* a mapped-type re-check on `buildCatalog`'s `const A` parameter **does**
