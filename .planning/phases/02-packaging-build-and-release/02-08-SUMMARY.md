@@ -325,7 +325,7 @@ Acceptance-criteria spot checks:
 
 | Criterion | Measured |
 |---|---|
-| `packages` includes the fixtures glob alongside the two existing entries, with a comment | **yes**, 3 entries, 13 comment lines |
+| `packages` includes the fixtures glob alongside the two existing entries, with a comment | **yes**, 3 entries, 14 comment lines |
 | both fixtures `private: true`, `type: "module"`, peer + dev entries for core | **yes**, both |
 | neither fixture declares `build`, `test` or `typecheck` | `scripts` is **absent** in both |
 | neither fixture declares a `dependencies` block | **absent** in both |
@@ -407,7 +407,7 @@ adapter does.
 | Threat | Disposition | Evidence |
 |---|---|---|
 | T-02-35 core moved from `peerDependencies` to `dependencies` in an adapter | **mitigated, and proven** | F3a reads both manifests and asserts the peer entry present and the `dependencies` entry absent. Observed failing under exactly that edit via `mutate-and-prove.sh`: `expected undefined to be defined`, harness exit 0. Also established that the lockfile carries no trace of the peer declaration, so F3a is the **only** thing in the repository that catches this. |
-| T-02-36 a fixture silently outside the workspace, making the guard vacuous | **mitigated** | The glob is extended with a 13-line comment naming the one-level limitation. Task 1 asserted both `node_modules` links exist before Task 2 asserted anything about them. Independently: pnpm's scope line moved from `all 2 workspace projects` to `all 4`, and `realpathSync` on a missing link throws `ENOENT` rather than returning something comparable — so the vacuous case is red, not green. |
+| T-02-36 a fixture silently outside the workspace, making the guard vacuous | **mitigated** | The glob is extended with a 14-line comment naming the one-level limitation. Task 1 asserted both `node_modules` links exist before Task 2 asserted anything about them. Independently: pnpm's scope line moved from `all 2 workspace projects` to `all 4`, and `realpathSync` on a missing link throws `ENOENT` rather than returning something comparable — so the vacuous case is red, not green. |
 | T-02-37 a fixture package accidentally published to npm | **mitigated** | Both are `private: true`, asserted in Task 1's verify block **and** persistently in F3a. Both names are recorded above for 02-10's changesets config. |
 | T-02-38 fixture sources escaping into the published tarball | **mitigated** | Re-packed after the fixtures existed: 10 entries, `0` matching `test` or `fixtures`. `files` still lists only `dist`, `src`, `README.md`, `LICENSE`, and `packages/concierge/package.json` is byte-unchanged. |
 | T-02-39 over-claiming what a workspace-symlink test proves | **mitigated** | The header states that all three resolutions go through pnpm workspace symlinks, that the lockfile records `link:../../..` rather than a registry tarball, and names 02-09 and 02-10 as where the published-install evidence actually lives. It further records that peer-*range* enforcement is not asserted at all, with the measured three-installer table. |
@@ -451,7 +451,7 @@ None.
 Files claimed created/modified, verified present on disk:
 
 - `pnpm-workspace.yaml` — FOUND, 3 `packages` entries including
-  `"packages/concierge/test/fixtures/*"`, with a 13-line explanatory comment block
+  `"packages/concierge/test/fixtures/*"`, with a 14-line explanatory comment block
 - `pnpm-lock.yaml` — FOUND, `lockfileVersion: '9.0'`, two new importers, both `link:../../..`
 - `packages/concierge/test/fixtures/adapter-alpha/package.json` — FOUND, 8 lines, `private: true`,
   peer `workspace:^`, dev `workspace:*`, no `scripts`, no `dependencies`
