@@ -56,8 +56,7 @@ import type { ActionDefinition, StandardSchemaV1 } from "./types.js";
  * code-reviewed. The tell for the broken form is a CAT-07 suite whose only negative
  * case is `i18n(k)` — the naive guard passes that one too, and passes nothing else.
  *
- * SIX branches, and each catches a hole position the others miss. Reading the
- * chain below in order:
+ * SIX branches. Reading the chain below in order:
  *
  *     1. `string` on the left  — fully widened: `i18n(k)`, `let`, `as string`, `"a" + "b"`
  *     2. prefix `~`            — LEADING hole:  `` `${tenant} filter.` ``
@@ -67,10 +66,32 @@ import type { ActionDefinition, StandardSchemaV1 } from "./types.js";
  *     6. self-concatenation    — INTERIOR hole: `` `Tenant ${tenant} filter.` ``
  *
  * A concrete literal fails all six, because prefixing, suffixing or doubling a
- * concrete string always yields a longer — therefore unassignable — string. The
- * two numeric-edge probes are the cheapest-looking lines in this file to delete and
- * are hole positions in their own right; deleting one to satisfy a branch count is
- * how this guard gets quietly reopened.
+ * concrete string always yields a longer — therefore unassignable — string.
+ *
+ * **Branches 2-5 are redundant under the measured matrix, and saying so is safer
+ * than the claim this comment first made.** The original wording — "each catches a
+ * hole position the others miss" — is false, and it was falsified here rather than
+ * inherited: branch 6 subsumes all four, because doubling a pattern whose hole sits
+ * at either end also lands inside that pattern. Mutation-measured against
+ * `test-d/description-literal.test-d.ts`, one branch disabled at a time:
+ *
+ *     branch 1  disabled -> suite goes red   (detected)
+ *     branch 2  disabled -> suite stays green (ESCAPES)
+ *     branch 3  disabled -> suite stays green (ESCAPES)
+ *     branch 4  disabled -> suite stays green (ESCAPES)
+ *     branch 5  disabled -> suite stays green (ESCAPES)
+ *     branch 6  disabled -> suite goes red   (detected)
+ *
+ * **Do not read those four escapes as permission to delete them.** An escaping
+ * mutant here means the suite has no case that *discriminates* the branch, and in
+ * the `${string}` universe no such case exists — anything branch 2 catches, branch 6
+ * catches as well. The shapes that would discriminate them are `${number}` and
+ * `${bigint}`, and those are the accepted gap documented on {@link defineAction},
+ * which no branch closes. So the four are kept as O(1) defence against pattern
+ * shapes outside the measured matrix, at zero runtime cost and one conditional at
+ * compile time. Deleting a branch because a mutant escaped it is the exact move
+ * that reopens this guard, and the numeric edges are the cheapest-looking lines in
+ * the file to lose.
  *
  * Verified NOT to be false positives: a description containing the `~` sentinel
  * ("Approximately ~10 results.") and a description containing a digit.
