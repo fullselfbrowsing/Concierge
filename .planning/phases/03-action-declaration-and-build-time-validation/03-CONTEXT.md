@@ -49,11 +49,25 @@ rather than designing one. A change to `types.ts` here is a deviation, not a tas
   non-literal is a type error naming the action. Rejected: a lint rule (ships nothing to
   consumers who do not adopt it) and documenting the constraint without enforcing it
   (which is what the requirement explicitly forbids).
-  - **Planner note:** verify this is achievable against the *current* `ActionDefinition`,
-    whose `description` is declared plainly as `string` (`types.ts:929`). If enforcing it
-    requires widening the declared type surface, that is a Phase 1 amendment and must be
-    called out, not performed silently. Nothing has published yet, so the amendment is
-    free — but it must be visible.
+  - **ANSWERED BY RESEARCH (03-RESEARCH.md), across 20 compiled probes.** Achievable, and
+    **no `types.ts` amendment is needed** provided the guard lives on `defineAction` only.
+    The winning formulation makes the rejection branch *itself* the error sentence, so tsc
+    prints it verbatim and it survives terse non-TTY output — which is what satisfies
+    DX-03's "names the action and states the fix". Two alternatives were measured to FAIL
+    DX-03: a named type alias prints as `ErrObj` (names nothing), and a rest-tuple guard
+    prints only `TS2554: Expected 2 arguments, but got 1`.
+  - **The obvious guard is wrong, and wrong in the direction that matters.** `string extends D`
+    **accepts** `` `Tenant ${tenant} filter.` `` — a template literal interpolating a `string`
+    infers the *pattern type*, not `string`. That is exactly the per-tenant content vector
+    CAT-07 exists to block, so the naive predicate would have shipped a guard that passes
+    its own tests and admits the attack. A five-probe O(1) predicate closes every
+    `${string}` hole position; the full 25-case accept/reject matrix is in RESEARCH.md.
+  - **One residual gap, unclosed:** `${number}` / `${bigint}` holes defeated all six
+    candidate predicates. The planner must either accept this narrower gap explicitly or
+    find a sixth approach — it must not be discovered silently at execution time.
+  - **Do NOT have `buildCatalog` re-check descriptions.** Measured: the mapped-type
+    re-check works but false-positives on every `defineAction` result, and it is the only
+    thing that would force a `types.ts` amendment. Guard on `defineAction` alone.
 
 - **Errors aggregate; `buildCatalog` throws once carrying all of them.** A developer
   declaring twenty actions should see twenty problems in one run, not fix-rebuild twenty
@@ -67,11 +81,18 @@ rather than designing one. A change to `types.ts` here is a deviation, not a tas
 ### Warnings versus errors
 
 - **`destructive`-without-consent and `readsUntrusted`-without-consent both report
-  through a diagnostics array returned on the built catalog, and additionally warn on the
-  console by default.** The roadmap's SC-3 is explicit that these must "report
-  themselves" without blocking, because a consent policy can legitimately live a layer up.
-  A `console.warn` alone is an annotation nothing reads and nothing can test; a returned
-  array is assertable. Rejected: console-only.
+  through a diagnostics array returned on the built catalog, and additionally emit a
+  default warning.** The roadmap's SC-3 is explicit that these must "report themselves"
+  without blocking, because a consent policy can legitimately live a layer up. A console
+  warning alone is an annotation nothing reads and nothing can test; a returned array is
+  assertable. Rejected: console-only.
+  - **CORRECTED BY RESEARCH (03-RESEARCH.md).** This decision originally read "warn on the
+    console by default." That does not compile: `console` is **not type-visible** under
+    `lib: ["ES2022"]` with no DOM types, which is a hard project constraint. The measured
+    working form is a structural `globalThis` read, which compiles clean. The *intent* —
+    a default-on warning that a consumer can redirect — is unchanged; only the mechanism
+    was wrong. Recorded rather than silently rewritten, because a reader who finds a
+    `globalThis` shim here should know it is deliberate and why.
 
 - **Severity is configurable through an `onDiagnostic` hook, defaulting to warn.** An app
   that wants `destructive`-without-consent to be fatal can make it fatal in its own build
@@ -128,8 +149,16 @@ rather than designing one. A change to `types.ts` here is a deviation, not a tas
 - **The catalog is frozen after build, closing SEC-03 here rather than in Phase 6.**
   SEC-03 is nominally a later requirement, but `buildCatalog` is the only place a freeze
   can happen and it is being written now. Freezing is free today and a breaking change
-  after publish. If the planner finds this genuinely conflicts with Phase 4's `catalogFor`
-  memoization, defer it and say so — do not silently drop it.
+  after publish.
+  - **SHARPENED BY RESEARCH (03-RESEARCH.md): a shallow freeze does not satisfy SEC-03.**
+    Measured — `Object.freeze(entries)` leaves `catalog[0].handler = attackerFn`
+    succeeding *silently*, and the replaced handler then runs. SEC-03 exists precisely to
+    stop third-party page script swapping a handler at runtime, so the shallow form
+    implements the requirement's letter and none of its purpose. **Recursive freeze is
+    required.**
+  - Research measured **no conflict** with Phase 4's STG-04 memoization, so the deferral
+    escape hatch is not needed. One consequence to hand forward: `.filter()` on a frozen
+    array returns an *unfrozen* one, so Phase 4's `catalogFor` must re-freeze its result.
 
 - **`buildCatalog` returns a new frozen catalog rather than mutating its input.** STG-04
   already requires `catalogFor` to return a memoized frozen array, so the phase is
