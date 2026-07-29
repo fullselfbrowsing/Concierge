@@ -51,5 +51,10 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.test-d.json"
+  },
+  "devDependencies": {
+    "arktype": "2.2.3",
+    "valibot": "1.4.2",
+    "zod": "4.4.3"
   }
 }
