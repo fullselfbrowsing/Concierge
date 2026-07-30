@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Type surface completion** - Close the six remaining defects in the committed public contract, so no post-publish breaking change is left in it (completed 2026-07-28; **gap closure in progress — 12 code-review findings, plans 01-10–01-15**)
 - [x] **Phase 2: Packaging, build, and release** - Make the package buildable, publishable, and installable while there is one package rather than eight (completed 2026-07-29)
 - [x] **Phase 3: Action declaration and build-time validation** - One declaration derives everything downstream, and every wrong declaration fails the build naming the action (completed 2026-07-30)
-- [ ] **Phase 4: Stages, catalog assembly, and explain()** - The agent sees only the actions valid for where the user is, and a developer can find out why one wasn't offered
+- [x] **Phase 4: Stages, catalog assembly, and explain()** - The agent sees only the actions valid for where the user is, and a developer can find out why one wasn't offered (completed 2026-07-30)
 - [ ] **Phase 5: Bridge registry and the no-bridge path** - Handlers read live app state through getters, and behave honestly when no component is mounted
 - [ ] **Phase 6: Dispatcher** - A retried, malformed, aborted, or crashing call produces exactly one honest result and never fires an effect twice
 - [ ] **Phase 7: Session and the transport seam** - Something owns the loop between catalog and transport, driven by a stub with no network
@@ -191,7 +191,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 04-08-PLAN.md — Wave 5: phase gate — all seven gate scripts, the shipped-prose audit across `dist/index.d.ts`, `dist/index.js` and three source files (every literal shown able to fire on the pre-correction tree), CAT-01's closure recorded in `REQUIREMENTS.md`, a byte-identical `pnpm-lock.yaml`, and the validation sign-off
+- [x] 04-08-PLAN.md — Wave 5: phase gate — all seven gate scripts, the shipped-prose audit across `dist/index.d.ts`, `dist/index.js` and three source files (every literal shown able to fire on the pre-correction tree), CAT-01's closure recorded in `REQUIREMENTS.md`, a byte-identical `pnpm-lock.yaml`, and the validation sign-off
 
 **Research**: ✅ **Done 2026-07-30** — `04-RESEARCH.md`, every load-bearing claim executed against the built `dist/`, the installed rolldown 1.2.0 / TypeScript 7.0.2, or the React and Svelte sources. Three measurements inverted what the phase expected. (1) **CAT-03 cannot live inside `buildCatalog`'s existing loop** — measured over seven scenarios, the in-loop form false-positives on every forward reference, and since this phase appends cross-stage actions last it would fail every build whose consent policy names a cross-stage action; it must be a post-pass over `seenNames`. (2) **The re-freeze is not a re-freeze** — one `EmittedTool` per action built at assembly time and shared by reference makes a *shallow* `Object.freeze` on each projection complete, blocking all seven tamper vectors at 510× less cost than `deepFreeze` per projection; the two decisions are coupled and building fresh elements per projection turns the shallow freeze into a breach that reports success. (3) **The recorded tree-shaking justification for the instance-local memo does not reproduce** under rolldown 1.2.0 — a module-scope `Map` read by an exported function is retained; the reason that is true is SSR cross-request state pollution, and the doc comment must say so. Research also measured that **two stages sharing an `id` silently serve each other's catalogs** under the originally-locked id-keyed memo, which is a direct STG-01 failure; the memo is now keyed by declaration index, with a `warnHost` for the ambiguity the id still creates in `stageFor` / `Session.stage()` / `explain`.
 **Notes**: CAT-03 sits here rather than in Phase 3 because it is the first check that needs the assembled name union; `defineAction` cannot know it at declaration time, so the runtime check in `buildCatalog` is the one that has to exist. This phase deliberately touches no transport — the catalog must not read a bridge or a transport, which is why the transport-capability gate (CAT-04) is in Phase 8 instead.
@@ -319,7 +319,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 1. Type surface completion | 15/15 | Complete   | 2026-07-28 |
 | 2. Packaging, build, and release | 12/12 | Complete   | 2026-07-29 |
 | 3. Action declaration and build-time validation | 8/8 | Complete   | 2026-07-30 |
-| 4. Stages, catalog assembly, and explain() | 7/8 | In Progress|  |
+| 4. Stages, catalog assembly, and explain() | 8/8 | Complete   | 2026-07-30 |
 | 5. Bridge registry and the no-bridge path | 0/TBD | Not started | - |
 | 6. Dispatcher | 0/TBD | Not started | - |
 | 7. Session and the transport seam | 0/TBD | Not started | - |
