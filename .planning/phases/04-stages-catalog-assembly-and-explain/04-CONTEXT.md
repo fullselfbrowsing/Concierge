@@ -48,14 +48,41 @@ scoping legible when it surprises someone.
   the two definitions are structurally identical (a deep-equality check that would be a new
   correctness surface), and per-stage name-spacing (which changes the wire name the agent sees).
 
-- **`catalogFor` memoizes on the resolved stage id (`string | null`), not on `ctx` identity.**
-  `PITFALLS.md:556` — key by resolved stage name, not `ctx` identity — combined with STG-04's
-  referential-identity requirement gives: resolve stage, look up cache by id, build-and-freeze on
-  miss, return the same reference forever after. The cache is **per-`Concierge`-instance and
-  lazily allocated on first `catalogFor` call**, never at module scope: `sideEffects: false`
-  deletes module-scope evaluation from a bundled consumer while leaving it present under plain
-  `node dist/index.js`, so a module-scope cache would test green and vanish in every real app
-  (Phase 2 measured this).
+- **`catalogFor` memoizes on the resolved stage's *array index* (`number | null`), not on `ctx`
+  identity and not on the stage id.** `PITFALLS.md:556` — key by resolved stage, not `ctx` identity
+  — combined with STG-04's referential-identity requirement gives: resolve stage, look up cache,
+  build-and-freeze on miss, return the same reference forever after. The cache is
+  **per-`Concierge`-instance and lazily allocated on first `catalogFor` call**, never at module
+  scope.
+
+  > ⚠️ **Corrected 2026-07-30 after 04-RESEARCH, twice.**
+  >
+  > **(a) The key.** This originally read "the resolved stage id (`string | null`)". Research
+  > measured that two stages declared with the same `id` build cleanly and then silently serve each
+  > other's catalogs — the id-keyed lookup collapses to the last stage's actions, and `buildCatalog`
+  > cannot see it because it receives a flat action array and has no concept of a stage.
+  > `duplicate_action_name` does not fire, because the action *names* differ. That is a direct STG-01
+  > failure. Keying by array index makes the collapse impossible at zero new surface cost, and still
+  > satisfies `PITFALLS.md:556`'s actual instruction. **Additionally: `createConcierge` warns once via
+  > `warnHost` when two stages share an id**, because the id is still what `stageFor`,
+  > `Session.stage()`, and `explain()` report, so the ambiguity remains visible to a developer even
+  > though it can no longer mis-route the catalog. Rejected: throwing (needs an issue whose `action`
+  > field holds a stage id, corrupting the `issues.map(i => i.action)` semantics DX-03 depends on),
+  > and warn-only (leaves a real correctness bug in place).
+  >
+  > **(b) The reason for lazy allocation.** This originally justified "never at module scope" with
+  > `sideEffects: false` deleting module-scope evaluation from a bundled consumer. **That does not
+  > reproduce.** Measured under rolldown 1.2.0 with `treeshake.moduleSideEffects: false`: a
+  > module-scope `Map` read by an exported function is *retained* and behaves identically bundled and
+  > unbundled. 02-RESEARCH's original finding was correctly scoped — the consumer imported
+  > `CONTRACT_VERSION`, a constant that gets inlined, so nothing from the module was retained. I
+  > over-generalized it. **The reason that is actually true, and the one the doc comment must state:
+  > cross-request state pollution under SSR.** Module instances are reused across server requests
+  > (`ARCHITECTURE.md:380-405`, quoting Vue's own definition and citing TanStack Router shipping this
+  > exact bug). A module-scope catalog memo would be shared across every `createConcierge` in the
+  > process, so two configs in one server would serve each other's catalogs under colliding stage
+  > keys. Writing the tree-shaking sentence into a shipped doc comment would be a false claim of
+  > exactly the kind 03-08 spent a whole plan removing from `dist/index.d.ts`.
 
 - **When no stage matches, `catalogFor` returns the cross-stage actions only** — memoized under the
   `null` key with the same identity guarantee. `ConciergeConfig.crossStage` is declared "available
@@ -121,6 +148,26 @@ scoping legible when it surprises someone.
   `defineStage`'s reason to exist is unforgeable bridge identity (`PITFALLS.md:234`), which belongs
   with the bridge registry in Phase 5. `src/index.ts:22`'s module doc comment currently lists
   `defineStage` among the unimplemented APIs and must be updated to reflect what actually ships.
+
+- **The Phase 4 `dispatch` stub returns `{ ok: false, message }` with `reason` deliberately
+  omitted.** *(Added 2026-07-30 — escalated from 04-RESEARCH Open Question 1.)* `Concierge.dispatch`
+  is a required member, so `createConcierge` must supply one, but Phase 6 owns its behaviour.
+  `ReasonCode` is a **closed** union of twelve and `types.ts:159-163` states that adding a member is
+  a breaking change *by design* — none of the twelve means "this runtime is not built yet".
+  `unknown_action` would be a lie for an action plainly in the catalog; `handler_error` would be a
+  lie. Omitting `reason` asserts nothing false. The message says so plainly, a doc comment records
+  it, and the phase summary must note that Phase 6's DSP-09 normalizer will *replace* this shape
+  rather than normalize it. Rejected: adding `not_implemented` to the union — a `types.ts` contract
+  change that Phase 6 would immediately have to remove.
+
+- **`EmittedTool`'s fields become `readonly` in this phase.** *(Added 2026-07-30 — escalated from
+  04-RESEARCH Open Question 5.)* Measured: `catalogFor(ctx)[0].name = "evil"` typechecks today and
+  is stopped only by the runtime freeze. Nothing constructs an `EmittedTool` yet, so tightening
+  costs nothing now and is breaking once Phase 7 writes a transport against
+  `Transport.setTools(tools: ReadonlyArray<EmittedTool>)`. `types.ts:1302-1310`'s `readonly
+  capabilities` precedent is directly on point: a `readonly` that does not go all the way down is
+  worse than none, "because a reader stopped looking". Lands in the same commit as the
+  `Concierge.explain` addition, with a type-level predicate pinning it.
 
 - **A `match()` that throws is caught, treated as a non-match, and warned once via `warnHost`.**
   `catalogFor` runs on every route change in the host app; an exception propagating out of a
@@ -203,9 +250,13 @@ scoping legible when it surprises someone.
 
 - **`src/index.ts`** — the export surface is pinned twice and both must move together:
   `test/export-surface.test.ts` (count + names, parsed from `dist/index.d.ts`) and
-  `test-d/exports.test-d.ts`. Currently 10 value exports, 42 type exports. `createConcierge` and any
-  new issue codes / `explain` return type land here. The module doc comment at `index.ts:22` lists
-  `createConcierge` and `defineStage` as unimplemented and needs correcting.
+  `test-d/exports.test-d.ts`. Currently **59 names total — 49 type exports, 10 value exports**.
+  `createConcierge` and any new issue codes / `explain` return type land here. The module doc comment
+  at `index.ts:22` lists `createConcierge` and `defineStage` as unimplemented and needs correcting.
+
+  > ⚠️ **Corrected 2026-07-30 after 04-RESEARCH.** This originally read "10 value exports, 42 type
+  > exports". The real figure, parsed from `dist/index.d.ts` with the suite's own regex, is 49 types.
+  > Planning against 42 fails `pnpm test export-surface` on the first run.
 - **`Concierge` interface** (`types.ts:1497`) — `dispatch`, `catalogFor`, `stageFor` exist;
   `explain` must be added. Per D-09 this is core-constructed, so the addition is cheap now and
   expensive after adapters exist.
