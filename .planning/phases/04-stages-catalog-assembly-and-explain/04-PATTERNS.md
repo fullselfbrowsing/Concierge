@@ -207,7 +207,7 @@ the repo to `runMatch`, and the shape to copy for the `try`:
 > `describeCause` (`json-schema.ts:230-245`). That is legitimate there because it is a **build-time
 > developer diagnostic**, and `json-schema.ts:259-261` states the exemption explicitly. `runMatch`
 > is the opposite case: it fires at **runtime, on every navigation, in a shipped app**. RESEARCH's
-> Security Domain table (`04-RESEARCH.md:1287`) requires the matcher warning to carry **only the
+> Security Domain table (`04-RESEARCH.md:1320`) requires the matcher warning to carry **only the
 > stage id and fixed prose** — never the caught error's `message`, which would echo whatever the
 > app's matcher put in it. So the `catch` binding is `catch {` with no parameter, exactly as
 > `describeCause` itself does at `json-schema.ts:242`. Write that reason into the doc comment; a
@@ -401,7 +401,7 @@ existing member doc comment is the register to match:
 ```
 
 **Mutant-uniqueness constraints this file's *shape* must honour.** RESEARCH's battery
-(`04-RESEARCH.md:1239-1254`) assumes single-occurrence literals. Two are already known to conflict
+(`04-RESEARCH.md:1272-1287`) assumes single-occurrence literals. Two are already known to conflict
 with the recommended implementation and must be designed around, not discovered:
 
 | Mutant | Literal | Problem | Requirement on the source |
@@ -812,7 +812,7 @@ The defects this file's header must name, all measured and all quotable from RES
 3. **The element-sharing invariant.** The shallow projection freeze is sufficient *because* the
    elements are shared and already deep-frozen. Removing **either** the `toBe` sharing assertion or
    the nested-schema-write assertion leaves the shallow freeze silently insufficient
-   (`04-RESEARCH.md:1259`).
+   (`04-RESEARCH.md:1292`).
 4. **A naive rename test passes under a broken implementation.** Renaming the *first* stage proves
    nothing — it is first under array iteration and under object-key iteration alike. Measured:
    array impl `results` → `results`; object impl `results` → `2`.
@@ -820,7 +820,7 @@ The defects this file's header must name, all measured and all quotable from RES
    `stages: [{id: "flaky", matched: false}]`, measured from a matcher with an internal counter.
 
 **Two behaviours have no single-literal mutant, and the house rule is to write that down in the test
-file rather than fake one** (`04-CONTEXT.md:240`, `04-RESEARCH.md:1256-1259`): rename-independence
+file rather than fake one** (`04-CONTEXT.md:240`, `04-RESEARCH.md:1289-1292`): rename-independence
 (a property of the data structure, not of a branch — M-04-4 covers the adjacent mutatable property,
 first-match-wins) and the element-sharing invariant. `catalog.test.ts:458-469` is the precedent for
 writing a *working* mutant into the file when the obvious one does not work:
@@ -1003,7 +1003,7 @@ describe("CAT-01 — one declaration derives the catalog, and there is no second
 ```
 
 The ID series in `catalog.test.ts` runs `C1`…`C22`. RESEARCH's Requirements→Test map
-(`04-RESEARCH.md:1161-1198`) lists ~20 rows for this file. **Continue the series or start a fresh
+(`04-RESEARCH.md:1161-1220`) lists ~20 rows for this file. **Continue the series or start a fresh
 one — but pick one and say so in the header**, because C-numbers are cited by ID across
 `03-*-SUMMARY.md` and a silent collision is a citation defect. A fresh series is the safer choice
 (the two files are separate blast radii, the same argument `consent-variance.test-d.ts:59-62` makes
@@ -1381,7 +1381,7 @@ function catchBuild(actions: unknown[], options?: unknown) {
 }
 ```
 
-**The five cases** (`04-RESEARCH.md:1178-1183`): typo'd `requires` → `consent_target_missing` with
+**The five cases** (`04-RESEARCH.md:1189-1205`): typo'd `requires` → `consent_target_missing` with
 the referrer in `.action` and the target in `.problem`; self-reference → `consent_self_reference`
 and **not** `consent_target_missing`; a **forward** reference builds clean; a consent typo alongside
 three other faults throws once with four issues; plus the `CatalogIssueCode` type assertion, which
@@ -1802,10 +1802,19 @@ id-keyed memo and must be respelled for the index-keyed one.
 
 | Intent | Correct | Wrong |
 |---|---|---|
-| Run one suite | `pnpm test concierge` | `pnpm test -- concierge` (vitest's cac CLI discards after `--`; runs the **whole** suite) |
+| Run one suite | `pnpm test test/concierge` | `pnpm test concierge` (matches the **full path**, and every test file lives under `packages/concierge/` — so it runs the whole suite); `pnpm test -- concierge` (vitest's cac CLI discards after `--`; also runs the whole suite) |
 | Full gate | `pnpm build && pnpm typecheck && pnpm test` | `pnpm test` alone (every dist-reading suite goes red) |
 | Type-level suite | `pnpm typecheck` → `tsc -p tsconfig.test-d.json` | Vitest typecheck mode (deliberately off) |
 | Phase gate | the above plus `pnpm check:artifact`, `check:deps`, `check:pack`, `check:node-floor` | — |
+
+> **Corrected 2026-07-30 — this row previously listed `pnpm test concierge` as Correct.** The
+> positional argument is matched as a substring of the **full path**, not of the filename, and every
+> test file in the repo lives under `packages/concierge/`, so `concierge` matches all of them.
+> Measured on the pre-phase tree: `pnpm test concierge` → 6 files / 55 tests (the whole suite);
+> `pnpm test catalog` → 1 file / 22 tests. `pnpm test test/concierge` is the discriminating fragment —
+> no sibling's path contains `test/concierge`. `04-VALIDATION.md:44-52` (command trap 4) is the
+> authority for this row; where the two disagree, `04-VALIDATION.md` wins. This does not widen the
+> `--` rule, which is a separate and still-true defect.
 
 `tsdown` does **not** typecheck. `tsc --noEmit` is a separate, load-bearing gate.
 

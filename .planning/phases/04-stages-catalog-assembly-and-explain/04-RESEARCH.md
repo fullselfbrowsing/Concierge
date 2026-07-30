@@ -1162,6 +1162,17 @@ pnpm typecheck  →  exit 0
 
 ## Validation Architecture
 
+> ⚠️ **SUPERSEDED COMMAND FORM — `pnpm test concierge` appears 34× below and is WRONG.**
+> Every `pnpm test concierge` in this section is superseded by **`pnpm test test/concierge`**.
+> Vitest matches the positional argument against the **full path**, not the filename, and every test
+> file in this repo lives under `packages/concierge/` — so `concierge` matches all of them and runs
+> the whole suite. Measured on the pre-phase tree: `pnpm test concierge` → 6 files / 55 tests;
+> `pnpm test catalog` → 1 file / 22 tests; `pnpm test test/concierge` → *"No test files found", exit
+> 1*, which is the correct red-before-green state for a file 04-05 creates. The tables below are left
+> as the research record; **`04-VALIDATION.md:44-52` (command trap 4) is the authority**, and the
+> plans carry the corrected form. This supersedes only the scoped-run fragment — the "no `--`" rule
+> and the build-before-test rule below are unchanged and still true.
+
 ### Test Framework
 
 | Property | Value |
@@ -1177,6 +1188,17 @@ pnpm typecheck  →  exit 0
 > `pnpm build` precedes `pnpm test` because every runtime test imports `../dist/index.js` and `artifact.test.ts` / `export-surface.test.ts` read `../dist/index.d.ts` from disk. Runtime tests import `dist/`, **never** `../src/` — the acceptance check for that rule is scoped to non-comment lines.
 
 ### Phase Requirements → Test Map
+
+> ⚠️ **SUPERSEDED COMMAND FORM — `pnpm test concierge` appears 34× below and is WRONG.**
+> Every `pnpm test concierge` in this section is superseded by **`pnpm test test/concierge`**.
+> Vitest matches the positional argument against the **full path**, not the filename, and every test
+> file in this repo lives under `packages/concierge/` — so `concierge` matches all of them and runs
+> the whole suite. Measured on the pre-phase tree: `pnpm test concierge` → 6 files / 55 tests;
+> `pnpm test catalog` → 1 file / 22 tests; `pnpm test test/concierge` → *"No test files found", exit
+> 1*, which is the correct red-before-green state for a file 04-05 creates. The tables below are left
+> as the research record; **`04-VALIDATION.md:44-52` (command trap 4) is the authority**, and the
+> plans carry the corrected form. This supersedes only the scoped-run fragment — the "no `--`" rule
+> and the build-before-test rule below are unchanged and still true.
 
 | Req | Observable evidence that proves it | Layer | Automated command | File exists? |
 |---|---|---|---|---|
@@ -1234,6 +1256,17 @@ pnpm typecheck  →  exit 0
 - [ ] No new fixture file needed — `test/fixtures/schemas.ts` already provides every validator shape this phase uses. No new devDependency.
 
 ### Mutant Obligations
+
+> ⚠️ **SUPERSEDED COMMAND FORM — `pnpm test concierge` appears 34× below and is WRONG.**
+> Every `pnpm test concierge` in this section is superseded by **`pnpm test test/concierge`**.
+> Vitest matches the positional argument against the **full path**, not the filename, and every test
+> file in this repo lives under `packages/concierge/` — so `concierge` matches all of them and runs
+> the whole suite. Measured on the pre-phase tree: `pnpm test concierge` → 6 files / 55 tests;
+> `pnpm test catalog` → 1 file / 22 tests; `pnpm test test/concierge` → *"No test files found", exit
+> 1*, which is the correct red-before-green state for a file 04-05 creates. The tables below are left
+> as the research record; **`04-VALIDATION.md:44-52` (command trap 4) is the authority**, and the
+> plans carry the corrected form. This supersedes only the scoped-run fragment — the "no `--`" rule
+> and the build-before-test rule below are unchanged and still true.
 
 **Mandatory pre-flight for every row.** The harness replaces exactly one occurrence, does not skip comments, and slurps the file — so a literal appearing earlier in a doc comment mutates the comment and reports the inverse of the truth. Before running each row:
 

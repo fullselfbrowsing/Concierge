@@ -143,9 +143,9 @@ column names the plan that produces the evidence.
 | stage-id policy | two stages sharing an `id` warn once, and the index-keyed memo serves each its **own** actions | runtime | `pnpm test test/concierge` | 04-05 S26 |
 | **CAT-01** | the fifth derived artifact — **per-stage catalogs** — ships as `createConcierge().catalogFor`, closing the `Partial` that `REQUIREMENTS.md:157` records against Phase 3 | runtime | `pnpm test test/concierge` | 04-03; evidence 04-05 S1/S2; recorded by 04-08 T2(c) |
 | PKG-04 | `createConcierge` reaches `assertSingleInstance` transitively via `buildCatalog` | runtime | `pnpm test single-instance` | 04-06 T2 |
-| export surface | counts and names move in the same commit; `createConcierge` in `VALUE_EXPORTS`; 62 / 51 / 11 | runtime | `pnpm build && pnpm test export-surface` | 04-03 T2 |
-| export surface | `createConcierge` reaches `dist/index.js` as a callable function | runtime | `pnpm build && pnpm test artifact` | 04-03 T2 |
-| export surface | `createConcierge` reaches the public entrypoint as a **value**, not only a type | type | `pnpm typecheck` | 04-03 T2 |
+| export surface | counts and names move in the same commit; `createConcierge` in `VALUE_EXPORTS`; 62 / 51 / 11 | runtime | `pnpm build && pnpm test export-surface` | 04-03 T3 |
+| export surface | `createConcierge` reaches `dist/index.js` as a callable function | runtime | `pnpm build && pnpm test artifact` | 04-03 T3 |
+| export surface | `createConcierge` reaches the public entrypoint as a **value**, not only a type | type | `pnpm typecheck` | 04-03 T3 |
 | type pin | `_inlineDefineActionLosesTheUnion` stays **red-as-pinned** (if it flips, delete it — do not relax it) | type | `pnpm typecheck` | pre-existing |
 
 ---
@@ -161,10 +161,10 @@ column names the plan that produces the evidence.
       (04-06 T1)
 - [ ] `packages/concierge/test/catalog.test.ts` — new describe block for CAT-03, C23…C26 (04-04 T1)
 - [ ] `packages/concierge/test-d/catalog.test-d.ts` — `CatalogIssueCode` union assertion (04-04 T2)
-- [ ] `packages/concierge/test-d/exports.test-d.ts` — new predicate + shared import line (04-03 T2)
+- [ ] `packages/concierge/test-d/exports.test-d.ts` — new predicate + shared import line (04-03 T3)
 - [ ] `packages/concierge/test/export-surface.test.ts` — updated counts, `it` titles, array entry
-      (04-03 T2)
-- [ ] `packages/concierge/test/artifact.test.ts` — the `createConcierge` value-export case (04-03 T2)
+      (04-03 T3)
+- [ ] `packages/concierge/test/artifact.test.ts` — the `createConcierge` value-export case (04-03 T3)
 - [ ] `packages/concierge/test/single-instance.test.ts` — `createConcierge` call-site case (04-06 T2)
 
 No new fixture file needed — `test/fixtures/schemas.ts` already provides every validator shape this
