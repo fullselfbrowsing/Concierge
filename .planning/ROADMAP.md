@@ -177,8 +177,8 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 04-03-PLAN.md — Wave 2: **THE HINGE** — `src/concierge.ts` (`createConcierge`, one flat `buildCatalog`, the **index-keyed** instance-local memo, the shallow projection freeze over shared deep-frozen elements, one guarded `runMatch`, one-pass `explain`, the `reason`-omitting `dispatch` stub) written in Task 1, its nineteen anchors expanded into doc comments plus the `contract.ts` correction in Task 2, the barrel and the export surface moved 59/49/10 → 62/51/11 with both its pins in Task 3. **Closes CAT-01** — the fifth derived artifact, per-stage catalogs, ships as `catalogFor` (STG-01/02/03/04, SEC-03, DX-01, CAT-03, CAT-01)
-- [ ] 04-04-PLAN.md — Wave 2: `test/catalog.test.ts` C23–C26 and the `CatalogIssueCode` closed-union pin — typo, self-reference, the **forward reference that must build clean**, and aggregation (CAT-03)
+- [x] 04-03-PLAN.md — Wave 2: **THE HINGE** — `src/concierge.ts` (`createConcierge`, one flat `buildCatalog`, the **index-keyed** instance-local memo, the shallow projection freeze over shared deep-frozen elements, one guarded `runMatch`, one-pass `explain`, the `reason`-omitting `dispatch` stub) written in Task 1, its nineteen anchors expanded into doc comments plus the `contract.ts` correction in Task 2, the barrel and the export surface moved 59/49/10 → 62/51/11 with both its pins in Task 3. **Closes CAT-01** — the fifth derived artifact, per-stage catalogs, ships as `catalogFor` (STG-01/02/03/04, SEC-03, DX-01, CAT-03, CAT-01)
+- [x] 04-04-PLAN.md — Wave 2: `test/catalog.test.ts` C23–C26 and the `CatalogIssueCode` closed-union pin — typo, self-reference, the **forward reference that must build clean**, and aggregation (CAT-03)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -319,7 +319,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 1. Type surface completion | 15/15 | Complete   | 2026-07-28 |
 | 2. Packaging, build, and release | 12/12 | Complete   | 2026-07-29 |
 | 3. Action declaration and build-time validation | 8/8 | Complete   | 2026-07-30 |
-| 4. Stages, catalog assembly, and explain() | 2/8 | In Progress|  |
+| 4. Stages, catalog assembly, and explain() | 4/8 | In Progress|  |
 | 5. Bridge registry and the no-bridge path | 0/TBD | Not started | - |
 | 6. Dispatcher | 0/TBD | Not started | - |
 | 7. Session and the transport seam | 0/TBD | Not started | - |
