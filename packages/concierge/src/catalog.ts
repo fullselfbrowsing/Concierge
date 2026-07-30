@@ -78,12 +78,31 @@ import type { AnyActionDefinition, JsonSchemaObject } from "./types.js";
  * two have the *same* fix — supply an explicit `jsonSchema` — and the
  * distinction between "the validator has no converter" and "the validator's
  * converter threw" survives in the issue's `problem` text, where it belongs.
+ *
+ * **The last two members are CAT-03, and they are two codes rather than one by
+ * that same test — applied and answered the other way.** Both describe a
+ * `consent.requires` that can never be satisfied, and their *consequence* is
+ * identical: a safety gate that is silently permanently closed. But the
+ * paragraph above collapses two cases because they share a fix, and these two do
+ * not. One says "declare the missing action, or correct the spelling — and note
+ * the target may live in any stage"; the other says "point at the review action
+ * that should run first, or drop the policy". Collapsing them would force one
+ * `fix` sentence to cover both, so the developer who merely mistyped a name
+ * would be advised to consider deleting their consent policy — advice that, if
+ * taken, removes the gate CAT-03 exists to protect.
+ *
+ * Adding them is a **widening of an already-exported union**, so it introduces
+ * no new name to the package's export surface. `test/export-surface.test.ts`
+ * counts names in the barrel's trailing `export { … };` block and is correctly
+ * unmoved by this.
  */
 export type CatalogIssueCode =
   | "duplicate_action_name"
   | "schema_not_emittable"
   | "schema_root_not_object"
-  | "redaction_missing";
+  | "redaction_missing"
+  | "consent_target_missing"
+  | "consent_self_reference";
 
 /**
  * One build-failing problem, as structured fields.
@@ -386,6 +405,54 @@ function hasStandardSchema(action: AnyActionDefinition): boolean {
 function declaredRedaction(action: AnyActionDefinition): unknown {
   const view: PropertyBag = action as unknown as PropertyBag;
   return Object.hasOwn(view, "redact") ? view["redact"] : undefined;
+}
+
+/**
+ * Read the consent policy's target as the untyped value it actually is at
+ * runtime — the read CAT-03's post-pass is built on.
+ *
+ * Two hops, and **both are `Object.hasOwn` rather than `in`**, for the reason
+ * {@link declaredRedaction} gives: `in` walks the prototype chain of an object
+ * this function did not author. A polluted `requires` reachable from
+ * `Object.prototype` would otherwise make every action in the catalog appear to
+ * declare a consent target, and the rule below would then check that phantom
+ * target for existence and report on it by name.
+ *
+ * `ConsentPolicy.requires` is typed `string` and is **required**, so a
+ * TypeScript consumer cannot express anything else. A JavaScript one can write
+ * `consent: null`, `consent: {}`, or `requires: 42`, and none of those may throw
+ * during a build — the population this read exists for is precisely the
+ * population the declared type cannot describe.
+ *
+ * **Residual, deliberately not closed here.** A `consent` policy carrying no
+ * `requires`, or a non-string one, is skipped silently: this returns the value
+ * as-is and the caller's `typeof` guard drops it without an issue. CAT-03's
+ * wording is *"a `consent.requires` target does not exist in the catalog"*, and
+ * a `requires` that is absent has no target to check.
+ *
+ * State the uncomfortable half plainly: this is arguably the *worse* of the two
+ * failures, because a consent policy with no target is a gate that silently does
+ * not exist at all, which is the same class of defect CAT-03 was written to
+ * catch. It is recorded rather than fixed because closing it means a third code
+ * with a genuinely different `fix` — "the policy names nothing to wait for" — and
+ * no requirement in this phase asks for one. It is scheduled against Phase 8's
+ * consent kernel, which is the first code that reads this value at runtime and
+ * therefore the first code that can be wrong about it. That correction would
+ * widen this rule; it does not change what the two codes below already mean.
+ */
+function consentRequiresOf(action: AnyActionDefinition): unknown {
+  const view: PropertyBag = action as unknown as PropertyBag;
+  if (!Object.hasOwn(view, "consent")) {
+    return undefined;
+  }
+
+  const consent: unknown = view["consent"];
+  if (typeof consent !== "object" || consent === null) {
+    return undefined;
+  }
+
+  const policy: PropertyBag = consent as PropertyBag;
+  return Object.hasOwn(policy, "requires") ? policy["requires"] : undefined;
 }
 
 /**
@@ -730,6 +797,27 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
   const names: string[] = [];
   const validators: Set<object> = new Set<object>();
 
+  // What CAT-03's post-pass iterates: one entry per DISTINCT declared name,
+  // whatever else went wrong with that declaration. Neither array already in
+  // scope can play this role, and both alternatives were measured before this
+  // one was added.
+  //
+  // `actions` DOUBLE-reports: two same-named actions carrying the same consent
+  // typo produce two identical issues, and one of the two is advice about a
+  // declaration the developer is about to delete anyway.
+  //
+  // `entries` UNDER-reports: an action that failed its schema rule `continue`s
+  // and never reaches `entries`, so its consent typo stays invisible until the
+  // schema is fixed and the build re-run. That is a second fix-and-rebuild
+  // cycle, which is the exact failure the aggregation rule documented above
+  // exists to prevent.
+  //
+  // Accepted consequence: the second occurrence of a duplicate name never
+  // enters this array, so its consent policy is never examined. That is correct
+  // — a duplicate is already a build failure, and analysing the copy that is
+  // about to be renamed produces advice about a declaration that will not exist.
+  const declared: AnyActionDefinition[] = [];
+
   for (const action of actions) {
     // CAT-01 — a duplicate name makes the agent's address space ambiguous.
     if (seenNames.has(action.name)) {
@@ -742,6 +830,7 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
       continue;
     }
     seenNames.add(action.name);
+    declared.push(action);
 
     // DX-03 — reach `vendorOf` only once the read is known to be safe.
     if (!hasStandardSchema(action)) {
@@ -836,6 +925,67 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
 
     entries.push({ action: normalized, parameters });
     names.push(action.name);
+  }
+
+  // CAT-03 — a consent policy whose target does not exist, or which points at
+  // the referring action itself.
+  //
+  // **This is a POST-PASS over the complete declared-name set, and the placement
+  // IS the rule.** Both placements were implemented and run over seven scenarios
+  // before this one was chosen; the choice is measured, not argued.
+  //
+  // Inside the loop above, the check produces a **false positive** on every
+  // forward reference — a target declared later has simply not been added to the
+  // name set yet when the check fires. `createConcierge` assembles its argument
+  // as stage actions followed by cross-stage actions, so under the in-loop form
+  // *every* consent policy naming a cross-stage action fails the build. A rule
+  // that rejects every legitimate build is a rule that gets deleted, which
+  // leaves CAT-03 unenforced by the shortest possible route.
+  //
+  // The in-loop form also misses self-reference entirely: `seenNames.add` has
+  // already run by the time the check would fire, so the action's own name is
+  // always found and the self-reference branch is unreachable.
+  //
+  // **The set CHECKED is `seenNames`, not `entries`.** `seenNames` holds every
+  // distinct *declared* name, including names belonging to actions that later
+  // failed their own schema rule and `continue`d. That is the right set: an
+  // action pointing at a target which exists but has a broken schema should see
+  // the broken schema reported once, not additionally be told its target does
+  // not exist. Reporting both is a cascade — one fault rendered as two, with the
+  // second one false.
+  //
+  // **Ordering consequence, and a test must not assume otherwise.** These issues
+  // append after every per-action issue rather than interleaving in declaration
+  // order. Restoring declaration order would mean carrying an origin index on
+  // every issue: new structure for cosmetic gain, rejected. Aggregation itself
+  // is untouched — a consent typo alongside three other faults still throws
+  // exactly once, carrying four issues.
+  //
+  // Self-reference is tested FIRST, and the two branches are one `else if`
+  // rather than two `if`s. A self-reference implies the target exists, so the
+  // two can never both fire for one action; writing it this way makes that
+  // mutual exclusivity structural rather than incidental.
+  for (const action of declared) {
+    const requires: unknown = consentRequiresOf(action);
+    if (typeof requires !== "string") {
+      continue;
+    }
+
+    if (requires === action.name) {
+      issues.push({
+        code: "consent_self_reference",
+        action: action.name,
+        problem: `its consent policy requires "${requires}", which is the action itself — arming the gate would mean running the very action the gate blocks, so it can never be satisfied.`,
+        fix: "point `consent.requires` at the review action that should run first, or remove the `consent` policy if this action needs no gate.",
+      });
+    } else if (!seenNames.has(requires)) {
+      issues.push({
+        code: "consent_target_missing",
+        action: action.name,
+        problem: `its consent policy requires "${requires}", and no action by that name is declared in this catalog — so the gate can never arm and the action is permanently blocked.`,
+        fix: `declare an action named "${requires}", or correct the spelling in \`consent.requires\`. The target may live in any stage, or in \`crossStage\`.`,
+      });
+    }
   }
 
   if (issues.length > 0) {
