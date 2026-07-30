@@ -240,7 +240,7 @@ export const USER_CANCELLED: Readonly<{
   ok: false;
   reason: "cancelled";
   message: string;
-}> = Object.freeze({ ok: false, reason: "cancelled", message: "Cancelled." });
+}> = /* @__PURE__ */ Object.freeze({ ok: false, reason: "cancelled", message: "Cancelled." });
 
 /**
  * The result to return when the human explicitly refused.
@@ -262,7 +262,7 @@ export const USER_DECLINED: Readonly<{
   ok: false;
   reason: "declined";
   message: string;
-}> = Object.freeze({ ok: false, reason: "declined", message: "Okay, I won't do that." });
+}> = /* @__PURE__ */ Object.freeze({ ok: false, reason: "declined", message: "Okay, I won't do that." });
 
 /**
  * Maximum length of an {@link ActionResult.message}, in characters.
@@ -464,7 +464,7 @@ export type ConsentGrade =
    */
   | "attested";
 
-export const CONSENT_GRADE_ORDER: readonly ConsentGrade[] = Object.freeze([
+export const CONSENT_GRADE_ORDER: readonly ConsentGrade[] = /* @__PURE__ */ Object.freeze([
   "none",
   "delivered",
   "relayed",
@@ -502,8 +502,10 @@ export interface ConsentPolicy<Snapshot = unknown> {
    * turn the arrow into a return-type colon. Method parameters are bivariant, so
    * under that form a `(a: Booking, b: Booking)` comparator would silently
    * assign to a `ConsentPolicy<unknown>` and this guard would stop guarding. Its
-   * only symptom is one unused suppression directive in the type-test suite —
-   * the kind of thing a reviewer "fixes" by deleting the test.
+   * symptoms are one unused suppression directive and, since plan 02-11, a
+   * TS2344 on `_policyNotBivariant`. The first alone is the kind of thing a
+   * reviewer "fixes" by deleting the test, which is exactly why the second was
+   * added: TS2578 points at a directive, TS2344 names the invariant.
    *
    * **This is the deliberate opposite of {@link DigestLike}, which must use
    * method syntax**, because bivariance is the only thing that lets one
@@ -841,7 +843,12 @@ export type ServerChallenge = string & { readonly [serverChallengeBrand]: true }
  * treat annotations as untrusted, because the server is a third party — here
  * the catalog author is the app author, so these are trustworthy.
  *
- * `buildCatalog` warns when `destructive: true` carries no `consent` policy.
+ * `buildCatalog` reports a `destructive_without_consent` diagnostic when
+ * `destructive: true` carries no `consent` policy. It **reports and does not
+ * block**: the build succeeds, the action is in the catalog, and the diagnostic
+ * appears on `catalog.diagnostics` and is passed to
+ * `BuildCatalogOptions.onDiagnostic`. Throwing from that hook is the supported
+ * way to make it fatal in your own build.
  */
 export interface SideEffects {
   /** Does not modify state. Mutually exclusive with the other two. */
@@ -870,12 +877,26 @@ export interface SideEffects {
  * acts of disclosure, and only the declaring author can know that a particular
  * argument is safe to record.
  *
- * **Enforcement of the wider requirement lives in Phase 3, under SEC-01** — the
- * declaration-time redaction rule, checked at `buildCatalog` with the rest of
- * the catalog validation. Phase 1 declares the shape and makes the member
- * mandatory; it validates no catalogs and reads no schemas. The owner is named
- * here so a reader who finds nothing checking this at runtime concludes the
- * requirement is *elsewhere* rather than unowned.
+ * **The runtime half of SEC-01 shipped in Phase 3 and runs inside
+ * `buildCatalog`.** Phase 1 declares the shape and makes the member mandatory;
+ * it validates no catalogs and reads no schemas. What the type cannot reach is
+ * the JavaScript consumer who omitted the field this declaration says cannot be
+ * omitted, and that population is the entire reason the runtime rule exists.
+ *
+ * `buildCatalog` reads the emitted JSON Schema and takes one of two branches:
+ *
+ * - **a non-empty schema with no `redact`** is a build failure — a
+ *   `redaction_missing` issue naming the action, aggregated with every other
+ *   issue into a single `CatalogValidationError`.
+ * - **an empty schema with no `redact`** resolves to `"drop"`, with no issue and
+ *   no diagnostic. There are no arguments to leak, so failing the build would be
+ *   pure noise on the commonest declaration there is.
+ *
+ * Neither branch ever resolves to `"passthrough"`. `buildCatalog`'s own doc
+ * comment carries the reading of SEC-01 that produces those two branches, and
+ * states the stricter competing reading that was considered and rejected — so a
+ * reviewer who disagrees can disagree with the reading rather than reverse-
+ * engineer it from behaviour.
  */
 export type RedactionPolicy<Args> =
   | "drop"
@@ -972,14 +993,25 @@ export interface ActionDefinition<
    * A future `concierge-mcp` can still derive `openWorldHint: true` from this
    * field — a safe over-approximation, since that hint already defaults to `true`.
    *
-   * **Phase 1 ships this field and its type test, and nothing else reads it.**
-   * The build-time gate is **SEC-05, in Phase 3**: a predicate in CAT-05's exact
-   * shape, reporting a `readsUntrusted` action that carries no consent policy.
-   * Until that lands, setting this to `true` changes no behaviour. Saying so
-   * plainly is not a caveat but a requirement — an unenforced safety marker
-   * sitting beside a redaction policy that genuinely fails closed is this
-   * project's named failure mode, and a reader who mistakes this for a control
-   * has been misled by us rather than by their own optimism.
+   * **SEC-05 shipped in Phase 3, and this field is now read.** `buildCatalog`'s
+   * rule table reports a `reads_untrusted_without_consent` diagnostic for a
+   * `readsUntrusted` action that carries no `consent` policy — the same shape as
+   * CAT-05's `destructive_without_consent`, under a distinct code precisely so a
+   * consumer can filter one without the other.
+   *
+   * **It reports; it does not block.** The build succeeds, the action is in the
+   * catalog, and the diagnostic appears on `catalog.diagnostics` and is passed
+   * to `BuildCatalogOptions.onDiagnostic`. Throwing from that hook is the
+   * supported way to make it fatal in your own build. Setting this to `true`
+   * therefore changes what the build *tells you*, and changes nothing about what
+   * the action is permitted to do at dispatch time.
+   *
+   * Saying that exactly is not a caveat but a requirement, and it cuts both
+   * ways. An unenforced safety marker sitting beside a redaction policy that
+   * genuinely fails closed is this project's named failure mode; describing a
+   * reporting gate as though it blocked would be the same error in the opposite
+   * direction. A reader who mistakes either for the other has been misled by us
+   * rather than by their own optimism.
    */
   readsUntrusted?: boolean;
   consent?: ConsentPolicy<Snapshot>;

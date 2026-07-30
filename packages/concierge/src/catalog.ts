@@ -593,17 +593,48 @@ function deepFreeze<T>(value: T, skip: ReadonlySet<object>, seen: WeakSet<object
  * two non-blocking markers, and return a frozen catalog.
  *
  * ---------------------------------------------------------------------------
- * The `const` type parameter is CAT-01's entire mechanism
+ * CAT-01 has TWO mechanisms, and the `const` modifier is only one of them
  * ---------------------------------------------------------------------------
  *
- * Measured across 50 actions: with the `const` modifier, `catalog.names` derives
- * `"action00" | "action01" | … | "action49"`. With a plain
- * `readonly AnyActionDefinition[]` parameter it derives `string`, and every
- * downstream literal — stage scoping, `dispatch` name checking, the emitted tool
- * list — loses its precision with no error anywhere. `AnyActionDefinition` works
- * as the element constraint: its `any`-erasure of `Snapshot`/`AckPayload`
- * (`types.ts:997-1011`) admits heterogeneous declarations while `const`
- * inference still recovers each element's concrete `name`.
+ * An earlier version of this comment said the `const` type parameter was
+ * "CAT-01's entire mechanism". Plan 03-05 measured that claim and it is true
+ * only for **raw object literals**. Both mechanisms are load-bearing, and each
+ * covers a call-site shape the other does not:
+ *
+ * 1. The `const` modifier on the type parameter carries the union on the
+ *    **raw-literal** path — `buildCatalog([{name: "rawOne", …}, …])`. Measured
+ *    across 50 actions: with the modifier `catalog.names` derives
+ *    `"action00" | "action01" | … | "action49"`; with a plain
+ *    `readonly AnyActionDefinition[]` parameter it derives `string`, and every
+ *    downstream literal — stage scoping, `dispatch` name checking, the emitted
+ *    tool list — loses its precision with no error anywhere.
+ * 2. The **return type** carries it on every path, including the documented one.
+ *    Where each element was produced by `defineAction`, its `N` parameter has
+ *    already fixed the literal before this function is reached, so `A` is
+ *    inferred from values that cannot widen — and dropping the `const` modifier
+ *    changes nothing at all. Widening the return annotation to `Catalog<string>`
+ *    destroys CAT-01 on exactly the path the documentation addresses, and the
+ *    raw-literal predicates cannot see it.
+ *
+ * `test-d/catalog.test-d.ts` therefore keeps two assertion blocks over the same
+ * shapes. They are not duplicates: the raw-literal block is the only detector
+ * for mechanism 1 and the `defineAction` block is the only detector for
+ * mechanism 2. Consolidating them leaves a live mutation undetected.
+ *
+ * `AnyActionDefinition` works as the element constraint: its `any`-erasure of
+ * `Snapshot`/`AckPayload` (`types.ts:997-1011`) admits heterogeneous
+ * declarations while `const` inference still recovers each element's concrete
+ * `name`.
+ *
+ * **A known DX defect, measured and not yet fixed.** Calling `defineAction`
+ * *inline* in this function's argument — the most natural spelling there is —
+ * loses the name union: the contextual `AnyActionDefinition` has `name: string`,
+ * and it binds `defineAction`'s own name parameter to `string` before the `name`
+ * property is consulted. `as const` on the array does not help. Declare each
+ * action as its own `const` first, or supply `defineAction`'s type arguments
+ * explicitly. `_inlineDefineActionLosesTheUnion` in `test-d/catalog.test-d.ts`
+ * pins the defect; if it goes red the gap has closed and the pin should be
+ * deleted rather than relaxed.
  *
  * A test asserting on the derived union must not expect the full text: `tsc`
  * truncates large unions in diagnostics, and the 50-name union printed as

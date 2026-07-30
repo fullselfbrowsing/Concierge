@@ -56,13 +56,28 @@ describe("the built artifact still carries every value export", () => {
     ]);
   });
 
-  it("the two abandonment results are frozen in the artifact, not merely typed readonly", async () => {
+  it("all three frozen constants are frozen in the artifact, not merely typed readonly", async () => {
     const m = await import(DIST_URL.href);
 
     // `Readonly<…>` is erased at emit. Only `Object.freeze` survives, and only
     // the frozen form actually stops a consumer mutating a shared constant.
     expect(Object.isFrozen(m.USER_CANCELLED)).toBe(true);
     expect(Object.isFrozen(m.USER_DECLINED)).toBe(true);
+
+    // `CONSENT_GRADE_ORDER` is the third `Object.freeze` initializer in
+    // `src/types.ts`, and until plan 03-08 it was the only one with no
+    // frozenness assertion anywhere. The case above it asserts its VALUE with
+    // `toEqual`, which passes whether or not the array is frozen — so a
+    // `/* @__PURE__ */` annotation that wrongly dropped this particular freeze
+    // would have left every suite in this repository green.
+    //
+    // The three `/* @__PURE__ */` annotations on those initializers are what
+    // this line is the safety net for: the annotation tells a bundler the call
+    // is side-effect-free and therefore droppable when its RESULT is unused. It
+    // must never drop a freeze whose result IS used. If this goes red, the
+    // annotation is wrong for this site — revert the annotation, do not weaken
+    // this assertion.
+    expect(Object.isFrozen(m.CONSENT_GRADE_ORDER)).toBe(true);
   });
 
   it("CONTRACT_VERSION reaches dist/index.js as the integer 1", async () => {
