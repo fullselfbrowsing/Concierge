@@ -126,6 +126,18 @@ describe("the built artifact still carries every value export", () => {
     expect(Object.getPrototypeOf(m.CatalogValidationError)).toBe(Error);
   });
 
+  it("createConcierge reaches dist/index.js as a callable function", async () => {
+    const m = await import(DIST_URL.href);
+
+    // The entire stage-scoping surface is behind this one binding — per-stage
+    // catalogs, the referential-identity guarantee `useSyncExternalStore`
+    // depends on, and `explain()`. Lost to the `export type { … }` block, a
+    // consumer's `createConcierge(config)` throws
+    // `TypeError: createConcierge is not a function` at their module scope,
+    // which reads as "the package is broken" rather than "one export moved".
+    expect(typeof m.createConcierge).toBe("function");
+  });
+
   it("JSON_SCHEMA_TARGET reaches dist/index.js as the draft-2020-12 string", async () => {
     const m = await import(DIST_URL.href);
 

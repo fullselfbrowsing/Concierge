@@ -118,6 +118,7 @@ const VALUE_EXPORTS = [
   // through the `export type { … }` block the parser would file it under types
   // and `new CatalogValidationError(…)` would be unreachable for a consumer.
   "CatalogValidationError",
+  "createConcierge",
 ];
 
 beforeAll(() => {
@@ -130,18 +131,18 @@ beforeAll(() => {
 });
 
 describe("the published export surface of dist/index.d.ts", () => {
-  it("is exactly 59 names — an export added or dropped by a build-config change lands here", () => {
+  it("is exactly 62 names — an export added or dropped by a build-config change lands here", () => {
     const { names } = readSurface();
-    expect(names).toHaveLength(59);
+    expect(names).toHaveLength(62);
   });
 
-  it("splits 49 types to 10 values", () => {
+  it("splits 51 types to 11 values", () => {
     const { types, values } = readSurface();
-    expect(types).toHaveLength(49);
-    expect(values).toHaveLength(10);
+    expect(types).toHaveLength(51);
+    expect(values).toHaveLength(11);
   });
 
-  it("carries all ten runtime value exports by name", () => {
+  it("carries all eleven runtime value exports by name", () => {
     const { values } = readSurface();
     for (const name of VALUE_EXPORTS) {
       expect(values).toContain(name);
