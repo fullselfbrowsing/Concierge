@@ -551,11 +551,19 @@ function hasDeclaredParameters(parameters: JsonSchemaObject): boolean {
  * a heuristic that guessed wrong would silently delete the vendor-specific
  * diagnosis, which is the part only `json-schema.ts` can produce.
  *
- * **Phase 4 note.** The structural repair is to split `SchemaEmission` into
- * `{diagnosis, remedy}` so a caller can place each half itself. That is a
- * `json-schema.ts` change, and this plan's `files_modified` does not include it.
- * Until then the `fix` field is written to *add* to the detail's own closing
- * remedy rather than restate it.
+ * **The structural repair, and who owns it now.** Splitting `SchemaEmission`
+ * into `{diagnosis, remedy}` would let a caller place each half itself and make
+ * this function unnecessary. Phase 4 considered it and deliberately declined:
+ * it is a `json-schema.ts` contract change that needs its own decision, not a
+ * side effect of a phase whose subject is stage scoping. It is deferred with
+ * that reasoning recorded rather than left unowned.
+ *
+ * The observable consequence of deferring is unchanged and is measured, so it
+ * cannot rot silently: every `schema_not_emittable` issue carries a hardcoded
+ * `fix` naming valibot unconditionally, whatever the actual vendor was.
+ * `test/emission.test.ts` case 5 is what pins that. Until the split lands, the
+ * `fix` field is written to *add* to the detail's own closing remedy rather than
+ * restate it.
  */
 function withoutActionPrefix(detail: string, name: string): string {
   const prefix = `action "${name}": `;
@@ -618,19 +626,49 @@ function defaultDiagnosticSink(diagnostic: CatalogDiagnostic): void {
  * itself would additionally stop a consumer decorating their own handler's
  * properties, which is not asked for and not ours to prevent.
  *
- * **Hand-forward to Phase 4:** `frozenArray.filter(...)` returns a **new,
- * unfrozen** array — measured, `Object.isFrozen` is `false` on the result. So
- * `catalogFor`'s stage-scoped result is NOT frozen just because the catalog it
- * filtered was, and it must be re-frozen. This is written here rather than only
- * in a summary because Phase 4 reads this source.
+ * **Why a stage-scoped projection has to seal its own array — and it is not
+ * `filter` that makes it so.** `frozenArray.filter(...)` returns a **new,
+ * unfrozen** array — measured, `Object.isFrozen` is `false` on the result. So a
+ * per-stage catalog is NOT frozen merely because the catalog it was projected
+ * from was, and whatever builds that projection has to freeze what it returns.
+ *
+ * Re-measured this phase, and wider than first recorded: `map`, `slice`, spread,
+ * `concat`, `flat`, `toReversed` and `Array.from` all return `false` from
+ * `Object.isFrozen` on their result too. This is a property of every
+ * array-producing method rather than anything specific to `filter`, so choosing
+ * a different projection method is not a way around the obligation. The
+ * correction widens what was documented; it does not narrow it.
+ *
+ * What a projection does **not** need is a second walk through this function.
+ * Measured against a deep-frozen source: the projected elements are shared by
+ * reference with the original and are still frozen through the projection, so
+ * the only unfrozen object a projection introduces is its own array — and a
+ * plain `Object.freeze` on that array is therefore sufficient. Calling
+ * `deepFreeze` per projection is correct, 510× slower, and hides the coupling
+ * that makes the cheap form safe.
  *
  * One accepted consequence: when the emission `source` is `"explicit"`, the
  * `parameters` object *is* the consumer's own `jsonSchema` by reference (03-02
  * measured the identity), so building a catalog freezes it. That is the right
  * outcome — it has become the agent-facing contract — but it is a visible effect
  * on an object the consumer still holds, so it is stated rather than discovered.
+ *
+ * **Exported, and yet deliberately not public.** The `export` keyword exists for
+ * `src/concierge.ts`'s `explain()`, which returns a deep-frozen structure and
+ * needs exactly this walk; it is there for that and for nothing else. It is
+ * **not** re-exported from `src/index.ts`, so it stays off the package's public
+ * surface — and that is mechanical rather than a matter of discipline:
+ * `test/export-surface.test.ts` parses only the trailing bare `export { … };`
+ * block of `dist/index.d.ts`, so a symbol exported from a module but never
+ * re-exported from the barrel cannot reach the count.
+ *
+ * Rejected: a hand-written six-line freeze in the calling module instead. It
+ * would have to independently reproduce a cycle-safe `WeakSet`, an accessor skip
+ * that does not invoke getters, and the documented refusal to early-out on
+ * `Object.isFrozen` above — three properties a re-implementation does not
+ * rediscover by reasoning about them. It rediscovers them as bug reports.
  */
-function deepFreeze<T>(value: T, skip: ReadonlySet<object>, seen: WeakSet<object>): T {
+export function deepFreeze<T>(value: T, skip: ReadonlySet<object>, seen: WeakSet<object>): T {
   if (typeof value !== "object" || value === null) {
     return value;
   }
@@ -820,12 +858,33 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
 
   for (const action of actions) {
     // CAT-01 — a duplicate name makes the agent's address space ambiguous.
+    //
+    // The `fix` states the SCOPE as well as the remedy, because scope is the one
+    // genuinely surprising part: stage scoping does **not** namespace an action
+    // name. Two stages may each declare `applyFilter` and that is a build
+    // failure, which surprises people who reasonably expect a stage to behave
+    // like a module. Measured, unmodified: an action declared in both a stage
+    // and in `crossStage` produces this same issue today with no new code — the
+    // correct outcome, since `crossStage` already means "available in every
+    // stage", so re-declaring it inside one is redundant rather than additive.
+    //
+    // This function cannot do better than say so in words. `CatalogIssue` is
+    // `{code, action, vendor?, problem, fix}` and `buildCatalog` receives a flat
+    // action array with no concept of a stage, so it cannot name the two stages
+    // involved. Rejected for Phase 4: adding `stage?` to `CatalogIssue` plus an
+    // `origins?` parallel array to `BuildCatalogOptions`. That would enrich
+    // every code rather than this one — `redaction_missing` in stage "checkout"
+    // is genuinely more useful in a 40-stage app — but it is two new public
+    // fields and a new parallel-array invariant that no requirement in this
+    // phase asks for. Recorded so a later phase can adopt it without
+    // re-deriving the design. The developer's fallback meanwhile is one grep for
+    // the name, which returns exactly the two hits that are the answer.
     if (seenNames.has(action.name)) {
       issues.push({
         code: "duplicate_action_name",
         action: action.name,
         problem: "two actions share this name, so an agent calling it cannot address either one unambiguously.",
-        fix: "rename one of them.",
+        fix: "rename one of them. An action name is global across every stage and across `crossStage` — the same name may not be declared twice even in different stages.",
       });
       continue;
     }
