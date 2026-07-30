@@ -454,6 +454,19 @@ describe("CAT-05 and SEC-05 — both consent markers report themselves without b
     //   - No cast ceremony is needed for the assignment even though `console`
     //     is not type-visible inside core under `lib: ["ES2022"]`: this file is
     //     in NO TypeScript program (see the header, and `vitest.config.ts`).
+    //
+    // The mutant that proves this case fires, written down because the obvious
+    // spelling of it does NOT work and the failure looks like a pass. Replacing
+    // the literal `warnHost(` with `void (` in `src/catalog.ts` turns the call
+    // into `void (…,)` — the sink's argument list ends in a trailing comma, and
+    // a PARENTHESIZED expression may not, so rolldown fails with a PARSE_ERROR
+    // at `catalog.ts:503`. The harness then reports `PASS: gate fired (exit 1)`
+    // having never run a single test: the mutant proves the BUILD rejects a
+    // syntax error, which was never in question. Two forms measured to fire on
+    // this case with the build green, either of which is a real proof:
+    //
+    //     src/catalog.ts   `warnHost(`                    -> `String(`
+    //     src/host.ts      `host.console?.warn(message);` -> `void message;`
     const realConsole = globalThis.console;
     const captured: string[] = [];
 
