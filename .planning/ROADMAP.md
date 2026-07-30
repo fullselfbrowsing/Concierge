@@ -187,7 +187,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 04-07-PLAN.md — Wave 4: the sixteen-mutant battery, with M-04-1 and M-04-4 **repaired** and M-04-7 and M-04-12 **respelled** against the corrected implementation, each PASS confirmed to have compiled and run tests
+- [x] 04-07-PLAN.md — Wave 4: the sixteen-mutant battery, with M-04-1 and M-04-4 **repaired** and M-04-7 and M-04-12 **respelled** against the corrected implementation, each PASS confirmed to have compiled and run tests
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -319,7 +319,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 1. Type surface completion | 15/15 | Complete   | 2026-07-28 |
 | 2. Packaging, build, and release | 12/12 | Complete   | 2026-07-29 |
 | 3. Action declaration and build-time validation | 8/8 | Complete   | 2026-07-30 |
-| 4. Stages, catalog assembly, and explain() | 6/8 | In Progress|  |
+| 4. Stages, catalog assembly, and explain() | 7/8 | In Progress|  |
 | 5. Bridge registry and the no-bridge path | 0/TBD | Not started | - |
 | 6. Dispatcher | 0/TBD | Not started | - |
 | 7. Session and the transport seam | 0/TBD | Not started | - |
