@@ -110,6 +110,38 @@
 // The practical trap this leaves in place, stated so it is not rediscovered: a
 // typo'd `jsonSchemaTarget` is accepted by zod and produces a `$schema`-less
 // object, so the divergence surfaces only on an arktype action.
+//
+// ---------------------------------------------------------------------------
+// MUTATION PROOFS — which case is holding which rule down
+// ---------------------------------------------------------------------------
+//
+// Each of the four mutants below was applied to `json-schema.ts` through
+// `scripts/mutate-and-prove.sh`, gated on
+// `pnpm build && pnpm test emission`, and observed to turn the listed cases
+// RED. All four reported `PASS: gate fired (exit 1), tree clean`. This table is
+// here rather than only in a summary because it is the answer to "can I relax
+// this assertion?" — and the person asking that question is reading this file.
+//
+//   | Mutant   | What it changes in `json-schema.ts`         | Cases turned RED |
+//   |----------|---------------------------------------------|------------------|
+//   | M-03-4   | the hatch is consulted only when the         | 7, 8             |
+//   |          | validator cannot derive (order reversed)     |                  |
+//   | M-03-5   | `.input(` -> `.output(`                      | 9 ONLY           |
+//   | M-03-6   | the root-`type` check always returns true    | 1, 2, 8, 11      |
+//   | M-03-10  | `vendor` blanked on the not-emittable issue  | 4, 5, 11         |
+//
+// Two entries in that table are findings rather than bookkeeping.
+//
+// M-03-5 turns exactly ONE case red. Measured: `zodObject` and `arktypeObject`
+// emit an identical root under both projections apart from
+// `additionalProperties`, so case 3's positive control stays green while the
+// wrong projection ships to every agent. If case 9 is ever deleted or loosened,
+// nothing in this repository notices `.output(`.
+//
+// M-03-4 leaves case 6 GREEN, and that is correct rather than a gap. A reversed
+// order still falls through to the hatch for a validator that cannot derive, so
+// valibot keeps working — which is exactly why case 7 has to use a hatch that
+// is DISTINGUISHABLE from the derivation. Case 6 alone cannot see the order.
 
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
