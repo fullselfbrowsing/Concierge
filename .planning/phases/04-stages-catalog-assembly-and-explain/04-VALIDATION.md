@@ -1,11 +1,20 @@
 ---
 phase: 4
 slug: stages-catalog-assembly-and-explain
-status: planned
+status: executed
+sign_off: withheld
 nyquist_compliant: false
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-07-30
+statuses_observed: 2026-07-30
 ---
+
+> **Sign-off is WITHHELD, deliberately, and the phase is otherwise complete.**
+> All seven gates are green, all seventeen map rows carry an OBSERVED status, and all sixteen
+> mutants have recorded outcomes. Exactly one Validation Sign-Off box is false — the
+> acceptance-criteria-provenance box at the end of this document — and `nyquist_compliant`
+> stays `false` because of it. The reason, the measurement behind it, and what closing it
+> would take are written into that box. Nothing else in this document is blocked by it.
 
 # Phase 4 — Validation Strategy
 
@@ -13,6 +22,11 @@ created: 2026-07-30
 > Infrastructure, sampling, Wave 0 and mutant obligations seeded from `04-RESEARCH.md`
 > `## Validation Architecture`. The Per-Task Verification Map is filled by the planner; its
 > **Status** column is filled by plan 04-08 from observed evidence, never predicted.
+>
+> **Status column filled 2026-07-30 by plan 04-08 Task 2.** Every one of the seventeen values
+> below was taken from a plan summary that names the command which produced it, cross-checked
+> against the seven-gate run recorded in `## Phase Gate Results`. No value was predicted, and
+> no row was marked green on the strength of a plan saying it would be.
 
 ---
 
@@ -72,23 +86,23 @@ evidence** — a row whose evidence was never run stays ⬜ and blocks sign-off.
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 04-01-T1 | 04-01 | 1 | SEC-03, DX-01 | T-04-08 | `EmittedTool` members are `readonly`; `Explanation` and `StageExplanation` are named exported interfaces; `Concierge.explain` is declared | type | `pnpm typecheck` | ✅ `src/types.ts` | ⬜ pending |
-| 04-01-T2 | 04-01 | 1 | STG-03 | T-04-19 | The inline-declaration widening, and the spelling that works, are recorded where a developer configuring stages meets them | type | `pnpm typecheck` | ✅ `src/types.ts` | ⬜ pending |
-| 04-02-T1 | 04-02 | 1 | CAT-03 | T-04-16, T-04-15, T-04-17 | A missing or self-referential consent target fails the build with an actionable fix; every `consent` read is `Object.hasOwn`-guarded, never `in` | runtime | `pnpm build && pnpm test catalog` | ✅ `src/catalog.ts` | ⬜ pending |
-| 04-02-T2 | 04-02 | 1 | CAT-03 | T-04-19 | `deepFreeze` is reachable without a second, weaker freeze walk; three stale-prose sites corrected in place | runtime | `pnpm build && pnpm test && pnpm check:artifact` | ✅ `src/catalog.ts` | ⬜ pending |
-| 04-03-T1 | 04-03 | 2 | STG-01, STG-02, STG-03, STG-04, SEC-03, DX-01, CAT-01 | T-04-01, T-04-02, T-04-03, T-04-04, T-04-05, T-04-06, T-04-11, T-04-13 | Every statement of `src/concierge.ts`: index-keyed instance-local lazily-allocated memo; shallow projection freeze over shared deep-frozen elements; one guarded matcher call whose warning echoes nothing it caught; the file header's three numbered constraints; nineteen `ANCHOR(T2)` markers | runtime | `pnpm build && pnpm test && pnpm check:deps` | ❌ Wave 0 — `src/concierge.ts` | ⬜ pending |
-| 04-03-T2 | 04-03 | 2 | SEC-03, DX-01 | T-04-19, T-04-10 | Nineteen anchors expanded into doc comments with their measurements — including the SSR-not-tree-shaking and coupled-shallow-freeze corrections and the DSP-09 hand-off — and `contract.ts`'s now-false claim corrected. Comment-only diff | runtime | `pnpm build && pnpm test && pnpm test single-instance` | ❌ depends on 04-03-T1 | ⬜ pending |
-| 04-03-T3 | 04-03 | 2 | SEC-03 | T-04-19 | The published surface, both its pins, the artifact probe and the module doc comment all describe the same package | runtime | `pnpm build && pnpm test export-surface` | ✅ `src/index.ts`, `test/export-surface.test.ts`, `test-d/exports.test-d.ts`, `test/artifact.test.ts` | ⬜ pending |
-| 04-04-T1 | 04-04 | 2 | CAT-03 | T-04-16, T-04-20, T-04-14 | Typo, self-reference, forward reference and aggregation asserted on structured fields, not on formatted substrings | runtime | `pnpm build && pnpm test catalog` | ✅ `test/catalog.test.ts` | ⬜ pending |
-| 04-04-T2 | 04-04 | 2 | CAT-03 | T-04-22 | `CatalogIssueCode` pinned as a closed six-member union, in an `Equals` spelling that goes red on widening to `string` | type | `pnpm typecheck` | ✅ `test-d/catalog.test-d.ts` | ⬜ pending |
-| 04-05-T1 | 04-05 | 3 | STG-01, STG-02, STG-03, STG-04, CAT-03 | T-04-02, T-04-06, T-04-21 | Stage scoping by omission, first-match-wins, rename-independence (the *sensitive* shape), referential identity across distinct contexts, instance-local memo | runtime | `pnpm build && pnpm test test/concierge` | ❌ Wave 0 — `test/concierge.test.ts` | ⬜ pending |
-| 04-05-T2 | 04-05 | 3 | SEC-03, DX-01 | T-04-01, T-04-03, T-04-04, T-04-05, T-04-07, T-04-12 | Array, element and nested-schema tamper vectors with both halves each; `explain`'s three fields, deep freeze and deliberate non-identity; matcher policy including the covert-channel assertion; stage-id policy | runtime | `pnpm build && pnpm test test/concierge` | ❌ Wave 0 — `test/concierge.test.ts` | ⬜ pending |
-| 04-06-T1 | 04-06 | 3 | SEC-03, DX-01, STG-03 | T-04-08, T-04-22, T-04-23, T-04-20 | `EmittedTool` readonly, `Explanation`/`StageExplanation` shapes, `Concierge.explain` and `createConcierge` signatures, and `StageContext`'s access shapes — all in `Equals` spellings | type | `pnpm typecheck` | ❌ Wave 0 — `test-d/concierge.test-d.ts` | ⬜ pending |
-| 04-06-T2 | 04-06 | 3 | SEC-03 | T-04-10 | `createConcierge` reaches `assertSingleInstance`, asserted through the existing global-registry observable in both directions | runtime | `pnpm build && pnpm test single-instance` | ✅ `test/single-instance.test.ts` | ⬜ pending |
-| 04-07-T1 | 04-07 | 4 | STG-01, STG-02, STG-03, STG-04, SEC-03, DX-01 | T-04-20, T-04-24, T-04-25, T-04-26 | Twelve `src/concierge.ts` mutants observed, each with an unfiltered pre-flight count of 1 and each confirmed from the gate output to have compiled and run tests | mutation | `scripts/mutate-and-prove.sh … -- pnpm build && pnpm test test/concierge` | ✅ `scripts/mutate-and-prove.sh` | ⬜ pending |
-| 04-07-T2 | 04-07 | 4 | CAT-03, DX-01 | T-04-20, T-04-24, T-04-25 | Four `src/catalog.ts` and `src/types.ts` mutants observed; M-04-11 gated on the FULL suite because it is the only mutant proving the check reads the complete name set | mutation | `scripts/mutate-and-prove.sh … -- pnpm build && pnpm test` | ✅ `scripts/mutate-and-prove.sh` | ⬜ pending |
-| 04-08-T1 | 04-08 | 5 | CAT-03, STG-01, STG-02, STG-03, STG-04, SEC-03, DX-01 | T-04-19, T-04-07, T-04-26, T-04-SC | Seven gates green against the final tree; no prose in `dist/index.d.ts`, `dist/index.js`, `src/index.ts`, `src/contract.ts` or `src/catalog.ts` claims something this phase made false, asserted with eight literals each shown ≥1 on the pre-correction tree; `pnpm-lock.yaml` byte-identical | gate | `pnpm typecheck && pnpm build && pnpm test && pnpm check:artifact && pnpm check:deps && pnpm check:pack && pnpm check:node-floor` | ✅ | ⬜ pending |
-| 04-08-T2 | 04-08 | 5 | CAT-03, STG-01, STG-02, STG-03, STG-04, SEC-03, DX-01, CAT-01 | T-04-20 | Every map row carries an observed status; CAT-01's closure, the SEC-03 carve-out and the DSP-09 hand-off are recorded where the next planner reads them | gate | `pnpm typecheck && pnpm build && pnpm test` | ✅ this file | ⬜ pending |
+| 04-01-T1 | 04-01 | 1 | SEC-03, DX-01 | T-04-08 | `EmittedTool` members are `readonly`; `Explanation` and `StageExplanation` are named exported interfaces; `Concierge.explain` is declared | type | `pnpm typecheck` | ✅ `src/types.ts` | ✅ green — `pnpm typecheck` exit 0 (04-01). Sensitivity later OBSERVED by 04-06: deleting one `readonly` gives `tsc` exit 1, sole diagnostic `test-d/concierge.test-d.ts(122,46)` |
+| 04-01-T2 | 04-01 | 1 | STG-03 | T-04-19 | The inline-declaration widening, and the spelling that works, are recorded where a developer configuring stages meets them | type | `pnpm typecheck` | ✅ `src/types.ts` | ✅ green — `pnpm typecheck` exit 0; `crossStage` named 4× in prose after the Rule-1 fix (floor 2). Five widening probes run in-worktree, one of which changed the shipped text |
+| 04-02-T1 | 04-02 | 1 | CAT-03 | T-04-16, T-04-15, T-04-17 | A missing or self-referential consent target fails the build with an actionable fix; every `consent` read is `Object.hasOwn`-guarded, never `in` | runtime | `pnpm build && pnpm test catalog` | ✅ `src/catalog.ts` | ✅ green — build + `pnpm test catalog` exit 0. Seven-scenario probe against the artifact: typo→`consent_target_missing`, self→`consent_self_reference`, forward + cross-stage + `consent:null` + `consent:{}` + `requires:42` all clean. Prototype-pollution probe run with a positive control |
+| 04-02-T2 | 04-02 | 1 | CAT-03 | T-04-19 | `deepFreeze` is reachable without a second, weaker freeze walk; three stale-prose sites corrected in place | runtime | `pnpm build && pnpm test && pnpm check:artifact` | ✅ `src/catalog.ts` | ✅ green — all three exit 0, 6 files / 55 tests. `Hand-forward to Phase 4` 1→0 and the second stale site 1→0, both measured at 1 pre-edit. Eight array-method freeze results measured before the claim shipped |
+| 04-03-T1 | 04-03 | 2 | STG-01, STG-02, STG-03, STG-04, SEC-03, DX-01, CAT-01 | T-04-01, T-04-02, T-04-03, T-04-04, T-04-05, T-04-06, T-04-11, T-04-13 | Every statement of `src/concierge.ts`: index-keyed instance-local lazily-allocated memo; shallow projection freeze over shared deep-frozen elements; one guarded matcher call whose warning echoes nothing it caught; the file header's three numbered constraints; nineteen `ANCHOR(T2)` markers | runtime | `pnpm build && pnpm test && pnpm check:deps` | ✅ `src/concierge.ts` (699 lines, created) | ✅ green — all three exit 0; `check:deps` delta zero. 26-scenario behavioural probe against `dist/index.js`, all PASS, including the shadowing case and the three-stages-one-id case |
+| 04-03-T2 | 04-03 | 2 | SEC-03, DX-01 | T-04-19, T-04-10 | Nineteen anchors expanded into doc comments with their measurements — including the SSR-not-tree-shaking and coupled-shallow-freeze corrections and the DSP-09 hand-off — and `contract.ts`'s now-false claim corrected. Comment-only diff | runtime | `pnpm build && pnpm test && pnpm test single-instance` | ✅ `src/concierge.ts`, `src/contract.ts` | ✅ green — all exit 0. `ANCHOR(T2)` handshake observed 0→19→0; file 272→699 lines (+427 against a 372 floor). `contract.ts`: `future work and should be added` 1→0, `reaches this guard transitively` 0→1, confirmed reaching `dist/index.d.ts` |
+| 04-03-T3 | 04-03 | 2 | SEC-03 | T-04-19 | The published surface, both its pins, the artifact probe and the module doc comment all describe the same package | runtime | `pnpm build && pnpm test export-surface` | ✅ `src/index.ts`, `test/export-surface.test.ts`, `test-d/exports.test-d.ts`, `test/artifact.test.ts` | ✅ green — exit 0. Surface moved 59/49/10 → **62/51/11** with both pins and the artifact probe in one commit; re-derived independently by 04-08 T1(b) against `dist/index.d.ts`: `blocks 1 names 62 values 11 types 51` |
+| 04-04-T1 | 04-04 | 2 | CAT-03 | T-04-16, T-04-20, T-04-14 | Typo, self-reference, forward reference and aggregation asserted on structured fields, not on formatted substrings | runtime | `pnpm build && pnpm test catalog` | ✅ `test/catalog.test.ts` | ✅ green — exit 0, `pnpm test catalog` 26 tests (22+4). C25 OBSERVED RED twice, independently: under a genuinely missing target, and under a reconstructed in-loop placement where it was **the only** case of 26 to fail |
+| 04-04-T2 | 04-04 | 2 | CAT-03 | T-04-22 | `CatalogIssueCode` pinned as a closed six-member union, in an `Equals` spelling that goes red on widening to `string` | type | `pnpm typecheck` | ✅ `test-d/catalog.test-d.ts` | ✅ green — exit 0. OBSERVED RED under `CatalogIssueCode = string`: `tsc` exit 1 naming both predicates, `catalog.test-d.ts(323,52)` and `(326,41)` |
+| 04-05-T1 | 04-05 | 3 | STG-01, STG-02, STG-03, STG-04, CAT-03 | T-04-02, T-04-06, T-04-21 | Stage scoping by omission, first-match-wins, rename-independence (the *sensitive* shape), referential identity across distinct contexts, instance-local memo | runtime | `pnpm build && pnpm test test/concierge` | ✅ `test/concierge.test.ts` (created, 1249 lines) | ✅ green — S1…S10 pass; scoped run 1 file / 25 tests, and it read *"No test files found", exit 1* before the file existed, so the criterion could not be met by inaction. S7 and S10 each OBSERVED RED under a deliberate regression |
+| 04-05-T2 | 04-05 | 3 | SEC-03, DX-01 | T-04-01, T-04-03, T-04-04, T-04-05, T-04-07, T-04-12 | Array, element and nested-schema tamper vectors with both halves each; `explain`'s three fields, deep freeze and deliberate non-identity; matcher policy including the covert-channel assertion; stage-id policy | runtime | `pnpm build && pnpm test test/concierge` | ✅ `test/concierge.test.ts` | ✅ green — S11…S26 pass (S15 is prose, deliberately). S12 and S19 OBSERVED RED under regression. **Finding recorded:** S13 does *not* detect the element freeze — S12, S13 and S14 detect three different things |
+| 04-06-T1 | 04-06 | 3 | SEC-03, DX-01, STG-03 | T-04-08, T-04-22, T-04-23, T-04-20 | `EmittedTool` readonly, `Explanation`/`StageExplanation` shapes, `Concierge.explain` and `createConcierge` signatures, and `StageContext`'s access shapes — all in `Equals` spellings | type | `pnpm typecheck` | ✅ `test-d/concierge.test-d.ts` (created, 190 lines) | ✅ green — exit 0; all nine predicates measured true against the shipped declarations *before* the real file was written. Readonly pin OBSERVED RED as the sole diagnostic in the repository |
+| 04-06-T2 | 04-06 | 3 | SEC-03 | T-04-10 | `createConcierge` reaches `assertSingleInstance`, asserted through the existing global-registry observable in both directions | runtime | `pnpm build && pnpm test single-instance` | ✅ `test/single-instance.test.ts` | ✅ green — exit 0, 1 file / 5 tests. F5 OBSERVED RED when `createConcierge` is stubbed short of `buildCatalog`, and it is the **only** one of the five that can see it |
+| 04-07-T1 | 04-07 | 4 | STG-01, STG-02, STG-03, STG-04, SEC-03, DX-01 | T-04-20, T-04-24, T-04-25, T-04-26 | Twelve `src/concierge.ts` mutants observed, each with an unfiltered pre-flight count of 1 and each confirmed from the gate output to have compiled and run tests | mutation | `scripts/mutate-and-prove.sh … -- pnpm build && pnpm test test/concierge` | ✅ `scripts/mutate-and-prove.sh` | ✅ green — twelve rows, twelve harness exit 0 (PASS), every one showing a `Build complete` line **and** all 25 cases run. Zero vacuous PASSes. All twelve counts re-taken unfiltered on the tree that was mutated |
+| 04-07-T2 | 04-07 | 4 | CAT-03, DX-01 | T-04-20, T-04-24, T-04-25 | Four `src/catalog.ts` and `src/types.ts` mutants observed; M-04-11 gated on the FULL suite because it is the only mutant proving the check reads the complete name set | mutation | `scripts/mutate-and-prove.sh … -- pnpm build && pnpm test` | ✅ `scripts/mutate-and-prove.sh` | ✅ green — four rows, four harness exit 0 (PASS). M-04-11 killed **C25 and S10** across two files on the full-suite gate (86 ran), which a `pnpm test catalog` gate would have half-missed — measured, not inferred |
+| 04-08-T1 | 04-08 | 5 | CAT-03, STG-01, STG-02, STG-03, STG-04, SEC-03, DX-01 | T-04-19, T-04-07, T-04-26, T-04-SC | Seven gates green against the final tree; no prose in `dist/index.d.ts`, `dist/index.js`, `src/index.ts`, `src/contract.ts` or `src/catalog.ts` claims something this phase made false, asserted with eight literals each shown ≥1 on the pre-correction tree; `pnpm-lock.yaml` byte-identical | gate | `pnpm typecheck && pnpm build && pnpm test && pnpm check:artifact && pnpm check:deps && pnpm check:pack && pnpm check:node-floor` | ✅ | ✅ green — all seven exit 0, each run UNPIPED with the code captured immediately. 7 files / 86 tests / 304 ms. Eight literals audited across six files, each measured on the pre-correction tree first; three corrected 1→0, one logged **no-coverage**. Lockfile byte-identical. See `## Phase Gate Results` |
+| 04-08-T2 | 04-08 | 5 | CAT-03, STG-01, STG-02, STG-03, STG-04, SEC-03, DX-01, CAT-01 | T-04-20 | Every map row carries an observed status; CAT-01's closure, the SEC-03 carve-out and the DSP-09 hand-off are recorded where the next planner reads them | gate | `pnpm typecheck && pnpm build && pnpm test` | ✅ this file | ✅ green — all three exit 0. Seventeen of seventeen rows carry an observed status; the pending marker falls 18→1, the survivor being the legend line (this cell deliberately does not spell the marker, or it would inflate the count it reports). CAT-01's closure, the SEC-03 carve-out and the DSP-09 hand-off are all recorded below. **Sign-off itself is withheld** on one false box — see `## Validation Sign-Off` |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -152,23 +166,33 @@ column names the plan that produces the evidence.
 
 ## Wave 0 Requirements
 
-- [ ] `packages/concierge/src/concierge.ts` — the module under test does not exist yet (04-03 T1)
-- [ ] `packages/concierge/test/concierge.test.ts` — STG-01/02/03/04, SEC-03 projection half, DX-01,
+- [x] `packages/concierge/src/concierge.ts` — the module under test does not exist yet (04-03 T1)
+- [x] `packages/concierge/test/concierge.test.ts` — STG-01/02/03/04, SEC-03 projection half, DX-01,
       matcher policy, stage-id policy, CAT-03's cross-stage half. Opens with a "What escapes without
       this file" header. (04-05)
-- [ ] `packages/concierge/test-d/concierge.test-d.ts` — `StageContext` access shapes,
+- [x] `packages/concierge/test-d/concierge.test-d.ts` — `StageContext` access shapes,
       `Explanation`/`StageExplanation` shapes, `createConcierge` signature, `EmittedTool` readonly pin
       (04-06 T1)
-- [ ] `packages/concierge/test/catalog.test.ts` — new describe block for CAT-03, C23…C26 (04-04 T1)
-- [ ] `packages/concierge/test-d/catalog.test-d.ts` — `CatalogIssueCode` union assertion (04-04 T2)
-- [ ] `packages/concierge/test-d/exports.test-d.ts` — new predicate + shared import line (04-03 T3)
-- [ ] `packages/concierge/test/export-surface.test.ts` — updated counts, `it` titles, array entry
+- [x] `packages/concierge/test/catalog.test.ts` — new describe block for CAT-03, C23…C26 (04-04 T1)
+- [x] `packages/concierge/test-d/catalog.test-d.ts` — `CatalogIssueCode` union assertion (04-04 T2)
+- [x] `packages/concierge/test-d/exports.test-d.ts` — new predicate + shared import line (04-03 T3)
+- [x] `packages/concierge/test/export-surface.test.ts` — updated counts, `it` titles, array entry
       (04-03 T3)
-- [ ] `packages/concierge/test/artifact.test.ts` — the `createConcierge` value-export case (04-03 T3)
-- [ ] `packages/concierge/test/single-instance.test.ts` — `createConcierge` call-site case (04-06 T2)
+- [x] `packages/concierge/test/artifact.test.ts` — the `createConcierge` value-export case (04-03 T3)
+- [x] `packages/concierge/test/single-instance.test.ts` — `createConcierge` call-site case (04-06 T2)
 
 No new fixture file needed — `test/fixtures/schemas.ts` already provides every validator shape this
 phase uses. **No new devDependency**; `pnpm-lock.yaml` must be byte-identical at phase exit.
+
+**All nine verified present by 04-08 T2, by `[ -f ]` plus a line count, not by a plan saying so:**
+`src/concierge.ts` 699 · `test/concierge.test.ts` 1249 · `test-d/concierge.test-d.ts` 190 ·
+`test/catalog.test.ts` 921 · `test-d/catalog.test-d.ts` 326 · `test-d/exports.test-d.ts` 102 ·
+`test/export-surface.test.ts` 161 · `test/artifact.test.ts` 150 · `test/single-instance.test.ts` 269.
+No fixture file was added and `pnpm-lock.yaml` is byte-identical against the phase merge base
+(`git diff --stat fd8c295..HEAD -- pnpm-lock.yaml` → empty). `wave_0_complete: true` is set on that
+evidence, and it is deliberately **not** coupled to the withheld sign-off: Wave 0 completeness is a
+claim about files existing, which is observably true, and it is independent of the one false
+Nyquist box below.
 
 ---
 
@@ -190,24 +214,60 @@ a build failure prints `PASS: gate fired (exit 1), tree clean` having run zero t
 Sixteen rows. Four are repairs or respellings of `04-RESEARCH.md`'s battery; the reason is in the
 Notes column and must be carried into `test/concierge.test.ts` as a comment (04-07 T2).
 
-| # | File | Literal → replacement | Gate | Expected red | Notes |
-|---|------|----------------------|------|--------------|-------|
-| M-04-1 | `src/concierge.ts` | `Object.freeze(projected)` → `projected` | `pnpm build && pnpm test test/concierge` | the array-level SEC-03 case (`push` throws, length unchanged) | **REPAIRED.** RESEARCH wrote the bare `Object.freeze(`, which occurs **4×** in this file: `Object.freeze(tool)`, `Object.freeze(toolByName)`, `Object.freeze(projected)`, and `DISPATCH_NOT_IMPLEMENTED`'s module-scope `/* @__PURE__ */ Object.freeze({ … })`. 04-03 writes the three assembly freezes as three textually distinct single-occurrence statements, and `Object.freeze(tool)` is not a substring of `Object.freeze(toolByName)`, so the fourth occurrence invalidates neither M-04-1 nor M-04-16. |
-| M-04-16 | `src/concierge.ts` | `Object.freeze(tool)` → `(tool)` | `pnpm build && pnpm test test/concierge` | the element-level SEC-03 case (`[0].name = "evil"`) | **ADDED.** Splits M-04-1's original claim into its two real halves; the array freeze and the element freeze are separate rules. |
-| M-04-2 | `src/concierge.ts` | `memo ??= new Map` → `memo = new Map` | `pnpm build && pnpm test test/concierge` | the STG-04 identity cases | — |
-| M-04-3 | `src/concierge.ts` | `memo.set(index, built);` → `;` | `pnpm build && pnpm test test/concierge` | the STG-04 identity cases, from the other direction | — |
-| M-04-4 | `src/concierge.ts` | `for (const [index, stage] of stages.entries())` → `for (const [index, stage] of [...stages.entries()].reverse())` | `pnpm build && pnpm test test/concierge` | the first-match-wins case | **REPAIRED.** Requires **distinct loop spellings** in `resolveIndex` and `explain` — a constraint on the SOURCE, not the test. 04-03 ships `for…of stages.entries()` in `resolveIndex` and `stages.map(...)` in `explain`. |
-| M-04-5 | `src/concierge.ts` | `result === true` → `result !== false` | `pnpm build && pnpm test test/concierge` | the truthy-non-boolean matcher case | — |
-| M-04-6 | `src/concierge.ts` | the catch-body `return warnStage(…);` statement **including its full argument list** (exact literal in `04-03-SUMMARY.md`) → `throw new Error(stage.id);` | `pnpm build && pnpm test test/concierge` | the throwing-matcher case | `warnStage` returns the literal type `false` so the catch body is ONE statement, which is what makes this a single-literal swap. **The bare prefix `return warnStage(` occurs 2× in `runMatch`** — the `catch` branch and the non-boolean branch — so it is a trap literal and must never be used. 04-03 requires the two argument lists to stay textually distinct. |
-| M-04-7 | `src/concierge.ts` | `index === null ? crossNames` → `index === null ? []` | `pnpm build && pnpm test test/concierge` | the no-stage-returns-cross-stage case | **RESPELLED.** RESEARCH wrote `id === null ? crossNames`, against the superseded **id-keyed** memo. The shipped key is the resolved stage's array index. |
-| M-04-8 | `src/concierge.ts` | `...crossNames]` → `]` | `pnpm build && pnpm test test/concierge` | STG-01 — `signOut` missing from the results catalog | — |
-| M-04-12 | `src/concierge.ts` | `const firstMatch: number = rows.findIndex((row) => row.matched);` → `const firstMatch: number = rows.map((row) => row.matched).lastIndexOf(true);` | `pnpm build && pnpm test test/concierge` | the two-overlapping-matchers case — `stage` becomes the last match | **RESPELLED.** RESEARCH wrote `matched && active === null`, against a `for…of` accumulation `explain` does not use (a `let` assigned inside a callback loses its narrowing anyway — TS #9998). |
-| M-04-13 | `src/concierge.ts` | `deepFreeze(` → `Object.freeze(` | `pnpm build && pnpm test test/concierge` | `explain(ctx).stages[0].matched = true` no longer throws | Unique in `concierge.ts` (2× in `catalog.ts` — do not run it there). |
-| M-04-15 | `src/concierge.ts` | `warnHost(duplicateStageIdMessage(stage.id));` → `void duplicateStageIdMessage(stage.id);` | `pnpm build && pnpm test test/concierge` | the duplicate-stage-id warn case | `warnHost(` occurs 2× in this file; the message is behind a named function precisely so this row has a unique literal. |
-| M-04-9 | `src/catalog.ts` | `!seenNames.has(requires)` → `false` | `pnpm build && pnpm test catalog` | the CAT-03 typo case | — |
-| M-04-10 | `src/catalog.ts` | `requires === action.name` → `false` | `pnpm build && pnpm test catalog` | the `consent_self_reference` case | — |
-| M-04-11 | `src/catalog.ts` | `!seenNames.has(requires)` → `!new Set<string>().has(requires)` | **`pnpm build && pnpm test`** (full suite) | the forward-reference clean-build case **and** the cross-stage-target clean-build case | The **only** mutant proving the check reads the COMPLETE name set. M-04-9 does not. The full-suite gate is required because the two red cases live in two different files. |
-| M-04-14 | `src/types.ts` | `explain: (ctx: StageContext) => Explanation;` → deleted | `pnpm typecheck` | `tsc` exits **1** and the diagnostics name `test-d/concierge.test-d.ts` | Read the OUTPUT, not just the exit code — deleting the member also breaks `src/concierge.ts`'s return literal, so the gate would fire even if the type suite pinned nothing. |
+**Outcomes filled 2026-07-30 by plan 04-08 Task 2(b), from 04-07's execution record.** All sixteen
+counts were re-taken unfiltered a second time by 04-08 against the tree being gated: **16/16 printed
+exactly 1**, and every trap literal printed its documented non-unique count (`Object.freeze(` 4 in
+`concierge.ts` and 1 in `catalog.ts`; `return warnStage(` 2; `warnHost(` 2; `duplicate_action_name`,
+`action.consent`, `consent_target_missing`, `consent_self_reference` and `deepFreeze(` 2 each in
+`catalog.ts`). The **Compiled & ran** column is the anti-vacuous-PASS check and was read out of each
+gate's own output, never inferred from the exit code.
+
+| # | File | Literal → replacement | Gate | Expected red | Harness exit | Observed red | Compiled & ran | Notes |
+|---|------|----------------------|------|--------------|--------------|--------------|----------------|-------|
+| M-04-1 | `src/concierge.ts` | `Object.freeze(projected)` → `projected` | `pnpm build && pnpm test test/concierge` | the array-level SEC-03 case (`push` throws, length unchanged) | exit 0 (PASS) | S11 — 1 failed / 24 passed, **25 ran** | YES — `Build complete in 54ms`, attw + publint clean | **REPAIRED.** RESEARCH wrote the bare `Object.freeze(`, which occurs **4×** in this file: `Object.freeze(tool)`, `Object.freeze(toolByName)`, `Object.freeze(projected)`, and `DISPATCH_NOT_IMPLEMENTED`'s module-scope `/* @__PURE__ */ Object.freeze({ … })`. 04-03 writes the three assembly freezes as three textually distinct single-occurrence statements, and `Object.freeze(tool)` is not a substring of `Object.freeze(toolByName)`, so the fourth occurrence invalidates neither M-04-1 nor M-04-16. |
+| M-04-16 | `src/concierge.ts` | `Object.freeze(tool)` → `(tool)` | `pnpm build && pnpm test test/concierge` | the element-level SEC-03 case (`[0].name = "evil"`) | exit 0 (PASS) | S12 **and** S14 — 2 failed / 23 passed, **25 ran** | YES — `Build complete in 55ms` | **ADDED.** Splits M-04-1's original claim into its two real halves; the array freeze and the element freeze are separate rules. |
+| M-04-2 | `src/concierge.ts` | `memo ??= new Map` → `memo = new Map` | `pnpm build && pnpm test test/concierge` | the STG-04 identity cases | exit 0 (PASS) | S7, S8, S9 — 3 failed / 22 passed, **25 ran** | YES — `Build complete in 52ms` | — |
+| M-04-3 | `src/concierge.ts` | `memo.set(index, built);` → `;` | `pnpm build && pnpm test test/concierge` | the STG-04 identity cases, from the other direction | exit 0 (PASS) | S7, S8, S9 — 3 failed / 22 passed, **25 ran** | YES — `Build complete in 53ms` | — |
+| M-04-4 | `src/concierge.ts` | `for (const [index, stage] of stages.entries())` → `for (const [index, stage] of [...stages.entries()].reverse())` | `pnpm build && pnpm test test/concierge` | the first-match-wins case | exit 0 (PASS) | S4, S5, S24, S25 — 4 failed / 21 passed, **25 ran** | YES — `Build complete in 53ms` | **REPAIRED.** Requires **distinct loop spellings** in `resolveIndex` and `explain` — a constraint on the SOURCE, not the test. 04-03 ships `for…of stages.entries()` in `resolveIndex` and `stages.map(...)` in `explain`. |
+| M-04-5 | `src/concierge.ts` | `result === true` → `result !== false` | `pnpm build && pnpm test test/concierge` | the truthy-non-boolean matcher case | exit 0 (PASS) | S25 — 1 failed / 24 passed, **25 ran** | YES — `Build complete in 73ms` | — |
+| M-04-6 | `src/concierge.ts` | the catch-body `return warnStage(…);` statement **including its full argument list** (exact literal in `04-03-SUMMARY.md`) → `throw new Error(stage.id);` | `pnpm build && pnpm test test/concierge` | the throwing-matcher case | exit 0 (PASS) | S17, S24 — 2 failed / 23 passed, **25 ran** | YES — `Build complete in 53ms` | `warnStage` returns the literal type `false` so the catch body is ONE statement, which is what makes this a single-literal swap. **The bare prefix `return warnStage(` occurs 2× in `runMatch`** — the `catch` branch and the non-boolean branch — so it is a trap literal and must never be used. 04-03 requires the two argument lists to stay textually distinct. |
+| M-04-7 | `src/concierge.ts` | `index === null ? crossNames` → `index === null ? []` | `pnpm build && pnpm test test/concierge` | the no-stage-returns-cross-stage case | exit 0 (PASS) | S2, S8 — 2 failed / 23 passed, **25 ran** | YES — `Build complete in 53ms` | **RESPELLED.** RESEARCH wrote `id === null ? crossNames`, against the superseded **id-keyed** memo. The shipped key is the resolved stage's array index. |
+| M-04-8 | `src/concierge.ts` | `...crossNames]` → `]` | `pnpm build && pnpm test test/concierge` | STG-01 — `signOut` missing from the results catalog | exit 0 (PASS) | S1, S6, S10, S11, S18, S24 — 6 failed / 19 passed, **25 ran** | YES — `Build complete in 59ms` | — |
+| M-04-12 | `src/concierge.ts` | `const firstMatch: number = rows.findIndex((row) => row.matched);` → `const firstMatch: number = rows.map((row) => row.matched).lastIndexOf(true);` | `pnpm build && pnpm test test/concierge` | the two-overlapping-matchers case — `stage` becomes the last match | exit 0 (PASS) | S19 — 1 failed / 24 passed, **25 ran** | YES — `Build complete in 54ms` | **RESPELLED.** RESEARCH wrote `matched && active === null`, against a `for…of` accumulation `explain` does not use (a `let` assigned inside a callback loses its narrowing anyway — TS #9998). |
+| M-04-13 | `src/concierge.ts` | `deepFreeze(` → `Object.freeze(` | `pnpm build && pnpm test test/concierge` | `explain(ctx).stages[0].matched = true` no longer throws | exit 0 (PASS) | S21 — 1 failed / 24 passed, **25 ran** | YES — `Build complete in 55ms` | Unique in `concierge.ts` (2× in `catalog.ts` — do not run it there). |
+| M-04-15 | `src/concierge.ts` | `warnHost(duplicateStageIdMessage(stage.id));` → `void duplicateStageIdMessage(stage.id);` | `pnpm build && pnpm test test/concierge` | the duplicate-stage-id warn case | exit 0 (PASS) | S26 — 1 failed / 24 passed, **25 ran** | YES — `Build complete in 53ms` | `warnHost(` occurs 2× in this file; the message is behind a named function precisely so this row has a unique literal. |
+| M-04-9 | `src/catalog.ts` | `!seenNames.has(requires)` → `false` | `pnpm build && pnpm test catalog` | the CAT-03 typo case | exit 0 (PASS) | C23, C26 — 2 failed / 24 passed, **26 ran** | YES — `Build complete in 56ms` | — |
+| M-04-10 | `src/catalog.ts` | `requires === action.name` → `false` | `pnpm build && pnpm test catalog` | the `consent_self_reference` case | exit 0 (PASS) | C24 — 1 failed / 25 passed, **26 ran** | YES — `Build complete in 54ms` | — |
+| M-04-11 | `src/catalog.ts` | `!seenNames.has(requires)` → `!new Set<string>().has(requires)` | **`pnpm build && pnpm test`** (full suite) | the forward-reference clean-build case **and** the cross-stage-target clean-build case | exit 0 (PASS) | **C25 AND S10** — 2 files failed / 5 passed; 2 failed / 84 passed, **86 ran** | YES — `Build complete in 54ms` | The **only** mutant proving the check reads the COMPLETE name set. M-04-9 does not. The full-suite gate is required because the two red cases live in two different files. |
+| M-04-14 | `src/types.ts` | `explain: (ctx: StageContext) => Explanation;` → deleted | `pnpm typecheck` | `tsc` exits **1** and the diagnostics name `test-d/concierge.test-d.ts` | exit 0 (PASS) | `tsc` **exit 1**: `src/concierge.ts(698,44)` TS2353 and `test-d/concierge.test-d.ts(148,59)` **TS2339** | YES — the compiler ran and emitted both expected diagnostics; typecheck-gated, so this reads as "the compiler ran". Note the string `Type 'false' does not satisfy the constraint 'true'` appears **0** times here — the failure is TS2339 at the indexed access, so a run grepping for the usual TS2344 form would wrongly conclude the pin never fired | Read the OUTPUT, not just the exit code — deleting the member also breaks `src/concierge.ts`'s return literal, so the gate would fire even if the type suite pinned nothing. |
+
+### The M-04-09 numbering discrepancy — adjudicated, not carried forward
+
+`04-04-SUMMARY.md:248` labels `declared.push(action);` as **M-04-09**. This table, `04-07-PLAN.md:230`
+and `04-07`'s execution all assign M-04-09 to `!seenNames.has(requires)` → `false`. **This table is
+correct and `04-04-SUMMARY.md:248` is mislabelled.** Four pieces of evidence, in order of force:
+
+1. **M-04-11's own Notes cell only parses under this table's assignment.** It reads *"The **only**
+   mutant proving the check reads the COMPLETE name set. **M-04-9 does not.**"* That contrast is
+   meaningful only if M-04-9 mutates the *same* expression — `!seenNames.has(requires)` — to a
+   constant. Against `declared.push(action);` the sentence would be incoherent: deleting the push
+   does not test the name set, it empties the set being read.
+2. **`declared.push(action);` appears in ZERO rows of this table.** Measured on the untouched
+   document: `grep -c 'declared.push' 04-VALIDATION.md` → **0**. It was never a seeded mutant.
+3. **04-07 executed M-04-09 as `!seenNames.has(requires)` → `false` and observed C23 + C26 red with
+   26 tests run.** That matches this table's seeded *Expected red* ("the CAT-03 typo case" = C23).
+   The row has an observed outcome; the alternative reading has none.
+4. **The error's origin is traceable and benign.** `04-02-SUMMARY.md:106` heads a three-row table
+   *"Mutant Literals (for 04-07: M-04-09, M-04-10, M-04-11)"* listing `!seenNames.has(requires)`,
+   `requires === action.name` and `declared.push(action);` — three literals under three IDs with **no
+   stated one-to-one mapping**. 04-04 read it as a mapping, and because two IDs were already taken by
+   the first two literals, the leftover ID landed on the third.
+
+**The count is sixteen either way.** `declared.push(action);` still measures **1** in `src/catalog.ts`
+(re-measured by 04-08) and remains available as a future mutation target, but the rule it would test —
+that the post-pass iterates the declared set at all — is already covered from the other side by
+M-04-9 and M-04-11. No row is missing and none was skipped. `04-04-SUMMARY.md` is left as the
+historical record of what that executor observed; this is the authoritative assignment.
 
 **Trap literals — do not use bare.** In `src/catalog.ts`: `duplicate_action_name` (2×),
 `action.consent` (2×), `deepFreeze(` (2×), and after 04-02 both `consent_target_missing` and
@@ -262,6 +322,22 @@ Both are written into `test/concierge.test.ts`'s header by 04-05 T1, per the hou
   four of its five derived artifacts and `REQUIREMENTS.md:157` records the fifth, per-stage catalogs,
   as Phase 4's. It ships as `createConcierge().catalogFor`. 04-08 T2(c) updates
   `REQUIREMENTS.md:157` from `Partial` to `Complete`.
+
+  **Phase-close statement, in the wording the next phase's planner should inherit:**
+
+  > **CAT-01's fifth derived artifact, per-stage catalogs, now ships via
+  > `createConcierge().catalogFor`; evidence 04-05 S1 and S2, plan 04-03.**
+
+  Done, and verified on 2026-07-30: `REQUIREMENTS.md:157` was rewritten in place. The literal
+  `Partial — 4/5 derived artifacts ship` measured **1** before and **0** after; the positive half,
+  `closed by Phase 4`, measured **0** before and **1** after. Both halves are recorded because the
+  negative alone cannot distinguish *rewritten* from *deleted*.
+
+  The five pre-existing CAT-01 references in this document (`:79`, `:91`, `:144`, `:261`, `:298` on
+  the untouched file, count re-measured at **5**) were **seeded by the previous revision of these
+  plans, not written by 04-08**. Task 2(c) read all five, confirmed each still says what it claims —
+  `:144` already names `createConcierge().catalogFor` and already cites 04-05 S1/S2 — and added only
+  the block above. That count is a guard against losing one, never evidence that this task ran.
 - **A non-string or missing `consent.requires`** — skipped deliberately, recorded as a residual in
   `catalog.ts`'s doc comment in the style of `catalog.ts:348-359`. Revisit with Phase 8's kernel,
   which is the first code that reads `requires` at runtime.
@@ -280,24 +356,194 @@ none of them means "this runtime is not built yet"; omitting `reason` asserts no
 **DSP-09's normalizer must REPLACE this shape, not normalize it.** It is not a contradictory
 `ActionResult` to be repaired — it is a placeholder to be deleted.
 
+**Confirmed by 04-08 T2(c), not authored by it.** This section was already present and already
+correct; the task's job was to check it against what 04-03 T2 actually wrote rather than to re-add
+it. It matches `src/concierge.ts:118-124` in substance — *"the DSP-09 normalizer must REPLACE this
+shape, not normalize it … Phase 6 deletes this constant and the function that returns it together"*
+— and the runtime was probed to confirm the claim is true of the artifact and not only of the prose:
+`await dispatch(...)` returns `{"ok":false,"message":"…"}` with `Object.keys` exactly
+`['ok','message']` and `"reason" in result` **false**. The key is absent, not present-and-undefined,
+which is the distinction the whole hand-off rests on.
+
+---
+
+## Phase Gate Results
+
+Run by plan 04-08 Task 1 against the final tree on 2026-07-30. **Each gate was run UNPIPED with its
+exit code captured immediately** — 04-06 measured that piping `pnpm -r typecheck` reports the pipe's
+status rather than `tsc`'s, and 04-07 observed the mirror failure, a `${PIPESTATUS[0]}` read after an
+intervening command reporting "mutant escaped" directly beneath the diagnostics proving it had not.
+
+| Gate | Exit | Salient output |
+|------|------|----------------|
+| `pnpm typecheck` | **0** | `tsc -p tsconfig.test-d.json` → `Done` |
+| `pnpm build` | **0** | `Build complete in 54ms`; attw and publint both clean |
+| `pnpm test` | **0** | **7 files / 86 tests / 304 ms** |
+| `pnpm check:artifact` | **0** | node16-from-ESM 🟢, bundler 🟢 |
+| `pnpm check:deps` | **0** | Assertion A: 1 module, no unbundled externals. Assertion B: `@standard-schema/spec` **0 bytes** |
+| `pnpm check:pack` | **0** | a foreign project installed the tarball (228 823 B), typechecked the shipped `.d.ts` with `skipLibCheck: false`, imported the runtime |
+| `pnpm check:node-floor` | **0** | installed with npm and imported on a pinned **v22.12.0** |
+
+**Against the recorded baseline** of 6 files / 55 tests / 328 ms: **+1 file, +31 tests, −24 ms.**
+The test count reconciles exactly — 55 (entry) +1 (04-03 T3 `artifact.test.ts`) +4 (04-04 C23…C26)
++25 (04-05 S-series, the seventh file) +1 (04-06 F5) = **86**. `check:deps` byte count **0**, delta
+**zero** across the whole phase.
+
+**Export surface, re-derived independently of the test** by running `export-surface.test.ts`'s own
+regex over `dist/index.d.ts` in a standalone script — a test agreeing with itself is not the check:
+
+```
+blocks 1 names 62 values 11 types 51
+values: CONSENT_GRADE_ORDER, CONTRACT_VERSION, CatalogValidationError, JSON_SCHEMA_TARGET,
+        MESSAGE_MAX_CHARS, USER_CANCELLED, USER_DECLINED, assertSingleInstance, buildCatalog,
+        createConcierge, defineAction
+createConcierge in values: true
+Explanation in types: true | StageExplanation in types: true
+```
+
+**Shipped-prose audit.** Eight literals across **six** files (`dist/index.d.ts`, `dist/index.js`,
+`src/index.ts`, `src/contract.ts`, `src/catalog.ts`, `src/concierge.ts`). Every literal was measured
+on the **pre-correction** tree first — the phase merge base `fd8c295` for source, and a build of that
+base for `dist/` — so a literal that could never fire is reported as no-coverage rather than as a
+pass. Every hit was read, not counted.
+
+| Literal | Pre-correction | Final | Verdict |
+|---|---|---|---|
+| `sideEffects` (-i) | 24 | 24 | **guard held.** All hits are package-metadata prose about the contract registry, plus the unrelated `SideEffects` MCP tool-hint interface. **0 in `src/concierge.ts`** |
+| `tree-shak` (-i) | 3 | 3 | **guard held.** The single source hit is `contract.ts`'s `sideEffects: ["./dist/contract.js"]` carve-out argument. **0 in `src/concierge.ts`** |
+| `future work and should be added` | 3 | **0** | CORRECTED by 04-03 in `contract.ts`; gone from both built files |
+| `remain future work` | 0 | 0 | **NO-COVERAGE, struck.** The phrase wraps across `contract.ts:146`/`:147` and was never greppable. Recorded as auditing nothing — never as a pass |
+| `Hand-forward to Phase 4` | 2 | **0** | CORRECTED by 04-02 in `catalog.ts`; gone from `dist/index.js`. It was never in `.d.ts`, so a `.d.ts`-only check would have proved nothing |
+| `defineStage` | 1 | 1 | **passes on the second clause** — the sole hit now reads *"`defineStage` is **not planned**"* with the reason |
+| `is still being implemented` | 1 | **0** | CORRECTED by 04-03. The old sentence listed `createConcierge`, which now ships |
+| `SEC-03` | 15 | 18 | **all scope/mechanism statements.** No closure claim anywhere |
+
+**Seven of the eight literals fire on the pre-correction tree**, so seven of the eight greps are
+demonstrably capable of detecting the thing they check. The eighth is logged as no-coverage above.
+
+Stated explicitly, because these are the claims the audit exists to make: **no surviving hit
+justifies the memo with tree-shaking** — both literals measure 0 in `src/concierge.ts`, the memo is
+justified on SSR cross-request pollution, and the bundler justification is explicitly retracted as
+measured-false under rolldown 1.2.0 without using the retracted vocabulary; **none describes Phase 4
+as future work**; **none lists `defineStage` as pending**; and **none claims SEC-03 is closed**,
+with or without the carve-out.
+
+**Tree and lockfile.** `git status --porcelain` empty · `git diff --stat -- pnpm-lock.yaml` empty ·
+`git diff --stat fd8c295..HEAD -- pnpm-lock.yaml` empty (**byte-identical across the whole phase**) ·
+`grep -rn 'vi\.' packages/concierge/test/` **no matches** · non-comment `../src/` **0** in all seven
+runtime test files · no probe residue in `src/` · and the three source checksums match the values
+04-05 and 04-07 independently recorded (`concierge.ts` `56c24f88…438deb`, `catalog.ts`
+`0cd4a768…d67298`, `types.ts` `a134478e…31e03d`), which is what proves every mutation and
+sensitivity probe in this phase was restored exactly.
+
+### Manual-only verifications — judgments, not checkmarks
+
+**1. Does `explain()` answer "why didn't my action fire"? (DX-01)** — **Yes for the case it exists
+for; no for one adjacent case, and that limit is a design boundary rather than a defect.**
+
+Read for a shadowed-stage config, `explain({pathname:"/shop/cart"})` returns `stage: "broad"` with
+**both** rows reporting `matched: true`, and `catalog` confirming only the first stage's actions are
+offered. A developer asking why `checkout` did not fire reads the answer directly: two stages
+matched, the earlier one won. The next step — reorder, or narrow the broad matcher — follows without
+opening the source. This is the case the field set was designed for, and a short-circuiting
+implementation would have reported `specific: false` and sent the developer to debug the wrong thing.
+
+For a no-bridge config, `bridge: {id:"results-bridge", registered:false}` is legibly different from
+`bridge: null`, and the two imply different fixes — mount the component, versus add a `bridge` to the
+stage definition. Also derivable without the source.
+
+**The honest limit, measured rather than assumed:** `explain()` does **not** distinguish a matcher
+that *threw* from one that returned `false` — both render `matched: false`. Probed directly: a
+throwing matcher and a plain `() => false` matcher produce identical rows. The reason travels on a
+separate channel, a one-time `console.warn` naming the stage and stating the fix. A developer reading
+only the returned object does not learn that their matcher threw. This is **not** filed as a defect:
+`match` is arbitrary consumer code that `explain` cannot introspect, 04-01 deliberately chose three
+fields over more, and `_explanationHasExactlyThreeFields` pins the shape so that a fourth field is a
+decision rather than a drive-by. It is recorded here so Phase 5's planner meets the gap knowingly.
+
+**2. Do the two new CAT-03 messages state an actionable fix? (CAT-03, DX-03)** — **Yes, both, and
+their `fix` sentences are genuinely different, which is the whole argument for two codes.** Read off
+the built artifact, not transcribed from source:
+
+- `consent_target_missing` names the **referrer** in the structured `action` field (`confirmBooking`)
+  and the **missing target** interpolated into `problem` (`reveiw`) — two different channels, which
+  is what stops a reworded message from silently passing. The `fix` gives two concrete moves
+  ("declare an action named `reveiw`, or correct the spelling") plus the scope rule ("may live in any
+  stage, or in `crossStage`"). That last clause is load-bearing: without it a developer whose target
+  lives in another stage would "fix" it by duplicating the action and trip `duplicate_action_name`.
+- `consent_self_reference` names the referrer and the target — the same string — and the `problem`
+  says so explicitly ("which is the action itself"), without which the sentence would read as a
+  tautology. The `fix` states the corrective move ("point `consent.requires` at the review action
+  that should run first") and the legitimate alternative ("remove the `consent` policy"). Collapsing
+  these two codes into one would force a single `fix` to cover both, and a developer who merely
+  mistyped a name would be advised to consider deleting their consent policy.
+
 ---
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 5s
-- [ ] Every mutant literal count re-taken unfiltered at implementation time
-- [ ] Every mutant PASS confirmed to have COMPILED and RUN TESTS (not a vacuous build-failure PASS)
-- [ ] Every one of CAT-03, STG-01, STG-02, STG-03, STG-04, SEC-03, DX-01 has at least one green row
-- [ ] SEC-03's **second** clause from ROADMAP SC-5 — the built registry is frozen, so page script
+Eleven of twelve boxes are true and are ticked with the measurement that made each true. **One is
+false. It is not ticked, and `nyquist_compliant` therefore stays `false`.**
+
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies — all **17** map rows carry an
+      Automated Command; zero rows rely on a Wave 0 dependency alone.
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify — the longest run without
+      one is **0**, since every row has one.
+- [x] Wave 0 covers all MISSING references — all **9** Wave 0 files verified present by `[ -f ]` plus
+      a line count; the four rows that read `❌ Wave 0` / `❌ depends on` at plan time now read `✅`.
+- [x] No watch-mode flags — `grep -rn -- '--watch\|watch: true\|vitest watch'` over `package.json`,
+      `vitest.config.ts`, `packages/concierge/package.json`, `scripts/` and every plan in this phase
+      returns **no matches**. The root script is `"test": "vitest run"`.
+- [x] Feedback latency < 5s — **measured on this tree, not inherited**: `pnpm build` 1227 ms +
+      `pnpm typecheck` 712 ms + `pnpm test` 814 ms = **2754 ms** wall, against a 5000 ms budget.
+- [x] Every mutant literal count re-taken unfiltered at implementation time — 04-07 re-took all
+      twenty on the tree it mutated, and 04-08 re-took all **16/16 again** on the tree being gated.
+      Every one printed exactly **1**; every trap literal printed its documented non-unique count.
+- [x] Every mutant PASS confirmed to have COMPILED and RUN TESTS (not a vacuous build-failure PASS) —
+      all 16 rows carry a `Build complete` line **and** a full test count (25, 26 or 86) read out of
+      the gate's own output. **Zero vacuous PASSes.** M-04-14 is typecheck-gated and shows `tsc`
+      running and emitting both expected diagnostics.
+- [x] Every one of CAT-03, STG-01, STG-02, STG-03, STG-04, SEC-03, DX-01 has at least one green row —
+      all seven do; the map is 17 green of 17.
+- [x] SEC-03's **second** clause from ROADMAP SC-5 — the built registry is frozen, so page script
       cannot swap a handler after build — has its own green row (C17/C18, pre-existing regression
-      coverage), not only the tool-array half
-- [ ] **CAT-01 is recorded closed** and `REQUIREMENTS.md:157` no longer reads `Partial`
+      coverage), not only the tool-array half. Both observed green in the verbose run: *"C17 — the
+      catalog, its entries array, each entry and each action are all frozen"* and *"C18 — replacing a
+      built handler fails, and the original handler is still there"*.
+- [x] **CAT-01 is recorded closed** and `REQUIREMENTS.md:157` no longer reads `Partial` — flipped;
+      `Partial — 4/5 derived artifacts ship` **1→0** and `closed by Phase 4` **0→1**.
 - [ ] Every acceptance-criteria grep in every plan carries a measured pre-edit count, and none of
       them already sat at its PASS value before the edit it checks
-- [ ] `nyquist_compliant: true` set in frontmatter
+      — **FALSE. This is the box that withholds sign-off.** Measured across all eight plans:
+      the strings `pre-edit` and `must-stay guard` appear **0 times** in `04-01-PLAN.md`,
+      `04-04-PLAN.md`, `04-05-PLAN.md`, `04-06-PLAN.md` and `04-07-PLAN.md`. Only `04-08-PLAN.md`
+      (16 measured counts, 8 guard labels, 9 `DISCRIMINATING` labels), `04-03-PLAN.md` (10 counts,
+      3 guard labels) and `04-02-PLAN.md` (5 counts) carry the provenance the box asserts.
+      The concrete counter-example, so this is not an argument from aggregates:
+      `04-04-PLAN.md:176` reads *"`grep -rn 'vi\.' packages/concierge/test/` **must still return
+      0**"* — a criterion that sat at **0 before the task and 0 after**, with no pre-edit count and
+      no guard label in the plan. `04-04-SUMMARY.md` labelled it a regression guard *retroactively*,
+      which is the right handling by that executor, but the box asserts a property of the **plans**.
+      Note also that the box's second clause is unsatisfiable as literally worded by any plan that
+      uses guards — including `04-08-PLAN.md`, whose 8 must-stay guards sit at their PASS value by
+      design and correctly. **To close this box:** reword it to the intent ("every criterion sitting
+      at its PASS value is *labelled* a guard and never counted as progress"), then back-fill the
+      labels in the five plans above. That is a documentation pass over closed plans, and it
+      invalidates none of the evidence recorded in this document.
+- [ ] `nyquist_compliant: true` set in frontmatter — **deliberately NOT set.** Frontmatter line 6
+      reads `nyquist_compliant: false`. Setting it true would require the box above to be true, and
+      it is not. (Reader beware: this checklist line *quotes* the key, so an unanchored
+      `grep -c 'nyquist_compliant: true'` matches this document at **1** whatever the frontmatter
+      says. The load-bearing measurement is the line-anchored `grep -c '^nyquist_compliant: true$'`,
+      which is **0** — before this task and after it.)
 
-**Approval:** pending — filled by plan 04-08 Task 2.
+**Approval: WITHHELD** by plan 04-08 Task 2, 2026-07-30.
+
+This is a deliberate outcome recorded on evidence, not an incomplete run. Everything the phase was
+asked to prove is proved: seven gates green, 17/17 map rows observed, 16/16 mutants with outcomes
+and zero vacuous PASSes, CAT-01 closed, the SEC-03 carve-out and the DSP-09 hand-off intact, the
+lockfile byte-identical. The single false box is about the **provenance of acceptance criteria in
+five already-closed plans**, not about the correctness of anything this phase shipped. Signing off
+over it would be exactly the defect this phase spent seven plans removing — a check reported as
+passing because nobody measured it. The phase is complete; its Nyquist compliance is not yet
+established, and the two are recorded separately on purpose.
