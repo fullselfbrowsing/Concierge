@@ -78,12 +78,31 @@ import type { AnyActionDefinition, JsonSchemaObject } from "./types.js";
  * two have the *same* fix — supply an explicit `jsonSchema` — and the
  * distinction between "the validator has no converter" and "the validator's
  * converter threw" survives in the issue's `problem` text, where it belongs.
+ *
+ * **The last two members are CAT-03, and they are two codes rather than one by
+ * that same test — applied and answered the other way.** Both describe a
+ * `consent.requires` that can never be satisfied, and their *consequence* is
+ * identical: a safety gate that is silently permanently closed. But the
+ * paragraph above collapses two cases because they share a fix, and these two do
+ * not. One says "declare the missing action, or correct the spelling — and note
+ * the target may live in any stage"; the other says "point at the review action
+ * that should run first, or drop the policy". Collapsing them would force one
+ * `fix` sentence to cover both, so the developer who merely mistyped a name
+ * would be advised to consider deleting their consent policy — advice that, if
+ * taken, removes the gate CAT-03 exists to protect.
+ *
+ * Adding them is a **widening of an already-exported union**, so it introduces
+ * no new name to the package's export surface. `test/export-surface.test.ts`
+ * counts names in the barrel's trailing `export { … };` block and is correctly
+ * unmoved by this.
  */
 export type CatalogIssueCode =
   | "duplicate_action_name"
   | "schema_not_emittable"
   | "schema_root_not_object"
-  | "redaction_missing";
+  | "redaction_missing"
+  | "consent_target_missing"
+  | "consent_self_reference";
 
 /**
  * One build-failing problem, as structured fields.
@@ -389,6 +408,54 @@ function declaredRedaction(action: AnyActionDefinition): unknown {
 }
 
 /**
+ * Read the consent policy's target as the untyped value it actually is at
+ * runtime — the read CAT-03's post-pass is built on.
+ *
+ * Two hops, and **both are `Object.hasOwn` rather than `in`**, for the reason
+ * {@link declaredRedaction} gives: `in` walks the prototype chain of an object
+ * this function did not author. A polluted `requires` reachable from
+ * `Object.prototype` would otherwise make every action in the catalog appear to
+ * declare a consent target, and the rule below would then check that phantom
+ * target for existence and report on it by name.
+ *
+ * `ConsentPolicy.requires` is typed `string` and is **required**, so a
+ * TypeScript consumer cannot express anything else. A JavaScript one can write
+ * `consent: null`, `consent: {}`, or `requires: 42`, and none of those may throw
+ * during a build — the population this read exists for is precisely the
+ * population the declared type cannot describe.
+ *
+ * **Residual, deliberately not closed here.** A `consent` policy carrying no
+ * `requires`, or a non-string one, is skipped silently: this returns the value
+ * as-is and the caller's `typeof` guard drops it without an issue. CAT-03's
+ * wording is *"a `consent.requires` target does not exist in the catalog"*, and
+ * a `requires` that is absent has no target to check.
+ *
+ * State the uncomfortable half plainly: this is arguably the *worse* of the two
+ * failures, because a consent policy with no target is a gate that silently does
+ * not exist at all, which is the same class of defect CAT-03 was written to
+ * catch. It is recorded rather than fixed because closing it means a third code
+ * with a genuinely different `fix` — "the policy names nothing to wait for" — and
+ * no requirement in this phase asks for one. It is scheduled against Phase 8's
+ * consent kernel, which is the first code that reads this value at runtime and
+ * therefore the first code that can be wrong about it. That correction would
+ * widen this rule; it does not change what the two codes below already mean.
+ */
+function consentRequiresOf(action: AnyActionDefinition): unknown {
+  const view: PropertyBag = action as unknown as PropertyBag;
+  if (!Object.hasOwn(view, "consent")) {
+    return undefined;
+  }
+
+  const consent: unknown = view["consent"];
+  if (typeof consent !== "object" || consent === null) {
+    return undefined;
+  }
+
+  const policy: PropertyBag = consent as PropertyBag;
+  return Object.hasOwn(policy, "requires") ? policy["requires"] : undefined;
+}
+
+/**
  * Does this emitted schema accept any caller-supplied argument at all?
  *
  * **The obvious test is wrong, and the way it is wrong is a silent leak of
@@ -484,11 +551,19 @@ function hasDeclaredParameters(parameters: JsonSchemaObject): boolean {
  * a heuristic that guessed wrong would silently delete the vendor-specific
  * diagnosis, which is the part only `json-schema.ts` can produce.
  *
- * **Phase 4 note.** The structural repair is to split `SchemaEmission` into
- * `{diagnosis, remedy}` so a caller can place each half itself. That is a
- * `json-schema.ts` change, and this plan's `files_modified` does not include it.
- * Until then the `fix` field is written to *add* to the detail's own closing
- * remedy rather than restate it.
+ * **The structural repair, and who owns it now.** Splitting `SchemaEmission`
+ * into `{diagnosis, remedy}` would let a caller place each half itself and make
+ * this function unnecessary. Phase 4 considered it and deliberately declined:
+ * it is a `json-schema.ts` contract change that needs its own decision, not a
+ * side effect of a phase whose subject is stage scoping. It is deferred with
+ * that reasoning recorded rather than left unowned.
+ *
+ * The observable consequence of deferring is unchanged and is measured, so it
+ * cannot rot silently: every `schema_not_emittable` issue carries a hardcoded
+ * `fix` naming valibot unconditionally, whatever the actual vendor was.
+ * `test/emission.test.ts` case 5 is what pins that. Until the split lands, the
+ * `fix` field is written to *add* to the detail's own closing remedy rather than
+ * restate it.
  */
 function withoutActionPrefix(detail: string, name: string): string {
   const prefix = `action "${name}": `;
@@ -551,19 +626,49 @@ function defaultDiagnosticSink(diagnostic: CatalogDiagnostic): void {
  * itself would additionally stop a consumer decorating their own handler's
  * properties, which is not asked for and not ours to prevent.
  *
- * **Hand-forward to Phase 4:** `frozenArray.filter(...)` returns a **new,
- * unfrozen** array — measured, `Object.isFrozen` is `false` on the result. So
- * `catalogFor`'s stage-scoped result is NOT frozen just because the catalog it
- * filtered was, and it must be re-frozen. This is written here rather than only
- * in a summary because Phase 4 reads this source.
+ * **Why a stage-scoped projection has to seal its own array — and it is not
+ * `filter` that makes it so.** `frozenArray.filter(...)` returns a **new,
+ * unfrozen** array — measured, `Object.isFrozen` is `false` on the result. So a
+ * per-stage catalog is NOT frozen merely because the catalog it was projected
+ * from was, and whatever builds that projection has to freeze what it returns.
+ *
+ * Re-measured this phase, and wider than first recorded: `map`, `slice`, spread,
+ * `concat`, `flat`, `toReversed` and `Array.from` all return `false` from
+ * `Object.isFrozen` on their result too. This is a property of every
+ * array-producing method rather than anything specific to `filter`, so choosing
+ * a different projection method is not a way around the obligation. The
+ * correction widens what was documented; it does not narrow it.
+ *
+ * What a projection does **not** need is a second walk through this function.
+ * Measured against a deep-frozen source: the projected elements are shared by
+ * reference with the original and are still frozen through the projection, so
+ * the only unfrozen object a projection introduces is its own array — and a
+ * plain `Object.freeze` on that array is therefore sufficient. Calling
+ * `deepFreeze` per projection is correct, 510× slower, and hides the coupling
+ * that makes the cheap form safe.
  *
  * One accepted consequence: when the emission `source` is `"explicit"`, the
  * `parameters` object *is* the consumer's own `jsonSchema` by reference (03-02
  * measured the identity), so building a catalog freezes it. That is the right
  * outcome — it has become the agent-facing contract — but it is a visible effect
  * on an object the consumer still holds, so it is stated rather than discovered.
+ *
+ * **Exported, and yet deliberately not public.** The `export` keyword exists for
+ * `src/concierge.ts`'s `explain()`, which returns a deep-frozen structure and
+ * needs exactly this walk; it is there for that and for nothing else. It is
+ * **not** re-exported from `src/index.ts`, so it stays off the package's public
+ * surface — and that is mechanical rather than a matter of discipline:
+ * `test/export-surface.test.ts` parses only the trailing bare `export { … };`
+ * block of `dist/index.d.ts`, so a symbol exported from a module but never
+ * re-exported from the barrel cannot reach the count.
+ *
+ * Rejected: a hand-written six-line freeze in the calling module instead. It
+ * would have to independently reproduce a cycle-safe `WeakSet`, an accessor skip
+ * that does not invoke getters, and the documented refusal to early-out on
+ * `Object.isFrozen` above — three properties a re-implementation does not
+ * rediscover by reasoning about them. It rediscovers them as bug reports.
  */
-function deepFreeze<T>(value: T, skip: ReadonlySet<object>, seen: WeakSet<object>): T {
+export function deepFreeze<T>(value: T, skip: ReadonlySet<object>, seen: WeakSet<object>): T {
   if (typeof value !== "object" || value === null) {
     return value;
   }
@@ -730,18 +835,61 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
   const names: string[] = [];
   const validators: Set<object> = new Set<object>();
 
+  // What CAT-03's post-pass iterates: one entry per DISTINCT declared name,
+  // whatever else went wrong with that declaration. Neither array already in
+  // scope can play this role, and both alternatives were measured before this
+  // one was added.
+  //
+  // `actions` DOUBLE-reports: two same-named actions carrying the same consent
+  // typo produce two identical issues, and one of the two is advice about a
+  // declaration the developer is about to delete anyway.
+  //
+  // `entries` UNDER-reports: an action that failed its schema rule `continue`s
+  // and never reaches `entries`, so its consent typo stays invisible until the
+  // schema is fixed and the build re-run. That is a second fix-and-rebuild
+  // cycle, which is the exact failure the aggregation rule documented above
+  // exists to prevent.
+  //
+  // Accepted consequence: the second occurrence of a duplicate name never
+  // enters this array, so its consent policy is never examined. That is correct
+  // — a duplicate is already a build failure, and analysing the copy that is
+  // about to be renamed produces advice about a declaration that will not exist.
+  const declared: AnyActionDefinition[] = [];
+
   for (const action of actions) {
     // CAT-01 — a duplicate name makes the agent's address space ambiguous.
+    //
+    // The `fix` states the SCOPE as well as the remedy, because scope is the one
+    // genuinely surprising part: stage scoping does **not** namespace an action
+    // name. Two stages may each declare `applyFilter` and that is a build
+    // failure, which surprises people who reasonably expect a stage to behave
+    // like a module. Measured, unmodified: an action declared in both a stage
+    // and in `crossStage` produces this same issue today with no new code — the
+    // correct outcome, since `crossStage` already means "available in every
+    // stage", so re-declaring it inside one is redundant rather than additive.
+    //
+    // This function cannot do better than say so in words. `CatalogIssue` is
+    // `{code, action, vendor?, problem, fix}` and `buildCatalog` receives a flat
+    // action array with no concept of a stage, so it cannot name the two stages
+    // involved. Rejected for Phase 4: adding `stage?` to `CatalogIssue` plus an
+    // `origins?` parallel array to `BuildCatalogOptions`. That would enrich
+    // every code rather than this one — `redaction_missing` in stage "checkout"
+    // is genuinely more useful in a 40-stage app — but it is two new public
+    // fields and a new parallel-array invariant that no requirement in this
+    // phase asks for. Recorded so a later phase can adopt it without
+    // re-deriving the design. The developer's fallback meanwhile is one grep for
+    // the name, which returns exactly the two hits that are the answer.
     if (seenNames.has(action.name)) {
       issues.push({
         code: "duplicate_action_name",
         action: action.name,
         problem: "two actions share this name, so an agent calling it cannot address either one unambiguously.",
-        fix: "rename one of them.",
+        fix: "rename one of them. An action name is global across every stage and across `crossStage` — the same name may not be declared twice even in different stages.",
       });
       continue;
     }
     seenNames.add(action.name);
+    declared.push(action);
 
     // DX-03 — reach `vendorOf` only once the read is known to be safe.
     if (!hasStandardSchema(action)) {
@@ -836,6 +984,67 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
 
     entries.push({ action: normalized, parameters });
     names.push(action.name);
+  }
+
+  // CAT-03 — a consent policy whose target does not exist, or which points at
+  // the referring action itself.
+  //
+  // **This is a POST-PASS over the complete declared-name set, and the placement
+  // IS the rule.** Both placements were implemented and run over seven scenarios
+  // before this one was chosen; the choice is measured, not argued.
+  //
+  // Inside the loop above, the check produces a **false positive** on every
+  // forward reference — a target declared later has simply not been added to the
+  // name set yet when the check fires. `createConcierge` assembles its argument
+  // as stage actions followed by cross-stage actions, so under the in-loop form
+  // *every* consent policy naming a cross-stage action fails the build. A rule
+  // that rejects every legitimate build is a rule that gets deleted, which
+  // leaves CAT-03 unenforced by the shortest possible route.
+  //
+  // The in-loop form also misses self-reference entirely: `seenNames.add` has
+  // already run by the time the check would fire, so the action's own name is
+  // always found and the self-reference branch is unreachable.
+  //
+  // **The set CHECKED is `seenNames`, not `entries`.** `seenNames` holds every
+  // distinct *declared* name, including names belonging to actions that later
+  // failed their own schema rule and `continue`d. That is the right set: an
+  // action pointing at a target which exists but has a broken schema should see
+  // the broken schema reported once, not additionally be told its target does
+  // not exist. Reporting both is a cascade — one fault rendered as two, with the
+  // second one false.
+  //
+  // **Ordering consequence, and a test must not assume otherwise.** These issues
+  // append after every per-action issue rather than interleaving in declaration
+  // order. Restoring declaration order would mean carrying an origin index on
+  // every issue: new structure for cosmetic gain, rejected. Aggregation itself
+  // is untouched — a consent typo alongside three other faults still throws
+  // exactly once, carrying four issues.
+  //
+  // Self-reference is tested FIRST, and the two branches are one `else if`
+  // rather than two `if`s. A self-reference implies the target exists, so the
+  // two can never both fire for one action; writing it this way makes that
+  // mutual exclusivity structural rather than incidental.
+  for (const action of declared) {
+    const requires: unknown = consentRequiresOf(action);
+    if (typeof requires !== "string") {
+      continue;
+    }
+
+    if (requires === action.name) {
+      issues.push({
+        code: "consent_self_reference",
+        action: action.name,
+        problem: `its consent policy requires "${requires}", which is the action itself — arming the gate would mean running the very action the gate blocks, so it can never be satisfied.`,
+        fix: "point `consent.requires` at the review action that should run first, or remove the `consent` policy if this action needs no gate.",
+      });
+    } else if (!seenNames.has(requires)) {
+      issues.push({
+        code: "consent_target_missing",
+        action: action.name,
+        problem: `its consent policy requires "${requires}", and no action by that name is declared in this catalog — so the gate can never arm and the action is permanently blocked.`,
+        fix: `declare an action named "${requires}", or correct the spelling in \`consent.requires\`. The target may live in any stage, or in \`crossStage\`.`,
+      });
+    }
   }
 
   if (issues.length > 0) {
