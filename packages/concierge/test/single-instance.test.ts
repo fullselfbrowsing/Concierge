@@ -25,6 +25,33 @@
 // therefore bundles two synthetic consumers with rolldown and asserts on the
 // emitted code — it is the only assertion in this repository that can see the
 // difference, and mutant P6 exists to prove it fires.
+//
+// ---------------------------------------------------------------------------
+// F4 — the guard now has a PRODUCTION call site, and the three cases above
+// cannot see whether it still does
+// ---------------------------------------------------------------------------
+//
+// F1a, F1b and F2 all call `assertSingleInstance()` THEMSELVES. So a
+// `buildCatalog` that stopped calling it — an edit that looks like removing a
+// redundant line — leaves every one of them green while the guard goes back to
+// being armed and never fired. That is not a hypothetical regression: it is the
+// state Phase 2 actually shipped in. `02-VERIFICATION.md` finding W5 measured
+// that EVERY invocation in the repository was a test, a harness, a fixture
+// re-export or CI (`single-instance.test.ts`, `artifact.test.ts`,
+// `scripts/node-floor-check.sh`, `.github/workflows/ci.yml`), and
+// `src/contract.ts` said so outright: "There is no call site in this phase."
+//
+// ROADMAP Phase 3 SC-5 carries that finding forward — "`assertSingleInstance`
+// is called from the first entry point a consumer actually reaches, not only
+// from tests" — and Phase 3 supplies the call site, on `buildCatalog`'s first
+// line. F4 below is what makes its removal fail something.
+//
+// F4 asserts in BOTH directions on purpose. That the registry is EMPTY right
+// after the import is a check in its own right, not setup: it proves there is
+// no module-scope registration, which 02-06 measured would be deleted outright
+// from a bundled consumer under `sideEffects: false` while still running under
+// `node dist/index.js`. A guard hoisted to module scope would make the second
+// half of F4 pass while doing nothing in every React or Svelte app.
 
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -163,5 +190,33 @@ describe("PKG-04 — one core instance across two independently-resolved copies"
     // developer with nothing to do.
     expect(() => assertSingleInstance()).toThrow(/two different copies/);
     expect(() => assertSingleInstance()).toThrow(/peerDependency/);
+  });
+
+  it("F4 — buildCatalog records this copy in the registry on its first line, so the guard has a production call site", async () => {
+    // A fresh query string, the same cache-busting idiom F1a and F2 use. Here
+    // it is what makes the "empty after import" half meaningful: a specifier
+    // Node has already evaluated would return the cached namespace without
+    // re-running module scope, so the absence below would prove nothing.
+    const { assertSingleInstance, buildCatalog, CONTRACT_VERSION } = await import(
+      `${DIST_HREF}?sc5=1`
+    );
+
+    // Half one — EMPTY immediately after evaluation. This is the assertion that
+    // catches a guard smuggled up to module scope, which is the form
+    // `sideEffects: false` licenses a bundler to delete. `assertSingleInstance`
+    // is destructured above and deliberately not called: importing a binding is
+    // not invoking it.
+    expect(typeof assertSingleInstance).toBe("function");
+    expect(registry[KEY]).toBeUndefined();
+
+    // The production path. An empty catalog is enough — the guard runs before
+    // any declaration is looked at, which is the point of it being the first
+    // statement rather than a step in the loop.
+    buildCatalog([]);
+
+    // Half two — POPULATED afterwards. Read through the same global record F1a
+    // asserts on at :122, which is this suite's established observable; no spy
+    // is introduced, because one already exists and reports exactly this.
+    expect(registry[KEY]).toEqual({ version: CONTRACT_VERSION });
   });
 });
