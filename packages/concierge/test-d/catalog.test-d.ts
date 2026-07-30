@@ -86,7 +86,7 @@
 // object-literal freshness is not reached for.
 
 import type { Assignable, Equals, Expect, Not } from "./_assert.js";
-import type { CatalogEntry } from "../src/catalog.js";
+import type { CatalogEntry, CatalogIssueCode } from "../src/catalog.js";
 import { buildCatalog } from "../src/catalog.js";
 import { defineAction } from "../src/define-action.js";
 import type { StandardSchemaV1 } from "../src/types.js";
@@ -299,3 +299,28 @@ type _entriesAreReadonly = Expect<Not<Assignable<(typeof rawCatalog)["entries"],
 
 /** The elements, which the line above does not cover. `Equals` and not `Assignable`, and the choice is the whole value of the line: a mutable-shaped `{action, parameters}` object IS assignable to `CatalogEntry` — measured `true` — because readonly property modifiers do not affect assignability, so an `Assignable` spelling here would stay green with both modifiers deleted. `Readonly<CatalogEntry>` being identical to `CatalogEntry` is true today and is false the moment either member loses its `readonly`. */
 type _entryMembersAreReadonly = Expect<Equals<CatalogEntry, Readonly<CatalogEntry>>>;
+
+// --------------------------------------------------------------------------
+// Block 6 — CAT-03's compile-time half. `CatalogIssueCode` is a CLOSED union.
+// --------------------------------------------------------------------------
+//
+// `CatalogIssueCode` is documented in `src/catalog.ts` as part of the public
+// contract — "a consumer filtering on one of these is doing something reasonable" —
+// so a consumer writes `if (issue.code === "consent_target_missing")` and TypeScript
+// is what tells them when they misspell it. Widen the alias to `string` and every one
+// of those comparisons keeps compiling, every typo in one becomes a branch that never
+// runs, and nothing else in this repository notices: `pnpm build`, `attw` and `publint`
+// stay green because a wider type is still a valid type, and every runtime case in
+// `test/catalog.test.ts` keeps passing because it asserts on the string VALUES the
+// implementation actually produces, which do not change. That is the same shape as the
+// two mutations this file's header opens with — no local symptom, and the loss lands on
+// a consumer's editor rather than on a build.
+//
+// Two lines, in opposite directions, for the reason `_declaredNamesAreALiteralUnion`
+// and `_declaredNamesAreNotWidenedToString` are two lines rather than one.
+
+/** The exact membership. `Equals` and NOT `Assignable`, and that choice is the entire value of the line: `Expect<Assignable<"consent_target_missing", CatalogIssueCode>>` stays GREEN when the alias is widened to `string`, because a literal is assignable to `string` — so the one-directional spelling passes on precisely the regression worth guarding. `_entryMembersAreReadonly` above makes the same argument one level down. This also goes red on any member added, removed or renamed, which is deliberate: Phase 8 is scheduled to add a third consent code (`consentRequiresOf`'s residual paragraph), and that addition must move this line rather than slip past it. */
+type _catalogIssueCodeIsExactlySixMembers = Expect<Equals<CatalogIssueCode, "duplicate_action_name" | "schema_not_emittable" | "schema_root_not_object" | "redaction_missing" | "consent_target_missing" | "consent_self_reference">>;
+
+/** The union is CLOSED, not merely containing those six — a plausible near-miss code is rejected. Today this is the widening detector from the opposite direction: under `CatalogIssueCode = string` the literal becomes assignable and this line goes red, independently of the `Equals` above. It is a near-miss rather than an arbitrary string so it doubles as a name pin: if Phase 8 spells its third consent code this way, this is what goes red and sends the author to the line that needs updating. */
+type _catalogIssueCodeIsClosed = Expect<Not<Assignable<"consent_missing", CatalogIssueCode>>>;
