@@ -172,8 +172,8 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — Wave 1: `types.ts` — `Explanation` / `StageExplanation`, `Concierge.explain`, `EmittedTool`'s four fields become `readonly`, and the inline-`defineAction` spelling note on `stages`/`crossStage` (SEC-03, DX-01, STG-03, STG-04)
-- [ ] 04-02-PLAN.md — Wave 1: `catalog.ts` — CAT-03 as a **post-pass** over the complete declared-name set, the two new issue codes, `export` on `deepFreeze`, and three stale-prose corrections (CAT-03)
+- [x] 04-01-PLAN.md — Wave 1: `types.ts` — `Explanation` / `StageExplanation`, `Concierge.explain`, `EmittedTool`'s four fields become `readonly`, and the inline-`defineAction` spelling note on `stages`/`crossStage` (SEC-03, DX-01, STG-03, STG-04)
+- [x] 04-02-PLAN.md — Wave 1: `catalog.ts` — CAT-03 as a **post-pass** over the complete declared-name set, the two new issue codes, `export` on `deepFreeze`, and three stale-prose corrections (CAT-03)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -319,7 +319,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 1. Type surface completion | 15/15 | Complete   | 2026-07-28 |
 | 2. Packaging, build, and release | 12/12 | Complete   | 2026-07-29 |
 | 3. Action declaration and build-time validation | 8/8 | Complete   | 2026-07-30 |
-| 4. Stages, catalog assembly, and explain() | 0/TBD | Not started | - |
+| 4. Stages, catalog assembly, and explain() | 2/8 | In Progress|  |
 | 5. Bridge registry and the no-bridge path | 0/TBD | Not started | - |
 | 6. Dispatcher | 0/TBD | Not started | - |
 | 7. Session and the transport seam | 0/TBD | Not started | - |
