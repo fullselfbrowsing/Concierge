@@ -1,9 +1,9 @@
-// The catalog's behaviour — CAT-01, CAT-02, CAT-05, SEC-01, SEC-03, SEC-05 and
-// DX-03, asserted against the BUILT artifact.
+// The catalog's behaviour — CAT-01, CAT-02, CAT-03, CAT-05, SEC-01, SEC-03,
+// SEC-05 and DX-03, asserted against the BUILT artifact.
 //
 // What escapes without this file:
 //
-// Three defects, and two of them pass a naive test.
+// Four defects, and three of them pass a naive test.
 //
 //   1. A `buildCatalog` that throws on the FIRST issue instead of aggregating.
 //      A developer with twenty bad declarations then fixes and rebuilds twenty
@@ -27,6 +27,21 @@
 //      tamper cases below therefore assert that the VALUE is unchanged, which
 //      is the load-bearing half, and treat the throw as the second half rather
 //      than the first.
+//   4. A CAT-03 consent check placed INSIDE the per-action loop instead of in a
+//      post-pass over the complete name set. It is indistinguishable from the
+//      correct rule on every BACKWARD reference — a target declared before its
+//      referrer — which is the shape a test writes by default, because it is
+//      the order the example in one's head is already in. Measured, not
+//      supposed: the two placements were implemented and run over seven
+//      scenarios, and the in-loop form produced a FALSE POSITIVE on rows 1
+//      (forward reference) and 7 (cross-stage target, which `createConcierge`
+//      appends LAST, so every consent policy naming one would fail the build)
+//      and MISSED row 4 (self reference) entirely, because `seenNames.add` has
+//      already run by the time an in-loop check fires. A rule that rejects
+//      every legitimate build is a rule that gets deleted, which leaves CAT-03
+//      unenforced by the shortest possible route — so C25 below, the forward
+//      reference that must NOT throw, is the case that tells the two
+//      placements apart, and it is the only one that can.
 //
 // ---------------------------------------------------------------------------
 // dist, not src — the same decision its three siblings state
@@ -590,6 +605,211 @@ describe("SEC-01 — redaction fails closed, in both branches", () => {
     // ROADMAP SC-4 and silently break every action whose arguments are
     // deliberately recorded.
     expect(catalog.entries[0].action.redact).toBe("passthrough");
+  });
+});
+
+describe("CAT-03 — a consent policy naming an action that does not exist fails the build", () => {
+  // ISSUE ORDERING, and it is a constraint on every case below rather than a
+  // note. CAT-03's issues are produced by a POST-PASS that runs after the
+  // per-action loop has finished, so they append AFTER every per-action issue
+  // rather than interleaving in declaration order. Restoring declaration order
+  // would mean carrying an origin index on every issue — new structure for
+  // cosmetic gain, and rejected. So C26 asserts a SET of codes and never a
+  // position, and a case added here later must not assume interleaving either.
+  //
+  // The post-pass is also why C25 exists at all: see defect 4 in this file's
+  // header. Nothing else in this repository can tell the two placements apart.
+
+  it("C23 — a typo'd `requires` throws, and the issue names the referrer AND the target", () => {
+    // `review` exists; `reveiw` does not. That one transposition is the whole
+    // input, and it is the realistic shape of this defect — a consent gate that
+    // silently can never arm, on an action whose declaration looks correct.
+    function typoDeclarations() {
+      return [
+        declare("review", zodObject, { redact: "drop" }),
+        declare("confirm", zodObject, {
+          redact: "drop",
+          consent: { requires: "reveiw" },
+        }),
+      ];
+    }
+
+    expect(() => buildCatalog(typoDeclarations())).toThrow(CatalogValidationError);
+
+    const error = catchBuild(typoDeclarations());
+
+    expect(error.issues).toHaveLength(1);
+    expect(error.issues[0].code).toBe("consent_target_missing");
+
+    // Two separate assertions, and both are required by ROADMAP SC-4: the
+    // message must name the referring action AND the missing target. They are
+    // separate because they live in different channels — the referrer is a
+    // structured FIELD, the target is interpolated into `problem` — and because
+    // `issues.map(i => i.action)` is an assertion while `message.includes(name)`
+    // is a guess that passes on a message which happens to contain the word and
+    // fails on a legitimate rewording.
+    //
+    // `.action` is the REFERRER, not the target. That direction is the claim: an
+    // implementation reporting the missing name in `.action` would send the
+    // developer to grep for an action that by definition does not exist.
+    expect(error.issues[0].action).toBe("confirm");
+    expect(error.issues[0].problem).toContain("reveiw");
+
+    // The mirror of C24's negative, and the pair is the mutual-exclusivity
+    // claim written where each half of it can be read: a missing target is not
+    // a self-reference, and a self-reference is not a missing target. Stated as
+    // a claim rather than left implied by the length assertion above, so that a
+    // reader of this case alone knows the two codes are designed never to
+    // co-fire for one action — 04-02 chose two codes over one reuse precisely
+    // because their `fix` sentences differ, and a later "simplification" back to
+    // one code is the mutation the pair exists to make loud.
+    expect(error.issues.map((issue) => issue.code)).not.toContain(
+      "consent_self_reference",
+    );
+  });
+
+  it("C24 — a self-reference reports its OWN code, and demonstrably not the other one", () => {
+    function selfReferentialDeclaration() {
+      return [
+        declare("confirm", zodObject, {
+          redact: "drop",
+          consent: { requires: "confirm" },
+        }),
+      ];
+    }
+
+    expect(() => buildCatalog(selfReferentialDeclaration())).toThrow(
+      CatalogValidationError,
+    );
+
+    const error = catchBuild(selfReferentialDeclaration());
+
+    expect(error.issues).toHaveLength(1);
+    expect(error.issues[0].code).toBe("consent_self_reference");
+
+    // The deliberate negative, asserted as a positive claim — the same register
+    // C22 uses.
+    //
+    // **What this line does and does not detect, MEASURED rather than assumed.**
+    // The source tests self-reference first and `else if`s on missing, and the
+    // obvious guess is that this line is that ordering's detector. It is not:
+    // the two branches were physically swapped in `src/catalog.ts`, rebuilt, and
+    // the whole catalog suite stayed green at 26/26. The reason is the post-pass
+    // itself — by the time it runs, a self-referencing action's own name is
+    // always in the name set, so `!seenNames.has(requires)` is false for it
+    // under either ordering and both spellings reach the same branch. The
+    // `else if` makes the exclusivity structural, but it is not what produces
+    // it; running after the loop is.
+    //
+    // So this line is expressive rather than discriminating: the length
+    // assertion above already rules out both codes firing, and the positive
+    // above already rules out the wrong one firing alone. It is kept because the
+    // exclusivity is a designed property and a designed property should be
+    // stated where it can be read, not inferred from a count — and because it
+    // outlives any later relaxation of that count. Recorded plainly instead of
+    // claimed loudly, because a comment that overclaims what a test catches is
+    // the defect this repository has already spent a plan removing.
+    expect(error.issues.map((issue) => issue.code)).not.toContain(
+      "consent_target_missing",
+    );
+  });
+
+  it("C25 — a FORWARD reference builds clean, so the check reads the COMPLETE name set", () => {
+    // Declaration order is the entire input: the referrer comes FIRST and its
+    // target SECOND. Under an in-loop check `review` has not been added to the
+    // name set when `confirm` is examined, so this legitimate catalog fails the
+    // build with `consent_target_missing` — measured, and the reason the rule is
+    // a post-pass. See defect 4 in this file's header.
+    //
+    // This is also the general case of the cross-stage one: `createConcierge`
+    // assembles its argument as stage actions followed by cross-stage actions,
+    // so EVERY consent policy pointing at a cross-stage action is a forward
+    // reference. That half belongs in `test/concierge.test.ts` rather than here,
+    // because only `createConcierge` produces the append-last ordering; this
+    // case is the same property at the level `buildCatalog` can be asked about.
+    function forwardReferenceDeclarations() {
+      return [
+        declare("confirm", zodObject, {
+          redact: "drop",
+          consent: { requires: "review" },
+        }),
+        declare("review", zodObject, { redact: "drop" }),
+      ];
+    }
+
+    expect(() => buildCatalog(forwardReferenceDeclarations())).not.toThrow();
+
+    // And something POSITIVE about the result. "Did not throw" is satisfied by a
+    // `buildCatalog` that was never called, by one that returned early, and by
+    // one whose rule was deleted outright; asserting the derived names in
+    // declaration order means the build actually ran and produced this catalog.
+    const catalog = buildCatalog(forwardReferenceDeclarations());
+    expect(catalog.names).toEqual(["confirm", "review"]);
+    expect(catalog.entries).toHaveLength(2);
+
+    // The consent policy survives onto the entry unchanged, which is what makes
+    // "clean" mean "accepted" rather than "quietly stripped". A build that
+    // deleted the policy would also not throw.
+    expect(catalog.byName["confirm"].action.consent.requires).toBe("review");
+  });
+
+  it("C26 — a consent typo alongside three other faults throws ONCE, with four issues", () => {
+    // Four distinct faults across four declarations, modelled on the DX-03
+    // block's `fourBadDeclarations` — a fixture FUNCTION returning a fresh array
+    // per call, because the `toThrow` assertion and `catchBuild` each build once
+    // and a shared array would be handed to `buildCatalog` twice.
+    //
+    // The consent fault is declared FIRST on purpose. Its issue is produced last
+    // regardless, by the post-pass, so declaration order and issue order come
+    // apart here — which is what makes the set-based assertion below load-
+    // bearing instead of accidentally equivalent to a positional one.
+    function fourFaultsIncludingAConsentTypo() {
+      return [
+        declare("confirm", zodObject, {
+          redact: "drop",
+          consent: { requires: "reveiw" },
+        }),
+        declare("stringRoot", zodStringRoot, { redact: "drop" }),
+        declare("noHatch", valibotObject, { redact: "drop" }),
+        declare("unredacted", zodObject),
+      ];
+    }
+
+    expect(() => buildCatalog(fourFaultsIncludingAConsentTypo())).toThrow(
+      CatalogValidationError,
+    );
+
+    const error = catchBuild(fourFaultsIncludingAConsentTypo());
+
+    // The number is the requirement, and it is asserted before anything about
+    // contents for the reason C4 states: a `buildCatalog` that short-circuits on
+    // the first fault throws an error carrying ONE issue and is otherwise
+    // indistinguishable from this one. The CAT-03 addition makes that assertion
+    // say something new — the post-pass runs between the loop and the throw, so
+    // an implementation that threw as soon as the loop produced its first issue
+    // would never reach the consent rule at all.
+    expect(error.issues).toHaveLength(4);
+
+    // A SET, not a sequence. CAT-03's issue appends after every per-action issue
+    // rather than interleaving in declaration order, so a positional assertion
+    // here would encode an ordering the post-pass deliberately does not produce
+    // — and would have to be rewritten by whoever next changes where the pass
+    // sits, for no gain.
+    expect(new Set(error.issues.map((issue) => issue.code))).toEqual(
+      new Set([
+        "consent_target_missing",
+        "schema_root_not_object",
+        "schema_not_emittable",
+        "redaction_missing",
+      ]),
+    );
+
+    // Four DISTINCT names, so an aggregated summary line ("3 actions have
+    // problems") could not satisfy this.
+    expect(new Set(error.issues.map((issue) => issue.action))).toEqual(
+      new Set(["confirm", "stringRoot", "noHatch", "unredacted"]),
+    );
+    expect(new Set(error.issues.map((issue) => issue.action)).size).toBe(4);
   });
 });
 
