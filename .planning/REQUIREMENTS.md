@@ -11,12 +11,12 @@
 ### Catalog
 
 - [ ] **CAT-01**: Developer declares an action once — name, description, schema, redaction, handler — and the name set, literal union type, per-stage catalogs, emitted JSON Schema, and redaction policy are all derived from that single declaration
-- [ ] **CAT-02**: Catalog build throws, naming the offending action, when an action's emitted JSON Schema root is not `type: "object"`
+- [x] **CAT-02**: Catalog build throws, naming the offending action, when an action's emitted JSON Schema root is not `type: "object"`
 - [ ] **CAT-03**: Catalog build throws when a `consent.requires` target does not exist in the catalog
 - [ ] **CAT-04**: Catalog build throws when an action's `consent.minGrade` exceeds what the configured transport declares it can promise
-- [ ] **CAT-05**: Catalog build emits a warning when an action declares `effects.destructive` without a consent policy
-- [ ] **CAT-06**: Developer can supply an explicit `jsonSchema` for validators that do not implement Standard JSON Schema, and the catalog uses it in preference to derivation
-- [ ] **CAT-07**: Action descriptions are rejected at build time if they are not static string literals available at module scope
+- [x] **CAT-05**: Catalog build emits a warning when an action declares `effects.destructive` without a consent policy
+- [x] **CAT-06**: Developer can supply an explicit `jsonSchema` for validators that do not implement Standard JSON Schema, and the catalog uses it in preference to derivation
+- [x] **CAT-07**: Action descriptions are rejected at build time if they are not static string literals available at module scope
 
 ### Dispatch
 
@@ -82,11 +82,11 @@
 
 ### Security
 
-- [ ] **SEC-01**: Redaction is required at declaration time for any action with a non-empty schema, and an unspecified policy defaults to dropping arguments
+- [x] **SEC-01**: Redaction is required at declaration time for any action with a non-empty schema, and an unspecified policy defaults to dropping arguments
 - [ ] **SEC-02**: Telemetry never carries thrown error messages, only error class names
 - [ ] **SEC-03**: The action registry is frozen after catalog build, so a handler cannot be replaced at runtime by third-party page script
 - [ ] **SEC-04**: Documentation states, with a worked example, that client-side consent is an assertion the server must re-verify
-- [ ] **SEC-05**: An action that reads attacker-controllable content declares it, and catalog build reports an action that does so without a consent policy
+- [x] **SEC-05**: An action that reads attacker-controllable content declares it, and catalog build reports an action that does so without a consent policy
 - [ ] **SEC-06**: `ActionResult.message` is sanitized before it leaves the dispatcher — control characters stripped, whitespace collapsed, and length capped
 
 ### Packaging
@@ -101,7 +101,7 @@
 
 - [ ] **DX-01**: `concierge.explain()` reports the active stage, which bridges are registered, and the current catalog, so a developer can diagnose "why didn't my action fire" without a debugger
 - [ ] **DX-02**: An action can run against DOM or router state with no bridge registered, so an app gets value before instrumenting its components
-- [ ] **DX-03**: Every build-time error names the offending action and states the fix
+- [x] **DX-03**: Every build-time error names the offending action and states the fix
 
 ---
 
@@ -154,13 +154,13 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 
 | REQ-ID | Phase | Status |
 |---|---|---|
-| CAT-01 | Phase 3 — Action declaration and build-time validation | Pending |
-| CAT-02 | Phase 3 — Action declaration and build-time validation | Pending |
+| CAT-01 | Phase 3 — Action declaration and build-time validation | Partial — 4/5 derived artifacts ship; `per-stage catalogs` is Phase 4 (`catalogFor` unimplemented, unexported) |
+| CAT-02 | Phase 3 — Action declaration and build-time validation | Complete |
 | CAT-03 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
 | CAT-04 | Phase 8 — Consent kernel | Pending |
-| CAT-05 | Phase 3 — Action declaration and build-time validation | Pending |
-| CAT-06 | Phase 3 — Action declaration and build-time validation | Pending |
-| CAT-07 | Phase 3 — Action declaration and build-time validation | Pending |
+| CAT-05 | Phase 3 — Action declaration and build-time validation | Complete |
+| CAT-06 | Phase 3 — Action declaration and build-time validation | Complete |
+| CAT-07 | Phase 3 — Action declaration and build-time validation | Complete |
 | DSP-01 | Phase 6 — Dispatcher | Pending |
 | DSP-02 | Phase 6 — Dispatcher | Pending |
 | DSP-03 | Phase 6 — Dispatcher | Pending |
@@ -202,11 +202,11 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | ADP-02 | Phase 9 — React and Svelte adapters | Pending |
 | ADP-03 | Phase 9 — React and Svelte adapters | Pending |
 | ADP-04 | Phase 9 — React and Svelte adapters | Pending |
-| SEC-01 | Phase 3 — Action declaration and build-time validation | Pending |
+| SEC-01 | Phase 3 — Action declaration and build-time validation | Complete |
 | SEC-02 | Phase 6 — Dispatcher | Pending |
 | SEC-03 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
 | SEC-04 | Phase 8 — Consent kernel | Pending |
-| SEC-05 | Phase 3 — Action declaration and build-time validation | Pending |
+| SEC-05 | Phase 3 — Action declaration and build-time validation | Complete |
 | SEC-06 | Phase 6 — Dispatcher | Pending |
 | PKG-01 | Phase 2 — Packaging, build, and release | Complete |
 | PKG-02 | Phase 2 — Packaging, build, and release | Complete |
@@ -215,4 +215,4 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | PKG-05 | Phase 2 — Packaging, build, and release | Complete |
 | DX-01 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
 | DX-02 | Phase 5 — Bridge registry and the no-bridge path | Pending |
-| DX-03 | Phase 3 — Action declaration and build-time validation | Pending |
+| DX-03 | Phase 3 — Action declaration and build-time validation | Complete |

@@ -345,12 +345,18 @@ type PropertyBag = Record<string, unknown>;
  * the freeze walk automatically and never needs to enter the `skip` set at all.
  * Only the object-shaped validators do.
  *
- * **Residual, deliberately not closed here.** An `actions` array containing a
- * non-object element (`null`, a string) still throws on the `action.name` read
- * before any rule runs. A structured issue needs an action *name* to report, and
- * that shape has none; inventing a sentinel would pollute the `action` field
- * that DX-03 tests assert on. Recorded in `03-03-SUMMARY.md` rather than papered
- * over.
+ * **Residual, deliberately not closed here — and narrower than first recorded.**
+ * An `actions` array containing `null` or `undefined` throws a raw `TypeError` on
+ * the `action.name` read before any rule runs. A structured issue needs an action
+ * *name* to report, and that shape has none; inventing a sentinel would pollute
+ * the `action` field that DX-03 tests assert on.
+ *
+ * This paragraph previously also claimed a **string** element throws. Measured at
+ * phase close: it does not. `"x".name` is `undefined` rather than a throw, so a
+ * string — and a number — reach the rules and produce a proper structured error.
+ * Only `null` and `undefined` escape as a raw `TypeError`. The correction narrows
+ * the documented exception to DX-03's "every build-time error names the action";
+ * it does not widen it.
  */
 function hasStandardSchema(action: AnyActionDefinition): boolean {
   const schema: unknown = action.schema;
