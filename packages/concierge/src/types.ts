@@ -1538,9 +1538,71 @@ export interface ConciergeConfig {
    *
    * Guarded by `_multiBridgeConfig` in `test-d/actions.test-d.ts`, observed red
    * under a mutation that collects at the defaulted `B` again.
+   *
+   * ---
+   *
+   * **Declare each action as its own `const` first, then reference it here. An
+   * action declared *inline* inside a stage's `actions` array — or inside
+   * {@link ConciergeConfig.crossStage} — loses its `name` literal.** The erasure
+   * above is why, one level down: the contextual type
+   * {@link AnyActionDefinition} has `name: string`, so it binds
+   * `defineAction`'s `N` to `string` *before* the `name` property is consulted.
+   * The declaration typechecks, nothing goes red, and the literal union that
+   * should have been derived is silently open `string`. `as const` on the array
+   * does not help — measured, at this exact site.
+   *
+   * ```ts
+   * // Loses the literal — `name` is `string`:
+   * const stage: StageDefinition = {
+   *   id: "results",
+   *   match: (ctx) => ctx.pathname === "/results",
+   *   actions: [defineAction({ name: "applyFilter", … })],
+   * };
+   *
+   * // Keeps it — `name` is `"applyFilter"`:
+   * const applyFilter = defineAction({ name: "applyFilter", … });
+   * const stage: StageDefinition = { id: "results", match, actions: [applyFilter] };
+   * ```
+   *
+   * `test-d/catalog.test-d.ts:234-284` holds the three measurements that isolate
+   * the cause and the pinned-red `_inlineDefineActionLosesTheUnion` predicate.
+   * **If that predicate ever goes green the gap has CLOSED — delete it and this
+   * paragraph, do not relax either.**
+   *
+   * Documented rather than fixed, deliberately. Fixing it means re-narrowing the
+   * collections that D-07 erased to `any` three paragraphs above, for a
+   * *measured* contravariance reason — `StageDefinition<ResultsBridge>` is not
+   * assignable to `StageDefinition<Bridge>`, TS2375. Trading a documented DX
+   * papercut for a type error on the multi-bridge config every real app writes is
+   * the wrong trade at this phase. Revisit in Phase 8 against a real consent
+   * kernel, per D-12.2, together with `AnyActionDefinition`'s erasure.
+   *
+   * One measured alternative, recorded so the next reader does not spend a wave
+   * re-deriving it: `createConcierge<const C extends ConciergeConfig>(config: C)`
+   * **does** recover the literal name union inside a config literal — verified in
+   * this repository under its own flags. It is deliberately not taken, on two
+   * grounds. The union has nowhere to go: `Concierge` is not generic, and making
+   * it generic ripples into `Session`, `SessionConfig`, and every adapter, while
+   * nothing downstream consumes the union today (`dispatch(name: string, …)`,
+   * `EmittedTool.name: string`, `Session.stage(): string | null`). And it would
+   * work at some call sites and silently not at others, because the inline defect
+   * above is upstream of it — a partially-recovered union is worse than an
+   * honestly open one, for the same reason a `readonly` that does not go all the
+   * way down is worse than none.
    */
   stages: ReadonlyArray<StageDefinition<any>>;
-  /** Available in every stage. Erased like `StageDefinition.actions`. */
+  /**
+   * Available in every stage. Erased like `StageDefinition.actions`.
+   *
+   * **The inline-declaration defect documented on {@link ConciergeConfig.stages}
+   * applies to `crossStage` identically, and for the same reason** — `crossStage`
+   * is an {@link AnyActionDefinition} collection too, so an action declared
+   * inline here binds `N` to `string` before `name` is read and loses its
+   * literal. Measured at this site, not inferred from the sibling one. Declare
+   * the action as its own `const` first, then reference it in `crossStage`. See
+   * the paragraph on `stages` above for the mechanism, the pinned predicate in
+   * `test-d/catalog.test-d.ts`, and why this is documented rather than fixed.
+   */
   crossStage?: ReadonlyArray<AnyActionDefinition>;
   /**
    * Detaches snapshots from framework reactivity before storage. Supplied by
