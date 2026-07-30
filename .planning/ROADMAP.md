@@ -182,8 +182,8 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 04-05-PLAN.md — Wave 3: `test/concierge.test.ts` — the behavioural suite, S1–S26, whose header names the five defects that pass a naive test (STG-01/02/03/04, SEC-03, DX-01, CAT-03)
-- [ ] 04-06-PLAN.md — Wave 3: `test-d/concierge.test-d.ts` — the `Equals`-spelled readonly and signature pins the runtime suite structurally cannot see — plus `single-instance.test.ts` F5 (SEC-03, DX-01, STG-03)
+- [x] 04-05-PLAN.md — Wave 3: `test/concierge.test.ts` — the behavioural suite, S1–S26, whose header names the five defects that pass a naive test (STG-01/02/03/04, SEC-03, DX-01, CAT-03)
+- [x] 04-06-PLAN.md — Wave 3: `test-d/concierge.test-d.ts` — the `Equals`-spelled readonly and signature pins the runtime suite structurally cannot see — plus `single-instance.test.ts` F5 (SEC-03, DX-01, STG-03)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -319,7 +319,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 1. Type surface completion | 15/15 | Complete   | 2026-07-28 |
 | 2. Packaging, build, and release | 12/12 | Complete   | 2026-07-29 |
 | 3. Action declaration and build-time validation | 8/8 | Complete   | 2026-07-30 |
-| 4. Stages, catalog assembly, and explain() | 4/8 | In Progress|  |
+| 4. Stages, catalog assembly, and explain() | 6/8 | In Progress|  |
 | 5. Bridge registry and the no-bridge path | 0/TBD | Not started | - |
 | 6. Dispatcher | 0/TBD | Not started | - |
 | 7. Session and the transport seam | 0/TBD | Not started | - |
