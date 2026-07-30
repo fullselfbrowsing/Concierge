@@ -1320,11 +1320,46 @@ export interface Transport {
   respond: (callId: string, result: ActionResult) => void;
 }
 
+/**
+ * The projection of a catalog entry that the agent actually sees. Produced by
+ * {@link Concierge.catalogFor} and consumed by {@link Transport.setTools}.
+ *
+ * **Every member is `readonly`, and the governing argument is
+ * {@link Transport.capabilities}'s** — a `readonly` that does not go all the way
+ * down is worse than none, "because a reader stopped looking". That note is
+ * about one level up; this interface is the level down, and
+ * `setTools(tools: ReadonlyArray<EmittedTool>)` is the exact parallel:
+ * `ReadonlyArray` protects the *array* and says nothing about the elements. With
+ * the members writable, `concierge.catalogFor(ctx)[0]!.name = "evil"` compiled
+ * clean (measured 2026-07-30 under the repo's own flags) and was stopped only by
+ * the runtime `Object.freeze` — the runtime doing work the type system was not,
+ * on the one object whose whole job is to be handed to an agent.
+ *
+ * > The spelling above carries a `!` because `noUncheckedIndexedAccess` is on,
+ * > so the bare `[0].name` form fails at the *index access* (TS2532) rather than
+ * > at the assignment. Recorded rather than smoothed over: this comment ships
+ * > verbatim inside `dist/index.d.ts`, and a mutation-probe spelling that does
+ * > not compile is not a probe.
+ *
+ * **This landed now because now is the only free window.** Nothing in this
+ * repository constructs an `EmittedTool` — the sole reference outside this file
+ * is `src/index.ts`'s re-export of the name — so tightening costs no caller
+ * today. It becomes a breaking change the moment Phase 7 writes a transport
+ * against `Transport.setTools`.
+ *
+ * Neither half substitutes for the other: the freeze is what holds this down for
+ * a JavaScript consumer, and these modifiers are what hold it down for a
+ * TypeScript one, who is otherwise told something the runtime will contradict.
+ * Pinned by `_emittedToolMembersAreReadonly` with `Equals`, never `Assignable` —
+ * `readonly` property modifiers do not affect assignability, so an `Assignable`
+ * spelling stays green with every modifier below deleted (measured one level
+ * down at `test-d/catalog.test-d.ts:300-301`).
+ */
 export interface EmittedTool {
-  type: "function";
-  name: string;
-  description: string;
-  parameters: JsonSchemaObject;
+  readonly type: "function";
+  readonly name: string;
+  readonly description: string;
+  readonly parameters: JsonSchemaObject;
 }
 
 // ---------------------------------------------------------------------------
@@ -1372,6 +1407,84 @@ export interface EmittedTool {
  * that.
  */
 export type Scheduler = (fn: () => void, delayMs: number) => () => void;
+
+/**
+ * One row of {@link Explanation.stages} — everything `explain` can honestly say
+ * about a single declared stage, whether or not it matched.
+ *
+ * One row per stage rather than three parallel arrays (matched stages,
+ * registered bridges, missing bridges) because the reader's question is always
+ * about *a* stage, and parallel arrays make them cross-reference by index to
+ * answer it.
+ */
+export interface StageExplanation {
+  /**
+   * The stage's declared {@link StageDefinition.id}, reported verbatim.
+   *
+   * Note that ids are not checked for uniqueness at the type level and two
+   * stages may declare the same one, in which case two rows here carry the same
+   * `id`. The row's position in {@link Explanation.stages} is the unambiguous
+   * identifier; `id` is what a human reads.
+   */
+  readonly id: string;
+  /** Whether this stage's `match(ctx)` returned `true` for the context passed to `explain`. */
+  readonly matched: boolean;
+  /**
+   * What is known about the stage's bridge. Three states, and the distinction
+   * between the last two is the entire reason this is not a boolean:
+   *
+   * - `null` — the stage declares no `bridge` at all. Honest, and a supported
+   *   configuration (DX-02) rather than a defect.
+   * - `{id, registered: false}` — a registry is declared and its
+   *   {@link BridgeRegistry.read} returned nothing: no component is mounted.
+   *   This is the single most common cause of "my action didn't fire" once
+   *   bridges exist, and it is invisible in every other channel.
+   * - `{id, registered: true}` — `read()` returned a bridge.
+   *
+   * **This shape survives Phase 5 unchanged**, which is why it was chosen:
+   * `id` and `read()` are both on the declared {@link BridgeRegistry} interface
+   * *today*, so `createBridge` arriving later produces a conforming object and
+   * changes nothing here. Rejected: `bridge: string | null`, which loses
+   * `registered` and would have to widen in Phase 5; and a third `"unknown"`
+   * state, which invents a value that stops being reachable the moment Phase 5
+   * lands and would then be dead prose in a shipped `.d.ts`.
+   */
+  readonly bridge: { readonly id: string; readonly registered: boolean } | null;
+}
+
+/**
+ * The structured answer to DX-01's three questions — which stage is active,
+ * which bridges are registered, and what the agent can currently see — as one
+ * value a test can assert on and a devtools panel can render.
+ *
+ * Three fields, one per clause of the requirement. Rejected: a five-field shape
+ * (`matchedStage`, `unmatchedStages`, `registeredBridges`, `missingBridges`,
+ * `catalogSize`) carrying the same information across three more fields, one of
+ * which is `catalog.length`. Phase 1's D-04 preference — prefer fewer,
+ * better-justified fields — governs.
+ */
+export interface Explanation {
+  /**
+   * The matching stage's id, or `null` when no stage matched.
+   *
+   * `string | null` and nothing else. {@link Session.stage} already pins this
+   * vocabulary against {@link Concierge.stageFor}, and a third spelling of "no
+   * stage" here would be the defect that note exists to prevent.
+   */
+  readonly stage: string | null;
+  /** Every declared stage, in declaration order, matched or not. */
+  readonly stages: ReadonlyArray<StageExplanation>;
+  /**
+   * The action **names** the agent can currently call — not the
+   * {@link EmittedTool} array.
+   *
+   * The full array is one {@link Concierge.catalogFor} call away with the same
+   * `ctx`, and D-04's "prefer fewer, better-justified fields" governs. The
+   * question this field answers is "can the agent see `cancelBooking` right
+   * now", which a name list answers directly and a schema array buries.
+   */
+  readonly catalog: ReadonlyArray<string>;
+}
 
 /**
  * Everything core needs to build a catalog and run a dispatch, and nothing it
@@ -1508,6 +1621,25 @@ export interface Concierge {
    */
   catalogFor: (ctx: StageContext) => ReadonlyArray<EmittedTool>;
   stageFor: (ctx: StageContext) => string | null;
+  /**
+   * Why the agent can see what it can see, for `ctx`. See {@link Explanation}.
+   *
+   * **The returned object is deliberately NOT identity-stable — a fresh object
+   * every call, by design.** This is the one member of this interface that must
+   * never be memoized, and it is the exact inverse of the rule on
+   * `catalogFor` three lines above. Do not wire `explain()` into
+   * `useSyncExternalStore` or any other referential-equality subscription: it
+   * would loop forever, which is precisely the defect `catalogFor`'s memo
+   * exists to prevent. Memoizing this to make that call site work would instead
+   * hand a devtools panel a snapshot that silently stops tracking the app.
+   *
+   * It takes the context rather than being zero-arg, mirroring `catalogFor` and
+   * `stageFor`, because `Concierge` holds no context of its own — `Session`
+   * owns context — and a zero-arg `explain()` would have to invent hidden state
+   * on the very interface whose statelessness is what lets it construct on a
+   * server.
+   */
+  explain: (ctx: StageContext) => Explanation;
 }
 
 /**
