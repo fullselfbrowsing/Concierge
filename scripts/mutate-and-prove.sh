@@ -29,17 +29,37 @@
 #   4  ABORT — the target file was not restored
 #
 # The gate's own exit code is printed on the PASS line, because callers assert
-# on the specific code (tsc exits 2 on diagnostics; a SIGKILLed gate exits 137).
+# on the specific code (tsc exits 1 on diagnostics under TS 7.0.2; SIGKILL is 137).
 #
 # Shell options are `set -uo pipefail` and deliberately NOT errexit. The gate
 # failing is this script's EXPECTED outcome; `set -e` would abort the run at the
 # gate and skip the restore-and-prove sequence that is the entire point.
 #
-# Known limitation, accepted rather than mitigated (T-02-09): SIGKILL does not
+# Known limitation 1, accepted rather than mitigated (T-02-09): SIGKILL does not
 # run traps, so `kill -9` of this wrapper itself leaves the mutation applied.
 # That is contained at the wave boundary instead — every plan in this phase
 # asserts `git diff --exit-code` at the repo root before its commit, and the
 # phase gate asserts `git status --porcelain` empty once more.
+#
+# Known limitation 2 — READ THIS BEFORE RECORDING A PASS. This script cannot
+# tell WHY the gate exited non-zero, and a compile failure is indistinguishable
+# from a failing assertion in its output. A mutant that breaks the BUILD exits 1
+# at the build step, and this script prints "PASS: gate fired (exit 1), tree
+# clean" having run ZERO tests — proving only that the compiler rejects a syntax
+# error, which was never in question. M-03-13's `warnHost(` -> `void (` form
+# does exactly this: it yields `void (…,)`, and a parenthesized expression may
+# not carry a trailing comma, so rolldown fails with PARSE_ERROR. Measured twice
+# in Phase 3, in plan 03-06 and again in the 03-08 phase gate. The caller — not
+# this script — must confirm from the gate's OUTPUT that the mutant COMPILED and
+# that the tests actually RAN. A PASS that never ran a test is worse than a FAIL.
+#
+# Known limitation 3 — take occurrence counts UNFILTERED. This script does not
+# skip comments, and `-0` slurps the whole file, so a pattern occurring once in
+# code and three more times in a doc comment mutates the DOC COMMENT: the suite
+# stays green and the run is recorded as "FAIL: mutant escaped", which is the
+# inverse of the truth. Measured on `.input(` in src/json-schema.ts, which plan
+# 03-02 recorded as occurring "exactly 1" time from a comment-filtered count and
+# which actually occurs 4 times. Count with the comments left in.
 
 set -uo pipefail
 
