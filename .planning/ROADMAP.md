@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Type surface completion** - Close the six remaining defects in the committed public contract, so no post-publish breaking change is left in it (completed 2026-07-28; **gap closure in progress — 12 code-review findings, plans 01-10–01-15**)
 - [x] **Phase 2: Packaging, build, and release** - Make the package buildable, publishable, and installable while there is one package rather than eight (completed 2026-07-29)
-- [ ] **Phase 3: Action declaration and build-time validation** - One declaration derives everything downstream, and every wrong declaration fails the build naming the action
+- [x] **Phase 3: Action declaration and build-time validation** - One declaration derives everything downstream, and every wrong declaration fails the build naming the action (completed 2026-07-30)
 - [ ] **Phase 4: Stages, catalog assembly, and explain()** - The agent sees only the actions valid for where the user is, and a developer can find out why one wasn't offered
 - [ ] **Phase 5: Bridge registry and the no-bridge path** - Handlers read live app state through getters, and behave honestly when no component is mounted
 - [ ] **Phase 6: Dispatcher** - A retried, malformed, aborted, or crashing call produces exactly one honest result and never fires an effect twice
@@ -134,7 +134,7 @@ Plans:
 - [x] 03-05-PLAN.md — Wave 3: `test-d/catalog.test-d.ts` — CAT-01's derived literal name union, and mutant M-03-3
 - [x] 03-06-PLAN.md — Wave 4: `test/catalog.test.ts`, the SC-5 registry case, and five catalog mutants (CAT-01/02/05, SEC-01/03/05, DX-03, PKG-04)
 - [x] 03-07-PLAN.md — Wave 4: `test/emission.test.ts` against three real published validators, and four emission mutants (CAT-02, CAT-06, DX-03)
-- [ ] 03-08-PLAN.md — Wave 5: phase gate — the four `types.ts` prose corrections, three `/* @__PURE__ */` annotations (plus the third `Object.isFrozen` assertion that makes their safety net cover all three sites), the sixteen-mutant battery re-run, all seven gate scripts, and the validation sign-off
+- [x] 03-08-PLAN.md — Wave 5: phase gate — the four `types.ts` prose corrections, three `/* @__PURE__ */` annotations (plus the third `Object.isFrozen` assertion that makes their safety net cover all three sites), the sixteen-mutant battery re-run, all seven gate scripts, and the validation sign-off
 **Research**: ✅ **Done 2026-07-29** — `03-RESEARCH.md`, 20 compiled probes against the installed TS 7.0.2 plus all four candidate validators installed and executed. The re-probe this entry asked for was done and confirms the finding: **valibot 1.4.2 still does not implement Standard JSON Schema**, so the `jsonSchema` escape hatch remains the only working path for one of three target validators. Research also corrected three decisions `03-CONTEXT.md` had recorded as settled: (1) "warn on the console by default" does not compile — `console` is not type-visible under `lib: ["ES2022"]`, and the working form is the structural `globalThis` reach `contract.ts:92-99` already established; (2) a shallow `Object.freeze` does **not** satisfy SEC-03 — measured, `catalog[0].handler = attackerFn` succeeds *silently* and the replacement handler runs, so a recursive freeze is required; (3) the obvious CAT-07 guard `string extends D` **accepts** an interpolated template literal, which is precisely the per-tenant content vector CAT-07 exists to block, so a six-branch predicate ships instead. One residual gap is **accepted explicitly** rather than discovered later: `${number}` and `${bigint}` description holes defeated all six candidate predicates, and the acceptance, its reasoning and its residual risk are recorded in `src/define-action.ts`'s shipped doc comment with a pin that fires if a future compiler closes it.
 **Notes**: The schema-emission order is escape hatch → `~standard.jsonSchema.input(...)` → throw naming the action *and* the vendor. The `input` projection specifically: a schema with a transform or a default emits a different schema in each direction, and tool calling needs the input side.
 
@@ -258,7 +258,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 |-------|----------------|--------|-----------|
 | 1. Type surface completion | 15/15 | Complete   | 2026-07-28 |
 | 2. Packaging, build, and release | 12/12 | Complete   | 2026-07-29 |
-| 3. Action declaration and build-time validation | 7/8 | In Progress|  |
+| 3. Action declaration and build-time validation | 8/8 | Complete   | 2026-07-30 |
 | 4. Stages, catalog assembly, and explain() | 0/TBD | Not started | - |
 | 5. Bridge registry and the no-bridge path | 0/TBD | Not started | - |
 | 6. Dispatcher | 0/TBD | Not started | - |
