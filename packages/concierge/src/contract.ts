@@ -142,9 +142,25 @@ type Holder = Record<symbol, ContractRecord | undefined>;
  * point every consumer necessarily reaches — there is no way to use this package
  * without building a catalog — so it is the one place a single call covers every
  * app. Phase 2 shipped this guard with no production call site at all; the
- * instruction above is therefore satisfied rather than aspirational, though the
- * `createConcierge` and adapter-registration call sites it also names remain
- * future work and should be added when those arrive.
+ * instruction above is therefore satisfied rather than aspirational.
+ *
+ * **`createConcierge` in `./concierge.ts` arrived in Phase 4, and it adds no
+ * second call here because it reaches this guard transitively.** Assembling a
+ * catalog is the first thing it does, so `buildCatalog`'s first line — this
+ * function — runs before anything else in its body. A direct call would satisfy
+ * the instruction above as well, and would be a documented no-op: the
+ * same-version adopt path described above returns silently when a second call
+ * arrives at the same contract version. So the direct call was measured
+ * unnecessary rather than forgotten, and the sentence that once named
+ * `createConcierge` as pending was corrected here rather than left to ship —
+ * this comment reaches `dist/index.d.ts` verbatim, and it went false the moment
+ * that function landed.
+ *
+ * The **adapter-registration** call site named above is genuinely still to
+ * come, and stays named as such rather than being quietly folded into the
+ * sentence above: an adapter can be imported and mounted in a module that never
+ * builds a catalog, so it needs a call of its own and inherits nothing from
+ * this one.
  *
  * Secondarily, this function is exercised by the tests in plan 02-07 and by the
  * Node-floor import harness in plan 02-09.
