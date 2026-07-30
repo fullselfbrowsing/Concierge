@@ -112,6 +112,97 @@
 // independent proofs into one.
 //
 // ---------------------------------------------------------------------------
+// The battery's WORKING literals — six rows whose obvious spelling does not work
+// ---------------------------------------------------------------------------
+//
+// `scripts/mutate-and-prove.sh` replaces exactly ONE occurrence of a literal,
+// slurps the whole file, and does not skip comments. A literal that is not
+// unique therefore mutates the wrong occurrence, the suite stays green, and the
+// run is recorded as "the mutant escaped" — the INVERSE of the truth. Every
+// count below was re-taken unfiltered against this tree rather than inherited.
+// `catalog.test.ts:473-484` is the precedent for writing a working literal into
+// a test file when the obvious one does not work.
+//
+//   M-04-1 — the ARRAY freeze (S11). The bare `Object.freeze(` occurs FOUR
+//     times in `src/concierge.ts`: the tool, the name lookup, the projection,
+//     and `DISPATCH_NOT_IMPLEMENTED`'s at module scope. `src/catalog.ts` has
+//     exactly ONE, so the trap is new to that file and nothing in the phase 3
+//     battery warns about it. The working literal is the whole statement form,
+//     `Object.freeze(projected)` -> `projected`, which is why 04-03 was
+//     required to spell the three assembly seals as three textually distinct
+//     statements. Inlining any of them into a shared helper makes this row and
+//     the next one unrunnable.
+//
+//   M-04-16 — the ELEMENT freeze (S12 and S14). Split out of M-04-1's original
+//     single-claim form, because the two seals are separate statements and each
+//     needs its own proof. `Object.freeze(tool)` -> `(tool)`. It is unique
+//     despite the four occurrences: `Object.freeze(tool)` is not a substring of
+//     `Object.freeze(toolByName)`. Measured — S13 stays GREEN under it, which
+//     is correct and easy to misread: `parameters` is deep-frozen by
+//     `buildCatalog` independently of the tool's own seal, so S13 detects the
+//     freeze BENEATH `parameters`, S12 detects the seal itself, and S14 detects
+//     that elements are shared rather than rebuilt. Three cases, three claims.
+//
+//   M-04-4 — first-match-wins (S4). The block immediately above is its full
+//     account. The literal is `resolveIndex`'s
+//     `for (const [index, stage] of stages.entries())`, unique ONLY because
+//     `explain` iterates with `stages.map` and the duplicate-id scan with
+//     `for (const stage of stages)`.
+//
+//   M-04-6 — the throwing matcher (S17 and S24). The bare `return warnStage(`
+//     occurs TWICE in `runMatch` — once in the `catch` branch and once in the
+//     non-boolean branch — so it is never usable bare. The literal is the
+//     COMPLETE one-line `return` statement of the `catch` branch, quoted
+//     verbatim in `04-03-SUMMARY.md` §2. Both statements are written on one
+//     line each, and their two argument lists are deliberately worded
+//     differently, so that neither is a substring of the other. Rewording
+//     either to match the other makes this row unrunnable.
+//
+//   M-04-7 — the no-stage branch (S2 and S8). Research wrote the literal as
+//     `id === null ? crossNames`, against a memo keyed by stage ID that was
+//     superseded before it shipped. The shipped memo is keyed by the resolved
+//     stage's ARRAY INDEX, so the literal is `index === null ? crossNames`.
+//
+//   M-04-12 — the shadowed stage (S19). Research wrote it as
+//     `matched && active === null`, against a `for…of` accumulation `explain`
+//     does not use. The shipped `explain` maps every stage to a row and derives
+//     the active position from the recorded rows, so the mutatable literal is
+//     the `firstMatch` derivation: `rows.findIndex((row) => row.matched)` ->
+//     `rows.map((row) => row.matched).lastIndexOf(true)`.
+//
+// TRAP LITERALS IN `src/catalog.ts`, never usable bare. Re-measured unfiltered
+// on this tree; all four still occur twice:
+//
+//     duplicate_action_name   2        consent_target_missing   2
+//     action.consent          2        consent_self_reference   2
+//
+// The two CAT-03 rows use single-occurrence literals instead —
+// `!seenNames.has(requires)` and `requires === action.name`, both 1. And
+// swapping the post-pass's two branches is NOT a viable mutant at all: 04-04
+// measured it green at 26/26, because by the time the post-pass runs a
+// self-referencing action's own name is always in the set, so both branch
+// orderings reach the same branch.
+//
+// ---------------------------------------------------------------------------
+// A harness PASS is not a proof until its OUTPUT has been read
+// ---------------------------------------------------------------------------
+//
+// The harness cannot tell WHY a gate exited non-zero. A mutant that fails to
+// COMPILE exits 1 at the build step, and the harness then prints
+// `PASS: gate fired (exit 1), tree clean` having run ZERO tests — proving only
+// that the compiler rejects a syntax error, which was never in question. Read
+// the build line and the test count out of the gate's own output before
+// recording any row as a proof.
+//
+// The same hazard has a second face, hit while running this battery rather than
+// theorised. A gate wrapper that reports the WRONG status inverts the result in
+// the other direction: reading the status variable after an intervening `echo`
+// yields the echo's status, so a typecheck that really did fail was handed to
+// the harness as 0 and reported as "the mutant escaped". Capture a gate's
+// status immediately, and never through a pipe — a piped `pnpm -r typecheck`
+// reports the pipe's status rather than the compiler's.
+//
+// ---------------------------------------------------------------------------
 // The ID series is S1…S26, and it is deliberately NOT a continuation
 // ---------------------------------------------------------------------------
 //
