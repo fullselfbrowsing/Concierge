@@ -1073,7 +1073,27 @@ These ship. `03-08` measured `dist/index.d.ts` growing by ~1.9 KB from a single 
 | A5 | The Phase-4 `dispatch` stub should omit `reason` rather than pick a `ReasonCode` | Open Question 1 | Medium — it produces exactly the `{ok:false, reason: undefined}` shape STATE.md schedules Phase 6 to *reject*. |
 | A6 | Recommending `src/concierge.ts` as a new file rather than folding into `catalog.ts` | Component Responsibilities | None. Explicitly Claude's discretion per CONTEXT. |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> **All six were settled before planning closed.** OQ1, OQ4 and OQ5 were escalated to the user and
+> answered in `04-CONTEXT.md`; OQ2, OQ3 and OQ6 were settled by the planner within the discretion
+> CONTEXT grants. Each question is left below in full, because the tradeoff analysis is what the
+> resolution rests on — but **read the resolution line first**; the question text describes a state
+> the project is no longer in.
+>
+> | # | Resolution | Landed in |
+> |---|---|---|
+> | **OQ1** — `dispatch`'s return | **Escalated and answered by the user.** Ship `{ ok: false, message }` with **`reason` deliberately omitted**; do NOT add `not_implemented` to the closed union. Phase 6's DSP-09 normalizer must **REPLACE** this shape, not normalize it. | `04-CONTEXT.md` (locked); 04-03 T1 step 12 + T2 anchor 13; `04-VALIDATION.md` *Hand-off to Phase 6* |
+> | **OQ2** — `const` type parameter on `createConcierge` | **Not taken.** CONTEXT locks the non-generic `createConcierge(config: ConciergeConfig): Concierge`. The measurement is recorded in a doc comment so Phase 8 inherits it rather than re-deriving it, and a type-level pin stops the generic form arriving silently. | 04-01 T2; 04-03 T1 anchor 18 + T2; 04-06 T1 `_createConciergeIsNotGeneric` |
+> | **OQ3** — non-string or missing `consent.requires` | **Skipped deliberately for Phase 4**, recorded as a residual in `catalog.ts`'s doc comment in the `catalog.ts:348-359` style. Revisited with Phase 8's consent kernel, the first code that reads `requires` at runtime. | 04-02 (d); `04-VALIDATION.md` *Explicitly NOT closed by this phase* |
+> | **OQ4** — two stages sharing one id | **Escalated and answered by the user: option (c) PLUS (b).** The memo and the name lookup are keyed by declaration **array index** (`number \| null`), which makes the measured collapse structurally impossible, **and** `warnHost` fires once per distinct duplicated id, because the id is still what `stageFor`, `Session.stage()` and `explain()` report. Both halves are required; either alone leaves a defect. | `04-CONTEXT.md` (locked, superseding the `string \| null` key); 04-03 T1 steps 5–7; 04-05 S26; M-04-7 respelled; M-04-15 |
+> | **OQ5** — `readonly` on `EmittedTool` | **Escalated and answered by the user: tighten it**, in the same commit as the `Concierge.explain` addition, with a type-level `Equals` pin (never `Assignable` — `readonly` modifiers do not affect assignability). | `04-CONTEXT.md` (locked); 04-01 T1; 04-06 T1 `_emittedToolMembersAreReadonly` |
+> | **OQ6** — export `deepFreeze` or hand-roll | **Export it**, module-internal, NOT re-exported from `src/index.ts`, so the export-surface count is unaffected. A hand-written six-line freeze would have to independently reproduce a cycle-safe `WeakSet`, an accessor skip that does not invoke getters, and the documented refusal to early-out on `Object.isFrozen`. | 04-02 (a); 04-03 T1 step 15 (`explain`'s `deepFreeze` call) |
+>
+> Two corrections that touch this section's own text, recorded here so a linear reader meets them
+> before the question bodies: the memo is instance-local because of **SSR cross-request pollution**
+> and never because of tree-shaking (measured false under rolldown 1.2.0), and OQ4's *"given the
+> locked `string | null` memo key"* framing is superseded — the key is `number | null`.
 
 ### 1. What does `Concierge.dispatch` return in Phase 4?
 
