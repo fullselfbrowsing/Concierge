@@ -51,13 +51,14 @@
 // EVERY PREDICATE BELOW INHERITS THE TS1485-AT-THE-IMPORT-LINE BEHAVIOUR
 //
 // Phase 3 added four more runtime values to the entrypoint and each one gets a
-// predicate here. They all fail the same way the original does, and it is worth
-// restating because the failure is counter-intuitive at four names as much as at
-// one: move `buildCatalog` into `index.ts`'s `export type { … }` block and the
-// diagnostic is TS1485 on the single shared IMPORT line below, naming
-// `buildCatalog` — not TS2344 on the predicate line named after it. The import
-// is shared, so the line number is identical whichever of the five regressed.
-// Read the NAME in the message, not the line.
+// predicate here; Phase 4 added `createConcierge`, bringing the total to six.
+// They all fail the same way the original does, and it is worth restating
+// because the failure is counter-intuitive at six names as much as at one: move
+// `buildCatalog` into `index.ts`'s `export type { … }` block and the diagnostic
+// is TS1485 on the single shared IMPORT line below, naming `buildCatalog` — not
+// TS2344 on the predicate line named after it. The import is shared, so the
+// line number is identical whichever of the six regressed. Read the NAME in the
+// message, not the line.
 //
 // The two `Assignable` predicates are deliberately loose about the signature:
 // `(...args: never[]) => unknown` asserts only "this is a function value", which
@@ -68,7 +69,7 @@
 // with export placement.
 
 import type { Assignable, Equals, Expect } from "./_assert.js";
-import { MESSAGE_MAX_CHARS, JSON_SCHEMA_TARGET, defineAction, buildCatalog, CatalogValidationError } from "../src/index.js";   // ← index.js. NOT types.js. This is the whole point.
+import { MESSAGE_MAX_CHARS, JSON_SCHEMA_TARGET, defineAction, buildCatalog, CatalogValidationError, createConcierge } from "../src/index.js";   // ← index.js. NOT types.js. This is the whole point.
 
 // --------------------------------------------------------------------------
 // SC-7d — the bound reaches the public entrypoint as a value, not just a type
@@ -92,3 +93,10 @@ type _buildCatalogExportedAsValue = Expect<Assignable<typeof buildCatalog, (...a
 
 /** CatalogValidationError is a class — a value AND a type. This pins the VALUE half: it stays constructible. */
 type _catalogValidationErrorExportedAsValue = Expect<Assignable<typeof CatalogValidationError, new (...args: never[]) => Error>>;
+
+// --------------------------------------------------------------------------
+// Phase 4 — the one value this phase adds to the entrypoint
+// --------------------------------------------------------------------------
+
+/** createConcierge reaches the public entrypoint as a callable VALUE, not only as a type. */
+type _createConciergeExportedAsValue = Expect<Assignable<typeof createConcierge, (...args: never[]) => unknown>>;

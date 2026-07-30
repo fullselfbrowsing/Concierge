@@ -13,15 +13,27 @@
  * `buildCatalog` validates a set of declarations at application start, reports
  * every problem in one throw, and returns a recursively frozen catalog.
  *
- * Stated plainly so this is not oversold: `buildCatalog` *builds* a catalog and
- * nothing here dispatches from it yet. There is no session, no transport and no
- * consent prompt in this package today. What you get is a validated, frozen
- * description of what an agent would be permitted to do — not the thing that
- * lets it do so.
+ * `createConcierge` assembles those declarations into one catalog, scopes it to
+ * where the user is, and answers why. Given a set of stages it returns
+ * `catalogFor(ctx)` — the frozen tool list for the matching stage plus the
+ * cross-stage actions, handed back at the *same reference* for any two contexts
+ * that resolve to the same stage — along with `stageFor(ctx)` and `explain(ctx)`,
+ * which reports the active stage, every stage's matched flag, each stage's
+ * bridge status and the live catalog in one pass.
  *
- * The rest of the runtime (`createConcierge`, `createSession`, `defineStage`,
- * `createBridge`) is still being implemented against these types — see the
- * roadmap in the repository README.
+ * Stated plainly so this is not oversold: nothing here dispatches. The
+ * `dispatch` member exists because the interface requires it and returns a
+ * not-implemented result; calling it runs no handler. There is no session, no
+ * transport and no consent prompt in this package today, and bridges are
+ * declared but not yet constructible. What you get is a validated, frozen,
+ * correctly scoped description of what an agent would be permitted to do — not
+ * the thing that lets it do so.
+ *
+ * The runtime still to come is `createSession` and `createBridge`. `defineStage`
+ * is **not planned**: a stage needs no identity mechanism, a plain
+ * `StageDefinition` object literal already typechecks, and the unforgeable
+ * bridge identity that would have justified it belongs to `createBridge`. See
+ * the roadmap in the repository README.
  */
 
 export type {
@@ -73,6 +85,8 @@ export type {
   Scheduler,
   Concierge,
   ConciergeConfig,
+  Explanation,
+  StageExplanation,
   Session,
   SessionConfig,
 } from "./types.js";
@@ -109,3 +123,5 @@ export { JSON_SCHEMA_TARGET } from "./json-schema.js";
 export { buildCatalog, CatalogValidationError } from "./catalog.js";
 
 export { defineAction } from "./define-action.js";
+
+export { createConcierge } from "./concierge.js";

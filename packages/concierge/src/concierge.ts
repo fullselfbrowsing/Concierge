@@ -1,0 +1,699 @@
+/**
+ * `createConcierge` — catalog assembly, stage resolution, the memoized
+ * per-stage projection, `explain`, and the Phase 6 dispatch stub (STG-01,
+ * STG-02, STG-03, STG-04, SEC-03, DX-01, CAT-01).
+ *
+ * A separate module from `./catalog.ts`, deliberately. That file's header
+ * states that every catalog rule lives there, so "did we check X?" is a
+ * one-file question; stage resolution is not a catalog rule, and folding it in
+ * would dilute the one property that claim exists to buy. What lives here is
+ * the layer above: many stages become one flat catalog, and that one catalog
+ * becomes many per-stage projections of itself.
+ *
+ * ---------------------------------------------------------------------------
+ * Three constraints whose violation is SILENT
+ * ---------------------------------------------------------------------------
+ *
+ * **1. The catalog memo is instance-local and lazily allocated, and the reason
+ * is cross-request state pollution under SSR.** Application modules are
+ * initialised once when a long-lived server boots, and the same module
+ * instances are then reused for every request that process serves.
+ * `.planning/research/ARCHITECTURE.md:380-405` quotes Vue's own definition of
+ * that failure and cites TanStack Router shipping exactly this bug, where one
+ * request's leaked state made every subsequent GET return a 307 until the
+ * process was restarted. A module-scope catalog memo would be shared by every
+ * `createConcierge` in the process, so two configs in one server would serve
+ * each other's catalogs under colliding keys. Both mutable structures in this
+ * file are therefore `let`s inside the factory body, `null` until first use;
+ * module scope holds two immutable constants and nothing else.
+ *
+ * An earlier draft justified the same rule on bundler grounds instead — that a
+ * module-scope structure is elided from a consumer build. Re-measured under
+ * rolldown 1.2.0, it does **not** reproduce: a module-scope `Map` read by an
+ * exported function is retained, and behaves identically bundled and
+ * unbundled. The rule survived its justification being wrong, which is exactly
+ * why the justification is written down rather than assumed.
+ *
+ * **2. The shallow seal on a projection is complete ONLY because its elements
+ * are shared and already deep-frozen, and the two decisions are coupled.** One
+ * `EmittedTool` per action is built once during assembly, and every per-stage
+ * array holds those same objects by reference. Building fresh elements per
+ * projection would turn the cheap seal into `./catalog.ts`'s
+ * breach-that-reports-success: `Object.isFrozen(projection)` returns `true`
+ * while every element stays mutable. Measured this phase — under the
+ * shared-and-already-frozen form all seven tamper vectors throw, and it is
+ * 510× cheaper than a recursive walk per projection (0.0074 ms against 3.78 ms
+ * for 40 projections), because `deepFreeze` deliberately has no
+ * `Object.isFrozen` early-out and re-walks every already-frozen JSON Schema
+ * subtree beneath it.
+ *
+ * **3. `stage.match` is called from exactly one place.** Every additional call
+ * site is a second copy of the throw policy, a second copy of the non-boolean
+ * policy and a second warn-once latch — and a second opportunity for `explain`
+ * and `stageFor` to disagree about the same context.
+ *
+ * Like `./types.ts`, `./contract.ts`, `./json-schema.ts`, `./host.ts` and
+ * `./catalog.ts`, this file has no runtime dependency, no framework reference
+ * and no DOM access — it must construct on a server under Next App Router,
+ * Nuxt or SvelteKit with no environment guards.
+ */
+
+import { buildCatalog, deepFreeze } from "./catalog.js";
+import { warnHost } from "./host.js";
+import type { Catalog } from "./catalog.js";
+import type {
+  ActionResult,
+  Concierge,
+  ConciergeConfig,
+  EmittedTool,
+  Explanation,
+  InvocationMeta,
+  StageContext,
+  StageExplanation,
+} from "./types.js";
+
+// ---------------------------------------------------------------------------
+// Module scope — immutable constants only
+// ---------------------------------------------------------------------------
+
+/**
+ * The `skip` set `explain()` hands to `deepFreeze`. Empty, because the object
+ * `explain` returns contains no validator instances — only stage ids,
+ * booleans, bridge ids and action names, all of them developer-authored
+ * strings that are already in the config.
+ *
+ * **This sits at module scope and constraint 1 above does not reach it**, and
+ * the distinction is worth stating because the two cases look alike from a
+ * diff. Constraint 1 forbids module-scope *mutable* state: a memo is written,
+ * so one shared across every request a server process handles is a real defect.
+ * This set is never written by anything, so one copy shared by every instance
+ * in the process is not a compromise — it is what should happen.
+ *
+ * The purity annotation on the constructor follows 03-08's finding that an
+ * unannotated module-scope call retains dead bytes in every consumer bundle
+ * even where nothing reads the result. It widens nothing: it is a hint to the
+ * bundler about a call with no observable effect, not a claim about behaviour.
+ */
+const NO_SKIP: ReadonlySet<object> = /* @__PURE__ */ new Set<object>();
+
+/**
+ * What `dispatch` returns until Phase 6 implements it — a failure, one plain
+ * sentence, and **no `reason`**.
+ *
+ * **The omission is deliberate, and it is the load-bearing half.** It looks
+ * like an oversight, so it is written down here: `ReasonCode` is a CLOSED union
+ * of twelve members, and `types.ts:159-163` states that adding a member to it
+ * is a breaking change *by design* — every exhaustive mapper stops compiling
+ * until it handles the new one. None of the twelve means "this runtime is not
+ * built yet". `unknown_action` would be a lie about an action plainly present
+ * in the array `catalogFor` just handed the agent, and `handler_error` would be
+ * a lie about a handler that was never reached. Omitting the field asserts
+ * nothing false, which is the only honest option a closed union leaves.
+ *
+ * **Rejected: adding `not_implemented` to the union.** That is a `types.ts`
+ * contract change Phase 6 would immediately have to remove, and removing a
+ * member from a closed union is itself a breaking change — so a placeholder
+ * code costs two breaking changes to say what an absent field already says.
+ *
+ * **Hand-off to Phase 6: the DSP-09 normalizer must REPLACE this shape, not
+ * normalize it.** DSP-09 exists to reject a *handler* return that is not a
+ * valid `ActionResult`. This value is not a handler return at all — it is the
+ * dispatcher's own stand-in for a dispatcher that does not exist yet — so
+ * routing it through the normalizer would produce a well-formed report about a
+ * call that never happened. Phase 6 deletes this constant and the function that
+ * returns it together.
+ *
+ * The message is 106 characters, comfortably inside `MESSAGE_MAX_CHARS` (180),
+ * so SEC-06's truncation at the dispatcher boundary will never reach it.
+ */
+const DISPATCH_NOT_IMPLEMENTED: ActionResult = /* @__PURE__ */ Object.freeze({
+  ok: false,
+  message:
+    "concierge: dispatch is not implemented in this build, which ships catalog assembly and stage scoping only.",
+});
+
+// ---------------------------------------------------------------------------
+// Module-private helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * The warning two stages sharing one id earn, in the house message shape —
+ * a `concierge: ` prefix, the code, the quoted subject, the problem, then
+ * `Fix: `, exactly as `catalog.ts`'s diagnostics are rendered with the stage id
+ * substituted for the action name.
+ *
+ * **Behind a named function rather than written inline**, so the call site is
+ * one short statement a mutation battery can target as a single literal.
+ * `warnHost` is reached from two places in this file, and the other one takes a
+ * composed template string, so an inline message here would leave neither call
+ * site distinctly greppable.
+ *
+ * **What the warning claims, and what it deliberately does not.** It does not
+ * say the catalog is wrong, because it is not: the per-stage catalog is keyed
+ * by declaration order, so two stages sharing an id still serve their own
+ * actions — measured, on three stages sharing one id, each of which returned
+ * exactly its own action list. What *is* genuinely ambiguous is the reporting:
+ * `stageFor()`, `Session.stage()` and `explain()` all return the id, so two
+ * rows a developer reads are indistinguishable. Claiming more would be a false
+ * alarm about scoping; claiming less would leave a real ambiguity unreported.
+ *
+ * **The scan behind it keeps TWO sets, not one.** `seenStageIds` answers "have
+ * I met this id before"; `reportedStageIds` answers "have I already warned
+ * about it". With a single set, a third stage sharing the id produces a second
+ * warning naming the same id and a fourth produces a third. Two sets are the
+ * construction-time analogue of the matcher warn-once latch below, and they
+ * hold the granularity `CatalogDiagnostic`'s doc comment settles: one report
+ * per offending subject, each naming its subject, never an aggregated summary
+ * line that loses the name.
+ *
+ * Both sets are local to `createConcierge` and are discarded when it returns.
+ * They are not instance state, so constraint 1 in this file's header has
+ * nothing to say about them.
+ */
+function duplicateStageIdMessage(id: string): string {
+  return (
+    `concierge: [duplicate_stage_id] stage "${id}": two stages declare this id, and ` +
+    `\`stageFor()\`, \`Session.stage()\` and \`explain()\` all report it, so the two are ` +
+    `indistinguishable to a developer reading any of them. Catalog scoping is unaffected — ` +
+    `the per-stage catalog is keyed by declaration order, not by id. ` +
+    `Fix: give each stage a distinct id.`
+  );
+}
+
+/**
+ * Everything `explain` can honestly say about one stage's bridge.
+ *
+ * Three states, and the distinction between the last two is the entire reason
+ * this is not a boolean:
+ *
+ * - `null` — the stage declares no `bridge` at all. Honest, and DX-02's
+ *   supported configuration rather than a defect.
+ * - `{id, registered: false}` — a registry is declared and its `read()`
+ *   returned nothing, so no component is mounted. Once bridges exist this is
+ *   the single most common cause of "my action didn't fire", and it is
+ *   invisible in every other channel this package has.
+ * - `{id, registered: true}` — `read()` returned a bridge.
+ *
+ * **The shape survives Phase 5 unchanged, which is why it was chosen.** `id`
+ * and `read()` are both on the declared `BridgeRegistry` interface *today*, so
+ * `createBridge` arriving later produces a conforming object and changes
+ * nothing here. That is also what makes DX-01's bridge clause fully testable in
+ * this phase with no Phase 5 code: a hand-rolled
+ * `{id, read: () => mounted, register: () => () => {}}` is exactly what the
+ * exported interface admits, and nothing about such a test changes when the
+ * real registry ships.
+ *
+ * **`read()` is consumer code, so it is guarded the same way `match` is.** A
+ * throwing `read()` is not a registration, and it is not a reason to take down
+ * the one call a developer makes when they are already confused.
+ *
+ * **Rejected: warning on a throwing `read()`.** Unlike a throwing matcher —
+ * which fires on every navigation, in a shipped app, where nobody is
+ * watching — this runs only inside `explain`, a human-debugging-rate call. A
+ * warning there prints during the very activity it would interrupt, and the
+ * structured `registered: false` row is already in front of the person who
+ * asked for it.
+ *
+ * The parameter is spelled `ConciergeConfig["stages"][number]` rather than
+ * `StageDefinition<any>`. The `any` already lives in `types.ts`, where D-07's
+ * measured contravariance reason justifies it; re-spelling it here would be a
+ * second, unargued occurrence of an erasure that was argued once.
+ */
+function bridgeStatus(
+  stage: ConciergeConfig["stages"][number],
+): StageExplanation["bridge"] {
+  const registry: ConciergeConfig["stages"][number]["bridge"] = stage.bridge;
+  if (registry === undefined) {
+    return null;
+  }
+
+  let live: unknown;
+  try {
+    live = registry.read();
+  } catch {
+    live = null;
+  }
+
+  return { id: registry.id, registered: live !== null && live !== undefined };
+}
+
+// ---------------------------------------------------------------------------
+// The factory
+// ---------------------------------------------------------------------------
+
+/**
+ * Assemble one catalog from every declared stage, then serve a stage-scoped,
+ * reference-stable, sealed view of it.
+ *
+ * ---------------------------------------------------------------------------
+ * CAT-01's name union stops at the config boundary, and that is correct
+ * ---------------------------------------------------------------------------
+ *
+ * `buildCatalog`'s `const` type parameter carries the literal name union — that
+ * is CAT-01's mechanism and it is real. It does not survive this function, and
+ * a reader who assumes it should will burn a wave trying to preserve it.
+ * Measured three ways under this repo's exact flags:
+ *
+ * | Assembly path | Derived `names[number]` |
+ * |---|---|
+ * | `buildCatalog([alpha, beta])` — the documented path | `"alpha" \| "beta"` |
+ * | `buildCatalog([...stage.actions])`, `stage satisfies StageDefinition` | `"alpha"` |
+ * | the flat assembly this function performs | **`string`** |
+ *
+ * **The cause is not `flatMap`.** It is `ConciergeConfig.stages:
+ * ReadonlyArray<StageDefinition<any>>` — D-07's deliberate erasure, taken for a
+ * measured contravariance reason (`StageDefinition<ResultsBridge>` is not
+ * assignable to `StageDefinition<Bridge>`, TS2375). Reading the actions back
+ * out of an erased collection cannot recover what the collection erased.
+ *
+ * **Nothing downstream wants the union today**, which is why no requirement is
+ * unmet: `Concierge.dispatch(name: string, …)`, `EmittedTool.name: string` and
+ * `Session.stage(): string | null` all take the open type.
+ *
+ * **Measured and deliberately not taken:**
+ * `createConcierge<const C extends ConciergeConfig>(config: C)` **does** recover
+ * the union inside a config literal. It is not taken because the union has
+ * nowhere to go — `Concierge` is not generic, and making it generic ripples
+ * into `Session`, `SessionConfig` and every adapter — and because the inline
+ * `defineAction` widening documented on `ConciergeConfig.stages` sits upstream
+ * of it, so the recovery would work at some call sites and silently not at
+ * others. A partially-recovered union is worse than an honestly open one, for
+ * the same reason a `readonly` that does not go all the way down is worse than
+ * none.
+ */
+export function createConcierge(config: ConciergeConfig): Concierge {
+  const stages: ConciergeConfig["stages"] = config.stages;
+  const crossStage: NonNullable<ConciergeConfig["crossStage"]> = config.crossStage ?? [];
+
+  // ONE flat build over every stage's actions followed by the cross-stage
+  // actions — not one build per stage, and the choice is a requirement rather
+  // than a convenience.
+  //
+  // CAT-03 needs the COMPLETE declared-name set to decide whether a consent
+  // policy's target exists, and a legitimate flow points a review action on one
+  // stage at a confirm action on another. A per-stage build cannot see across
+  // that boundary and would reject every cross-stage consent target. A single
+  // build also produces a single aggregated `CatalogValidationError`, so a
+  // developer with problems in three stages fixes three problems in one cycle
+  // rather than three.
+  //
+  // Everything below is a PROJECTION of this one catalog. No second catalog is
+  // ever built, which is what makes it structurally impossible for a per-stage
+  // view to disagree with the whole.
+  //
+  // A duplicate action name across two stages is therefore rejected GLOBALLY,
+  // with no new code — measured: `buildCatalog`'s existing
+  // `duplicate_action_name` fires on an action declared in two different
+  // stages, exactly as it does within one. That is the intended outcome. An
+  // action name is the agent's vocabulary, and two behaviours under one name is
+  // the ambiguity the design exists to prevent.
+  const catalog: Catalog = buildCatalog([...stages.flatMap((stage) => stage.actions), ...crossStage]);
+
+  // One `EmittedTool` per action, built ONCE here and shared by reference into
+  // every stage array that contains it. Header constraint 2 is what this
+  // implements; the two halves are coupled and neither is safe alone.
+  //
+  // **`parameters` is assigned BY REFERENCE and is never re-emitted.**
+  // `buildCatalog` already emitted it, validated it as a root-object schema and
+  // deep-froze it. Re-emitting here would run a vendor converter a second time,
+  // produce a different object, destroy element identity across stage arrays,
+  // and hand back a subtree nothing has frozen. The null-prototype-plus-freeze
+  // pair on the lookup is `Catalog.byName`'s argument applied one level out —
+  // read it there rather than restating it here; measured on this record,
+  // `tools['__proto__']` and `tools['constructor']` are ordinary absent keys
+  // and every write throws.
+  //
+  // The seal appears FOUR times in this file, each spelled as its own
+  // single-occurrence statement: the tool, this lookup, the projection below,
+  // and the dispatch stub at module scope. That is not stylistic. Each is a
+  // distinct target for the mutation battery that proves the corresponding test
+  // actually fires, and folding any two of them into one shared helper — or
+  // inlining one into a larger expression — collapses two independent proofs
+  // into one. Four is the number; if a later change makes it a different
+  // number, this sentence is what has to be corrected with it.
+  const toolByName: Record<string, EmittedTool> = Object.create(null);
+  for (const entry of catalog.entries) {
+    const tool: EmittedTool = {
+      type: "function",
+      name: entry.action.name,
+      description: entry.action.description,
+      parameters: entry.parameters,
+    };
+    toolByName[entry.action.name] = Object.freeze(tool);
+  }
+  Object.freeze(toolByName);
+
+  const crossNames: readonly string[] = crossStage.map((action) => action.name);
+
+  // **`namesByStage` is INDEXED, parallel to `stages`, and is never keyed by
+  // the stage id.** This is a correction to an earlier design, annotated in
+  // place rather than silently applied.
+  //
+  // The id-keyed form was measured to COLLAPSE. Two stages sharing an id build
+  // cleanly, the lookup resolves to whichever was declared last, and the agent
+  // standing on stage A is offered stage B's actions:
+  //
+  //     buildCatalog is happy:                    [ 'a', 'b' ]
+  //     id-keyed projection silently collapses:   {"results":["b"]}
+  //     stageFor resolves to: results  ->  projection would be [ 'b' ]
+  //
+  // Nothing already in the codebase can see it. `buildCatalog` receives a flat
+  // action array and has no concept of a stage; `duplicate_action_name` does
+  // not fire because the action *names* differ. It is a direct STG-01 failure
+  // reached entirely through legal, type-correct configuration.
+  //
+  // Keying by declaration index makes the collapse impossible at zero new
+  // surface cost. What it does NOT widen: the id is still what `stageFor`,
+  // `Session.stage()` and `explain()` report, so the ambiguity remains visible
+  // to a human — which is why the scan below still warns. Both halves are
+  // required; either alone leaves a defect.
+  //
+  // Two remedies were rejected. **Throwing** needs a `CatalogIssue` whose
+  // `action` field holds a stage id, which corrupts the `issues.map(i =>
+  // i.action)` semantics DX-03 depends on — a consumer reading that array would
+  // get a stage id where every other element is an action name. **Warn-only**
+  // keeps the id-keyed lookup and therefore leaves a real correctness bug in
+  // place, reported.
+  const namesByStage: ReadonlyArray<readonly string[]> = stages.map((stage) => [...stage.actions.map((action) => action.name), ...crossNames]);
+
+  const seenStageIds: Set<string> = new Set<string>();
+  const reportedStageIds: Set<string> = new Set<string>();
+  for (const stage of stages) {
+    if (seenStageIds.has(stage.id) && !reportedStageIds.has(stage.id)) {
+      reportedStageIds.add(stage.id);
+      warnHost(duplicateStageIdMessage(stage.id));
+    }
+    seenStageIds.add(stage.id);
+  }
+
+  // The instance's only mutable state. Both are `null` until first use, per
+  // header constraint 1 — a server process reuses this module across every
+  // request it serves, and these are the two structures that would carry one
+  // config's answers into another's if they lived a scope up.
+  //
+  // **A `Map` and not a null-prototype record, because the key type is
+  // `number | null`.** That is a measurement, not a preference. A record cannot
+  // hold a `null` key, so it needs a sentinel — and every sentinel string is a
+  // legal stage id. It cannot hold a number key without stringifying it, and
+  // `String(null)` collides with a stage whose id is literally `"null"`. All
+  // three failure shapes were reproduced:
+  //
+  //     Map handles a null key natively:            [ 'cross' ]
+  //     record + sentinel, stage id === sentinel:   [ 'FROM THE STAGE NAMED THE SENTINEL' ]
+  //     record + String(null) key, stage id 'null': [ "a stage whose id is literally 'null'" ]
+  //
+  // `catalog.ts:260-268` is the reason this does not contradict `Catalog.byName`
+  // being a record: "a frozen `Map` is not frozen" governs anything that must be
+  // frozen, and settles that a `Map` remains correct for mutable state. This
+  // memo is never frozen and is never part of the catalog, so it is the case
+  // that sentence carves out rather than the case it rules against.
+  let memo: Map<number | null, ReadonlyArray<EmittedTool>> | null = null;
+  let warnedStages: Set<string> | null = null;
+
+  /**
+   * Latch a stage id, warn about it once, and report "did not match".
+   *
+   * **The return type is the literal `false`, not `boolean`.** That is what
+   * lets the warn-and-skip decision be a single `return` statement at both call
+   * sites below instead of a warn-then-return pair. It matters beyond
+   * tidiness: each call site is then one contiguous statement, which is what
+   * makes it a single-literal target for the mutation battery, and a battery
+   * that cannot target a decision cannot prove the test covering it fires.
+   * Both statements are spelled on one line each for the same reason, and are
+   * deliberately worded differently so neither is a substring of the other.
+   *
+   * Warn-once is per stage id per instance, not per instance. Two broken
+   * matchers must produce two warnings — `CatalogDiagnostic`'s doc comment
+   * settles that granularity, and an aggregated line loses exactly the name a
+   * developer needs.
+   */
+  function warnStage(id: string, problem: string, fix: string): false {
+    warnedStages ??= new Set<string>();
+    if (warnedStages.has(id)) {
+      return false;
+    }
+    warnedStages.add(id);
+    warnHost(`concierge: [stage_match] stage "${id}": ${problem} Fix: ${fix}`);
+    return false;
+  }
+
+  /**
+   * The ONLY place `stage.match` is invoked — header constraint 3.
+   *
+   * `catalogFor`, `stageFor` and `explain` all reach a matcher through here, so
+   * the throw policy, the non-boolean policy and the warn-once latch exist once
+   * and cannot drift apart into three readers that disagree about the same
+   * context.
+   */
+  function runMatch(stage: ConciergeConfig["stages"][number], ctx: StageContext): boolean {
+    let result: unknown;
+    // **The `catch` takes NO binding, and the message echoes nothing it
+    // caught.** This is the same structure as the two guarded calls in
+    // `./json-schema.ts` with one decision deliberately INVERTED, and the
+    // reason is written here because a later reader comparing the three will
+    // otherwise "fix" the inconsistency.
+    //
+    // Those two are build-time developer diagnostics and carry the explicit
+    // exemption stated at `json-schema.ts:259-261`, so they may render the
+    // caught value. This one is the opposite case in all three respects that
+    // matter: it fires at runtime, on every navigation, in a shipped app — and
+    // the caught message is whatever the consumer's own matcher put in it,
+    // which in a real app is assembled from the same user input `ctx` carries.
+    // Echoing it would open exactly the covert channel CLAUDE.md's rule closes
+    // for handler exceptions, one layer earlier and on a hotter path.
+    //
+    // With no binding there is no caught value in scope, so the property is
+    // structural rather than a matter of remembering not to interpolate it.
+    // The warning carries the stage id — a developer-authored string already in
+    // the config — and fixed prose, and nothing else.
+    try {
+      result = stage.match(ctx);
+    } catch {
+      return warnStage(stage.id, "its `match(ctx)` threw, so the stage was skipped and its actions are absent from the catalog for this context.", "make `match` total — it runs on every navigation, so it must not assume any field of `ctx` is present.");
+    }
+
+    // **Strict equality, plus a named warning for everything else.** Neither
+    // half is sufficient alone, and the combination is the only one that is
+    // both fail-closed and diagnosable.
+    //
+    // Strict equality fails closed, which is the house rule already visible at
+    // `catalog.ts:788` and `:798` (`=== true` on `destructive` and
+    // `readsUntrusted`). But failing closed *silently* reproduces P14's exact
+    // first-run experience. A JavaScript consumer writes
+    // `match: (ctx) => ctx.pathname.startsWith("/results") && ctx.user`, gets a
+    // truthy object back, never matches, and reads "the agent says it can't do
+    // anything" with nothing anywhere to explain it. Measured:
+    //
+    //     `"yes" === true` -> false   |   `Boolean("yes")` -> true
+    //
+    // Both alternatives are defensible and both are worse. A **silent strict
+    // check** is the failure above. A **permissive truthy check** matches on
+    // the object, which means a matcher that returns a value it never meant as
+    // an answer silently scopes the agent's whole catalog — failing open on the
+    // decision that decides what an agent may do.
+    if (result === true) {
+      return true;
+    }
+    if (result !== false) {
+      return warnStage(stage.id, "its `match(ctx)` returned a value that is neither `true` nor `false`, and a non-boolean is treated here as no match at all.", "return a real boolean — a truthy object does not match, deliberately, so compare explicitly rather than returning the value you tested.");
+    }
+    return false;
+  }
+
+  /**
+   * Resolve a context to a stage POSITION, first match wins (STG-02).
+   *
+   * **Not memoized, and that is deliberate.** `ctx` is the caller's arbitrary
+   * object — STG-03 requires it to be anything the app knows — so there is no
+   * stable key to memoize against without holding a reference to every context
+   * the app has ever produced. Matchers are pure and cheap by contract. Only
+   * the *projected catalog* is memoized, and it is keyed by the resolution's
+   * result rather than by its input, which is what makes the memo's key space
+   * finite and equal to the stage count.
+   *
+   * **Resolution walks an ordered array, not a keyed object, so it is
+   * independent of what the stages are named.** `ConciergeConfig.stages`'
+   * doc comment already argues this; the measurement behind the argument is
+   * that object key iteration hoists integer-like keys to the front:
+   *
+   *     object key order:  [ '2', '10', 'results', 'checkout', 'home' ]
+   *     array order:       [ 'results', 'checkout', '2', 'home', '10' ]
+   *
+   * Under any keyed implementation, renaming a later stage to `"2"` moves it
+   * ahead of everything declared before it, and first-match-wins silently
+   * starts meaning something else.
+   */
+  function resolveIndex(ctx: StageContext): number | null {
+    for (const [index, stage] of stages.entries()) {
+      if (runMatch(stage, ctx)) {
+        return index;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * The memoized per-stage projection — STG-04's referential identity.
+   *
+   * **This function never sees a `ctx`.** That is what makes "memoize by
+   * resolved stage, not by context identity" mechanical rather than a
+   * discipline someone has to remember: there is no context in scope to key on
+   * even by accident. Two distinct context objects that resolve to the same
+   * stage get the identical array, measured — React's `useSyncExternalStore`
+   * compares snapshots with `Object.is` and Svelte 5's `$derived` with `===`,
+   * so a fresh-but-equal array is an infinite render, not a slow one.
+   *
+   * **The no-stage branch returns the CROSS-STAGE actions, not an empty
+   * array.** `ConciergeConfig.crossStage` is declared "available in every
+   * stage"; an unrouted page is still a page, and silently stripping actions
+   * the developer explicitly marked global would contradict the declaration
+   * they wrote.
+   *
+   * Rejected: an empty frozen array. "Fail closed" is the right instinct for
+   * *consent*, and it is the wrong one here — it would silently disable
+   * `signOut`-shaped actions on any page no stage happens to match, which is
+   * every 404 and every route a developer has not added a stage for yet. The
+   * situation is not hidden either way: `stageFor` returns `null` and `explain`
+   * reports every stage's `matched: false`, so the diagnosis is one call away
+   * rather than absent.
+   */
+  function projectFor(index: number | null): ReadonlyArray<EmittedTool> {
+    memo ??= new Map<number | null, ReadonlyArray<EmittedTool>>();
+
+    const hit: ReadonlyArray<EmittedTool> | undefined = memo.get(index);
+    if (hit !== undefined) {
+      return hit;
+    }
+
+    const names: readonly string[] = index === null ? crossNames : (namesByStage[index] ?? crossNames);
+    const projected: EmittedTool[] = names
+      .map((name) => toolByName[name])
+      .filter((tool): tool is EmittedTool => tool !== undefined);
+    const built: ReadonlyArray<EmittedTool> = Object.freeze(projected);
+
+    memo.set(index, built);
+    return built;
+  }
+
+  function dispatch(
+    _name: string,
+    _args: unknown,
+    _meta?: InvocationMeta,
+  ): Promise<ActionResult> {
+    return Promise.resolve(DISPATCH_NOT_IMPLEMENTED);
+  }
+
+  function catalogFor(ctx: StageContext): ReadonlyArray<EmittedTool> {
+    return projectFor(resolveIndex(ctx));
+  }
+
+  function stageFor(ctx: StageContext): string | null {
+    const index: number | null = resolveIndex(ctx);
+    return index === null ? null : (stages[index]?.id ?? null);
+  }
+
+  /**
+   * DX-01's three questions — which stage is active, which bridges are
+   * registered, and what the agent can currently see — answered in one pass.
+   *
+   * **The returned object is deliberately NOT identity-stable: a fresh object
+   * every call, by design.** This is the one member of `Concierge` that must
+   * never be memoized, and it is the exact inverse of `catalogFor`'s rule three
+   * functions up. Do not wire it into `useSyncExternalStore` or any other
+   * referential-equality subscription — it would loop forever, which is
+   * precisely the defect STG-04's memo exists to prevent. The requirement that
+   * motivates this whole phase is one line away from being violated by the
+   * phase's own diagnostic, so the non-identity is stated rather than left to
+   * be inferred. Memoizing it to make such a call site work would be worse
+   * still: it would hand a devtools panel a snapshot that silently stops
+   * tracking the app.
+   */
+  function explain(ctx: StageContext): Explanation {
+    // **`stages.map(...)` and not a `for…of`**, because `map` evaluates every
+    // matcher exactly once and structurally cannot short-circuit.
+    //
+    // That is the property DX-01 needs. The single most likely answer to "why
+    // didn't my action fire" in a multi-stage app is *an earlier stage shadowed
+    // yours* — and a short-circuiting `explain` reports `matched: false` for
+    // the shadowed stage, which is not a measurement at all. It is "we never
+    // asked", rendered as a negative, at the exact moment the developer is
+    // trusting the tool over their own reading of the code. Running every
+    // matcher turns the commonest failure into a visible two-`true` row set.
+    //
+    // The cost is one extra matcher call per stage, on a call that happens at
+    // human debugging rate. The accepted consequence, recorded rather than
+    // hidden: a matcher with a side effect fires more often under `explain`
+    // than under `stageFor`. Matchers are pure by contract, so this is a
+    // consequence of violating the contract rather than of this decision.
+    const rows: StageExplanation[] = stages.map(
+      (stage): StageExplanation => ({
+        id: stage.id,
+        matched: runMatch(stage, ctx),
+        bridge: bridgeStatus(stage),
+      }),
+    );
+
+    // **The active position is derived from the recorded rows, never from a
+    // second matcher evaluation.** Calling `stageFor` here would re-run every
+    // matcher, and consumer code is under no obligation to answer the same way
+    // twice. Measured, with a matcher carrying an internal counter:
+    //
+    //     two-pass: {"stage":"flaky","stages":[{"id":"flaky","matched":false}]}
+    //     one-pass: {"stage":"flaky","stages":[{"id":"flaky","matched":true}]}
+    //
+    // The two-pass row set contradicts its own header. A diagnostic that
+    // contradicts itself is worse than no diagnostic, because the developer
+    // stops debugging their app and starts debugging the tool.
+    const firstMatch: number = rows.findIndex((row) => row.matched);
+    const activeIndex: number | null = firstMatch === -1 ? null : firstMatch;
+
+    // **`projectFor(activeIndex)`, not `catalogFor(ctx)`.** Reading the memo
+    // directly is what guarantees `explain().catalog` and `explain().stage`
+    // cannot disagree; `catalogFor` would re-resolve, and under a
+    // non-deterministic matcher it could land on a different stage than the
+    // rows above recorded — reintroducing the two-pass contradiction through a
+    // different door.
+    //
+    // **`explain` writes nothing to the console.** Structured return only, no
+    // warning of its own. Phase 3's precedent is that the structured value is
+    // the assertable channel and console output is the convenience one, and a
+    // convenience with no test is a surface with no guarantee. (`runMatch` may
+    // still warn about a broken matcher during this call — that is the matcher
+    // policy firing, not `explain` printing.)
+    //
+    // The result is deep-frozen through `catalog.ts`'s own walk rather than a
+    // hand-written one. Six lines that would have to independently reproduce a
+    // cycle-safe `WeakSet`, an accessor skip that does not invoke getters, and
+    // a documented refusal to early-out on `Object.isFrozen` is not a saving —
+    // those are three properties a re-implementation rediscovers as bug
+    // reports.
+    return deepFreeze(
+      {
+        stage: activeIndex === null ? null : (stages[activeIndex]?.id ?? null),
+        stages: rows,
+        catalog: projectFor(activeIndex).map((tool) => tool.name),
+      },
+      NO_SKIP,
+      new WeakSet<object>(),
+    );
+  }
+
+  // **The returned object is deliberately NOT frozen**, and this is recorded so
+  // a reviewer does not add the freeze silently as a tidy-up.
+  //
+  // SEC-03 names the action *registry*, which is frozen — `catalog.byName`, the
+  // per-action tool, the lookup and every projection. The `Concierge` object is
+  // not part of that registry: it is the handle the consumer's own code holds,
+  // and page script that can reach it can already reach the module that made
+  // it. Phase 6 replaces `dispatch` wholesale, and `ServerSafeConcierge`
+  // (deferred to Phase 9) may yet change this object's shape, so freezing now
+  // would harden a surface that is not final against an attacker who is not
+  // constrained by it.
+  //
+  // Deliberately NOT justified by a count of anything. An earlier draft argued
+  // the freeze would disturb a mutation battery that depends on a particular
+  // number of seals in this file; that argument was arithmetically wrong, and
+  // a wrong reason attached to a right decision is how a right decision gets
+  // reversed by the first reader who checks it.
+  return { dispatch, catalogFor, stageFor, explain };
+}
