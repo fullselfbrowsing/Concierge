@@ -453,7 +453,7 @@ describe("BRG-05 — a snapshot captured from a proxy-backed store does not move
     // same finding as "a frozen `Map` is not frozen".
   });
 
-  it("D32 — a Date/Map/Set SUBCLASS is still cloned, but the downgrade REPORTS instead of happening silently", () => {
+  it("D32 — an Array/Date/Map/Set SUBCLASS is still cloned, but the downgrade REPORTS instead of happening silently", () => {
     // The branches test `obj instanceof Map` and construct `new Map()`, so a
     // subclass loses both its prototype and every own property it carries.
     // Measured pre-fix, with no diagnostic at all:
@@ -472,6 +472,35 @@ describe("BRG-05 — a snapshot captured from a proxy-backed store does not move
     // and passes the `toString` tag. Detachment is worth more there than
     // prototype fidelity, so the clone stays and the loss is merely made
     // visible.
+    //
+    // ---------------------------------------------------------------------
+    // THE ARRAY ARM IS HERE BECAUSE IT WAS MISSED ONCE (RR-01)
+    // ---------------------------------------------------------------------
+    //
+    // The first version of this case was titled "a Date/Map/Set SUBCLASS" and
+    // covered exactly those three. `Array` is the FIRST collection branch in the
+    // walk and it was left untouched, so `class Basket extends Array` went on
+    // being downgraded in silence while the other three reported — and the
+    // source comment introduced alongside the fix opened "EACH BRANCH REPORTS
+    // ITS OWN DOWNGRADE", which was false for the one branch nothing tested.
+    // Measured against that build:
+    //
+    //   Array subclass -> warns = 0 | ctor = Array | currency LOST = undefined | instanceof Basket = false
+    //   Map subclass   -> warns = 1
+    //   Set subclass   -> warns = 1
+    //   Date subclass  -> warns = 1
+    //
+    // A case scoped one arm narrower than the claim it backs is the exact shape
+    // that lets shipped prose outrun the code, which is what this phase's gate
+    // exists to catch. The arm is enumerated here rather than given its own
+    // case so that the loop and the claim cannot drift apart again.
+    class Basket extends Array {
+      constructor() {
+        super();
+        this.currency = "USD";
+        this.push({ sku: "a" });
+      }
+    }
     class Tagged extends Map {
       constructor(entries) {
         super(entries);
@@ -492,6 +521,7 @@ describe("BRG-05 — a snapshot captured from a proxy-backed store does not move
     }
 
     for (const [value, reader] of [
+      [new Basket(), (c) => c[0]?.sku],
       [new Tagged([["a", 1]]), (c) => c.get("a")],
       [new Ranked([1, 2]), (c) => (c.has(1) ? 1 : undefined)],
       [new Stamped(0), (c) => (c.getTime() === 0 ? 1 : undefined)],
@@ -517,9 +547,23 @@ describe("BRG-05 — a snapshot captured from a proxy-backed store does not move
 
     // THE CONTROL, and without it the fix could have been "always warn on this
     // branch" — which would fire on every `Date` in every snapshot in every app
-    // and make the code carry no information at all. `D7` asserts these three
+    // and make the code carry no information at all. `D7` asserts these four
     // clone correctly; this asserts they do it in silence.
+    //
+    // THE ARRAY CONTROL IS THE LOAD-BEARING ONE OF THE FOUR, and it carries
+    // three shapes rather than one. Arrays are the commonest value in any real
+    // snapshot, and the array arm has no `instanceof` conjunct available for
+    // free — `Array.isArray` is realm-transparent by design, which is the whole
+    // reason the branch uses it — so a report gated on the prototype ALONE would
+    // fire on every cross-realm array and, worse, on shapes a framework produces
+    // constantly. A `Proxy` over an array is exactly what Vue's `reactive([])`
+    // hands core, and a sparse array is what `new Array(3)` produces; both must
+    // stay silent or this diagnostic becomes noise on the hottest path there is.
     const quiet = withConsoleCapture(() => {
+      captureOne([1, 2]);
+      captureOne(new Proxy([1, 2], {}));
+      captureOne(Object.assign([], { 2: 1, length: 3 }));
+      captureOne(runInNewContext("[1,2]"));
       captureOne(new Date(0));
       captureOne(new Map([["a", 1]]));
       captureOne(new Set([1, 2]));

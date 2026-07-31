@@ -542,14 +542,85 @@ function cloneDetached(v: unknown, seen: WeakMap<object, unknown>, onExotic: () 
     return hit;
   }
 
-  // ARRAYS. `Array.isArray` and never `instanceof Array`: measured, it is the
-  // only predicate that is both proxy-transparent and realm-transparent, where
-  // `instanceof Array` returns false for an array from another realm. The memo
-  // entry is written BEFORE recursing, or a self-referencing array never
-  // terminates.
+  // ---------------------------------------------------------------------------
+  // THE FOUR COLLECTION BRANCHES — Array, Date, Map, Set — and the one rule they
+  // share, stated once here rather than four times below
+  // ---------------------------------------------------------------------------
+  //
+  // **ALL FOUR REPORT THEIR OWN SUBCLASS DOWNGRADE.** Every arm constructs a
+  // BASE instance — `[]`, `new Date`, `new Map`, `new Set` — so a SUBCLASS loses
+  // its prototype and every own property it carries. Measured, before this was
+  // closed:
+  //
+  //   class Basket extends Array -> warns = 0 | ctor = Array | currency LOST | instanceof Basket = false
+  //   class Tagged extends Map   -> warns = 0 | ctor = Map   | .tag LOST
+  //
+  // Silence there contradicts the argument the pass-through branch below makes
+  // for itself — "a lossy clone that drops a prototype is worse than an honest
+  // reference" — and unlike that branch these were doing it without saying so.
+  //
+  // **Clone-and-report, rather than restricting the arms to exact instances.**
+  // Restricting would send a CROSS-REALM `Date`, `Map`, `Set` or array down the
+  // pass-through path, and the predicates here exist precisely to catch those.
+  // Detachment is worth more than prototype fidelity, so the clone stays and
+  // only the loss becomes visible.
+  //
+  // **Every report is gated on `instanceof` as well as the prototype test, and
+  // that conjunct is load-bearing rather than belt-and-braces.** A cross-realm
+  // instance ALSO fails the prototype test — its prototype is the other realm's
+  // — so the bare test would report every cross-realm collection, where nothing
+  // carrying app data is actually lost. On the array arm the same conjunct
+  // additionally silences a `Proxy` over an array, which is what Vue's
+  // `reactive([])` hands core on the hottest path in the file.
+  //
+  // **THE RESIDUAL, stated completely rather than partially.** Two shapes are
+  // downgraded and stay SILENT, and both are accepted rather than chased:
+  //
+  //   1. a CROSS-REALM subclass — it fails `instanceof` in this realm, so it is
+  //      indistinguishable here from a cross-realm base instance;
+  //   2. a BASE-PROTOTYPE instance carrying own properties — `const a = []; a.total = 3`
+  //      or `const m = new Map(); m.tag = 1`. The prototype test cannot see it,
+  //      and an own-key test would have to be spelled four different ways
+  //      (indices vs. entries vs. internal slots) for a shape rarer than the
+  //      subclass it would sit beside.
+  //
+  // **And one prototype change outside these four arms, named so the claim above
+  // is not read wider than it is.** The plain-object branch clones an
+  // `Object.create(null)` record into a `{}`, so the result inherits
+  // `Object.prototype` where the source inherited nothing — silently, and
+  // deliberately. It is not grouped with the two residuals above because it is
+  // not a downgrade in the same sense: it ADDS inherited members rather than
+  // losing anything the app put there, `Object.keys` agrees on both sides so the
+  // payload Phase 8 hashes is unaffected, and since `defineField` landed an own
+  // `__proto__` key survives it intact. `D6` and `D27` both pin the resulting
+  // prototype, so the behaviour is asserted rather than assumed.
+  //
+  // An earlier draft of this comment opened "EACH BRANCH REPORTS ITS OWN
+  // DOWNGRADE" while the array arm reported nothing, and recorded the residual
+  // as "a cross-realm SUBCLASS" alone. Both were false. It is written out here
+  // because a claim in a comment that measurement contradicts is the same defect
+  // class as the code bug it sits above, and this file's own gate exists to
+  // catch it.
+
+  // ARRAYS. `Array.isArray` and never `instanceof Array` for the DETECTION:
+  // measured, it is the only predicate that is both proxy-transparent and
+  // realm-transparent, where `instanceof Array` returns false for an array from
+  // another realm. The memo entry is written BEFORE recursing, or a
+  // self-referencing array never terminates.
   if (Array.isArray(obj)) {
     const elements: unknown[] = [];
     seen.set(obj, elements);
+    // …and `instanceof Array` deliberately DOES appear in the report gate, one
+    // line below the comment forbidding it above. The two uses want opposite
+    // properties from the same predicate: detection needs realm-transparency,
+    // so it uses `Array.isArray`; the report needs realm-BLINDNESS, so that a
+    // cross-realm array — whose prototype is the other realm's and therefore
+    // never `=== Array.prototype` — is not reported as a downgrade it did not
+    // suffer. Do not "harmonize" these two lines onto one predicate; each is
+    // wrong in the other's position.
+    if (Object.getPrototypeOf(obj) !== Array.prototype && obj instanceof Array) {
+      onExotic();
+    }
     for (const element of obj) {
       elements.push(cloneDetached(element, seen, onExotic));
     }
@@ -578,27 +649,11 @@ function cloneDetached(v: unknown, seen: WeakMap<object, unknown>, onExotic: () 
   // propagates to the capture loop and is reported as a throwing getter rather
   // than mislabelled as an undetachable value. Every `catch` binds nothing.
   //
-  // **EACH BRANCH REPORTS ITS OWN DOWNGRADE, and this is the one lossy clone in
-  // the file.** Every arm constructs a BASE instance, so a subclass loses its
-  // prototype and every own property it carries — measured,
-  // `class Tagged extends Map` came back as a plain `Map` with `.tag` gone and
-  // zero warnings. That contradicts the argument the pass-through branch below
-  // makes for itself, "a lossy clone that drops a prototype is worse than an
-  // honest reference", and unlike that branch it was doing it in silence.
-  //
-  // **Clone-and-report, rather than pass-through.** Restricting these arms to
-  // exact instances would send a CROSS-REALM `Date` or `Map` down the
-  // pass-through path — and the union-of-predicates test exists precisely to
-  // catch those, since a cross-realm instance fails `instanceof` and passes the
-  // tag. Detachment is worth more there than prototype fidelity, so the clone
-  // stays and only the loss becomes visible.
-  //
-  // Each report is gated on `instanceof` as well as the prototype test, and that
-  // conjunct is load-bearing rather than belt-and-braces: a cross-realm instance
-  // ALSO fails the prototype test — its prototype is the other realm's — so the
-  // bare test would report every cross-realm collection, where nothing carrying
-  // app data is actually lost. The remaining miss is a cross-realm SUBCLASS,
-  // which is silent; recorded here rather than chased.
+  // The three subclass-downgrade reports below follow the shared rule stated
+  // above the array branch — prototype test AND `instanceof`, with the residual
+  // written out there. They sit AFTER each extraction `try`/`catch`, so a value
+  // whose extraction already failed reports once from the `catch` rather than
+  // twice.
   const tag: string = Object.prototype.toString.call(obj);
 
   if (obj instanceof Date || tag === "[object Date]") {
