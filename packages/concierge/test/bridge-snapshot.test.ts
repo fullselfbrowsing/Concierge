@@ -569,6 +569,132 @@ describe("BRG-05 — a snapshot captured from a proxy-backed store does not move
     expect(realmWarns[0]).toContain("[snapshot_exotic]");
   });
 
+  it("D27 — an own `__proto__` key SURVIVES the clone as an own key, and the clone's prototype is untouched", () => {
+    // `JSON.parse` is the canonical producer of an own enumerable `__proto__`
+    // key, and it is not an exotic shape: it is what a server response or a
+    // user-submitted body looks like the moment it reaches a snapshot getter.
+    //
+    // A plain `fields[key] = …` against an object that inherits
+    // `Object.prototype` invokes the inherited `__proto__` SETTER instead of
+    // creating an own property. Measured against the pre-fix artifact:
+    //
+    //   source own keys = [ '__proto__', 'total' ]
+    //   clone own keys  = [ 'total' ]
+    //   clone prototype = { injected: true }
+    //   JSON of clone   = {"total":4180}
+    //   out.injected    = true  (through the prototype chain)
+    //
+    // TWO silent failures at once. The captured snapshot no longer contains a
+    // field the app does contain — in the exact value Phase 8 hashes and
+    // drift-checks, and both sides of that check lose it identically, so drift
+    // in that field can never be observed. And a value documented as a
+    // structural clone acquires an inherited-property surface: a reader that
+    // enumerates and a reader that dereferences disagree about the same object.
+    const payload = JSON.parse('{"__proto__":{"injected":true},"total":4180}');
+
+    // The fixture itself is asserted first. `JSON.parse` is the only reason
+    // this shape exists here, and a case whose fixture quietly stopped carrying
+    // an own `__proto__` would go green while proving nothing.
+    expect(Object.keys(payload)).toEqual(["__proto__", "total"]);
+
+    const result = captureOne(payload);
+
+    expect(Object.keys(result)).toEqual(["__proto__", "total"]);
+    expect(result.total).toBe(4180);
+
+    // `toBe(Object.prototype)`, never `not.toBe(payloadProto)`. The claim is
+    // that the clone is an ordinary object, not merely that it did not inherit
+    // this particular attacker-shaped value.
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+    expect(result.injected).toBe(undefined);
+
+    // Round-trips. The pre-fix clone serialized to `{"total":4180}` while the
+    // source serialized to `{"__proto__":{"injected":true},"total":4180}` —
+    // which is the data loss stated as bytes.
+    expect(JSON.parse(JSON.stringify(result))).toEqual(JSON.parse(JSON.stringify(payload)));
+
+    // THE NULL-PROTOTYPE RECORD IS AFFECTED IDENTICALLY, and it is worth its
+    // own assertion because `Object.create(null)` is what `Catalog.byName` is
+    // built with — the exact shape `D6` exists to keep in the clone at all.
+    // Note it fails for a DIFFERENT reason: the record itself has no inherited
+    // setter, but the `fields` object the clone writes INTO does.
+    const record = Object.create(null);
+    Object.defineProperty(record, "__proto__", {
+      value: { evil: 1 },
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+    record.total = 1;
+
+    const cloned = captureOne(record);
+
+    expect(Object.keys(cloned)).toEqual(["__proto__", "total"]);
+    expect(Object.getPrototypeOf(cloned)).toBe(Object.prototype);
+  });
+
+  it("D28 — a snapshot key named `__proto__` lands as an own key of the RETURNED record, whether the getter succeeds or throws", () => {
+    // `captureSnapshot`'s own container had the same defect as the clone's, and
+    // the returned record is the thing every downstream reader holds. Measured
+    // pre-fix:
+    //
+    //   returned own keys = [ 'ok' ] | proto = { evil: 1 } | res.evil = 1
+    //
+    // A snapshot member disappeared from the record and its value became the
+    // record's prototype.
+    //
+    // `Object.defineProperty`, not an object literal: `{ __proto__: fn }` in a
+    // literal SETS the prototype and creates no own key, so a literal would
+    // build the wrong fixture and the case would pass vacuously.
+    const holder = { ok: () => 1 };
+    Object.defineProperty(holder, "__proto__", {
+      value: () => ({ evil: 1 }),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+
+    let result;
+    const captured = withConsoleCapture(() => {
+      result = captureSnapshot({ actions: {}, snapshot: holder }, "results");
+    });
+
+    expect(Object.keys(result).sort()).toEqual(["__proto__", "ok"]);
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+    expect(result.evil).toBe(undefined);
+    expect(captured).toHaveLength(0);
+
+    // THE `catch` ARM TOO. `out[key] = undefined` was a silent no-op for this
+    // key — assigning `undefined` through the inherited setter does nothing at
+    // all — which defeats the "key present at `undefined`" contract that lets a
+    // reader tell a key that FAILED from a key the component never declared.
+    // Measured pre-fix: `catch-arm own keys = []`.
+    const throwing = {};
+    Object.defineProperty(throwing, "__proto__", {
+      value: () => {
+        throw new Error("SECRET-FROM-THE-APP");
+      },
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+
+    let failed;
+    const failedWarns = withConsoleCapture(() => {
+      expect(() => {
+        failed = captureSnapshot({ actions: {}, snapshot: throwing }, "results");
+      }).not.toThrow();
+    });
+
+    expect(Object.prototype.hasOwnProperty.call(failed, "__proto__")).toBe(true);
+    expect(failed.__proto__).toBe(undefined);
+    expect(Object.getPrototypeOf(failed)).toBe(Object.prototype);
+
+    expect(failedWarns).toHaveLength(1);
+    expect(failedWarns[0]).toContain("[snapshot_threw]");
+    expect(failedWarns[0]).not.toContain("SECRET-FROM-THE-APP");
+  });
+
   it("D9 — a symbol-keyed property is not carried into the capture", () => {
     const marker = Symbol("framework-internal");
     const value: Record<string, unknown> = { visible: 1 };

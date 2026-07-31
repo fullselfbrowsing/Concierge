@@ -381,6 +381,51 @@ export function offPageResult(what: string, where: string): ActionResult {
 // phase's gate exists to prevent.
 
 /**
+ * Write one own, enumerable, writable, configurable data property.
+ *
+ * **This exists because `target[key] = value` is not safe when `key` comes from
+ * data, and the failure is silent in both directions.** Every object this module
+ * builds — the clone's `fields`, and `captureSnapshot`'s returned record —
+ * inherits `Object.prototype`, which carries an accessor named `__proto__`. A
+ * computed assignment with that key invokes the inherited SETTER rather than
+ * creating an own property, so the key vanishes and the object's prototype
+ * becomes whatever the app's data said. Measured against the pre-fix artifact,
+ * on the exact value `JSON.parse` produces:
+ *
+ * ```
+ * source own keys = [ '__proto__', 'total' ]
+ * clone own keys  = [ 'total' ]
+ * clone prototype = { injected: true }
+ * ```
+ *
+ * An own enumerable `__proto__` is the canonical `JSON.parse` shape, so this is
+ * the ordinary form of server-returned or user-submitted data reaching a
+ * snapshot — not an exotic case. Two consequences, both silent: a field is
+ * dropped from the value Phase 8 hashes and drift-checks (and dropped from
+ * *both* sides identically, so drift in it can never be observed), and a value
+ * documented as a structural clone acquires an inherited-property surface where
+ * a reader that enumerates and a reader that dereferences disagree.
+ *
+ * `Object.defineProperty` ignores inherited accessors and always creates an own
+ * property, which is the whole reason it is spelled out rather than assigned.
+ * The three flags reproduce exactly what a plain assignment produces for every
+ * other key, so nothing else about the shape changes; the clone's per-node
+ * `Object.freeze` then clears `writable` and `configurable` as before.
+ *
+ * **Do not "simplify" any call site back to `[]`.** The two spellings are
+ * observationally identical for every key except one, which is what makes the
+ * regression invisible in a suite that never writes that key.
+ */
+function defineField(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+}
+
+/**
  * A structural clone that detaches a value from whatever produced it.
  *
  * Module-private. `seen` carries cycle safety and DAG identity; `onExotic` is
@@ -548,7 +593,9 @@ function cloneDetached(v: unknown, seen: WeakMap<object, unknown>, onExotic: () 
     const fields: Record<string, unknown> = {};
     seen.set(obj, fields);
     for (const key of Object.keys(obj)) {
-      fields[key] = cloneDetached((obj as Record<string, unknown>)[key], seen, onExotic);
+      // `defineField`, never `fields[key] = …` — see that function's comment.
+      // `key` comes from the app's own data here, so `"__proto__"` is reachable.
+      defineField(fields, key, cloneDetached((obj as Record<string, unknown>)[key], seen, onExotic));
     }
     return Object.freeze(fields);
   }
@@ -827,15 +874,20 @@ export function captureSnapshot<B extends Bridge>(bridge: B, id: string, normali
     // at runtime, in a shipped app, on a value derived from user input.
     //
     // The key is set to nothing rather than omitted, so a reader can tell a key
-    // that failed from a key the component never declared.
+    // that failed from a key the component never declared — and that contract is
+    // exactly why the `catch` arm writes through `defineField` too. `out[key] =
+    // undefined` for a key named `__proto__` is a silent NO-OP, so the failed
+    // key would be absent from the record and indistinguishable from one the
+    // component never declared, which is the distinction this line exists to
+    // preserve.
     try {
       const getter: unknown = (holder as Record<string, unknown>)[key];
       if (getter === undefined) {
         continue;
       }
-      out[key] = normalizeValue((getter as () => unknown)());
+      defineField(out, key, normalizeValue((getter as () => unknown)()));
     } catch {
-      out[key] = undefined;
+      defineField(out, key, undefined);
       if (!warned.has(key)) {
         warned.add(key);
         warnHost(snapshotThrewMessage(id, key));
