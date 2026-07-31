@@ -25,7 +25,7 @@ signed_off: 2026-07-31
 | **Quick run command** | `pnpm build && pnpm exec vitest run bridge && pnpm typecheck` |
 | **Full suite command** | `pnpm build && pnpm test && pnpm typecheck` |
 | **Mutation harness** | `scripts/mutate-and-prove.sh <file> <literal> <replacement> -- <gate>` |
-| **Estimated runtime** | ~2 s quick · ~4 s full (**133-test** phase-close baseline, 336 ms across 9 files; typecheck ~0.8 s) |
+| **Estimated runtime** | ~2 s quick · ~4 s full (**144-test** baseline after the code-review fixes — 133 at phase close plus eleven regression cases; ~330 ms across 9 files; typecheck ~0.8 s) |
 
 **Prerequisite:** `pnpm build` must precede `pnpm test` — `test/*.test.ts` import `../dist/index.js`
 behind an `existsSync` guard in `beforeAll`. A stale `dist/` silently tests the previous build.
@@ -134,10 +134,10 @@ a detector that has been measured green under the defect.
 | M-05-6 | `src/bridge.ts` | drop the `\|\| proto === null` arm | `Object.create(null)` records pass through undetached |
 | M-05-7 | `src/bridge.ts` | `return Object.freeze(registry);` → `return registry;` | Capability object swappable |
 | M-05-8 | `src/bridge.ts` | `assertSingleInstance();` deleted | PKG-04's **third** call site, and its first DIRECT one (05-06 measured the count; "second" was stale) |
-| M-05-9 | `src/bridge.ts` | `normalize(getter())` → `getter()` | Detachment skipped at capture |
+| M-05-9 | `src/bridge.ts` | `normalizeValue((getter as () => unknown).call(holder))` → `(getter as () => unknown).call(holder)` | Detachment skipped at capture |
 | M-05-10 | `src/bridge.ts` | warn-once latch assignment deleted | Warns on every register |
 | M-05-11 | `src/bridge.ts` | add `warnHost(...)` to the refused-unsubscriber return | Warns on every StrictMode mount |
-| M-05-12 | `src/bridge.ts` | `message.slice(0, MESSAGE_MAX_CHARS)` → `message` | Off-page message unbounded |
+| M-05-12 | `src/bridge.ts` | `message.slice(0, cut)` → `message` | Off-page message unbounded |
 | M-05-13 | `src/concierge.ts` | `return registry.read();` in `resolveBridge` → `return null;` | Resolution always off-page |
 | M-05-14 | `src/concierge.ts` | remove `stage.bridge === undefined` early return | `explain()`'s three-state row collapses to two |
 | P-05-1/2 | `src/index.ts` | move `createBridge` / helper into the `export type` block | Export placement — surfaces as **TS1485 at the shared import line**, not TS2344 at the predicate |
@@ -149,6 +149,16 @@ comments included against the file the plan actually writes before using it (Kno
 ---
 
 ## Mutation Battery — Measured Results
+
+> **⚠️ SUPERSEDED FOR TWO LITERALS AND EVERY RED-CASE LIST.** This section records the battery as
+> run at the phase gate, against the tree as it stood on 2026-07-31 before code review. The code
+> review that followed found three Criticals and six Warnings in `src/bridge.ts`; fixing them moved
+> **M-05-9**'s and **M-05-12**'s anchor literals and grew the suite from 133 to 144 tests. The whole
+> battery was re-run afterwards and every mutant still fires — see
+> § *Post-review-fix re-measurement* below, which carries the current literals, counts and red-case
+> lists. The register table above has been updated in place, because a stale literal there is a
+> live contract that would fail on its next use; this section is left as the historical measurement
+> it is.
 
 Run in plan 05-07 (wave 4) against the completed phase tree. Baseline before the battery:
 **133 tests / 9 files**, `pnpm build` clean through `attw` and `publint --strict`, `pnpm typecheck`
@@ -304,17 +314,116 @@ an uninvoked function, and the battery would have recorded an escape that is the
 
 ---
 
+## Post-review-fix re-measurement — 2026-07-31, after `05-REVIEW.md`
+
+Code review found three Criticals and six Warnings in `src/bridge.ts`, every one reproduced by
+execution against `dist/index.js`. Fixing them changed the file substantially, so the whole
+`src/bridge.ts` battery was re-run rather than only the two mutants whose anchors moved.
+
+**New baseline:** **144 tests / 9 files** (133 + eleven regression cases: `D22`–`D32`), `pnpm build`
+clean through `attw` and `publint --strict`, `pnpm typecheck` exit 0, `pnpm check:deps` /
+`check:artifact` / `check:pack` / `check:node-floor` all exit 0, `git status --porcelain` empty
+before the first probe and after the last. The bridge filter now selects **53** cases, up from 42.
+
+### Occurrence counts, taken UNFILTERED (Known Limitation 3)
+
+Every literal below counted exactly **1**, comments left in; the M-05-2 and M-05-11 multi-line
+literals were counted with `String.count` over the raw file, which `grep` cannot do. The pre-flight
+abort check is re-cleared: **`makeDefaultNormalizer(` still occurs exactly 2** — the declaration plus
+the live call inside `captureSnapshot`'s key loop. The two constraints greppable at column 0 also
+hold: `grep -c "^let "` is **0** and `grep -c "catch ("` is **0**, so no module-scope mutable state
+was introduced and every `catch` still binds nothing.
+
+### The twelve `src/bridge.ts` mutants, re-run
+
+| ID | Literal → replacement | Count | Exit | Build | Tests ran | Cases red |
+|---|---|---|---|---|---|---|
+| **M-05-1** | `if (slot?.token === token)` → `if (slot?.bridge === bridge)` | 1 | **0 PASS** | ✔ attw clean | 53 | B10, B11, B12, B13, B20 |
+| **M-05-2** | the 3-line guarded block (8/10/8 indent) → `slot = null;` | 1 | **0 PASS** | ✔ | 53 | B6, B7, **B8**, **B9**, B10, B11, B12, B13, B20 |
+| **M-05-3** | `cloneDetached(value, seen, onExotic) as T` → `Object.freeze(value) as T` | 1 | **0 PASS** | ✔ | 53 | **D1**, D3, D4, D5, D6, D7, D8, D9, D11, D12, D25, D26, D27, D29, D32 |
+| **M-05-4** | `seen.get(obj)` → `undefined` | 1 | **0 PASS** | ✔ | 53 | **D2**, **D3** |
+| **M-05-5** | `obj instanceof Date \|\| tag === "[object Date]"` → `false` | 1 | **0 PASS** | ✔ | 53 | **D7**, **D32** |
+| **M-05-6** | `proto === Object.prototype \|\| proto === null` → `proto === Object.prototype` | 1 | **0 PASS** | ✔ | 53 | **D6**, D27 |
+| **M-05-7** | `return Object.freeze(registry);` → `return registry;` | 1 | **0 PASS** | ✔ | 53 | **B16**, **B17**, **B18** |
+| **M-05-8** | `assertSingleInstance();` → *(empty)*, gate `pnpm exec vitest run single-instance` | 1 | **0 PASS** | ✔ | 6 | **F6** |
+| **M-05-9** | `normalizeValue((getter as () => unknown).call(holder))` → the bare call | 1 | **0 PASS** | ✔ | 53 | **D1**, D3, D4, **D5**, D6, D7, D8, D9, D11, D12, D25, D26, D27, D29, D32 |
+| **M-05-10** | `warnedOverwrite = true;` → *(empty)* | 1 | **0 PASS** | ✔ | 53 | **B19** |
+| **M-05-11** | `if (slot?.token === token) {` → a `warnHost` on the refusal condition, then the original line | 1 | **0 PASS** | ✔ | 53 | **B20** |
+| **M-05-12** | `message.slice(0, cut)` → `message` | 1 | **0 PASS** | ✔ | 53 | **D19**, **D31** |
+
+**No escapes; no exit 1, 2, 3 or 4.** The five `src/concierge.ts` / `src/index.ts` / `src/types.ts`
+mutants (M-05-13, M-05-14, P-05-1, P-05-2, P-05-3) were **not** re-run: those three files are
+byte-unchanged by the fixes, so the phase-gate results for them stand.
+
+### Four things the re-run changed, each recorded rather than absorbed
+
+1. **M-05-9's anchor moved twice over, and the second move is the interesting one.** The literal was
+   `normalizeValue(getter())`. CR-01 moved the getter READ inside the per-key `try`, which forced the
+   cast; WR-02 then added `.call(holder)` so a method-shorthand snapshot member gets its receiver. A
+   register still naming `normalizeValue(getter())` would abort at exit 3 (pattern never matched) —
+   which `mutate-and-prove.sh` reports distinctly from an escape, so this would have been caught, but
+   only by whoever ran it next.
+
+2. **M-05-12's anchor moved because the truncation grew a helper.** `message.slice(0,
+   MESSAGE_MAX_CHARS)` became `boundedMessage`, whose cut trims back off a high surrogate. The new
+   literal is `message.slice(0, cut)`, and the mutant now reddens **two** cases — D19 (the length
+   bound) and D31 (well-formedness) — where it reddened one.
+
+3. **Finding 4 of the phase-gate battery is now OBSOLETE, and this is the one substantive
+   regression-in-reverse.** It recorded that disabling the Date arm reddened D7 *and D12*, because
+   the proxied `Date` then "falls straight through to pass-by-reference, so it is carried live
+   **without a warning**, which is precisely the invisible hole the exotic-warn signal path exists to
+   close." CR-02 closed that hole: the pass-through branch now calls `onExotic`, so the fall-through
+   is carried live **with** a warning and D12's two claims (by reference, one exotic warn) both still
+   hold. D12 therefore no longer detects M-05-5's Date arm. **It is not a coverage loss** — D7 still
+   reddens on all three arms and D32 now reddens on the Date arm too — but a reader comparing the two
+   tables would otherwise see a detector silently disappear.
+
+4. **M-05-2 still reddens B9, which is the check that mattered for WR-05.** B9 was byte-identical to
+   B8 and was rewritten as a genuinely distinct O8 (`reg A(u1); reg B(u2); reg C(u3); u2()` → `C`).
+   The re-run confirms the rewritten case still discriminates the unconditional clear, so the
+   register's M-05-2 row loses nothing. Re-measuring all thirteen orderings against all three
+   implementations independently confirms every figure this phase asserts survives the correction:
+   object guard agrees on **9 of 13**, differing on exactly O1b/O2b/O4b/O4c; naive clear agrees on
+   **5 of 13**, differing on O1b, O2, O2b, O3b, O4, O4b, O4c and O8.
+
+### Eleven regression cases added, each observed RED against the pre-fix artifact
+
+| Case | Finding | Pre-fix failure observed |
+|---|---|---|
+| D22 | CR-01 | `expected [Function] to not throw … 'Error: SECRET-FROM-THE-APP user@example.com'` |
+| D23 | CR-01 | `expected [Function] to not throw … 'Error: SECRET-3 keys'` |
+| D24 | CR-01 | `expected [Function] to not throw … 'TypeError: Cannot read properties of null (reading 'snapshot')'` |
+| D8 *(extended)* | CR-02 | `expected [] to have a length of 1 but got +0` |
+| D25 | CR-02 | `expected [] to have a length of 1 but got +0` |
+| D26 | CR-02 | `expected [] to have a length of 1 but got +0` |
+| D27 | CR-03 | `expected [ 'total' ] to deeply equal [ '__proto__', 'total' ]` |
+| D28 | CR-03 | `expected [ 'ok' ] to deeply equal [ '__proto__', 'ok' ]` |
+| D29 | WR-01 | `expected [ Array(1) ] to have a length of 2 but got 1` |
+| D30 | WR-02 | `expected undefined to be 7` |
+| D31 | WR-03 | `expected false to be true` *(`isWellFormed()`)* |
+| D32 | WR-04 | `expected [] to have a length of 1 but got +0` |
+
+**The suite-output invariant still holds.** `pnpm test 2>&1 | grep -c "concierge: \["` is **0**: every
+one of the eleven new cases that provokes a diagnostic captures it, so an unexpected warning is still
+visible.
+
+---
+
 ## Wave 0 Requirements
 
 **All satisfied.** Every `❌ W0` reference in the map above now resolves to a committed file.
 
-- [x] `packages/concierge/test/bridge.test.ts` — new (05-04, 810 lines, 21 cases B1–B21). Covers
+- [x] `packages/concierge/test/bridge.test.ts` — new (05-04, 810 lines, 21 cases B1–B21; **856 lines
+      after the code-review fixes**, still 21 cases — B9 was rewritten in place, not added to). Covers
       BRG-01, BRG-02, BRG-04, the SEC-03-class frozen capability and both warn policies. Opens with
       the "what escapes without this file" header carrying measured evidence. Imports
       `../dist/index.js` behind an `existsSync` guard in `beforeAll`. **No Vitest mocking API** —
       `grep -rn "vi\.spyOn|vi\.fn|vi\.mock"` across `test/` returns zero; console capture is a plain
       `globalThis.console` assignment restored in a `finally`.
-- [x] `packages/concierge/test/bridge-snapshot.test.ts` — new (05-05, 959 lines, 21 cases D1–D21).
+- [x] `packages/concierge/test/bridge-snapshot.test.ts` — new (05-05, 959 lines, 21 cases D1–D21;
+      **1567 lines / 32 cases D1–D32 after the code-review fixes**, the eleven additions being the
+      regression cases tabulated in § *Post-review-fix re-measurement*).
       **This file is a SPLIT of the single `test/bridge.test.ts` Wave 0 planned, and the split is
       Claude's discretion under CONTEXT ("the division of tests across files"), not unplanned work.**
       It carries BRG-05 (detachment, the clone's measured properties, both capture warns), BRG-03
