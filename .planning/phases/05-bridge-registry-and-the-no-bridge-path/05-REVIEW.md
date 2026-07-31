@@ -1,6 +1,7 @@
 ---
 phase: 05-bridge-registry-and-the-no-bridge-path
 reviewed: 2026-07-31T23:07:42Z
+rereviewed: 2026-07-31T23:50:37Z
 depth: standard
 files_reviewed: 12
 files_reviewed_list:
@@ -22,6 +23,19 @@ findings:
   info: 5
   total: 14
 status: issues_found
+rereview:
+  pass: 2
+  scope: fix-verification-only
+  original_findings_closed: 8
+  original_findings_partially_closed: 1
+  new_findings:
+    critical: 0
+    warning: 1
+    info: 0
+    total: 1
+  execution_blocking: 0
+  carry_forward: 1
+  status: issues_found
 ---
 
 # Phase 5: Code Review Report
@@ -547,3 +561,286 @@ consumer who gets an empty capture has something to search for.
 _Reviewed: 2026-07-31T23:07:42Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
+
+---
+---
+
+# Re-review (pass 2) — fix verification
+
+**Re-reviewed:** 2026-07-31T23:50:37Z
+**Scope:** verification of the ten fix commits `8f0e5e7`…`9f064ec` only. Unchanged code was
+not re-reviewed. `concierge.ts`, `contract.ts`, `index.ts`, `types.ts`, `artifact.test.ts`,
+`export-surface.test.ts`, `single-instance.test.ts` and both `test-d/` files are
+byte-unchanged since pass 1 and were not revisited.
+
+**Result:** 8 of 9 findings fully closed; **WR-04 is 3/4 closed**; 1 new finding
+(carry-forward, non-blocking). All 11 self-reported regression cases verified genuine.
+
+## Method
+
+The pre-fix artifact was rebuilt from commit `271a198` in a mirrored scratch root
+(`/tmp/prefix-root`, since removed) using rolldown 1.2.0 against the pre-fix `src/`, and the
+**current** test files were run against it. That is the only way to check the
+"observed red pre-fix" claim without trusting it. The repository working tree was never
+modified — `git status --porcelain` is empty.
+
+Independent confirmations reproduced locally: `vitest run` → **144 passed (144)**,
+`tsc -p packages/concierge/tsconfig.test-d.json --noEmit` → **exit 0**,
+`grep -c "^let " src/bridge.ts` → **0**, `grep -c "catch ("` → **0**,
+`grep -c "makeDefaultNormalizer("` → **2**, `structuredClone` → **0**,
+`grep -c "defineField("` → **4** (one declaration, three call sites).
+
+## Verification of each finding
+
+### CR-01 — CLOSED (verified fully, not narrowed)
+
+Every consumer-code invocation reachable from `captureSnapshot` was enumerated and probed.
+All eleven now degrade to a warning; none throws, none echoes.
+
+```
+A holder get trap throws      : threw=no | warns=1 | leak=false | ["[snapshot_threw]"]
+B holder accessor throws      : threw=no | warns=1 | leak=false | ["[snapshot_threw]"]
+C holder ownKeys trap throws  : threw=no | warns=1 | leak=false | ["[snapshot_threw]"]
+C2 holder gOPD trap throws    : threw=no | warns=1 | leak=false | ["[snapshot_threw]"]
+D bridge-level get trap throws: threw=no | warns=1 | leak=false | ["[snapshot_threw]"]
+E null bridge (read())        : threw=no | warns=0 | out={} (plain, unfrozen)
+F bridge without .snapshot    : threw=no | warns=0 | out={}
+G snapshot null / primitive   : threw=no | warns=0
+H nested throwing getter      : threw=no | warns=1 | leak=false
+I consumer normalizer throws  : threw=no | warns=1 | leak=false
+J revoked proxy as a VALUE    : threw=no | warns=1 | leak=false
+K revoked proxy as the HOLDER : threw=no | warns=1 | leak=false
+```
+
+The original reproduction (`SECRET-FROM-THE-APP user@example.com`) no longer escapes and
+no longer appears in any emitted line. The `catch` arms still bind nothing
+(`grep -c "catch ("` → 0), and the one new message builder,
+`snapshotHolderThrewMessage(id)`, interpolates `id` only — the caught value is not in
+scope at its call site.
+
+Two design choices in the fix were checked and are sound. The holder is read **once**
+before the loop, so a proxied bridge is not re-trapped per key and a holder that changed
+identity mid-loop cannot cause the walk to enumerate one object and read from another. And
+`given?.snapshot ?? {}` makes the `null`-bridge path an empty capture rather than a
+`TypeError`, which matches DX-02 and the doc comment added at `:846-855`.
+
+### CR-02 — CLOSED
+
+All three pass-through classes now report, and the fix did not become chatty. Sixteen
+correctly-handled shapes emit zero warnings, including every primitive and every
+cross-realm **base** collection:
+
+```
+reports (1 warn each): class instance, function, arrow fn, cross-realm object, Object.create({})
+silent  (0 warns):     plain literal, null-proto record, array, Date, Map, Set,
+                       null, undefined, number, string, symbol, bigint,
+                       cross-realm Date / Map / Set / array
+```
+
+The `typeof v === "function"` test is correctly placed **before** the primitive guard, so a
+closure no longer earns a number's silence. `null` correctly stays silent.
+
+### CR-03 — CLOSED at every write site
+
+```
+source own keys = [ '__proto__', 'total' ]
+clone  own keys = [ '__proto__', 'total' ]        ← was [ 'total' ]
+clone proto is Object.prototype = true            ← was { injected: true }
+clone.injected = undefined | 'injected' in clone = false
+JSON of clone = {"__proto__":{"injected":true},"total":4180}   ← round-trips the source
+```
+
+Confirmed at all three sites named in pass 1: the clone's plain-object branch, and both the
+success and `catch` arms of `captureSnapshot`. The `catch` arm now genuinely preserves the
+"key present at `undefined`" contract for a key named `__proto__` — `hasOwnProperty` is
+`true` and `Object.keys` includes it — which the old `out[key] = undefined` silently
+violated. The `Object.create(null)` source variant behaves identically.
+
+**On the "other inherited setters" question:** `__proto__` was and remains the only key with
+this shape. Every other `Object.prototype` member is a **data** property, verified by
+descriptor inspection (`constructor`, `toString`, `valueOf`, `hasOwnProperty`,
+`__defineGetter__`, `__lookupGetter__`) and end-to-end by round-tripping a `JSON.parse`
+object carrying `constructor`/`toString`/`valueOf`/`hasOwnProperty` — all four survive as
+own keys with correct values. No further write sites need changing.
+
+### WR-01 — CLOSED
+
+```
+out.mixed = undefined | warns = 2 | ["[snapshot_exotic]","[snapshot_threw]"]
+subjects  = ['snapshot "results.mixed"', 'snapshot "results.mixed"']
+```
+
+The actionable code is no longer suppressed. Per-key latching is preserved **inside** each
+code — three undetachable values under one key still print one line; two keys with one
+exotic value each print two.
+
+### WR-02 — CLOSED, and no regression for getters that previously worked
+
+```
+method shorthand  -> count = 7        (was undefined)
+arrow member      -> value = 1, lexical `this` untouched
+proxy-target mthd -> count = 3, receiver is the PROXY (reactive reads preserved)
+bound function    -> bind still wins over .call
+class as member   -> still [snapshot_threw], unchanged
+```
+
+The receiver choice is right for the proxy case specifically: `holder` is the proxy, so a
+method defined on the proxy's *target* and reached through the proxy reads back through the
+proxy rather than bypassing it.
+
+### WR-03 — CLOSED
+
+No ill-formed output across `n = 100…219` (the pre-fix sweep found one at `n = 179`). The
+original repro now returns 179 chars, `isWellFormed() === true`. The 180 bound is still
+enforced (max observed length 180) and short messages are byte-untouched (108 chars, still
+ends with `.`). The low-surrogate reasoning in the new comment is correct: a low surrogate
+at index 179 always has its high half at 178, so it cannot be orphaned by this cut.
+
+### WR-04 — **PARTIALLY CLOSED (3 of 4 branches).** See RR-01 below.
+
+`Date`, `Map` and `Set` now report their downgrade. The **`Array`** branch was not given the
+same treatment.
+
+### WR-05 — CLOSED
+
+`B9` is now `reg A(u1); reg B(u2); reg C(u3); u2()` with three distinct components expecting
+`C`, which is a genuinely different program from `B8`. The comment correctly traces the root
+cause to a transcription error at `05-RESEARCH.md:725` and re-measures both agreement
+figures, which survive unchanged.
+
+### WR-06 — CLOSED
+
+The header now states the settled fact and matches `src/bridge.ts:245` ("nine of thirteen"),
+naming `934b53f` as the commit that landed it.
+
+## Audit of the eleven claimed regression cases — all genuine
+
+Running the **current** test files against the **pre-fix** artifact produced **12 failures**,
+covering every new case plus the one extended case:
+
+```
+× D22  holder get trap                × D28  __proto__ in the returned record
+× D23  holder ownKeys trap            × D29  both codes emitted
+× D24  captureSnapshot(read(), id)    × D30  method-shorthand receiver
+× D25  function pass-through          × D31  surrogate-safe truncation
+× D26  proto-bearing + cross-realm    × D32  Date/Map/Set subclass report
+× D27  __proto__ in the clone         × D8   (extended: class instance REPORTS)
+```
+
+**None passes vacuously.** D25, D26 and D32 were spot-read in full and are correctly
+scoped — each asserts both halves (the value is still handed back / still cloned with its
+content, *and* the report fires) and D32 carries an explicit negative control so the fix
+could not have been "always warn on this branch".
+
+`B9` does **not** go red against the pre-fix artifact, which is correct rather than a gap:
+its fix is to the test program, not to runtime behaviour, and the registry source is
+identical on both sides.
+
+## New finding
+
+### RR-01 (WARNING, carry-forward): the `Array` branch was skipped by WR-04's fix
+
+**File:** `packages/concierge/src/bridge.ts:550-557`
+
+**Issue:** The fix added a subclass-downgrade report to the `Date`, `Map` and `Set` arms and
+left the `Array` arm — which is the *first* collection branch in the walk — untouched. A
+same-realm `Array` subclass is still downgraded to a plain array, losing its prototype and
+every own property, in silence:
+
+```
+class Basket extends Array { constructor(){ super(); this.currency = "USD"; this.push({sku:"a"}); } }
+
+Array subclass -> warns = 0 | ctor = Array | currency LOST = undefined | instanceof Basket = false
+Map   subclass -> warns = 1
+Set   subclass -> warns = 1
+Date  subclass -> warns = 1
+nested Array subclass -> warns = 0   (silent inside a plain object too)
+```
+
+Two things make this worth carrying rather than dropping:
+
+1. **It is the same defect WR-04 named**, in the one branch the fix did not visit, so the
+   audit trail must not record WR-04 as closed without this qualification.
+2. **The new comment at `:581` claims otherwise.** It opens *"**EACH BRANCH REPORTS ITS OWN
+   DOWNGRADE**"*, which is false for the array branch — the same class of
+   documentation-outruns-code defect that CR-02 was. And the residual the comment records
+   (*"The remaining miss is a cross-realm SUBCLASS"*) understates the gap: the miss also
+   covers **same-realm** `Array` subclasses, which is not a cross-realm case at all.
+
+`D32` is titled "a Date/Map/Set SUBCLASS" and deliberately covers only those three, so
+nothing in the suite would go red.
+
+**Why carry-forward rather than execution-blocking:** the three security-critical holes
+(CR-01/02/03) are genuinely closed, and this is a diagnostic-completeness gap on a shape
+(`class X extends Array`) that is rarer than the `JSON.parse` `__proto__` key. The array
+*content* is still cloned and detached correctly; what is lost is own properties hung on the
+array plus the report.
+
+**Fix:**
+
+```ts
+if (Array.isArray(obj)) {
+  const elements: unknown[] = [];
+  seen.set(obj, elements);
+  // Same downgrade report as the three collection branches below: `[]` is a base
+  // array, so a subclass loses its prototype and every own property it carries.
+  // `Array.isArray` is realm-transparent, so the `instanceof` conjunct the other
+  // three use is not available — test the prototype against the value's own realm.
+  if (Object.getPrototypeOf(obj) !== Array.prototype && obj instanceof Array) {
+    onExotic();
+  }
+  for (const element of obj) {
+    elements.push(cloneDetached(element, seen, onExotic));
+  }
+  return Object.freeze(elements);
+}
+```
+
+Extend `D32` to a fourth iteration with `class Basket extends Array`, and correct the
+`:581` and `:596-601` comments so the "each branch" claim and the stated residual are both
+true.
+
+## New defects introduced by the fixes — none found
+
+Each hot path the fixes touched was probed for regressions:
+
+- **`defineField`** cannot throw out of the `catch` arm — `out` is a fresh, never-frozen
+  object, and `configurable: true` makes redefinition legal. Argument evaluation order also
+  guarantees a key that throws during normalization is never defined twice. Verified with a
+  `__proto__`-named key whose getter throws: the record keeps the own key, the prototype is
+  intact, nothing leaks.
+- **The returned record is still a plain, unfrozen `Record`** — `Object.isFrozen` is `false`,
+  prototype is `Object.prototype`, and a subsequent write succeeds. `_captureSnapshotReturnsPlainRecord`
+  still holds.
+- **The latch re-keying** did not disturb `D10`/`D11`/`D12`/`D13`, all of which still assert
+  their original counts.
+- **`.call(holder)`** does not change behaviour for arrow members or bound functions.
+- **The clone invariants survive `defineField`** — DAG identity kept, cycles kept, a shared
+  getter still invoked exactly once.
+- `typecheck` exits 0, so the definite-assignment of the new `holder` / `keys` locals across
+  the `try`/`catch` is accepted by TypeScript 7.0.2 under the repo's flags.
+
+## Status of the five Info findings
+
+- **IN-05 — CLOSED.** Subsumed as reported. The new doc comment at `:858-864` states the
+  own-enumerable-string-keys rule and spells out the consequence ("a holder whose members
+  live on a class PROTOTYPE captures as `{}` with no warning … a consumer who gets an empty
+  capture needs something to search for, and this sentence is it").
+- **IN-01 — still accurate.** Verified by execution: `createConcierge({ stages: [], normalizeSnapshot })`
+  accepts the field and the normalizer is never invoked. `concierge.ts` is byte-unchanged.
+- **IN-02 — still accurate, and now broader.** `id` remains a free-form unvalidated consumer
+  string, and it is interpolated into a **third** message now (`snapshotHolderThrewMessage`),
+  which repeats the "interpolates `id` and nothing else" phrasing without the validation the
+  phrasing implies.
+- **IN-03 — still accurate.** `register(null)` still occupies the slot; `read()` returns
+  `null`; the next genuine registration still emits a spurious `bridge_overwrite`. Verified.
+- **IN-04 — still accurate.** A `Symbol.toStringTag` spoof still diverts a cloneable plain
+  object into a collection branch and passes it through. It emits exactly one warning, so it
+  stays visible; the new subclass report does not double-fire on it (the `instanceof`
+  conjunct correctly excludes it).
+
+---
+
+_Re-reviewed: 2026-07-31T23:50:37Z_
+_Reviewer: Claude (gsd-code-reviewer)_
+_Pass: 2 (fix verification)_
