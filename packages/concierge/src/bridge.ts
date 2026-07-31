@@ -242,8 +242,9 @@ export function createBridge<B extends Bridge = Bridge>(id: string): BridgeRegis
 
       return (): void => {
         // **The guard is on the TOKEN, not on the bridge object.** Guarding on
-        // the object passes ten of thirteen mount/unmount orderings, including
-        // both of the two a developer writes first, and fails exactly when a
+        // the object agrees with this one on nine of thirteen mount/unmount
+        // orderings — including both of the two a developer writes first, so a
+        // reviewer's instinct does not catch it — and fails exactly when a
         // component re-registers an object that is `===` its previous
         // registration — a memoized literal, or a reused `$state` object. There
         // the stale cleanup matches the live registration and clears it, and
