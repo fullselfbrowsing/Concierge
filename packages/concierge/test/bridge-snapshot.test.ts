@@ -195,6 +195,65 @@ function makeReactiveStore() {
   return { proxy, backing };
 }
 
+// ---------------------------------------------------------------------------
+// Two small helpers
+// ---------------------------------------------------------------------------
+
+// Put ONE value through the real capture path and hand back what came out.
+//
+// **No normalizer argument, and that is a property of every case below rather
+// than a shorthand.** A caller-supplied `normalize` replaces the shipped
+// default outright, so a case that passed one would assert nothing about the
+// clone this file exists to pin.
+function captureOne(value: unknown) {
+  return captureSnapshot({ actions: {}, snapshot: { v: () => value } }, "results").v;
+}
+
+// The console-capture idiom, factored to ONE place because this file has four
+// call sites where `concierge.test.ts:1054-1095` has two.
+//
+// Four notes, each load-bearing, carried forward from that file and from
+// `catalog.test.ts:454-471`:
+//
+//   - This is a PLAIN GLOBAL ASSIGNMENT, never the Vitest mocking API
+//     (`spyOn`, `fn`, `mock`). A grep for that API's namespace prefix over
+//     `test/` returns 0 across every file today and must still return 0
+//     afterwards — which is also why this note spells the prefix out in prose
+//     rather than writing it, since the check for the rule is not scoped to
+//     non-comment lines. The repository's prohibition is on the mocking API,
+//     not on assigning a global.
+//   - The real console is SPREAD rather than replaced wholesale, so an
+//     unrelated `console.error` from Vitest itself does not become
+//     "undefined is not a function" while the stand-in is installed.
+//   - Restoration happens in a `finally`, never after the assertions. A
+//     throwing expectation would otherwise leave a stand-in console installed
+//     for every later case in this file — and factoring it here is exactly what
+//     makes that impossible to forget at a call site.
+//   - All three sinks are captured, not just `warn`. "Warns exactly once" is
+//     the claim, and a diagnostic that reached for `console.log` would satisfy
+//     a `warn`-only capture while printing on every capture.
+//
+// No cast ceremony is needed for the assignment even though `console` is not
+// type-visible inside core under `lib: ["ES2022"]`: this file is in NO
+// TypeScript program (see `vitest.config.ts`).
+function withConsoleCapture(body: () => void) {
+  const realConsole = globalThis.console;
+  const captured: string[] = [];
+  const sink = (message: string) => {
+    captured.push(String(message));
+  };
+
+  globalThis.console = { ...realConsole, warn: sink, error: sink, log: sink };
+
+  try {
+    body();
+  } finally {
+    globalThis.console = realConsole;
+  }
+
+  return captured;
+}
+
 describe("BRG-05 — a snapshot captured from a proxy-backed store does not move when the store moves", () => {
   it("D1 — success criterion 4: captured stays \"shoes\" while the store moves to \"boots\", and the store is not frozen", () => {
     // A hand-rolled `Proxy`, in core, before any framework adapter exists —
@@ -252,5 +311,341 @@ describe("BRG-05 — a snapshot captured from a proxy-backed store does not move
     //
     // A PASS whose output names `TypeError` means the FIXTURE is wrong (shape B
     // or E crept in), not that the normalizer is.
+  });
+
+  it("D2 — a self-referencing value captures without hanging, and the cycle survives as a cycle", () => {
+    const cyc: Record<string, unknown> = { label: "root" };
+    cyc["self"] = cyc;
+
+    const result = captureOne(cyc);
+
+    // `toBe`, not `toEqual`. The claim is that the memo produced ONE node and
+    // pointed it at itself, not that the shape looks recursive — `toEqual` on a
+    // cyclic structure is not the assertion it appears to be.
+    expect(result.self).toBe(result);
+
+    // MUTANT M-05-4 — moving the `seen.set` to AFTER the recursion instead of
+    // before it. This case then recurses forever rather than failing an
+    // assertion, which is why it is worth having: a stack overflow inside the
+    // capture path is the observable, and no naive structural test reaches it.
+  });
+
+  it("D3 — a value reached twice clones ONCE: the two fields are identical to each other and distinct from the original", () => {
+    const shared: Record<string, unknown> = { n: 1 };
+    const result = captureOne({ l: shared, r: shared });
+
+    // BOTH HALVES ARE REQUIRED, and each alone is satisfied by a different
+    // wrong implementation:
+    //
+    //   - the first alone passes on a normalizer that returned the ORIGINAL
+    //     graph untouched (in which case `l` and `r` are trivially identical,
+    //     and nothing was detached);
+    //   - the second alone passes on a normalizer that cloned the shared node
+    //     TWICE (detached, but the app's object graph silently became a tree,
+    //     so a later drift check comparing identities sees a difference that
+    //     the app never made).
+    //
+    // Mutant M-05-4 again — the memo is what delivers both.
+    expect(result.l).toBe(result.r);
+    expect(result.l).not.toBe(shared);
+  });
+
+  it("D4 — an array of objects clones to a distinct frozen array whose elements are themselves distinct", () => {
+    const first: Record<string, unknown> = { a: 1 };
+    const second: Record<string, unknown> = { b: 2 };
+    const items = [first, second];
+
+    const result = captureOne(items);
+
+    expect(result).not.toBe(items);
+    expect(result[0]).not.toBe(first);
+    expect(result[0]).toEqual({ a: 1 });
+    expect(Object.isFrozen(result)).toBe(true);
+
+    // `Array.isArray` and never `instanceof Array` is what the source uses, and
+    // the difference is not stylistic: measured, `instanceof Array` reads
+    // `false` for an array from another realm while `Array.isArray` reads
+    // `true` through both a proxy and a realm boundary.
+  });
+
+  it("D5 — a live getter is INVOKED and lands as a data property, which is what distinguishes the clone from a freeze", () => {
+    const holder: Record<string, unknown> = { plain: 1 };
+    Object.defineProperty(holder, "live", {
+      get: () => "read-through",
+      enumerable: true,
+      configurable: true,
+    });
+
+    const result = captureOne(holder);
+    const descriptor = Object.getOwnPropertyDescriptor(result, "live");
+
+    // INVOKING THE GETTER IS THE DETACHMENT. This is the one place the clone
+    // deliberately inverts the recursive freeze in `src/catalog.ts`, which
+    // SKIPS accessors by testing `"value" in descriptor` and therefore leaves
+    // them live. Measured: that walk invokes a getter zero times; the clone
+    // invokes it once. An accessor that survived capture is a snapshot key that
+    // still reads the app.
+    expect(descriptor.get).toBe(undefined);
+    expect(descriptor.value).toBe("read-through");
+  });
+
+  it("D6 — a null-prototype record is CLONED rather than passed through", () => {
+    const record = Object.create(null);
+    record.a = 1;
+    record.b = 2;
+
+    const result = captureOne(record);
+
+    expect(result).not.toBe(record);
+    expect(Object.keys(result)).toEqual(["a", "b"]);
+
+    // MUTANT M-05-6 — dropping the `|| proto === null` arm of the plain-object
+    // test. The record then falls through to pass-through-by-reference and
+    // `not.toBe` goes red. Nothing else in the suite would notice, because
+    // every other object literal a test writes carries `Object.prototype` —
+    // and `Object.create(null)` is not an exotic shape here, it is what
+    // `Catalog.byName` is built with.
+  });
+
+  it("D7 — Date, Map and Set each clone to a distinct instance carrying the same content", () => {
+    const when = new Date(0);
+    const pairs = new Map([["a", 1]]);
+    const members = new Set([1, 2]);
+
+    const clonedDate = captureOne(when);
+    const clonedMap = captureOne(pairs);
+    const clonedSet = captureOne(members);
+
+    expect(clonedDate).not.toBe(when);
+    expect(clonedDate.getTime()).toBe(0);
+
+    expect(clonedMap).not.toBe(pairs);
+    expect(clonedMap.get("a")).toBe(1);
+
+    expect(clonedSet).not.toBe(members);
+    expect(clonedSet.has(1)).toBe(true);
+
+    // MUTANT M-05-5 — the branch returns the value unchanged. All three
+    // `not.toBe` assertions go red together.
+    //
+    // DELIBERATELY NOT ASSERTED, and recorded so a later reader does not add
+    // it: **freezing a `Date`, `Map` or `Set` is cosmetic.** Measured —
+    // `Object.freeze(new Map([["a",1]])).set("b",2)` SUCCEEDS and the size
+    // becomes 2; the same holds for `Set.add` and `Date.setTime`. The clone
+    // delivers what BRG-05 asks for, which is DETACHMENT — a distinct instance
+    // the app cannot reach — and it does not deliver immutability for these
+    // three types. An `expect(() => clonedMap.set(…)).toThrow()` would fail for
+    // a reason that is not a defect, and `src/catalog.ts` already records the
+    // same finding as "a frozen `Map` is not frozen".
+  });
+
+  it("D8 — a class instance comes back BY REFERENCE and is NOT frozen", () => {
+    class Model {
+      constructor() {
+        this.n = 1;
+      }
+    }
+    const model = new Model();
+
+    const result = captureOne(model);
+
+    // The first half is the documented limit: prototype-bearing values are not
+    // cloned, because a lossy clone that drops a prototype is worse than an
+    // honest reference. Chasing it with an
+    // `Object.prototype.toString.call(v) === "[object Object]"` fallback would
+    // start cloning exactly the things this branch exists to pass through.
+    expect(result).toBe(model);
+
+    // THE SECOND HALF IS THE LOAD-BEARING ONE, and it is the detector for the
+    // belt-and-braces `deepFreeze`-over-the-result pass that reads as a tidy-up.
+    // Measured: that second walk leaves the CONSUMER'S OWN model object frozen,
+    // so their next write throws inside their code, in a function core never
+    // called. Freezing a value we did not construct is a bug — the clone seals
+    // every node it creates and nothing else.
+    expect(Object.isFrozen(model)).toBe(false);
+  });
+
+  it("D9 — a symbol-keyed property is not carried into the capture", () => {
+    const marker = Symbol("framework-internal");
+    const value: Record<string, unknown> = { visible: 1 };
+    value[marker] = "internal";
+
+    const result = captureOne(value);
+
+    expect(result.visible).toBe(1);
+    expect(result[marker]).toBe(undefined);
+    expect(Object.getOwnPropertySymbols(result)).toHaveLength(0);
+
+    // DELIBERATE, not an oversight of `Object.keys`. All three target
+    // frameworks mark their internals with symbol keys — Vue's `__v_raw`,
+    // Svelte's internal markers — and a snapshot is a payload Phase 6
+    // serializes and Phase 8 hashes. `Reflect.ownKeys` would drag every one of
+    // them into that hash, which is precisely the framework reactivity BRG-05
+    // exists to drop.
+  });
+});
+
+describe("capture degrades honestly rather than propagating", () => {
+  it("D10 — a throwing snapshot getter is caught: the key is present at undefined, one [snapshot_threw] warn, and nothing it threw is echoed", () => {
+    const bridge = {
+      actions: {},
+      snapshot: {
+        filters: () => {
+          throw new Error("SECRET-FROM-THE-APP user@example.com");
+        },
+      },
+    };
+    const registry = createBridge("results");
+    registry.register(bridge);
+
+    let result;
+    const captured = withConsoleCapture(() => {
+      // ONE call, inside the capture. Calling `captureSnapshot` a second time
+      // to obtain the result separately would emit a second warning — the latch
+      // is allocated inside the function body, so it is once per key per
+      // CAPTURE rather than once per process — and `toHaveLength(1)` below
+      // would fail for a reason that is not a defect.
+      expect(() => {
+        result = captureSnapshot(registry.read(), "results");
+      }).not.toThrow();
+    });
+
+    // The key is SET TO NOTHING rather than omitted, so `"filters" in snapshot`
+    // still distinguishes a key that failed from a key the component never
+    // declared.
+    expect("filters" in result).toBe(true);
+    expect(result.filters).toBe(undefined);
+
+    // `toHaveLength(1)`, never `toBeGreaterThan(0)`.
+    expect(captured).toHaveLength(1);
+
+    // The bracketed code and the rendered subject, matched against the text
+    // recorded in `05-01-SUMMARY.md`. Two claims, not one: that the sink FIRED,
+    // and that what it emitted carried the identity a developer needs — an
+    // aggregated summary line would satisfy the first and lose the second.
+    expect(captured[0]).toContain("[snapshot_threw]");
+    expect(captured[0]).toContain('snapshot "results.filters"');
+
+    // THE EXECUTABLE FORM OF THE SECURITY DECISION. Without this pair the
+    // `catch`-with-no-binding is a convention with no guarantee. The caught
+    // message is whatever the consumer's own getter put in it, and in a real
+    // app that is assembled from the same user input the component renders —
+    // so echoing it opens the covert PII channel CLAUDE.md closes for handler
+    // exceptions, one layer earlier and on a hotter path.
+    expect(captured[0]).not.toContain("SECRET-FROM-THE-APP");
+    expect(captured[0]).not.toContain("user@example.com");
+  });
+
+  it("D11 — a NESTED throwing getter is caught by the same try: still one [snapshot_threw], zero [snapshot_exotic], and no leak", () => {
+    // THE OUTER GETTER DOES NOT THROW. It returns successfully; the CLONE
+    // throws, later, while reading `boom`. That is the whole point of this
+    // case.
+    const bridge = {
+      actions: {},
+      snapshot: {
+        filters: () => ({
+          ok: 1,
+          get boom() {
+            throw new Error("SECRET-FROM-THE-APP");
+          },
+        }),
+      },
+    };
+    const registry = createBridge("results");
+    registry.register(bridge);
+
+    let result;
+    const captured = withConsoleCapture(() => {
+      expect(() => {
+        result = captureSnapshot(registry.read(), "results");
+      }).not.toThrow();
+    });
+
+    expect(result.filters).toBe(undefined);
+
+    // PITFALL 3'S ONLY DETECTOR. With the `try` scoped to `snapshot[key]()`
+    // alone, this case throws OUT of `captureSnapshot` and the consumer's
+    // message — user input, in a real app — reaches the caller. D10 is green
+    // under that narrow `try`, because D10's getter throws where the narrow
+    // `try` is looking. Removing this case ships the leak undetected.
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toContain("[snapshot_threw]");
+    expect(captured[0]).not.toContain("SECRET-FROM-THE-APP");
+
+    // ZERO exotic warns, and this is a second, independent claim. The source
+    // wraps each `Date`/`Map`/`Set` extraction in its OWN `try` and recurses
+    // outside it, so a throwing getter nested inside a collection value is
+    // reported as a throwing getter rather than mislabelled as an undetachable
+    // value — which would send a developer to inspect a value that is fine.
+    expect(captured[0]).not.toContain("[snapshot_exotic]");
+  });
+
+  it("D12 — an undetachable value warns with a DISTINCT code, comes back by reference, and does not crash the capture", () => {
+    // A naively proxied `Date`: unextractable through the proxy by every route
+    // measured — six of them, every one a `TypeError`. A `Proxy` that BINDS
+    // methods to its target, which is what Vue's `reactive()` does for
+    // collections, extracts fine — so the throw is a property of naive
+    // proxying rather than of proxying in general and cannot be assumed away.
+    const exotic = new Proxy(new Date(0), {});
+
+    const bridge = { actions: {}, snapshot: { when: () => exotic } };
+    const registry = createBridge("results");
+    registry.register(bridge);
+
+    let result;
+    const captured = withConsoleCapture(() => {
+      // **NO NORMALIZER ARGUMENT, and this is a hard precondition of the case
+      // rather than a stylistic echo of D1.** Core threads its `onExotic`
+      // callback only through the normalizer it constructs itself, so a
+      // caller-supplied `normalize` suppresses this warning BY DESIGN — core
+      // has no evidence about whether someone else's normalizer detached
+      // anything, and warning would be a claim it cannot support. Passing one
+      // here captures zero warnings and the case fails for a reason that is
+      // not a defect.
+      expect(() => {
+        result = captureSnapshot(registry.read(), "results");
+      }).not.toThrow();
+    });
+
+    // The documented limit, made observable: the value is handed back
+    // untouched rather than mangled or thrown over.
+    expect(result.when).toBe(exotic);
+
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toContain("[snapshot_exotic]");
+    expect(captured[0]).toContain('snapshot "results.when"');
+
+    // THE CODES ARE ASSERTED DISTINCT RATHER THAN ASSUMED. CONTEXT requires
+    // "the same latch shape as the throwing-getter warn but a distinct code",
+    // and one code covering both conditions would make them indistinguishable
+    // in the only diagnostic channel this package has — sending a developer to
+    // look at a getter that is working perfectly. D10 asserts the other code on
+    // the other condition; this line is what stops the two collapsing.
+    expect(captured[0]).not.toContain("[snapshot_threw]");
+  });
+
+  it("D13 — a clean capture warns not at all, so both codes are proven CONDITIONAL", () => {
+    const bridge = {
+      actions: {},
+      snapshot: {
+        filters: () => ({ q: "shoes", page: 1 }),
+        total: () => 42,
+      },
+    };
+    const registry = createBridge("results");
+    registry.register(bridge);
+
+    let result;
+    const captured = withConsoleCapture(() => {
+      result = captureSnapshot(registry.read(), "results");
+    });
+
+    expect(result.filters).toEqual({ q: "shoes", page: 1 });
+    expect(result.total).toBe(42);
+
+    // Without this case, D10 and D12 are satisfied by an implementation that
+    // warns on EVERY capture — which is a warning nobody reads, and which would
+    // make the two codes carry no information at all.
+    expect(captured).toHaveLength(0);
   });
 });
