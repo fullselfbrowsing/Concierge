@@ -97,7 +97,7 @@
 import { assertSingleInstance } from "./contract.js";
 import { warnHost } from "./host.js";
 import { MESSAGE_MAX_CHARS } from "./types.js";
-import type { ActionResult, Bridge, BridgeRegistry } from "./types.js";
+import type { ActionResult, Bridge, BridgeRegistry, SnapshotNormalizer } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Module scope — immutable declarations only
@@ -343,4 +343,389 @@ export function offPageResult(what: string, where: string): ActionResult {
     reason: "no_bridge",
     message: message.length > MESSAGE_MAX_CHARS ? message.slice(0, MESSAGE_MAX_CHARS) : message,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Snapshot capture and detachment
+// ---------------------------------------------------------------------------
+//
+// THE EXOTIC-WARN SIGNAL PATH, stated once here because the shape of all three
+// units below follows from it.
+//
+// A value that cannot be detached is passed through by reference — the
+// documented limit — and that hole is accepted. What is not accepted is the hole
+// being *invisible*: BRG-05 is what makes Phase 8's CON-04 drift check
+// meaningful, so a snapshot value that silently stayed live would turn a
+// security gate into decoration. The fallback therefore reports.
+//
+// Four independent pins close every obvious way of reporting it. The normalizer
+// type is `<T>(value: T) => T`, which has no out-channel. Module-scope mutable
+// state is forbidden by header constraint 1, so a module-level latch is out. A
+// second walk over the clone's result is forbidden, so the report cannot be
+// collected afterwards. And the single delegating call inside the returned
+// normalizer must stay one live call site, because it is the mutation battery's
+// only anchor on the detachment decision.
+//
+// One shape satisfies all four: a factory. `makeDefaultNormalizer` takes an
+// `onExotic` callback and returns the normalizer closure that carries the
+// delegation. The callback is closed over per snapshot key, inside
+// `captureSnapshot`'s body, so no state lives at module scope, the normalizer's
+// public signature is untouched, and the anchor moves inside the returned
+// closure while remaining a single live call site.
+//
+// **Do not replace the factory with an anonymous closure written inline in
+// `captureSnapshot`.** That leaves a named default normalizer with no caller,
+// and the battery then mutates a function nobody invokes — which it records as
+// an escape. That is the inverse of the truth, and it is the one failure this
+// phase's gate exists to prevent.
+
+/**
+ * A structural clone that detaches a value from whatever produced it.
+ *
+ * Module-private. `seen` carries cycle safety and DAG identity; `onExotic` is
+ * called when a value cannot be extracted and is handed back by reference.
+ *
+ * **`onExotic` is a parameter rather than a `warnHost` call here.** It is
+ * invoked from one place — the extraction fallback below — and the emission
+ * point stays a single statement in `captureSnapshot` that the mutation battery
+ * can target as one literal. It is threaded through every recursive call, so a
+ * proxied `Date` nested three levels inside a plain object still reports.
+ *
+ * This copies the skeleton of the recursive freeze in `./catalog.ts` and inverts
+ * exactly one thing: accessor handling. That walk skips accessors so a getter is
+ * never invoked; this one reads through `[[Get]]` so getters ARE invoked,
+ * because invoking them is what detachment *is*. See header constraint 4.
+ *
+ * **What it does not deliver.** Freezing a `Date`, `Map` or `Set` is cosmetic —
+ * measured, their own mutator methods still succeed on a frozen instance. This
+ * function delivers *detachment*, a distinct object the app cannot reach, and
+ * for those three types it does not additionally deliver immutability. Nothing
+ * downstream may claim more.
+ *
+ * **Symbol keys are not carried.** `Object.keys` returns enumerable string keys
+ * only, and that is deliberate rather than incidental. The three target
+ * frameworks use symbol keys for internal markers — Vue's `__v_raw`, Svelte's
+ * internal markers — which is precisely the framework reactivity BRG-05 exists
+ * to drop, and a snapshot is a payload Phase 8 will hash and Phase 6 will
+ * serialize. `Reflect.ownKeys` would drag all of it in.
+ */
+function cloneDetached(v: unknown, seen: WeakMap<object, unknown>, onExotic: () => void): unknown {
+  if (typeof v !== "object" || v === null) {
+    return v;
+  }
+
+  // A `WeakMap`, where the walk in `./catalog.ts` uses a `WeakSet`. That file
+  // only needs "have I walked this"; a clone needs "what did I produce for
+  // this", so the memo's value is the output node. One structure then delivers
+  // two properties at once. Cycles: a self-referencing node satisfies
+  // `c.self === c` instead of recursing forever. DAG identity: a node reached
+  // twice satisfies `c.l === c.r` while neither is the original.
+  //
+  // Nothing is ever stored under a key whose value is `undefined`, so the
+  // absence test below is exact rather than approximate.
+  const obj: object = v;
+  const hit: unknown = seen.get(obj);
+  if (hit !== undefined) {
+    return hit;
+  }
+
+  // ARRAYS. `Array.isArray` and never `instanceof Array`: measured, it is the
+  // only predicate that is both proxy-transparent and realm-transparent, where
+  // `instanceof Array` returns false for an array from another realm. The memo
+  // entry is written BEFORE recursing, or a self-referencing array never
+  // terminates.
+  if (Array.isArray(obj)) {
+    const elements: unknown[] = [];
+    seen.set(obj, elements);
+    for (const element of obj) {
+      elements.push(cloneDetached(element, seen, onExotic));
+    }
+    return Object.freeze(elements);
+  }
+
+  // `Date` / `Map` / `Set`, detected as `instanceof` OR the
+  // `Object.prototype.toString` tag, because **neither predicate alone is
+  // complete and the two are blind in exactly opposite directions**. Measured: a
+  // `Proxy` over a `Date` reports `[object Object]` from the tag — the tag reads
+  // internal slots and a proxy has no `[[DateValue]]` — but it passes
+  // `instanceof`, which walks the prototype chain the proxy forwards. A
+  // cross-realm `Date` is the mirror image: it fails `instanceof` and passes the
+  // tag. The union covers both.
+  //
+  // **Each extraction is wrapped in `try`/`catch` and that is mandatory, not
+  // defensive.** A naively proxied `Date` is unextractable by every route
+  // measured — six of them, all `TypeError` — and spreading a naively proxied
+  // `Map` fails the same way with "called on incompatible receiver". A proxy
+  // that binds methods to its target, which is what Vue's `reactive` does for
+  // collections, works fine, so the throw is a property of naive proxying rather
+  // than of proxying in general and cannot be assumed away.
+  //
+  // The `try` wraps the extraction only. Recursion into the extracted contents
+  // happens after it, so a throwing getter nested inside a `Map` value
+  // propagates to the capture loop and is reported as a throwing getter rather
+  // than mislabelled as an undetachable value. Every `catch` binds nothing.
+  const tag: string = Object.prototype.toString.call(obj);
+
+  if (obj instanceof Date || tag === "[object Date]") {
+    let time: number;
+    try {
+      time = (obj as Date).getTime();
+    } catch {
+      onExotic();
+      return v;
+    }
+    const when: Date = new Date(time);
+    seen.set(obj, when);
+    return Object.freeze(when);
+  }
+
+  if (obj instanceof Map || tag === "[object Map]") {
+    let entries: Array<[unknown, unknown]>;
+    try {
+      entries = [...(obj as Map<unknown, unknown>)];
+    } catch {
+      onExotic();
+      return v;
+    }
+    const pairs: Map<unknown, unknown> = new Map<unknown, unknown>();
+    seen.set(obj, pairs);
+    for (const entry of entries) {
+      pairs.set(cloneDetached(entry[0], seen, onExotic), cloneDetached(entry[1], seen, onExotic));
+    }
+    return Object.freeze(pairs);
+  }
+
+  if (obj instanceof Set || tag === "[object Set]") {
+    let members: unknown[];
+    try {
+      members = [...(obj as Set<unknown>)];
+    } catch {
+      onExotic();
+      return v;
+    }
+    const unique: Set<unknown> = new Set<unknown>();
+    seen.set(obj, unique);
+    for (const member of members) {
+      unique.add(cloneDetached(member, seen, onExotic));
+    }
+    return Object.freeze(unique);
+  }
+
+  // PLAIN OBJECTS. Measured proxy-transparent: the prototype test reads `true`
+  // through a `Proxy` over a plain object, which is the whole reason a clone
+  // detaches a reactive store at all.
+  //
+  // **The second arm of the test is load-bearing and is a mutation target.**
+  // Dropping it silently passes through a record built with
+  // `Object.create(null)` — which is exactly the shape `Catalog.byName` uses, so
+  // the omission would be invisible in a suite that only ever snapshots object
+  // literals.
+  //
+  // Values are read through an indexed `[[Get]]` so getters ARE invoked. This is
+  // the one place the walk deliberately diverges from the recursive freeze in
+  // `./catalog.ts`, which skips accessors by testing `"value" in descriptor`.
+  // Under `noUncheckedIndexedAccess` the read is `unknown` and presence is not
+  // assumed. The memo entry is written before recursing, as above.
+  const proto: object | null = Object.getPrototypeOf(obj);
+  if (proto === Object.prototype || proto === null) {
+    const fields: Record<string, unknown> = {};
+    seen.set(obj, fields);
+    for (const key of Object.keys(obj)) {
+      fields[key] = cloneDetached((obj as Record<string, unknown>)[key], seen, onExotic);
+    }
+    return Object.freeze(fields);
+  }
+
+  // EVERYTHING ELSE: by reference, unfrozen, and this is the documented limit.
+  // Class instances land here, so does `Object.create({})`, and so does a plain
+  // object from another realm — measured false on the prototype test above,
+  // via `node:vm`.
+  //
+  // The cross-realm miss is the *safe* failure direction: the value is handed
+  // back untouched rather than mangled. **Do not chase it** with an
+  // `Object.prototype.toString.call(v) === "[object Object]"` fallback. That
+  // same predicate is `true` for class instances and for `Object.create({})`,
+  // so it would start cloning the things this branch exists to pass through,
+  // and a lossy clone that drops a prototype is worse than an honest reference.
+  //
+  // Nothing is frozen on this path. A pass-through value is not ours to seal —
+  // see header constraint 4.
+  return v;
+}
+
+/**
+ * Build the default {@link SnapshotNormalizer}: a structural clone, then a
+ * freeze. Never a freeze in place.
+ *
+ * Module-private, and a factory rather than a plain function so the exotic
+ * report has a channel — see the section note above. The explicit
+ * {@link SnapshotNormalizer} return annotation is required by
+ * `isolatedDeclarations`.
+ *
+ * **The returned closure is exactly two statements, and the second one is a
+ * mutation anchor.** Measured this session: a mutant replacing the delegation
+ * with `Object.freeze(value) as T` compiles under TypeScript 7.0.2 with these
+ * exact flags and reproduces the freeze-in-place default's observable — the
+ * captured value follows the store, `Object.isFrozen(proxy)` becomes `true`, and
+ * nothing throws. So the anchor must stay a single live call site. Do not inline
+ * the memo allocation into the return expression; that destroys it.
+ *
+ * **A fresh memo per invocation is correct, not wasteful.** It must not survive
+ * across values: two unrelated snapshot keys that happen to share a sub-object
+ * would otherwise alias, and one key's clone would appear inside the other's.
+ *
+ * **Do not run a second walk over the result.** Measured: with a class instance
+ * in the pass-through branch, a second pass leaves the consumer's own model
+ * object frozen, so their next write throws in their code. The clone's per-node
+ * seal is complete for everything it constructs, and everything else is not ours
+ * to seal. This refusal is written down so no reviewer adds the belt-and-braces
+ * pass as a tidy-up.
+ */
+function makeDefaultNormalizer(onExotic: () => void): SnapshotNormalizer {
+  return <T>(value: T): T => {
+    const seen: WeakMap<object, unknown> = new WeakMap<object, unknown>();
+    return cloneDetached(value, seen, onExotic) as T;
+  };
+}
+
+/**
+ * The warning a snapshot getter earns for throwing during capture.
+ *
+ * House message shape, subject word `snapshot`, and the subject string is the
+ * registry id and the key joined by a dot — so it renders as
+ * `concierge: [snapshot_threw] snapshot "results.filters": …`. Behind a named
+ * function for the same reason the overwrite message above is: the call site
+ * becomes one short statement a mutation battery can target.
+ *
+ * Interpolates `id` and `key` and nothing else. Both are developer-authored
+ * strings already in the app's own source; the caught value is not in scope at
+ * the call site and could not be interpolated even by accident.
+ */
+function snapshotThrewMessage(id: string, key: string): string {
+  return (
+    `concierge: [snapshot_threw] snapshot "${id}.${key}": the getter threw, so this key is ` +
+    `absent from the captured snapshot and every reader of it sees nothing where a value ` +
+    `should be. ` +
+    `Fix: make the getter total — it runs on every capture, so it must not assume any part of ` +
+    `the component's state has loaded yet.`
+  );
+}
+
+/**
+ * The warning an undetachable snapshot value earns.
+ *
+ * A **distinct code** from the throwing-getter warning, deliberately: the two
+ * failures need different fixes, and one code covering both would send a
+ * developer looking at a getter that is working perfectly. Same house shape,
+ * same subject spelling, same interpolation rule — `id` and `key` only.
+ */
+function snapshotExoticMessage(id: string, key: string): string {
+  return (
+    `concierge: [snapshot_exotic] snapshot "${id}.${key}": a value here could not be detached ` +
+    `and was carried by reference, so it may still change after capture and a later drift ` +
+    `check may not see the change. ` +
+    `Fix: supply a \`normalizeSnapshot\` that understands this value — for Svelte that is ` +
+    `\`$state.snapshot\`.`
+  );
+}
+
+/**
+ * Invoke every getter on a bridge's snapshot and detach each value from the app
+ * that produced it (BRG-05).
+ *
+ * Capture is the ONLY place detachment happens. `register()` stores the bridge
+ * as given and `read()` returns it untouched, because normalizing at either
+ * would freeze state at mount time and break BRG-02.
+ *
+ * `id` is the registry's label, carried only so a warning can name which bridge
+ * and which key misbehaved.
+ *
+ * **A caller-supplied `normalize` suppresses the exotic warning, and that is
+ * correct rather than an oversight.** When the consumer passes their own
+ * normalizer — the Svelte adapter's `$state.snapshot`, say — core neither
+ * constructs nor threads the `onExotic` callback, and it has no way to know
+ * whether that normalizer detached anything. Warning there would be a claim core
+ * has no evidence for. The throwing-getter warning is unaffected: that one
+ * observes an exception core saw itself.
+ *
+ * **The returned container is deliberately NOT frozen**, and the refusal is
+ * recorded here so nobody adds the seal as a tidy-up. It is allocated fresh on
+ * every call and handed to exactly one caller, so a seal would harden a surface
+ * no attacker reaches. Worse, it would be a *partial* seal: the pass-through
+ * values it holds stay mutable by design, so `Object.isFrozen` would report
+ * `true` over a structure that is mutable one level down. Phase 4 settled that
+ * shape — "a partial `readonly` is worse than none, because a reader stopped
+ * looking."
+ */
+export function captureSnapshot<B extends Bridge>(bridge: B, id: string, normalize?: SnapshotNormalizer): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+
+  // LATCH SCOPE — a deliberate narrowing of "warn once", written down rather
+  // than chosen silently. This `Set` is allocated inside the body, so the warn
+  // is once per key per CAPTURE rather than once per key per process.
+  //
+  // The reason is that the only way to get a process-lifetime latch here is
+  // module-scope state, which header constraint 1 forbids outright: under SSR a
+  // module-scope `Set` would suppress request N's warning because request 1
+  // already warned, and a silenced diagnostic is strictly worse than a repeated
+  // one. Capture is a human-rate event — Phase 8 arms consent in response to a
+  // human act — not a render-rate one, so the "a warning that prints forever is
+  // a warning nobody reads" hazard that justifies the `register()` latch does
+  // not apply. `./concierge.ts` makes exactly this argument when it declines to
+  // warn on a throwing `read()` inside `explain`.
+  //
+  // The in-body `Set` still does real work: it keeps one key from emitting both
+  // codes in the same capture. The `register()` latch is unaffected and stays
+  // per-registry.
+  const warned: Set<string> = new Set<string>();
+
+  for (const key of Object.keys(bridge.snapshot)) {
+    const getter: (() => unknown) | undefined = bridge.snapshot[key];
+    if (getter === undefined) {
+      continue;
+    }
+
+    // Bound INSIDE the loop so the callback closes over the current key
+    // directly, with no mutable cursor to keep in step. Constructing one
+    // normalizer per key is trivial in cost and is what keeps the exotic report
+    // honest about which key it names.
+    const normalizeValue: SnapshotNormalizer =
+      normalize ??
+      makeDefaultNormalizer((): void => {
+        if (warned.has(key)) {
+          return;
+        }
+        warned.add(key);
+        warnHost(snapshotExoticMessage(id, key));
+      });
+
+    // **Both the invocation and the normalize call are inside the same `try`.**
+    // A `try` scoped to the getter call alone does not catch a getter nested
+    // inside the returned value — measured, that one throws from inside the
+    // normalizer, during the clone — and the escaping `Error` then reaches the
+    // caller carrying whatever message the consumer's own code put in it, which
+    // in a real app is assembled from the same user input the component
+    // renders. That is the covert PII channel CLAUDE.md's rule closes for
+    // handler exceptions, one layer earlier.
+    //
+    // **The `catch` takes NO binding**, so there is no caught value in scope to
+    // interpolate by accident. The property is structural rather than a matter
+    // of remembering not to write it — the same inversion `./concierge.ts`
+    // records for its matcher guard, and for the same three reasons: this fires
+    // at runtime, in a shipped app, on a value derived from user input.
+    //
+    // The key is set to nothing rather than omitted, so a reader can tell a key
+    // that failed from a key the component never declared.
+    try {
+      out[key] = normalizeValue(getter());
+    } catch {
+      out[key] = undefined;
+      if (!warned.has(key)) {
+        warned.add(key);
+        warnHost(snapshotThrewMessage(id, key));
+      }
+    }
+  }
+
+  return out;
 }
