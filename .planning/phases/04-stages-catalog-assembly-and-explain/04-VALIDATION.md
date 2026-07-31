@@ -7,6 +7,8 @@ nyquist_compliant: false
 wave_0_complete: true
 created: 2026-07-30
 statuses_observed: 2026-07-30
+criteria_backfill: 2026-07-30
+criteria_backfill_result: 3-non-discriminating-found
 ---
 
 > **Sign-off is WITHHELD, deliberately, and the phase is otherwise complete.**
@@ -15,6 +17,17 @@ statuses_observed: 2026-07-30
 > acceptance-criteria-provenance box at the end of this document — and `nyquist_compliant`
 > stays `false` because of it. The reason, the measurement behind it, and what closing it
 > would take are written into that box. Nothing else in this document is blocked by it.
+>
+> **Update 2026-07-30 — the box was reworded to its intent, the labels were back-filled by
+> measurement across the five plans that lacked them, and the box is STILL false.** The reword and
+> the rejected wording are annotated in place. The back-fill labelled 57 count-bearing greps —
+> 31 `DISCRIMINATING`, 23 `MUST-STAY GUARD` — and surfaced **three criteria that are neither**:
+> `04-05-PLAN.md:460`, `04-05-PLAN.md:445` and `04-07-PLAN.md:281` each sat at or above their PASS
+> value before the task they gate, so none could distinguish "done" from "never started". This is a
+> criteria-provenance defect, not a correctness one — the work those three were meant to gate is
+> independently evidenced — but it is the same defect class the phase spent three review rounds
+> closing, so it is recorded rather than waved through. See `### The three criteria that measured
+> non-discriminating`.
 
 # Phase 4 — Validation Strategy
 
@@ -384,6 +397,18 @@ intervening command reporting "mutant escaped" directly beneath the diagnostics 
 | `pnpm check:pack` | **0** | a foreign project installed the tarball (228 823 B), typechecked the shipped `.d.ts` with `skipLibCheck: false`, imported the runtime |
 | `pnpm check:node-floor` | **0** | installed with npm and imported on a pinned **v22.12.0** |
 
+**Re-confirmed 2026-07-30 by the acceptance-criteria back-fill pass**, on the main working tree
+rather than a worktree, against a tree whose only difference from the above is `.planning/` prose.
+All seven gates re-run **unpiped**, each exit code captured immediately into a shell variable with no
+intervening command: `typecheck` **0**, `build` **0**, `test` **0**, `check:artifact` **0**,
+`check:deps` **0**, `check:pack` **0**, `check:node-floor` **0**. `pnpm test` reported **7 files /
+86 tests**, `pnpm build` `Build complete in 80ms`, `tsc` `Done`. Afterwards
+`git diff --name-only -- packages/` was **empty**, `git diff --name-only -- pnpm-lock.yaml` was
+**empty**, and there were **zero** untracked files — the back-fill touched only `.planning/`, as it
+is required to. **These gates are recorded as evidence that the phase is still green; they are
+explicitly NOT offered as grounds for sign-off**, which turns on the checklist box below and not on
+the gates.
+
 **Against the recorded baseline** of 6 files / 55 tests / 328 ms: **+1 file, +31 tests, −24 ms.**
 The test count reconciles exactly — 55 (entry) +1 (04-03 T3 `artifact.test.ts`) +4 (04-04 C23…C26)
 +25 (04-05 S-series, the seventh file) +1 (04-06 F5) = **86**. `check:deps` byte count **0**, delta
@@ -512,24 +537,21 @@ false. It is not ticked, and `nyquist_compliant` therefore stays `false`.**
       built handler fails, and the original handler is still there"*.
 - [x] **CAT-01 is recorded closed** and `REQUIREMENTS.md:157` no longer reads `Partial` — flipped;
       `Partial — 4/5 derived artifacts ship` **1→0** and `closed by Phase 4` **0→1**.
-- [ ] Every acceptance-criteria grep in every plan carries a measured pre-edit count, and none of
-      them already sat at its PASS value before the edit it checks
-      — **FALSE. This is the box that withholds sign-off.** Measured across all eight plans:
-      the strings `pre-edit` and `must-stay guard` appear **0 times** in `04-01-PLAN.md`,
-      `04-04-PLAN.md`, `04-05-PLAN.md`, `04-06-PLAN.md` and `04-07-PLAN.md`. Only `04-08-PLAN.md`
-      (16 measured counts, 8 guard labels, 9 `DISCRIMINATING` labels), `04-03-PLAN.md` (10 counts,
-      3 guard labels) and `04-02-PLAN.md` (5 counts) carry the provenance the box asserts.
-      The concrete counter-example, so this is not an argument from aggregates:
-      `04-04-PLAN.md:176` reads *"`grep -rn 'vi\.' packages/concierge/test/` **must still return
-      0**"* — a criterion that sat at **0 before the task and 0 after**, with no pre-edit count and
-      no guard label in the plan. `04-04-SUMMARY.md` labelled it a regression guard *retroactively*,
-      which is the right handling by that executor, but the box asserts a property of the **plans**.
-      Note also that the box's second clause is unsatisfiable as literally worded by any plan that
-      uses guards — including `04-08-PLAN.md`, whose 8 must-stay guards sit at their PASS value by
-      design and correctly. **To close this box:** reword it to the intent ("every criterion sitting
-      at its PASS value is *labelled* a guard and never counted as progress"), then back-fill the
-      labels in the five plans above. That is a documentation pass over closed plans, and it
-      invalidates none of the evidence recorded in this document.
+- [ ] **Every acceptance-criteria grep in every plan is labelled — either `DISCRIMINATING`, carrying
+      a measured pre-edit count that differs from the value the criterion passes at, or
+      `MUST-STAY GUARD`, which protects an existing property and is never counted as progress.**
+      — **STILL FALSE. This remains the box that withholds sign-off, now on narrower and worse
+      evidence.** *(This box was reworded on 2026-07-30; the wording it replaces, and why it was
+      rejected, are preserved immediately below — the reword is annotated, not silent.)*
+      The labels were back-filled **by measurement** on 2026-07-30 across `04-01-PLAN.md`,
+      `04-04-PLAN.md`, `04-05-PLAN.md`, `04-06-PLAN.md` and `04-07-PLAN.md`; the three plans that
+      already carried the convention (`04-02`, `04-03`, `04-08`) were left untouched. **57
+      count-bearing greps were labelled: 31 `DISCRIMINATING`, 23 `MUST-STAY GUARD` — and 3 that
+      are neither.** Those three are discriminating in intent, each meant to prove its own task's
+      work landed, yet each sat **at or above its PASS value before that task ran** and so could
+      not tell "done" from "never started". They are named at `### The three criteria that measured
+      non-discriminating` below. The box is false until they are dispositioned, and
+      `nyquist_compliant` stays `false`.
 - [ ] `nyquist_compliant: true` set in frontmatter — **deliberately NOT set.** Frontmatter line 6
       reads `nyquist_compliant: false`. Setting it true would require the box above to be true, and
       it is not. (Reader beware: this checklist line *quotes* the key, so an unanchored
@@ -537,13 +559,126 @@ false. It is not ticked, and `nyquist_compliant` therefore stays `false`.**
       says. The load-bearing measurement is the line-anchored `grep -c '^nyquist_compliant: true$'`,
       which is **0** — before this task and after it.)
 
-**Approval: WITHHELD** by plan 04-08 Task 2, 2026-07-30.
+### The reword — annotated in place, with the rejected form preserved
+
+**Reworded 2026-07-30.** The wording this box replaces, verbatim:
+
+> Every acceptance-criteria grep in every plan carries a measured pre-edit count, and none of them
+> already sat at its PASS value before the edit it checks
+
+**Why that wording was rejected — two reasons, the second fatal.**
+
+1. **It was measurably false, and plan 04-08 refused to sign over it.** The strings `pre-edit` and
+   `must-stay guard` appeared **0 times** in the five plans named above; only `04-08-PLAN.md`
+   (16 counts, 8 guard labels, 9 `DISCRIMINATING` labels), `04-03-PLAN.md` (10 counts, 3 guard
+   labels) and `04-02-PLAN.md` (5 counts) carried the provenance it asserted. That refusal was
+   correct and is not being overturned here.
+2. **Its second clause was unsatisfiable by construction for any plan that uses guards** — including
+   `04-08-PLAN.md` itself, whose eight must-stay guards sit at their PASS value **by design and
+   correctly**. A guard is *defined* by sitting at its PASS value; a box demanding that no criterion
+   do so outlaws the very mechanism the phase adopted to prevent the defect. No amount of
+   back-filling could have made it true, so a box left permanently red would have stopped carrying
+   information.
+
+**Root cause, and it is the orchestrator's rather than the executors'.** The box was introduced by a
+plan-review round that revised only `04-02`, `04-03` and `04-08`. The labelling convention was
+applied to those three; the box asserted a property of all eight. The five unrevised plans were
+never non-compliant with an instruction they were given — they were measured against one written
+after they closed.
+
+**The reword is to intent, not a relaxation — and it is strictly harder to satisfy in the way that
+matters.** The old wording banned a criterion from sitting at its PASS value. The new wording
+permits it **only under an explicit `MUST-STAY GUARD` label**, which is the substantive requirement:
+the defect was never that guards exist, it was that a guard could be silently counted as evidence of
+work. The new box additionally requires the discriminating half to carry *a measured pre-value that
+differs from the PASS value* — a clause the old wording did not state and which is what caught the
+three criteria below. Measured consequence: under the old wording this box was permanently red and
+said nothing; under the new one it is red for three specific, named, line-numbered reasons.
+
+### The three criteria that measured non-discriminating
+
+These are the reason the box above is still false. Each is **discriminating in intent** — each is
+meant to prove that the task it is attached to did its work — but each **already sat at or above its
+PASS value on the tree its own task started from**, so none could distinguish "done" from "never
+started". None is a guard: a line-count floor and a growth count are progress checks by
+construction, and no plan labels them otherwise.
+
+Baselines are the tree each *task* actually started from, which is the only baseline the box's phrase
+"before the edit it checks" can mean: wave bases `1bada85` (04-01), `48dbc40` (04-04), `c358c77`
+(04-05 / 04-06) and `10458c3` (04-07), and for a Task 2 the tree left by its own Task 1.
+
+| Criterion | Plan | Baseline | Pre-value | PASS at | Final | Verdict |
+|---|---|---|---|---|---|---|
+| `wc -l …/test/concierge.test.ts` | `04-05-PLAN.md:460` | post-T1 (`4da7cae`) | **586** | ≥ 480 | 1249 | **non-discriminating — floor below the pre-value** |
+| `grep -c 'not.toBe' …/test/concierge.test.ts` | `04-05-PLAN.md:445` | post-T1 (`4da7cae`) | **2** | ≥ 2 | 5 | **non-discriminating — floor equals the pre-value** |
+| `grep -c 'M-04-' …/test/concierge.test.ts` | `04-07-PLAN.md:281` | wave-4 (`10458c3`) | **5** | ≥ 4 | 11 | **non-discriminating — floor below the pre-value** |
+
+**1. `04-05-PLAN.md:460` — `wc -l packages/concierge/test/concierge.test.ts` is at least 480.**
+Task 1's own floor was ≥ 300 and Task 1 landed at **586**. Task 2's floor of 480 was therefore
+already met by Task 1's commit (`4da7cae`), before a single S11…S26 case existed. **What it should
+have been:** the form `04-03-PLAN.md:747-755` uses for the identical defect one plan earlier —
+*"baseline against Task 1's recorded `post-T1 line count: N`, not against a fixed number … the count
+at the close of THIS task is at least N + 100"*. 04-03's planner diagnosed this exact trap in prose
+(*"a bare 'at least 300' is satisfiable by a Task 1 that happened to land at 320"*) and fixed it
+there; 04-05 was not revised in that round and kept the fixed floor. Note that `04-05-SUMMARY.md:179`
+records the numbers — *"≥300 after T1 (was 586), ≥480 at close"* — without drawing the conclusion.
+The data was captured honestly; only the label is missing.
+
+**2. `04-05-PLAN.md:445` — `grep -c 'not.toBe'` returns at least 2.** The criterion's own text says
+the two are *"S9's instance-locality and S22's deliberate non-identity"* — one Task 1 case and one
+Task 2 case. But Task 1 had already produced **two** hits: S9's `expect(a).not.toBe(b)` **and** an
+unrelated S5 assertion, `expect(after.stageFor({pathname:"/x"})).not.toBe("2")`. The floor was met by
+S9 + S5, so S22 — the case the criterion exists to prove — could have been absent with the criterion
+still green. **What it should have been:** a floor of ≥ 3 against the measured pre-value of 2, or
+better, a literal unique to S22 (its `explain(ctx) !== explain(ctx)` non-identity assertion, which
+measured **0** pre-edit and 1 after) — the house preference for a distinctive literal over an
+aggregate count.
+
+**3. `04-07-PLAN.md:281` — `grep -c 'M-04-' packages/concierge/test/concierge.test.ts` returns at
+least 4.** Its stated purpose is *"the respelling block names its rows"*, so it is the one mechanical
+check that 04-07 Task 2's respelling block reached the file — its sibling criteria are record-keeping
+obligations and tree guards. On the wave-4 base the file already measured **5**, carried in by
+04-05's header, which names M-04-1 once and M-04-4 four times. **This is the most serious of the
+three**, because unlike the two above it has no discriminating sibling covering the same work.
+**What it should have been:** a floor of ≥ 6 against the measured pre-value of 5, or — better and in
+the phase's own idiom — a count of the row IDs the block actually introduces, each of which measured
+**0** on the wave-4 base and 1 after: `M-04-16`, `M-04-12`, `M-04-6`, `M-04-7`.
+`04-07-SUMMARY.md:212` records *"`grep -c 'M-04-'` | **11** (was 5) | ≥ 4"* — again, the pre-value is
+captured and the conclusion is not drawn.
+
+**What this does and does not impugn.** It does **not** impugn the delivered artifact. All three
+criteria pass comfortably at a corrected threshold on the final tree (1249 against any sane floor;
+5 against ≥ 3; 11 against ≥ 6), and each task's work is independently established by evidence
+recorded elsewhere in this document — S11…S26 by the mutant battery (M-04-16, M-04-13, M-04-12 and
+M-04-15 each name an S-case in the S11…S26 range as observed red) and by 04-05's own sensitivity
+probes on S12 and S19; 04-07 Task 2's block by the four mutant rows it accompanies, all four run with
+recorded outcomes. **The defect is in the criteria's power to have detected an absence, not in the
+presence of the work.** That is precisely the distinction this box exists to keep, which is why the
+finding is recorded rather than waved through.
+
+**Deliberately not fixed here.** Repairing these three means editing acceptance criteria inside
+closed, already-executed plans. A back-fill pass is authorised to add provenance and forbidden to
+alter any criterion's substance, threshold or command — re-thresholding them would be the executor
+grading its own paper, and would erase the evidence that the review round missed them. They are
+handed up as a decision.
+
+---
+
+**Approval: WITHHELD** by plan 04-08 Task 2, 2026-07-30. **Withholding sustained** by the
+acceptance-criteria back-fill of 2026-07-30, on new evidence.
 
 This is a deliberate outcome recorded on evidence, not an incomplete run. Everything the phase was
 asked to prove is proved: seven gates green, 17/17 map rows observed, 16/16 mutants with outcomes
 and zero vacuous PASSes, CAT-01 closed, the SEC-03 carve-out and the DSP-09 hand-off intact, the
 lockfile byte-identical. The single false box is about the **provenance of acceptance criteria in
-five already-closed plans**, not about the correctness of anything this phase shipped. Signing off
-over it would be exactly the defect this phase spent seven plans removing — a check reported as
-passing because nobody measured it. The phase is complete; its Nyquist compliance is not yet
-established, and the two are recorded separately on purpose.
+five already-closed plans**, not about the correctness of anything this phase shipped.
+
+What changed on 2026-07-30 is the *quality* of that falseness, and it changed for the worse before it
+can get better. The box was previously false for a reason no plan could have fixed — it forbade
+guards while the phase's own convention requires them. It is now false for three specific criteria at
+three named lines, each with a measured pre-value, a stated correct form, and a disposition owed. The
+back-fill was undertaken expecting to close this box; it closed 54 of 57 criteria and opened three
+findings instead. Signing off over them would be exactly the defect this phase spent seven plans
+removing — a check reported as passing because nobody measured it — and it would be worse the second
+time, having been measured and then discounted. The phase is complete; its Nyquist compliance is not
+yet established, and the two are recorded separately on purpose.
