@@ -1062,6 +1062,53 @@ describe("capture degrades honestly rather than propagating", () => {
     expect(repeats).toHaveLength(2);
   });
 
+  it("D30 — a METHOD-SHORTHAND snapshot member is invoked on the holder, so `this` is the snapshot object", () => {
+    // `Bridge`'s `Snapshot extends Record<string, () => unknown>` accepts method
+    // shorthand, so `snapshot: { count() { return this.total(); } }` typechecks
+    // — and then failed at runtime, because the getter was read out of the
+    // holder and called bare, with `this === undefined`. Measured pre-fix:
+    //
+    //   F3: count = undefined | warns: [snapshot_threw] snapshot "results.count": the getter threw…
+    //
+    // The remediation text that warning prints — "make the getter total; it
+    // runs on every capture, so it must not assume any part of the component's
+    // state has loaded yet" — sends the developer looking for a load-order bug
+    // that does not exist. A diagnostic that is accurate about WHAT happened and
+    // wrong about WHY costs more than silence.
+    const bridge = {
+      actions: {},
+      snapshot: {
+        total: () => 7,
+        count() {
+          return this.total();
+        },
+      },
+    };
+    const registry = createBridge("results");
+    registry.register(bridge);
+
+    let result;
+    const captured = withConsoleCapture(() => {
+      result = captureSnapshot(registry.read(), "results");
+    });
+
+    expect(result.total).toBe(7);
+    expect(result.count).toBe(7);
+
+    // ZERO warnings is the load-bearing half. `result.count` being `7` proves
+    // the receiver survived; `captured` being empty proves the case is not
+    // green because something else quietly succeeded.
+    expect(captured).toHaveLength(0);
+
+    // AND ARROW MEMBERS ARE UNAFFECTED, which is what makes the change safe:
+    // an arrow ignores its receiver entirely, so every existing snapshot in
+    // this file behaves identically before and after. `total` above is one;
+    // this asserts the property directly rather than leaving it to inference.
+    const arrowOnly = { actions: {}, snapshot: { q: () => "shoes" } };
+
+    expect(captureSnapshot(arrowOnly, "results").q).toBe("shoes");
+  });
+
   it("D13 — a clean capture warns not at all, so both codes are proven CONDITIONAL", () => {
     const bridge = {
       actions: {},

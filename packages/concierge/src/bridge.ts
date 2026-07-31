@@ -905,7 +905,15 @@ export function captureSnapshot<B extends Bridge>(bridge: B, id: string, normali
       if (getter === undefined) {
         continue;
       }
-      defineField(out, key, normalizeValue((getter as () => unknown)()));
+      // **`.call(holder)`, never a bare `getter()`.** `Bridge`'s
+      // `Snapshot extends Record<string, () => unknown>` accepts method
+      // shorthand, so `snapshot: { count() { return this.total; } }` typechecks
+      // — and a bare call hands it `this === undefined`, which throws and is
+      // then reported as `[snapshot_threw]`. The report is accurate about what
+      // happened and wrong about why: its remediation text sends the developer
+      // looking for a load-order bug that does not exist. Arrow members ignore
+      // the receiver, so every getter written as `() => …` is unaffected.
+      defineField(out, key, normalizeValue((getter as () => unknown).call(holder)));
     } catch {
       defineField(out, key, undefined);
       if (!warnedThrew.has(key)) {
