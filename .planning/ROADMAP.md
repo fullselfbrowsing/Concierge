@@ -219,7 +219,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 05-03-PLAN.md — Wave 2: **THE HINGE** — `src/index.ts`'s value export line and stale-prose correction, then all eleven export pins moved together across `test/export-surface.test.ts` (7), `test-d/exports.test-d.ts` (3, including three separate numbers inside one header sentence) and `test/artifact.test.ts` (1) (BRG-01, BRG-03, BRG-05)
+- [x] 05-03-PLAN.md — Wave 2: **THE HINGE** — `src/index.ts`'s value export line and stale-prose correction, then all eleven export pins moved together across `test/export-surface.test.ts` (7), `test-d/exports.test-d.ts` (3, including three separate numbers inside one header sentence) and `test/artifact.test.ts` (1) (BRG-01, BRG-03, BRG-05)
 
 **Wave 3** *(blocked on Wave 2 — runtime suites import `../dist/index.js`, so they cannot precede the barrel)*
 
@@ -341,7 +341,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 2. Packaging, build, and release | 12/12 | Complete   | 2026-07-29 |
 | 3. Action declaration and build-time validation | 8/8 | Complete   | 2026-07-30 |
 | 4. Stages, catalog assembly, and explain() | 8/8 | Complete   | 2026-07-30 |
-| 5. Bridge registry and the no-bridge path | 2/7 | In Progress|  |
+| 5. Bridge registry and the no-bridge path | 3/7 | In Progress|  |
 | 6. Dispatcher | 0/TBD | Not started | - |
 | 7. Session and the transport seam | 0/TBD | Not started | - |
 | 8. Consent kernel | 0/TBD | Not started | - |
