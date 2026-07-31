@@ -562,3 +562,249 @@ describe("BRG-04 — a stale unregister from a remounted component cannot clear 
     expect(registry.read()).toBe(A);
   });
 });
+
+describe("BRG-02 — a handler reads live app state through snapshot getters", () => {
+  it("B14 — read() returns the registered object BY REFERENCE, not a copy of it", () => {
+    // The direct detector for the "normalize at `register()` or at `read()`"
+    // defect, and for the register-time spelling of mutant M-05-9. `register()`
+    // stores the bridge AS GIVEN and `read()` returns it untouched; a normalizer
+    // applied at either point returns a DETACHED COPY here, and a detached copy
+    // is a different object.
+    //
+    // `toBe`, never `toEqual` — the claim is reference identity, and a detached
+    // copy of this bridge is structurally identical to it, so `toEqual` is green
+    // on precisely the build this case exists to catch. This is the same trap
+    // `concierge.test.ts`'s defect 1 records for `useSyncExternalStore`.
+    const registry = createBridge("results");
+    const A = named("A");
+
+    registry.register(A);
+
+    expect(registry.read()).toBe(A);
+  });
+
+  it("B15 — the app moves and the SAME read() result reports the new value, with no re-registration", () => {
+    // Success criterion 1, and the reason detachment lives at capture time and
+    // nowhere else. The snapshot thunk reads THROUGH a mutable closure variable,
+    // which is what a real framework binding is: `() => this.state.query` in
+    // React, a rune read in Svelte. `move()` is the app changing its own state
+    // and it deliberately does not touch the registry.
+    //
+    // BOTH reads are asserted, the before as well as the after. A case that
+    // asserted only the after value would be green on a getter that had been
+    // returning "boots" all along — vacuously, for the wrong reason — and green
+    // on a build where the read was never live in the first place.
+    //
+    // `held` is captured ONCE, before the move, and re-read afterwards. There is
+    // no `register` call between the two assertions; if there were, this case
+    // would prove only that a fresh registration sees fresh state, which is a
+    // much weaker claim and is not what a handler does.
+    const registry = createBridge("results");
+    const { bridge, move } = liveBridge("shoes");
+
+    registry.register(bridge);
+    const held = registry.read();
+
+    expect(held.snapshot.query()).toBe("shoes");
+
+    move("boots");
+
+    expect(held.snapshot.query()).toBe("boots");
+  });
+});
+
+describe("SEC-03 class — the returned registry is a frozen capability object", () => {
+  it("B16 — the registry object is frozen", () => {
+    // Mutant M-05-7's first detector: `return Object.freeze(registry);` becomes
+    // `return registry;`, and this returns `false`.
+    const registry = createBridge("results");
+
+    expect(Object.isFrozen(registry)).toBe(true);
+  });
+
+  it("B17 — replacing registry.read THROWS, and so does adding a new property", () => {
+    // Mutant M-05-7's second detector, and the one that carries the actual
+    // security claim. `Object.isFrozen` is asserted separately in B16 and is the
+    // WEAKER half: `concierge.test.ts`'s defect 2 records a measured build where
+    // `Object.isFrozen` returned `true` and the write went through anyway, so
+    // "we froze it so it must be immutable" is how a breach reports success. The
+    // consequence is what is asserted here.
+    //
+    // The registry IS the capability — holding the reference is the
+    // authorization — so `registry.read` is precisely the thing worth taking.
+    // Left writable, third-party page script in the same realm swaps it for a
+    // function returning an attacker-controlled bridge, and every handler in the
+    // app then reads attacker state while every check upstream still reports
+    // success.
+    //
+    // These assertions THROW rather than fail silently because ESM modules are
+    // strict-mode and this file is a module. Measured against the artifact: both
+    // are `TypeError`. In a sloppy-mode context the same two writes would be
+    // silent no-ops and `toThrow()` would be the wrong assertion — which is why
+    // the strict-mode dependency is written down rather than assumed.
+    const registry = createBridge("results");
+
+    expect(() => {
+      registry.read = () => null;
+    }).toThrow();
+
+    expect(() => {
+      registry.extra = 1;
+    }).toThrow();
+  });
+
+  it("B18 — the freeze seals the OBJECT and not the closure: register() still works after it", () => {
+    // Obvious, and asserted anyway. `catalog.ts:601-607` calls the reasoning this
+    // guards against "a breach that reports success" — a sealed object whose
+    // methods silently stopped working would satisfy B16 and B17 completely while
+    // being a registry that cannot register, which is a very safe brick.
+    //
+    // `slot`, the token counter and the warn latch all live in the closure, not
+    // on the frozen object, so `Object.freeze` cannot reach them. This case is
+    // what proves that separation is real rather than intended.
+    const registry = createBridge("results");
+    const A = named("A");
+
+    expect(Object.isFrozen(registry)).toBe(true);
+
+    registry.register(A);
+
+    expect(registry.read()).toBe(A);
+  });
+});
+
+// The exact rendering recorded as handoff data in `05-01-SUMMARY.md`
+// § "The three warn messages, rendered", for a registry whose id is `results`.
+// 340 characters, measured by execution against the built artifact rather than
+// counted by hand.
+//
+// This is a deliberate exact-text pin, and it is a different judgement from the
+// one this phase made about the off-page sentence. There, a regex over message
+// VOCABULARY was rejected because it pins wording rather than meaning and goes
+// red on a legitimate rewording. Here the full rendering is a recorded handoff
+// artifact that two later plans read, so a rewording SHOULD go red — the point
+// is that the record and the code cannot drift apart silently. If the message is
+// legitimately reworded, update this literal and `05-01-SUMMARY.md`'s record in
+// the same change; the semantic pins in B19 (the code tag, the id, the absent
+// secret) are the ones that must never be weakened.
+const BRIDGE_OVERWRITE_RENDERED =
+  `concierge: [bridge_overwrite] bridge "results": a second component registered ` +
+  `over a still-live registration, so the first component's snapshot and actions ` +
+  `are no longer reachable through this registry. Fix: make sure exactly one ` +
+  `mounted component registers this bridge. This warning fires once per registry, ` +
+  `so a later overwrite is silent.`;
+
+describe("the two warn policies — an overwrite warns once, a refused unsubscriber never warns", () => {
+  it("B19 — three registrations over a live one produce exactly ONE warning, naming the registry and echoing nothing from the app", () => {
+    // Mutant M-05-10's detector: delete the warn-once latch assignment and
+    // `captured` becomes 3.
+    //
+    // The displaced bridge carries a marker in every place a careless
+    // implementation might reach for one — the object's own name, an action key
+    // and a snapshot key — so the negative assertion below has something real to
+    // fail on. Without it, the `catch`-binds-nothing rule and the
+    // "diagnostics are built from the id alone" rule are conventions with no
+    // guarantee.
+    const registry = createBridge("results");
+    const displaced = {
+      name: "SECRET-FROM-THE-APP",
+      actions: { "SECRET-FROM-THE-APP": () => undefined },
+      snapshot: { "SECRET-FROM-THE-APP": () => "SECRET-FROM-THE-APP" },
+    };
+
+    const captured = withCapturedWarnings(() => {
+      registry.register(displaced);
+      registry.register(named("second"));
+      registry.register(named("third"));
+      registry.register(named("fourth"));
+    });
+
+    // `toHaveLength(1)`, never `toBeGreaterThan(0)`. FOUR registrations, THREE of
+    // them over a still-live registration, ONE warning: the latch is per
+    // registry, and one registry has exactly one id, so a boolean carries all the
+    // granularity there is. Without the latch a hot-reloading dev session prints
+    // this 340-character line on every remount forever, and a warning that prints
+    // forever is a warning nobody reads. `toBeGreaterThan(0)` would be green on
+    // the unlatched build, which is the entire defect.
+    expect(captured).toHaveLength(1);
+
+    // Two expectations, two claims: that the sink FIRED at all, and that what it
+    // emitted carried THIS REGISTRY'S identity rather than an aggregated summary
+    // line. An app with a bridge per stage gets several of these; a warning that
+    // does not name which one is a warning that costs a developer the search.
+    expect(captured[0]).toContain("[bridge_overwrite]");
+    expect(captured[0]).toContain("results");
+
+    // The executable form of the security decision. The displaced bridge is
+    // consumer data assembled from the same user input the rest of the app
+    // carries, so a diagnostic that echoed any of it would open the covert
+    // channel CLAUDE.md's rule closes for handler exceptions — one layer earlier,
+    // and on a path that fires during ordinary development rather than only on a
+    // crash.
+    expect(captured[0]).not.toContain("SECRET-FROM-THE-APP");
+
+    // …and the whole rendering agrees with the record in `05-01-SUMMARY.md`.
+    expect(captured[0]).toBe(BRIDGE_OVERWRITE_RENDERED);
+    expect(captured[0].length).toBe(340);
+  });
+
+  it("B20 — a refused unsubscriber warns NEVER, so a StrictMode double mount is silent", () => {
+    // Mutant M-05-11's detector: add a `warnHost` call to the refusal path and
+    // `refusal` below becomes 1.
+    //
+    // React StrictMode's double mount, Vue HMR and Svelte remount ALL produce
+    // refused cleanups by design. A warn on this path therefore fires on every
+    // dev mount of every component that registers a bridge — and a channel that
+    // cries wolf on correct behaviour is a channel developers filter out, taking
+    // the overwrite warning in B19 with it. Refusing quietly is the correct
+    // behaviour, not a swallowed error.
+    //
+    // THE CAPTURE IS SCOPED TO THE REFUSAL, and that scoping is the whole case.
+    // The ordering is O2b, whose second `register` displaces a still-live
+    // registration and so emits `bridge_overwrite` BY DESIGN — capturing the
+    // whole ordering would produce 1, and "a refused unsubscriber warns never"
+    // would be untestable in that shape. The setup's single warning is asserted
+    // rather than discarded, which also proves the stand-in console is live: a
+    // capture that never fired would report 0 for both blocks and let the real
+    // assertion below pass vacuously.
+    const registry = createBridge("results");
+    const A = named("A");
+    let u1;
+
+    const setup = withCapturedWarnings(() => {
+      u1 = registry.register(A);
+      registry.register(A);
+    });
+
+    expect(setup).toHaveLength(1);
+
+    const refusal = withCapturedWarnings(() => {
+      u1();
+    });
+
+    expect(refusal).toHaveLength(0);
+
+    // …and the refusal really was a refusal, not a cleanup that happened to be
+    // quiet about clearing the slot.
+    expect(registry.read()).toBe(A);
+  });
+
+  it("B21 — the ordinary first registration warns not at all", () => {
+    // Proves the overwrite warning is CONDITIONAL rather than unconditional.
+    // Without this case, a build that warned on every `register()` would still
+    // satisfy B19 — its first captured line would carry the code and the id and
+    // none of the secret, and `toHaveLength(1)` would hold for a single
+    // registration. Every app that uses this package performs this exact
+    // sequence once per mounted component, so a warning here fires for everyone,
+    // always, on correct usage.
+    const registry = createBridge("results");
+    const A = named("A");
+
+    const captured = withCapturedWarnings(() => {
+      registry.register(A);
+    });
+
+    expect(captured).toHaveLength(0);
+    expect(registry.read()).toBe(A);
+  });
+});
