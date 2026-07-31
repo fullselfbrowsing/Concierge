@@ -982,6 +982,86 @@ describe("capture degrades honestly rather than propagating", () => {
     expect(bareCaptured).toHaveLength(0);
   });
 
+  it("D29 — a key that is BOTH undetachable and terminally broken emits BOTH codes, and never the exotic one alone", () => {
+    // The latch used to be one `Set` shared by both codes, and the exotic path
+    // adds to it FIRST — so a key whose value contained an undetachable value
+    // *and* a nested getter that threw emitted only `[snapshot_exotic]` while
+    // the key itself landed at `undefined`. Measured pre-fix:
+    //
+    //   G2: threw = null | out.mixed = undefined | warns = 1
+    //   G2: codes = [ '[snapshot_exotic] …' ]
+    //
+    // That is the exact mirror of the failure `snapshotExoticMessage` argues
+    // the two codes exist to prevent — "one code covering both would send a
+    // developer looking at a getter that is working perfectly". Here the getter
+    // is genuinely broken, the key is genuinely absent, and the ONLY diagnostic
+    // pointed at detachment. The actionable code was the one suppressed.
+    //
+    // Ordering is load-bearing in the fixture: `when` is enumerated before
+    // `boom`, so the exotic warn fires first and gets the chance to swallow the
+    // throw warn. Reversing the two keys makes the case green on the pre-fix
+    // build, because `boom` throws before `when` is ever reached.
+    const exotic = new Proxy(new Date(0), {});
+    const bridge = {
+      actions: {},
+      snapshot: {
+        mixed: () => ({
+          when: exotic,
+          get boom() {
+            throw new Error("SECRET-FROM-THE-APP user@example.com");
+          },
+        }),
+      },
+    };
+    const registry = createBridge("results");
+    registry.register(bridge);
+
+    let result;
+    const captured = withConsoleCapture(() => {
+      expect(() => {
+        result = captureSnapshot(registry.read(), "results");
+      }).not.toThrow();
+    });
+
+    // The failure is TERMINAL for the key, so the key is present at `undefined`
+    // exactly as `D10` requires.
+    expect("mixed" in result).toBe(true);
+    expect(result.mixed).toBe(undefined);
+
+    // `toHaveLength(2)`, and each code asserted by name rather than by index —
+    // the two are emitted from different places and their relative order is not
+    // a contract worth pinning.
+    expect(captured).toHaveLength(2);
+    expect(captured.some((line) => line.includes("[snapshot_threw]"))).toBe(true);
+    expect(captured.some((line) => line.includes("[snapshot_exotic]"))).toBe(true);
+
+    // Both name the same key, so a developer reading two lines knows they are
+    // two facts about one member rather than two members misbehaving.
+    for (const line of captured) {
+      expect(line).toContain('snapshot \"results.mixed\"');
+      expect(line).not.toContain("SECRET-FROM-THE-APP");
+      expect(line).not.toContain("user@example.com");
+    }
+
+    // AND THE LATCH IS STILL A LATCH. Two keys that each fail the same way
+    // twice must not print four lines: `warnedExotic` and `warnedThrew` are
+    // per-code-per-key, not per-code. Without this half the fix could have been
+    // "drop the latch", which is the warning-that-prints-forever failure.
+    const repeated = {
+      actions: {},
+      snapshot: {
+        a: () => ({ one: exotic, two: exotic }),
+        b: () => ({ one: exotic, two: exotic }),
+      },
+    };
+
+    const repeats = withConsoleCapture(() => {
+      captureSnapshot(repeated, "results");
+    });
+
+    expect(repeats).toHaveLength(2);
+  });
+
   it("D13 — a clean capture warns not at all, so both codes are proven CONDITIONAL", () => {
     const bridge = {
       actions: {},

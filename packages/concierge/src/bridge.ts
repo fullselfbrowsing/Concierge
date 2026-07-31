@@ -798,10 +798,30 @@ export function captureSnapshot<B extends Bridge>(bridge: B, id: string, normali
   // not apply. `./concierge.ts` makes exactly this argument when it declines to
   // warn on a throwing `read()` inside `explain`.
   //
-  // The in-body `Set` still does real work: it keeps one key from emitting both
-  // codes in the same capture. The `register()` latch is unaffected and stays
+  // **ONE `Set` PER CODE, not one shared by both, and this was measured wrong
+  // the first time.** A single shared latch reads as "one key emits at most one
+  // line", which sounds like restraint. What it actually did was let the FIRST
+  // code seen suppress the second — and the exotic path always runs first,
+  // because it fires from inside the clone while the throw is only observed
+  // after the clone returns. So a key holding an undetachable value AND a nested
+  // getter that throws reported `[snapshot_exotic]` alone while the key landed
+  // at `undefined`:
+  //
+  //   G2: threw = null | out.mixed = undefined | warns = 1
+  //   G2: codes = [ '[snapshot_exotic] …' ]
+  //
+  // That is the exact mirror of the failure {@link snapshotExoticMessage} argues
+  // the two codes exist to prevent. The getter was genuinely broken, the key was
+  // genuinely absent, and the only diagnostic pointed at detachment — the
+  // ACTIONABLE code was the one suppressed. The `catch` firing is terminal for
+  // the key, so `[snapshot_threw]` must be emitted whether or not an
+  // undetachable value was met on the way.
+  //
+  // Each latch is still per key, so a value carrying twenty undetachable members
+  // still prints one line. The `register()` latch is unaffected and stays
   // per-registry.
-  const warned: Set<string> = new Set<string>();
+  const warnedThrew: Set<string> = new Set<string>();
+  const warnedExotic: Set<string> = new Set<string>();
 
   // **REACHING THE HOLDER IS CONSUMER CODE, so it is inside a `try` as well.**
   // This is one door further out than the `try` around the getter call below,
@@ -844,10 +864,10 @@ export function captureSnapshot<B extends Bridge>(bridge: B, id: string, normali
     const normalizeValue: SnapshotNormalizer =
       normalize ??
       makeDefaultNormalizer((): void => {
-        if (warned.has(key)) {
+        if (warnedExotic.has(key)) {
           return;
         }
-        warned.add(key);
+        warnedExotic.add(key);
         warnHost(snapshotExoticMessage(id, key));
       });
 
@@ -888,8 +908,8 @@ export function captureSnapshot<B extends Bridge>(bridge: B, id: string, normali
       defineField(out, key, normalizeValue((getter as () => unknown)()));
     } catch {
       defineField(out, key, undefined);
-      if (!warned.has(key)) {
-        warned.add(key);
+      if (!warnedThrew.has(key)) {
+        warnedThrew.add(key);
         warnHost(snapshotThrewMessage(id, key));
       }
     }
