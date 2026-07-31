@@ -427,27 +427,60 @@ describe("BRG-01 — the unsubscriber clears the slot only when the slot still h
     expect(registry.read()).toBe(A);
   });
 
-  it("B9 — O8 `reg A(u1); reg B(u2); reg A(u3); u2()` → read() is A, the middle component unmounts late", () => {
+  it("B9 — O8 `reg A(u1); reg B(u2); reg C(u3); u2()` → read() is C, the middle of THREE components unmounts late", () => {
     // DISCRIMINATES M-05-2: the unconditional clear returns `null` where the
-    // token guard returns `A`. Three registrations, and the MIDDLE one unmounts
-    // last — the shape a route transition produces when an exiting component's
-    // cleanup is deferred past the entering component's mount.
+    // token guard returns `C`. THREE DISTINCT COMPONENTS, and the middle one
+    // unmounts last — the shape a route transition produces when an exiting
+    // component's cleanup is deferred past the entering component's mount.
     //
     // Not an M-05-1 detector, for the same reason as B8: `u2` captured `B` and
-    // the live bridge is `A`.
+    // the live bridge is `C`.
+    //
+    // ---------------------------------------------------------------------
+    // WHY THIS CASE READS `C` AND NOT `A` — a transcription bug, corrected
+    // ---------------------------------------------------------------------
+    //
+    // `05-RESEARCH.md:725` describes O8 as "three components, middle unmounts
+    // late" and then transcribes it as `reg A(u1); reg B(u2); reg A(u3); u2()`
+    // — which is TWO components, and which is `O4` exactly. This file inherited
+    // that transcription, so B8 and B9 shipped as BYTE-IDENTICAL programs under
+    // two different ordering labels; the only textual difference was `u1` and
+    // `u3` being named, and capturing an unsubscriber that is never invoked has
+    // no observable effect. Verified programmatically: with comments stripped
+    // the two case bodies were equal.
+    //
+    // That matters by this file's own standard rather than as tidiness. The
+    // header counts THIRTEEN orderings and the arithmetic at `13 − 4 = 9` is
+    // what the corrected agreement figure rests on — and a duplicated case
+    // "reads in a diff and in a test report exactly like coverage", which is the
+    // Trap 2 failure `export-surface.test.ts` names.
+    //
+    // The description was right and the program was wrong, so the PROGRAM was
+    // corrected rather than the count. RE-MEASURED, all three implementations
+    // run over all thirteen orderings with this one spelled as three distinct
+    // components:
+    //
+    //   O8: token = C | object-guarded = C | naive = 🔴 null
+    //   object guard agrees on 9 of 13, differing on exactly O1b, O2b, O4b, O4c
+    //   naive clear agrees on 5 of 13, differing on O1b, O2, O2b, O3b, O4, O4b, O4c, O8
+    //
+    // Every number this file asserts therefore survives the correction
+    // unchanged, which is the reason this branch was taken over deleting B9 and
+    // renumbering to twelve.
     const registry = createBridge("results");
     const A = named("A");
     const B = named("B");
+    const C = named("C");
     let u2;
 
     withCapturedWarnings(() => {
       registry.register(A);
       u2 = registry.register(B);
-      registry.register(A);
+      registry.register(C);
       u2();
     });
 
-    expect(registry.read()).toBe(A);
+    expect(registry.read()).toBe(C);
   });
 });
 
