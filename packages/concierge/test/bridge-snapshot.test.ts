@@ -84,6 +84,13 @@
 
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+// `node:vm` is here for ONE reason: `D26` needs a genuine second realm. The
+// clone's plain-object test is `Object.getPrototypeOf(obj) === Object.prototype`,
+// and a cross-realm object fails it while being, to every other eye, a plain
+// object — which is exactly the miss the source comment calls "the SAFE failure
+// direction". There is no way to construct that shape in-realm, so the claim is
+// either executed against a real realm boundary or it is prose.
+import { runInNewContext } from "node:vm";
 
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -446,7 +453,7 @@ describe("BRG-05 — a snapshot captured from a proxy-backed store does not move
     // same finding as "a frozen `Map` is not frozen".
   });
 
-  it("D8 — a class instance comes back BY REFERENCE and is NOT frozen", () => {
+  it("D8 — a class instance comes back BY REFERENCE, is NOT frozen, and REPORTS", () => {
     class Model {
       constructor() {
         this.n = 1;
@@ -454,7 +461,10 @@ describe("BRG-05 — a snapshot captured from a proxy-backed store does not move
     }
     const model = new Model();
 
-    const result = captureOne(model);
+    let result;
+    const captured = withConsoleCapture(() => {
+      result = captureOne(model);
+    });
 
     // The first half is the documented limit: prototype-bearing values are not
     // cloned, because a lossy clone that drops a prototype is worse than an
@@ -470,6 +480,93 @@ describe("BRG-05 — a snapshot captured from a proxy-backed store does not move
     // called. Freezing a value we did not construct is a bug — the clone seals
     // every node it creates and nothing else.
     expect(Object.isFrozen(model)).toBe(false);
+
+    // THE THIRD HALF, and it is the one that makes the first two safe to ship.
+    // The section note in `src/bridge.ts` states the governing invariant: the
+    // hole is accepted, but "what is not accepted is the hole being INVISIBLE …
+    // the fallback therefore reports". Measured against the pre-fix artifact,
+    // the commonest occupant of that branch reported NOTHING:
+    //
+    //   A: class instance byRef = true | warnings = 0 []
+    //
+    // The consequence is the one the note names. Phase 8's CON-04 drift check
+    // compares the payload the human confirmed against the payload about to
+    // execute; with a live class instance on the captured side it compares a
+    // value against ITSELF and passes unconditionally, with nothing anywhere
+    // telling the developer why. `D12` proves the code fires for a proxied
+    // `Date`; without these three lines nothing proved it fires for the branch
+    // that catches every ordinary model object in a real app.
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toContain("[snapshot_exotic]");
+    expect(captured[0]).toContain('snapshot "results.v"');
+  });
+
+  it("D25 — a FUNCTION is passed through by reference and reports, at the top level and nested", () => {
+    // Functions never reached the pass-through branch at all: the
+    // `typeof v !== "object"` early return swallowed them alongside numbers and
+    // strings, so a closure over live app state was carried into a captured
+    // snapshot with the same silence a primitive earns. A primitive IS already
+    // detached; a closure is the opposite — it is a live read of whatever the
+    // component still holds.
+    const callback = () => "closure over app state";
+
+    let top;
+    const topWarns = withConsoleCapture(() => {
+      top = captureOne(callback);
+    });
+
+    expect(top).toBe(callback);
+    expect(topWarns).toHaveLength(1);
+    expect(topWarns[0]).toContain("[snapshot_exotic]");
+
+    // NESTED, and the nesting is a separate claim: `onExotic` is threaded
+    // through every recursive call, so a function three levels down inside a
+    // plain object still reports rather than being reported only when it is
+    // the whole value.
+    let nested;
+    const nestedWarns = withConsoleCapture(() => {
+      nested = captureOne({ handlers: { onSelect: callback } });
+    });
+
+    expect(nested.handlers.onSelect).toBe(callback);
+    expect(nestedWarns).toHaveLength(1);
+    expect(nestedWarns[0]).toContain("[snapshot_exotic]");
+  });
+
+  it("D26 — a prototype-bearing record and a CROSS-REALM plain object both pass through and both report", () => {
+    // `Object.create({})` is named in the source comment beside the class
+    // instance, and it is the shape a consumer produces with a prototype-based
+    // defaults object. Measured pre-fix: by reference, zero warnings.
+    const proto = { fallback: 1 };
+    const derived = Object.create(proto);
+    derived.own = 2;
+
+    let fromProto;
+    const protoWarns = withConsoleCapture(() => {
+      fromProto = captureOne(derived);
+    });
+
+    expect(fromProto).toBe(derived);
+    expect(protoWarns).toHaveLength(1);
+    expect(protoWarns[0]).toContain("[snapshot_exotic]");
+
+    // THE CROSS-REALM CASE, made executable rather than asserted in prose. The
+    // source comment calls this miss "the SAFE failure direction" and forbids
+    // chasing it with a `toString` tag fallback — correctly, since that
+    // predicate is `true` for class instances too. Safe is not the same as
+    // silent: the value is handed back live, so it still has to report.
+    const foreign = runInNewContext("({ a: 1 })");
+
+    expect(Object.getPrototypeOf(foreign)).not.toBe(Object.prototype);
+
+    let fromRealm;
+    const realmWarns = withConsoleCapture(() => {
+      fromRealm = captureOne(foreign);
+    });
+
+    expect(fromRealm).toBe(foreign);
+    expect(realmWarns).toHaveLength(1);
+    expect(realmWarns[0]).toContain("[snapshot_exotic]");
   });
 
   it("D9 — a symbol-keyed property is not carried into the capture", () => {

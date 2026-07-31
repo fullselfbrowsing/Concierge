@@ -411,6 +411,22 @@ export function offPageResult(what: string, where: string): ActionResult {
  * serialize. `Reflect.ownKeys` would drag all of it in.
  */
 function cloneDetached(v: unknown, seen: WeakMap<object, unknown>, onExotic: () => void): unknown {
+  // FUNCTIONS ARE TESTED BEFORE THE PRIMITIVE GUARD, and the order is the whole
+  // point. `typeof v !== "object"` is true for a function, so a single guard
+  // would return one with the same silence a number earns — and the two are
+  // opposites. A number IS already detached. A closure is the live read of
+  // whatever the component still holds, which is precisely the framework
+  // reactivity BRG-05 exists to drop, so it is the *most* undetachable value
+  // this walk can meet rather than the least.
+  //
+  // It is still handed back by reference, because there is nothing to clone: a
+  // function's captured scope is unreachable from here. So it takes the same
+  // deal as every other undetachable value — pass through, and report.
+  if (typeof v === "function") {
+    onExotic();
+    return v;
+  }
+
   if (typeof v !== "object" || v === null) {
     return v;
   }
@@ -551,6 +567,19 @@ function cloneDetached(v: unknown, seen: WeakMap<object, unknown>, onExotic: () 
   //
   // Nothing is frozen on this path. A pass-through value is not ours to seal —
   // see header constraint 4.
+  //
+  // **AND IT REPORTS.** This call is the one the section note above is about,
+  // and it is easy to read as belt-and-braces beside the three extraction
+  // `catch` arms that already report. It is the opposite: those three cover
+  // proxied `Date`/`Map`/`Set`, which are rare, and this one covers class
+  // instances, `Object.create({})` and cross-realm objects, which are what an
+  // ordinary app actually puts in a snapshot. Without it the *commonest*
+  // occupant of the documented hole was the one occupant that reported nothing —
+  // measured, `class instance byRef = true | warnings = 0` — and Phase 8's
+  // CON-04 drift check would compare a live model object against itself and pass
+  // unconditionally with no diagnostic anywhere. A hole we accept must not also
+  // be invisible.
+  onExotic();
   return v;
 }
 
