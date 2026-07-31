@@ -51,16 +51,17 @@
 // EVERY PREDICATE BELOW INHERITS THE TS1485-AT-THE-IMPORT-LINE BEHAVIOUR
 //
 // Phase 3 added four more runtime values to the entrypoint and each one gets a
-// predicate here; Phase 4 added `createConcierge`, bringing the total to six.
-// They all fail the same way the original does, and it is worth restating
-// because the failure is counter-intuitive at six names as much as at one: move
+// predicate here; Phase 4 added `createConcierge`; Phase 5 added `createBridge`,
+// `captureSnapshot` and `offPageResult`, bringing the total to nine. They all
+// fail the same way the original does, and it is worth restating because the
+// failure is counter-intuitive at nine names as much as at one: move
 // `buildCatalog` into `index.ts`'s `export type { … }` block and the diagnostic
 // is TS1485 on the single shared IMPORT line below, naming `buildCatalog` — not
 // TS2344 on the predicate line named after it. The import is shared, so the
-// line number is identical whichever of the six regressed. Read the NAME in the
-// message, not the line.
+// line number is identical whichever of the nine regressed. Read the NAME in
+// the message, not the line.
 //
-// The two `Assignable` predicates are deliberately loose about the signature:
+// The seven `Assignable` predicates are deliberately loose about the signature:
 // `(...args: never[]) => unknown` asserts only "this is a function value", which
 // is all the export-PLACEMENT guarantee needs. Signature shape is pinned
 // elsewhere — `description-literal.test-d.ts` for `defineAction`, and
@@ -69,7 +70,7 @@
 // with export placement.
 
 import type { Assignable, Equals, Expect } from "./_assert.js";
-import { MESSAGE_MAX_CHARS, JSON_SCHEMA_TARGET, defineAction, buildCatalog, CatalogValidationError, createConcierge } from "../src/index.js";   // ← index.js. NOT types.js. This is the whole point.
+import { MESSAGE_MAX_CHARS, JSON_SCHEMA_TARGET, defineAction, buildCatalog, CatalogValidationError, createConcierge, createBridge, captureSnapshot, offPageResult } from "../src/index.js";   // ← index.js. NOT types.js. This is the whole point.
 
 // --------------------------------------------------------------------------
 // SC-7d — the bound reaches the public entrypoint as a value, not just a type
@@ -100,3 +101,16 @@ type _catalogValidationErrorExportedAsValue = Expect<Assignable<typeof CatalogVa
 
 /** createConcierge reaches the public entrypoint as a callable VALUE, not only as a type. */
 type _createConciergeExportedAsValue = Expect<Assignable<typeof createConcierge, (...args: never[]) => unknown>>;
+
+// --------------------------------------------------------------------------
+// Phase 5 — the three values this phase adds to the entrypoint
+// --------------------------------------------------------------------------
+
+/** createBridge reaches the public entrypoint as a callable VALUE, not only as a type. */
+type _createBridgeExportedAsValue = Expect<Assignable<typeof createBridge, (...args: never[]) => unknown>>;
+
+/** captureSnapshot reaches the public entrypoint as a callable VALUE, not only as a type. */
+type _captureSnapshotExportedAsValue = Expect<Assignable<typeof captureSnapshot, (...args: never[]) => unknown>>;
+
+/** offPageResult reaches the public entrypoint as a callable VALUE, not only as a type. */
+type _offPageResultExportedAsValue = Expect<Assignable<typeof offPageResult, (...args: never[]) => unknown>>;
