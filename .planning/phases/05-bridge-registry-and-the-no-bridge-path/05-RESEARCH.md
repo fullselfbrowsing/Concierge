@@ -1315,7 +1315,38 @@ must label them so:
 
 ---
 
-## Open Questions
+## Open Questions (ALL RESOLVED)
+
+> **Resolution pass, 2026-07-31 (planning).** All four were settled by `05-CONTEXT.md`
+> § "Settled after research" and are implemented by the phase plans. Kept here with their original
+> reasoning rather than deleted, because each records why the question was open.
+>
+> - **Q1 (SSR registration leak)** — RESOLVED **out of scope**, per CONTEXT § Settled: "Guarding it
+>   needs a `typeof window` test, which needs a new `host.ts` capability, which collides with the hard
+>   constraint that core constructs on the server with no environment guards. Record the invariant in
+>   a doc comment on `createBridge` instead." Implemented by plan 05-01 T1, which places it on
+>   `createBridge`'s JSDoc — not the module header, because a non-entry module header was measured to
+>   reach `dist/index.js` but **not** `dist/index.d.ts`, and the consumer reads the `.d.ts`.
+> - **Q2 (delete or re-scope `contract.ts:159-163`)** — RESOLVED **re-scope, do not delete**, per
+>   CONTEXT § Settled: "`createBridge` satisfies it for apps that call `createBridge` directly; a
+>   Phase 9 adapter that mounts without any `createBridge` call in the graph would still need its own.
+>   Add that clause; do not claim the obligation is discharged." Implemented by plan 05-02 T2.
+> - **Q3 (capture-function export: 2 values or 3)** — RESOLVED **3**, per CONTEXT § Settled: "The
+>   capture function is exported — the surface grows by 3 values, not 2 … Runtime suites import
+>   `dist/index.js` and never `src/`, and research confirms there is no public caller." Implemented by
+>   plans 05-01 and 05-03. Consequence: **eleven** export pins move, not seven, and the surface goes
+>   62/51/11 → 65/51/14 rather than RESEARCH § Q5's 64/51/13.
+> - **Q4 (`ActionResult` shape ratification)** — RESOLVED **proceed**, per RESEARCH's own
+>   recommendation, which CONTEXT § Deferred Ideas carries forward: the flat shape stays for now, the
+>   discriminated union remains free until Phase 8, and `offPageResult` is added to the inventory that
+>   Phase 8's decision must sweep. Blast radius is the helper's return type only; its call sites do
+>   not change.
+>
+> One further RESEARCH assumption was overridden rather than confirmed: **A4** ("a `warnHost` on the
+> exotic-clone fallback is *not* added") was reversed by CONTEXT, which requires the warn with a
+> distinct code. Plan 05-01 T2 supplies the mechanism the reversal needs — a
+> `makeDefaultNormalizer(onExotic)` factory — because `SnapshotNormalizer`'s one-parameter signature,
+> the module-scope-state ban, and the no-second-walk rule jointly close every other channel.
 
 1. **The SSR registration leak (ARCHITECTURE.md item H).**
    - *What we know:* a registry created at consumer module scope has a process-global slot. If

@@ -26,6 +26,33 @@
 
 ---
 
+## Addendum from Planning (2026-07-31)
+
+Two corrections to this document, both measured against the live tree during planning. Recorded here
+rather than by regenerating the map.
+
+1. **A twelfth code file exists: `packages/concierge/test/bridge-snapshot.test.ts`.** The § File
+   Classification table above lists 11 files (3 created, 8 modified) and its analog count reads
+   11 / 11. Planning split the runtime suite in two — `test/bridge.test.ts` for the registry
+   (BRG-01/02/04) and `test/bridge-snapshot.test.ts` for capture, detachment and the no-bridge path
+   (BRG-03/05, DX-02). CONTEXT grants this explicitly under Claude's Discretion: "the division of
+   tests across files". Both match the `pnpm test -- bridge` filter, and the Shape F fixture lives
+   inline in the second file — the substantive constraint (never in `test/fixtures/`, which
+   `scripts/pack-install-check.sh` copies into a foreign scratch project) is unchanged.
+   Its analog is the same as `test/bridge.test.ts`'s: `packages/concierge/test/concierge.test.ts`.
+
+2. **§ `src/index.ts` at lines 492-493 is wrong about what ships.** It states that the module-header
+   paragraph "reaches `dist/index.d.ts` verbatim" and instructs a `dist/` grep for
+   `not yet constructible`. Measured: that phrase and its surrounding paragraph return **0 hits** in
+   both `dist/index.d.ts` and `dist/index.js`, today, before any correction — a non-entry module's
+   top-of-file header does not reach the declaration file. The stale prose is real and is corrected by
+   plan 05-03, but **its audit target is `packages/concierge/src/index.ts`**. A `dist/` grep would
+   pass vacuously. The same mechanism was confirmed independently on `src/concierge.ts`'s header
+   phrase "constraints whose violation is SILENT": 2 hits in `dist/index.js`, **0** in
+   `dist/index.d.ts`.
+
+---
+
 ## Files CONTEXT and RESEARCH Missed
 
 Read this section first. Two of the files above are **not** in CONTEXT's or RESEARCH's file list, and one
