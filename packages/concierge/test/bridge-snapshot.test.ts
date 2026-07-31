@@ -631,6 +631,134 @@ describe("capture degrades honestly rather than propagating", () => {
     expect(captured[0]).not.toContain("[snapshot_threw]");
   });
 
+  it("D22 — a snapshot HOLDER whose get trap throws is caught: no throw, nothing echoed, and the capture is empty", () => {
+    // PITFALL 3, ONE DOOR FURTHER OUT THAN D11. D11's outer getter returns and
+    // the CLONE throws. Here the throw happens EARLIER STILL — reading
+    // `snapshot[key]` fires the holder's `get` trap, which is consumer code
+    // running before any getter has been invoked at all. Measured against the
+    // pre-fix artifact: `threw = Error: SECRET-FROM-THE-APP user@example.com`
+    // with ZERO warnings, so the consumer's message — assembled in a real app
+    // from the same user input the component renders — reached the caller
+    // intact. That is the covert PII channel CLAUDE.md closes for handler
+    // exceptions, at the outermost layer of this function.
+    //
+    // A proxy- or accessor-backed `snapshot` holder is not an exotic
+    // hypothetical here; it is the premise of the phase. A Vue component that
+    // hands core `reactive({ filters: () => … })` reaches this line.
+    const holder = new Proxy(
+      { filters: () => 1 },
+      {
+        get(target, key, receiver) {
+          if (key === "filters") {
+            throw new Error("SECRET-FROM-THE-APP user@example.com");
+          }
+          return Reflect.get(target, key, receiver);
+        },
+      },
+    );
+
+    let result;
+    const captured = withConsoleCapture(() => {
+      expect(() => {
+        result = captureSnapshot({ actions: {}, snapshot: holder }, "results");
+      }).not.toThrow();
+    });
+
+    // The key is reported as failed, exactly as a throwing getter is: the read
+    // that produced the getter is inside the SAME `try` as the invocation, so
+    // both failures land in the same arm and get the same treatment.
+    expect("filters" in result).toBe(true);
+    expect(result.filters).toBe(undefined);
+
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toContain("[snapshot_threw]");
+    expect(captured[0]).toContain('snapshot "results.filters"');
+
+    // THE EXECUTABLE FORM OF THE SECURITY DECISION, at this layer.
+    expect(captured[0]).not.toContain("SECRET-FROM-THE-APP");
+    expect(captured[0]).not.toContain("user@example.com");
+  });
+
+  it("D23 — a snapshot HOLDER whose ownKeys trap throws is caught, warns once naming the registry, and echoes nothing", () => {
+    // `Object.keys(bridge.snapshot)` fires `ownKeys` and
+    // `getOwnPropertyDescriptor` on a proxied holder. Pre-fix that call sat
+    // OUTSIDE every `try` in the function; measured,
+    // `threw = Error: SECRET-3 keys` with zero warnings.
+    //
+    // The failure is terminal for the WHOLE capture rather than for one key —
+    // there are no keys — so the diagnostic names the registry alone. It
+    // carries the `[snapshot_threw]` code rather than a third one, because the
+    // fix a developer must make is the same one `snapshotThrewMessage` asks
+    // for: make the accessor total. `snapshotExoticMessage`'s argument for
+    // keeping the two existing codes distinct — "one code covering both would
+    // send a developer looking at a getter that is working perfectly" — is the
+    // reason NOT to invent a third here: this code sends them to exactly the
+    // right place.
+    const holder = new Proxy(
+      { filters: () => 1 },
+      {
+        ownKeys() {
+          throw new Error("SECRET-3 keys");
+        },
+      },
+    );
+
+    let result;
+    const captured = withConsoleCapture(() => {
+      expect(() => {
+        result = captureSnapshot({ actions: {}, snapshot: holder }, "results");
+      }).not.toThrow();
+    });
+
+    expect(result).toEqual({});
+
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toContain("[snapshot_threw]");
+    expect(captured[0]).toContain('snapshot "results"');
+    expect(captured[0]).not.toContain("SECRET-3");
+  });
+
+  it("D24 — captureSnapshot(registry.read(), id) with NOTHING registered returns {} silently, because that is DX-02's supported state", () => {
+    // `captureSnapshot(registry.read(), "results")` is the literal idiom every
+    // case in this file uses, and `read()` returning `null` is DX-02's
+    // SUPPORTED configuration rather than a defect — core never auto-fails an
+    // action because a declared bridge is unmounted. Pre-fix this threw
+    // `TypeError: Cannot read properties of null (reading 'snapshot')` out of
+    // the capture path.
+    //
+    // THE SILENCE IS THE DECISION, and it is the same one B20 makes for the
+    // refused unsubscriber: an unmounted page is correct behaviour, so a
+    // warning here would fire on every capture taken while a component simply
+    // is not on screen — and a channel that cries wolf on correct behaviour is
+    // a channel developers filter out, taking the two real capture codes with
+    // it. D16 records the identical judgement for a throwing `read()` inside
+    // `explain`.
+    const registry = createBridge("results");
+
+    let result;
+    const captured = withConsoleCapture(() => {
+      expect(() => {
+        result = captureSnapshot(registry.read(), "results");
+      }).not.toThrow();
+    });
+
+    expect(result).toEqual({});
+    expect(captured).toHaveLength(0);
+
+    // A bridge that carries no `snapshot` at all degrades identically. The
+    // TYPE forbids it; a JavaScript consumer is the population `types.ts`
+    // names as the entire reason runtime rules exist.
+    let bare;
+    const bareCaptured = withConsoleCapture(() => {
+      expect(() => {
+        bare = captureSnapshot({ actions: {} }, "results");
+      }).not.toThrow();
+    });
+
+    expect(bare).toEqual({});
+    expect(bareCaptured).toHaveLength(0);
+  });
+
   it("D13 — a clean capture warns not at all, so both codes are proven CONDITIONAL", () => {
     const bridge = {
       actions: {},

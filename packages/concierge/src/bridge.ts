@@ -613,6 +613,34 @@ function snapshotThrewMessage(id: string, key: string): string {
 }
 
 /**
+ * The warning a snapshot HOLDER earns for throwing while its keys are read.
+ *
+ * A distinct *subject* from {@link snapshotThrewMessage} — the registry id
+ * alone, with no key — because the failure is terminal for the whole capture
+ * rather than for one member: there are no keys to name.
+ *
+ * **The same `[snapshot_threw]` code, deliberately, and this is the one place a
+ * third code would have been the obvious move.** {@link snapshotExoticMessage}
+ * argues the two existing codes must stay apart because "one code covering both
+ * would send a developer looking at a getter that is working perfectly". That
+ * argument is the reason NOT to split here: the remedy for a throwing `ownKeys`
+ * trap is the remedy `snapshotThrewMessage` already prints — make the accessor
+ * total — so a third code would cost a developer the search and buy nothing.
+ *
+ * Interpolates `id` and nothing else. The caught value is not in scope at the
+ * call site and could not be interpolated even by accident.
+ */
+function snapshotHolderThrewMessage(id: string): string {
+  return (
+    `concierge: [snapshot_threw] snapshot "${id}": reading the snapshot holder's own keys threw, ` +
+    `so the whole captured snapshot is empty and every reader of it sees nothing where the ` +
+    `component's state should be. ` +
+    `Fix: make the holder total — enumerating \`bridge.snapshot\` runs on every capture, so its ` +
+    `own proxy traps and accessors must not throw.`
+  );
+}
+
+/**
  * The warning an undetachable snapshot value earns.
  *
  * A **distinct code** from the throwing-getter warning, deliberately: the two
@@ -657,6 +685,25 @@ function snapshotExoticMessage(id: string, key: string): string {
  * `true` over a structure that is mutable one level down. Phase 4 settled that
  * shape — "a partial `readonly` is worse than none, because a reader stopped
  * looking."
+ *
+ * **A `null` bridge captures to `{}`, SILENTLY, and the silence is a decision.**
+ * `captureSnapshot(registry.read(), id)` is the idiom, and `read()` returning
+ * `null` is DX-02's *supported* configuration rather than a defect — core never
+ * auto-fails an action because a declared bridge is unmounted. A warning here
+ * would therefore fire on every capture taken while a component is simply not on
+ * screen, which is the "a channel that cries wolf on correct behaviour is a
+ * channel developers filter out" hazard that {@link createBridge}'s refused
+ * unsubscriber already answers the same way. A bridge carrying no `snapshot` at
+ * all degrades identically; the type forbids it and a JavaScript consumer does
+ * not get the type.
+ *
+ * **Only own enumerable STRING keys of the holder are captured**, which follows
+ * from `Object.keys` and is the same rule `cloneDetached` applies one level
+ * down. The consequence worth stating: a holder whose members live on a class
+ * PROTOTYPE captures as `{}` with no warning, because it has no own keys. That
+ * is the correct rule — inherited framework members are exactly what BRG-05
+ * drops — but a consumer who gets an empty capture needs something to search
+ * for, and this sentence is it.
  */
 export function captureSnapshot<B extends Bridge>(bridge: B, id: string, normalize?: SnapshotNormalizer): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -680,12 +727,40 @@ export function captureSnapshot<B extends Bridge>(bridge: B, id: string, normali
   // per-registry.
   const warned: Set<string> = new Set<string>();
 
-  for (const key of Object.keys(bridge.snapshot)) {
-    const getter: (() => unknown) | undefined = bridge.snapshot[key];
-    if (getter === undefined) {
-      continue;
-    }
+  // **REACHING THE HOLDER IS CONSUMER CODE, so it is inside a `try` as well.**
+  // This is one door further out than the `try` around the getter call below,
+  // and the distance is the whole point: `bridge.snapshot` fires a `get` trap on
+  // a proxied bridge, and `Object.keys` over the holder fires `ownKeys` and
+  // `getOwnPropertyDescriptor`. A proxy- or accessor-backed snapshot holder is
+  // not an exotic hypothetical here — it is the premise of BRG-05, and a Vue
+  // component handing core `reactive({ filters: () => … })` reaches both. An
+  // `Error` escaping from either one carries whatever message the consumer's own
+  // code put in it, which in a real app is assembled from the same user input
+  // the component renders. That is the covert PII channel CLAUDE.md's rule
+  // closes for handler exceptions, at the outermost layer of this function.
+  //
+  // `?? {}` is what makes an unmounted bridge a silent empty capture rather than
+  // a `TypeError` — see the doc comment above; DX-02's supported state must not
+  // throw out of the idiom `captureSnapshot(registry.read(), id)`.
+  //
+  // The holder is read ONCE and held, rather than re-read as `bridge.snapshot`
+  // per key: on a proxied bridge every re-read is another trap invocation, and a
+  // holder that changed identity mid-loop would enumerate one object and read
+  // from another.
+  const given: Bridge | null | undefined = bridge as Bridge | null | undefined;
+  let holder: object;
+  let keys: readonly string[];
+  try {
+    holder = given?.snapshot ?? {};
+    keys = Object.keys(holder);
+  } catch {
+    // Terminal for the whole capture: there are no keys, so the diagnostic names
+    // the registry alone. The `catch` takes no binding here either.
+    warnHost(snapshotHolderThrewMessage(id));
+    return out;
+  }
 
+  for (const key of keys) {
     // Bound INSIDE the loop so the callback closes over the current key
     // directly, with no mutable cursor to keep in step. Constructing one
     // normalizer per key is trivial in cost and is what keeps the exotic report
@@ -700,12 +775,19 @@ export function captureSnapshot<B extends Bridge>(bridge: B, id: string, normali
         warnHost(snapshotExoticMessage(id, key));
       });
 
-    // **Both the invocation and the normalize call are inside the same `try`.**
-    // A `try` scoped to the getter call alone does not catch a getter nested
-    // inside the returned value — measured, that one throws from inside the
-    // normalizer, during the clone — and the escaping `Error` then reaches the
-    // caller carrying whatever message the consumer's own code put in it, which
-    // in a real app is assembled from the same user input the component
+    // **The READ, the invocation and the normalize call are all inside the same
+    // `try`.** Three operations, three distinct escape routes, one arm:
+    //
+    // - `holder[key]` runs the holder's `get` trap or an accessor on the holder
+    //   itself — consumer code, before any snapshot getter has been invoked;
+    // - `getter()` is the snapshot getter, the obvious one;
+    // - `normalizeValue(…)` walks the returned value, and a getter nested inside
+    //   it throws from in here — measured, during the clone, after the outer
+    //   getter has already returned successfully.
+    //
+    // A `try` scoped to any one of the three leaves the other two escaping to
+    // the caller carrying whatever message the consumer's own code put in it,
+    // which in a real app is assembled from the same user input the component
     // renders. That is the covert PII channel CLAUDE.md's rule closes for
     // handler exceptions, one layer earlier.
     //
@@ -718,7 +800,11 @@ export function captureSnapshot<B extends Bridge>(bridge: B, id: string, normali
     // The key is set to nothing rather than omitted, so a reader can tell a key
     // that failed from a key the component never declared.
     try {
-      out[key] = normalizeValue(getter());
+      const getter: unknown = (holder as Record<string, unknown>)[key];
+      if (getter === undefined) {
+        continue;
+      }
+      out[key] = normalizeValue((getter as () => unknown)());
     } catch {
       out[key] = undefined;
       if (!warned.has(key)) {
