@@ -53,11 +53,15 @@
 // `node dist/index.js`. A guard hoisted to module scope would make the second
 // half of F4 pass while doing nothing in every React or Svelte app.
 //
-// The guard now has TWO production call sites, not one. Phase 4 ships
-// `createConcierge`, which records this copy as well, and the last case in this
-// file, F5, is what makes ITS removal fail something. F4 cannot: it drives
-// `buildCatalog` directly, so a `createConcierge` that stopped reaching the
-// guard would leave F4 — and every case above it — green.
+// The guard now has THREE production call sites, not one. Phase 4 ships
+// `createConcierge`, which records this copy as well, and F5 is what makes ITS
+// removal fail something. F4 cannot: it drives `buildCatalog` directly, so a
+// `createConcierge` that stopped reaching the guard would leave F4 — and every
+// case above it — green. Phase 5 ships `createBridge`, and F6, the last case in
+// this file, is what makes ITS removal fail something. One case per production
+// call site is this file's convention, and the reason it has to be is that each
+// case drives exactly one entry point: nothing here observes a call site it
+// does not itself call.
 //
 // **That case does not claim the call is DIRECT, and must not be read as
 // claiming it.** It passes whether `createConcierge` invokes
@@ -68,6 +72,19 @@
 // same-version adopt path. Recording that here stops a reader inferring a
 // direct call which does not exist — and stops someone "restoring" one when
 // they go looking for it and cannot find it.
+//
+// **F6 DOES claim directness, and the two claims differ on purpose.** Read side
+// by side they can look inconsistent; they are not. `createBridge` reaches
+// nothing else — there is no `buildCatalog` in its path and no other core entry
+// point it delegates to — so the only route by which it can record this copy is
+// calling `assertSingleInstance` itself, which `src/bridge.ts` does on the
+// factory's first line. `createBridge`'s is therefore the guard's third call
+// site and its FIRST direct one: `buildCatalog`'s is direct too but is the
+// catalog path, and `createConcierge`'s is transitive through it. F5 is
+// latitude about a route with two options; F6 is a fact about a route with one.
+// Reading F6's directness back into F5 restores the phantom call the paragraph
+// above exists to prevent, and reading F5's latitude into F6 licenses deleting
+// the only line that puts `createBridge` on the guard at all.
 
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -264,6 +281,51 @@ describe("PKG-04 — one core instance across two independently-resolved copies"
 
     // Half two — POPULATED afterwards, through the same global record F1a and F4
     // assert on. No spy: the observable already exists and reports exactly this.
+    expect(registry[KEY]).toEqual({ version: CONTRACT_VERSION });
+  });
+
+  it("F6 — createBridge records this copy too, so the guard's third production call site, and its first DIRECT one, is asserted", async () => {
+    // This case is mutant M-05-8's only detector, and M-05-8 is
+    // `assertSingleInstance();` deleted from `createBridge`'s body. Nothing in
+    // `test/bridge.test.ts` or `test/bridge-snapshot.test.ts` can see that
+    // edit: `createBridge` returns the same frozen registry, `read()` still
+    // reports `null` before registration, `register()` still hands back an
+    // identity-guarded unsubscriber, and every snapshot still detaches. The
+    // deletion is behaviourally invisible, which is exactly why it looks like
+    // removing a redundant line — and why half two below is the only assertion
+    // in this repository that goes red for it.
+    //
+    // Its own query string, unique to this case. Every case that needs a fresh
+    // module evaluation must use one nothing else in this file uses: two cases
+    // sharing a specifier share Node's cached namespace, so the second would
+    // skip module scope entirely and its "empty after import" half would be
+    // asserting against state the first case left behind. Same cache-busting
+    // reason F4 and F5 state above. Every specifier used by a case earlier in
+    // this file is taken; this case takes the next unused one, and a future
+    // case must do the same rather than reuse any of them.
+    const { assertSingleInstance, createBridge, CONTRACT_VERSION } = await import(
+      `${DIST_HREF}?sc7=1`
+    );
+
+    // Half one — EMPTY immediately after evaluation, and this half is a check in
+    // its own right rather than setup: it is what catches a guard smuggled up to
+    // module scope, the form `sideEffects: false` licenses a bundler to delete
+    // outright. `assertSingleInstance` is destructured above and deliberately
+    // NOT called — importing a binding is not invoking it, and calling it here
+    // would populate the registry itself and make half two pass no matter what
+    // the factory does.
+    expect(typeof createBridge).toBe("function");
+    expect(registry[KEY]).toBeUndefined();
+
+    // The production path, at its minimum — and the minimum is smaller here than
+    // in F5, which needs `{ stages: [] }` because `stages` is a required member
+    // of `ConciergeConfig`. `createBridge` takes one string and no config at
+    // all, so there is nothing to construct before the guard runs.
+    createBridge("results");
+
+    // Half two — POPULATED afterwards, through the same global record F1a, F4
+    // and F5 assert on. No spy: the observable already exists and reports
+    // exactly this.
     expect(registry[KEY]).toEqual({ version: CONTRACT_VERSION });
   });
 });
