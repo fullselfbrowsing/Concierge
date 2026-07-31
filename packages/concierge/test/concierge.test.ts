@@ -4,7 +4,7 @@
 //
 // What escapes without this file:
 //
-// Five defects, and every one of them passes a naive test.
+// Six defects, and every one of them passes a naive test.
 //
 //   1. A FRESH ARRAY PER CALL. React's `useSyncExternalStore` compares
 //      snapshots with `Object.is` — `ReactFiberHooks.js`,
@@ -70,6 +70,22 @@
 //      perfect. S17 pins `explain().stage` against `stageFor()` across three
 //      configs and S19 pins the shadowed-stage row set, which is the shape a
 //      short-circuiting implementation gets wrong.
+//
+//   6. A LYING `reason` CODE ADDED TO THE DISPATCH STUB, which no structural
+//      test can reach because what it violates is an ABSENCE. `dispatch` is a
+//      Phase 6 API that this build only stubs, so the natural reading is that
+//      there is nothing here yet to defend. There is. The stub returns
+//      `{ok, message}` and deliberately NO `reason`, because `ReasonCode` is a
+//      CLOSED union of twelve members whose additions are breaking changes BY
+//      DESIGN (`types.ts:154-172`) and not one of the twelve means "this
+//      runtime is not built yet". MEASURED — `04-VERIFICATION.md`'s independent
+//      15-mutant battery added `reason: "unknown_action"` to
+//      `DISPATCH_NOT_IMPLEMENTED`, and it was the ONE mutant of fifteen that
+//      SURVIVED: the build was clean and all 86 tests of the pre-S27 suite
+//      passed. Every assertion one would naturally write about a stub — that it
+//      resolves, that `ok` is `false`, that the message names the scope — is
+//      true on the lying build too. S27 asserts the absence directly, which is
+//      the only assertion that is not.
 //
 // ---------------------------------------------------------------------------
 // Two behaviours have no single-literal mutant — stated rather than faked
@@ -203,7 +219,7 @@
 // reports the pipe's status rather than the compiler's.
 //
 // ---------------------------------------------------------------------------
-// The ID series is S1…S26, and it is deliberately NOT a continuation
+// The ID series is S1…S27, and it is deliberately NOT a continuation
 // ---------------------------------------------------------------------------
 //
 // `catalog.test.ts` runs C1…C26. This file starts a fresh S-series rather than
@@ -214,8 +230,15 @@
 // re-declaring `Booking` locally rather than importing a neighbour's.
 //
 // S15 is a comment block rather than a case — see the SEC-03 section. So the
-// series runs S1…S26 and the file contains 25 `it` blocks, which is not an
+// series runs S1…S27 and the file contains 26 `it` blocks, which is not an
 // off-by-one.
+//
+// S27 was added AFTER the phase closed, in response to `04-VERIFICATION.md`'s
+// W1: the one surviving mutant of an independent 15-mutant battery. Its number
+// is the next free one rather than a slot near the case it resembles, because
+// the S-numbers are cited by id in the `04-*` records and renumbering to keep
+// like with like would silently rewrite every citation after the insertion
+// point — the same argument this block makes against continuing the C-series.
 //
 // ---------------------------------------------------------------------------
 // dist, not src — the same decision its four siblings state
@@ -1245,5 +1268,74 @@ describe("The stage-id policy — colliding ids are reported once and never coll
     // described: all three contexts report the same id.
     expect(concierge.stageFor({ n: 1 })).toBe("same");
     expect(concierge.stageFor({ n: 3 })).toBe("same");
+  });
+});
+
+describe("The Phase 6 dispatch stub — the ABSENCE of `reason` is the claim", () => {
+  // THE ONLY CASE IN THIS FILE THAT ASSERTS SOMETHING IS NOT THERE, and the
+  // reason it exists at all is that `04-VERIFICATION.md` measured the gap:
+  // adding `reason: "unknown_action"` to `DISPATCH_NOT_IMPLEMENTED` was the one
+  // mutant of fifteen that SURVIVED — clean build, 86/86 green. Until this
+  // case, `test/concierge.test.ts`'s own line about "nothing in this file
+  // dispatches" was the entire defence, and prose is not a gate.
+  //
+  // WHY THE OMISSION IS LOAD-BEARING RATHER THAN AN OVERSIGHT. `ReasonCode` is
+  // a CLOSED union of twelve members — `AbandonReason`'s three and
+  // `FailureReason`'s nine — and `types.ts:154-172` records that adding a
+  // member to it is a breaking change *by design*: every exhaustive mapper
+  // stops compiling until it handles the new one, which is the whole point of
+  // closing the union. None of the twelve means "this runtime is not built
+  // yet". `unknown_action` is the one that superficially fits and it is the
+  // worst of them, because it would be a false statement about an action
+  // PLAINLY PRESENT in the array `catalogFor` just handed the agent — the
+  // premise this case asserts first rather than assumes. `handler_error` would
+  // be a lie about a handler that was never reached. So the stub omits the
+  // field, which asserts nothing false; that is the only honest option a closed
+  // union leaves, and adding `not_implemented` to the union would cost two
+  // breaking changes (add now, remove in Phase 6) to say what an absent field
+  // already says.
+  //
+  // AND WHAT PHASE 6 MUST DO WITH IT: REPLACE, NOT NORMALIZE. DSP-09's
+  // normalizer exists to reject a *handler* return that is not a valid
+  // `ActionResult`. This value is not a handler return at all — it is the
+  // dispatcher's stand-in for a dispatcher that does not exist — so routing it
+  // through the normalizer would manufacture a well-formed report about a call
+  // that never happened. The constant and the function that returns it are
+  // deleted together. When that happens this case should be DELETED rather than
+  // updated: it pins a stub, and a stub that has been implemented has no
+  // invariant left to pin. Re-pointing it at the real dispatcher would quietly
+  // convert a Phase 4 honesty check into a Phase 6 behavioural claim it was
+  // never designed to make.
+  it("S27 — dispatch resolves to exactly {ok, message}, with no `reason` key, for an action that IS in the catalog", async () => {
+    const concierge = canonical();
+
+    // The premise, asserted rather than assumed, because everything above rests
+    // on it. If `applyFilter` were genuinely absent from the catalog then
+    // `unknown_action` would be TRUE and this whole case would be arguing for a
+    // worse artifact.
+    const offered = concierge.catalogFor({ pathname: "/results" }).map((tool) => tool.name);
+    expect(offered).toContain("applyFilter");
+
+    const result = await concierge.dispatch("applyFilter", { key: "brand", value: "acme" });
+
+    // The key set, EXACTLY — sorted because the claim is membership rather than
+    // ordering, and `toEqual` against a two-element array because that is what
+    // fails when a THIRD key appears. `toMatchObject`, `toHaveProperty` and any
+    // structural assertion about `ok`/`message` are all satisfied by the lying
+    // build; this line is not.
+    expect(Object.keys(result).sort()).toEqual(["message", "ok"]);
+
+    // The same claim spelled as the absence it actually is. `Object.keys` above
+    // already catches an explicitly-set `reason: undefined` — a non-enumerable
+    // own property would slip past both, and that is not a shape any plausible
+    // implementation of this constant produces — but `in` states the invariant
+    // in the form a reader can check against the source, and the two together
+    // read as one claim rather than as an incidental key count.
+    expect("reason" in result).toBe(false);
+
+    // And the half that is genuinely true and must stay true: the stub reports
+    // a FAILURE. A build that returned `{ok: true}` would be claiming an action
+    // ran, which is the one thing worse than naming the wrong reason.
+    expect(result.ok).toBe(false);
   });
 });
