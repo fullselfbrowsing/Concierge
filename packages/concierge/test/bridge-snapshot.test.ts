@@ -87,6 +87,8 @@ import { fileURLToPath } from "node:url";
 
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { zodEmptyObject, zodObject } from "./fixtures/schemas.js";
+
 const DIST_URL = new URL("../dist/index.js", import.meta.url);
 const DIST_PATH = fileURLToPath(DIST_URL);
 
@@ -107,6 +109,10 @@ let createBridge;
 let captureSnapshot;
 let offPageResult;
 let createConcierge;
+// Read from the artifact, never hard-coded as `180`. The bound this file
+// asserts and the bound the implementation applies must be the SAME number, or
+// the assertion drifts silently the first time the constant moves.
+let MESSAGE_MAX_CHARS;
 
 beforeAll(async () => {
   if (!existsSync(DIST_PATH)) {
@@ -121,6 +127,7 @@ beforeAll(async () => {
   captureSnapshot = artifact.captureSnapshot;
   offPageResult = artifact.offPageResult;
   createConcierge = artifact.createConcierge;
+  MESSAGE_MAX_CHARS = artifact.MESSAGE_MAX_CHARS;
 });
 
 // `delete`, not assignment to `undefined` — the same reset, and the same
@@ -647,5 +654,306 @@ describe("capture degrades honestly rather than propagating", () => {
     // warns on EVERY capture — which is a warning nobody reads, and which would
     // make the two codes carry no information at all.
     expect(captured).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Declaration helpers
+// ---------------------------------------------------------------------------
+//
+// RE-DECLARED, not imported. The originals are file-local to
+// `concierge.test.ts:358-414` and are not exported; copying the SHAPE keeps
+// both files independent, where exporting them would make one file's fixture a
+// published surface the other could not change.
+//
+// `redact: "drop"` on every declaration is mandatory rather than tidy: a
+// missing `redact` on a non-empty schema throws `redaction_missing` during the
+// one flat `buildCatalog` that `createConcierge` runs, so every case in this
+// half would fail during construction for a reason with nothing to do with
+// what it claims. Zod fixtures come from `./fixtures/schemas.js`, which IS a
+// real importable module.
+function noopHandler() {
+  return { ok: true };
+}
+
+function declare(name: string, schema: unknown, extra: Record<string, unknown> = {}) {
+  return {
+    name,
+    description: `the ${name} action`,
+    schema,
+    handler: noopHandler,
+    redact: "drop",
+    ...extra,
+  };
+}
+
+// `bridge` is OMITTED rather than set to `undefined` when absent, so that
+// "declares no bridge" is an absent key exactly as a consumer would write it.
+// The source branches on `registry === undefined`, so both spellings work, and
+// the one that matches real configuration is the one worth testing.
+function stage(id: string, match: unknown, actions: unknown[], bridge?: unknown) {
+  return bridge === undefined ? { id, match, actions } : { id, match, actions, bridge };
+}
+
+describe("BRG-03 — resolution yields null for a declared-but-unmounted bridge", () => {
+  // `resolveBridge` is module-private, so its observable AT THIS LAYER is
+  // `explain().stages[i].bridge.registered` — which is exactly why plan 05-02
+  // routed `bridgeStatus` through the seam rather than leaving it with its own
+  // `read()` call. Nothing below reaches into `src/`.
+  //
+  // Phase 5 proves BRG-03 as TWO SEPARATE HALVES: resolution here, and the
+  // handler's response to a `null` bridge in the next block. CONTEXT decision
+  // 3.3 locks the `dispatch` stub as untouched — Phase 6 replaces it
+  // wholesale — so the end-to-end form joining the two is NOT provable at this
+  // phase's boundary. See the deferral note in the next block; nothing in this
+  // file calls dispatch.
+
+  it("D14 — a stage declaring a real registry with nothing registered reports { id, registered: false }", () => {
+    const registry = createBridge("results");
+
+    const concierge = createConcierge({
+      stages: [stage("results", () => true, [declare("applyFilter", zodObject)], registry)],
+    });
+
+    expect(concierge.explain({ pathname: "/results" }).stages[0].bridge).toEqual({
+      id: "results",
+      registered: false,
+    });
+
+    // MUTANT M-05-13 — `resolveBridge` returning `null` unconditionally instead
+    // of the guarded `registry.read() ?? null`. THIS CASE STAYS GREEN under
+    // that mutant, because `false` is what an always-null resolution reports
+    // too. It is written anyway, as the honest half of a pair: D15 is the one
+    // that goes red, and a reader who saw only this case would conclude the
+    // unmounted state was covered when nothing about the seam was tested.
+  });
+
+  it("D15 — the same stage reports registered: true once a bridge is registered", () => {
+    const registry = createBridge("results");
+
+    const concierge = createConcierge({
+      stages: [stage("results", () => true, [declare("applyFilter", zodObject)], registry)],
+    });
+
+    registry.register({ actions: {}, snapshot: { total: () => 1 } });
+
+    // MUTANT M-05-13'S REAL DETECTOR. With `return null;` substituted for the
+    // guarded read inside `resolveBridge`, `registered` stays `false` here and
+    // every action in the app is off-page forever, on a page that is definitely
+    // open — the single hardest bridge failure to diagnose from the outside.
+    expect(concierge.explain({ pathname: "/results" }).stages[0].bridge).toEqual({
+      id: "results",
+      registered: true,
+    });
+  });
+
+  it("D16 — a registry whose read() THROWS degrades to registered: false, does not propagate, and prints nothing", () => {
+    // Hand-rolled, because `createBridge`'s own `read()` cannot throw. `id`,
+    // `read` and `register` are the whole `BridgeRegistry` interface, so this
+    // object is exactly what that interface admits — the same argument
+    // `concierge.test.ts:951-956` makes for S20's fixture.
+    const registry = {
+      id: "results",
+      read: () => {
+        throw new Error("SECRET-FROM-THE-APP");
+      },
+      register: () => () => {},
+    };
+
+    const concierge = createConcierge({
+      stages: [stage("results", () => true, [declare("applyFilter", zodObject)], registry)],
+    });
+
+    let row;
+    const captured = withConsoleCapture(() => {
+      expect(() => {
+        row = concierge.explain({ pathname: "/results" }).stages[0].bridge;
+      }).not.toThrow();
+    });
+
+    // A throwing `read()` is not a registration. It degrades to "not mounted"
+    // rather than taking down the one call a developer makes when they are
+    // already confused.
+    expect(row).toEqual({ id: "results", registered: false });
+
+    // ZERO WARNINGS, AND THE SILENCE IS A DECISION rather than an omission —
+    // `src/concierge.ts:276-281` records it. Unlike a throwing matcher, which
+    // fires on every navigation in a shipped app where nobody is watching, this
+    // runs only inside `explain`: a human-debugging-rate call. A warning there
+    // prints during the very activity it would interrupt, and the structured
+    // `registered: false` row is already in front of the person who asked for
+    // it.
+    expect(captured).toHaveLength(0);
+  });
+
+  it("D17 — a stage declaring NO bridge reports null, not { registered: false }", () => {
+    const concierge = createConcierge({
+      stages: [
+        stage("results", () => true, [declare("applyFilter", zodObject)], createBridge("results")),
+        stage("plain", () => false, [declare("openItem", zodObject)]),
+      ],
+    });
+
+    // `toBe(null)`, and the distinction from D14 is the entire reason this row
+    // is not a boolean. `null` means the stage declares no bridge — DX-02's
+    // SUPPORTED configuration — while `{registered: false}` means one is
+    // declared and nothing mounted, which is the commonest cause of "my action
+    // didn't fire". Collapsing them makes the two indistinguishable in the one
+    // diagnostic a developer reaches for.
+    expect(concierge.explain({ pathname: "/results" }).stages[1].bridge).toBe(null);
+
+    // MUTANT M-05-14 — removing `bridgeStatus`'s `stage.bridge === undefined`
+    // early return so the row is read off `resolveBridge`'s return value alone.
+    // The three-state row collapses to two and this case goes red. It cannot be
+    // "simplified" away by noting that `resolveBridge` contains a textually
+    // identical guard four lines below: that one is right for a HANDLER, which
+    // has the same thing to do about both states, and wrong for a REPORT —
+    // and there is no `id` to put in the collapsed row.
+  });
+});
+
+describe("BRG-03 / DX-02 — a handler given bridge: null returns a sentence, not an exception", () => {
+  // Handlers are invoked DIRECTLY with a context object here. Nothing routes
+  // through `dispatch`, and that is a fence rather than a shortcut: CONTEXT
+  // decision 3.3 locks the Phase 4 `dispatch` stub as untouched and Phase 6
+  // replaces it wholesale.
+  //
+  // SUCCESS CRITERION 3'S END-TO-END FORM IS DEFERRED TO PHASE 6 by that same
+  // decision. Its absence here is a recorded deferral, not an omission — the
+  // two halves it joins (resolution yields `null`; a handler given `null`
+  // returns a sentence) are both proven, above and below.
+  //
+  // ---------------------------------------------------------------------------
+  // THE DX-03 HALF THAT IS DELIBERATELY NOT ASSERTED
+  // ---------------------------------------------------------------------------
+  //
+  // Following `export-surface.test.ts`'s Trap 2 precedent of writing down what
+  // is deliberately left unasserted rather than leaving a gap a reader must
+  // infer:
+  //
+  // DX-03's standard is that the message says what to DO, not merely what is
+  // wrong. There is no honest automated form of that. A regex over
+  // `/open|go to|navigate/i` pins VOCABULARY rather than MEANING: it goes red
+  // on a legitimate rewording that still names an action, and green on
+  // "the page is not open" — which names no action at all while containing the
+  // word. Writing it would be an assertion that passes vacuously, which is the
+  // one failure this phase's CONTEXT rejects by name.
+  //
+  // THE TWO AUTOMATED HALVES THAT DO CARRY WEIGHT are both below: the length
+  // bound read from `MESSAGE_MAX_CHARS` (mutant M-05-12) and
+  // `expect(() => handler(ctx)).not.toThrow()`. The what-to-do half is a
+  // PLAN-AUTHOR REVIEW OBLIGATION, and its verdict is recorded in this plan's
+  // SUMMARY rather than faked here.
+
+  // The handler shape a consumer writes for an action that needs the page. It
+  // takes ONE argument — the context — matching `ActionHandler`.
+  function offPageHandler(ctx: { bridge: unknown }) {
+    if (ctx.bridge === null) {
+      return offPageResult("The result count", "results page");
+    }
+    return { ok: true };
+  }
+
+  it("D18 — the off-page result is ok:false / no_bridge / a bounded, non-empty sentence, and the handler does not throw", () => {
+    const ctx = { args: {}, bridge: null, meta: {} };
+
+    let result;
+    expect(() => {
+      result = offPageHandler(ctx);
+    }).not.toThrow();
+
+    expect(result.ok).toBe(false);
+
+    // `toBe("no_bridge")`, not `toBeDefined()`. `ReasonCode` is a CLOSED union
+    // of twelve members whose additions are breaking changes by design, and
+    // `no_bridge` is the one declared for exactly this case. A handler placing
+    // any other member here would be lying to the model about why it stopped.
+    expect(result.reason).toBe("no_bridge");
+
+    expect(typeof result.message).toBe("string");
+    expect(result.message.length).toBeGreaterThan(0);
+    expect(result.message.length).toBeLessThanOrEqual(MESSAGE_MAX_CHARS);
+  });
+
+  it("D19 — a composition that overshoots the bound comes back at exactly MESSAGE_MAX_CHARS", () => {
+    // DELIBERATELY OVER-LONG, and the overshoot is the whole case. A pair whose
+    // composition stayed under the bound would return an untruncated message
+    // under BOTH implementations and could not distinguish them — the same
+    // assertion, on a shorter pair, is an audit that cannot fail.
+    const what = "The number of results matching every filter the shopper has applied so far on this page";
+    const where = "search results page inside the storefront shell";
+
+    const result = offPageResult(what, where);
+
+    // MUTANT M-05-12 — removing `message.slice(0, MESSAGE_MAX_CHARS)`. The
+    // composed sentence here runs well past the bound, so the returned length
+    // stops being `MESSAGE_MAX_CHARS` and this goes red.
+    //
+    // The bound is READ FROM THE ARTIFACT rather than written as `180`. A
+    // hard-coded literal is a second copy of a shared contract — this bound and
+    // Phase 6's SEC-06 truncation are meant to be the same number — and two
+    // copies of a number can disagree without anything noticing until a message
+    // is cut at the wrong place.
+    expect(result.message).toHaveLength(MESSAGE_MAX_CHARS);
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("no_bridge");
+  });
+
+  it("D20 — DX-02 criterion 5: a stage declaring NO bridge still runs its handler, which succeeds with ctx.bridge null", () => {
+    // A handler that needs no instrumentation at all — it reads a stubbed
+    // router value out of its OWN arguments. This is the "first useful action
+    // costs no instrumentation" claim, made executable.
+    let seenBridge = "handler-was-never-called";
+    function routerHandler(ctx: { args: { pathname: string }; bridge: unknown }) {
+      seenBridge = ctx.bridge;
+      return { ok: true, message: `Navigated to ${ctx.args.pathname}.` };
+    }
+
+    const concierge = createConcierge({
+      stages: [stage("plain", () => true, [declare("openItem", zodObject, { handler: routerHandler })])],
+    });
+
+    // The configuration is legal and the stage assembles: core does not treat
+    // "declares no bridge" as a defect.
+    expect(concierge.explain({ pathname: "/x" }).stages[0].bridge).toBe(null);
+
+    const result = routerHandler({ args: { pathname: "/items/7" }, bridge: null, meta: {} });
+
+    expect(result.ok).toBe(true);
+    expect(seenBridge).toBe(null);
+  });
+
+  it("D21 — DX-02: a stage that DOES declare a bridge with nothing registered still runs its handler, which can still succeed", () => {
+    let seenBridge = "handler-was-never-called";
+    function partialHandler(ctx: { args: { pathname: string }; bridge: unknown }) {
+      seenBridge = ctx.bridge;
+      // The handler DECIDES. It has a legitimate path that does not need the
+      // bridge, and it takes it.
+      return { ok: true, message: `Navigated to ${ctx.args.pathname}.` };
+    }
+
+    const registry = createBridge("results");
+    const concierge = createConcierge({
+      stages: [
+        stage("results", () => true, [declare("applyFilter", zodObject, { handler: partialHandler })], registry),
+      ],
+      crossStage: [declare("signOut", zodEmptyObject)],
+    });
+
+    expect(concierge.explain({ pathname: "/results" }).stages[0].bridge).toEqual({
+      id: "results",
+      registered: false,
+    });
+
+    const result = partialHandler({ args: { pathname: "/results" }, bridge: null, meta: {} });
+
+    // AN IMPLEMENTATION THAT SHORT-CIRCUITED TO `no_bridge` whenever a declared
+    // bridge is unmounted would make this case red. That auto-fail is what
+    // CONTEXT rejects: core never decides an action cannot run because nothing
+    // is registered, because doing so strips handlers of every legitimate
+    // partial-capability path — the router read, the cached value, the
+    // server-side fallback. `resolveBridge` hands over `null` and stops there.
+    expect(result.ok).toBe(true);
+    expect(seenBridge).toBe(null);
   });
 });
