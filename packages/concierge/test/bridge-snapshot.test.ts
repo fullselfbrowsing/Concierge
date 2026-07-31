@@ -453,6 +453,81 @@ describe("BRG-05 — a snapshot captured from a proxy-backed store does not move
     // same finding as "a frozen `Map` is not frozen".
   });
 
+  it("D32 — a Date/Map/Set SUBCLASS is still cloned, but the downgrade REPORTS instead of happening silently", () => {
+    // The branches test `obj instanceof Map` and construct `new Map()`, so a
+    // subclass loses both its prototype and every own property it carries.
+    // Measured pre-fix, with no diagnostic at all:
+    //
+    //   F4: clone ctor = Map | lost .tag = undefined | lost subclass = true | warns = 0
+    //
+    // That contradicts the rationale the same file uses four branches later to
+    // justify the pass-through: "a lossy clone that drops a prototype is worse
+    // than an honest reference". The collection branches do exactly that, and
+    // unlike the pass-through branch they did it without saying so.
+    //
+    // THE BEHAVIOUR CHOSEN IS "CLONE AND REPORT", not "pass through". Restricting
+    // the branches to exact instances would have sent a CROSS-REALM `Date` or
+    // `Map` down the pass-through path — and the union-of-predicates test exists
+    // precisely to catch those, since a cross-realm instance fails `instanceof`
+    // and passes the `toString` tag. Detachment is worth more there than
+    // prototype fidelity, so the clone stays and the loss is merely made
+    // visible.
+    class Tagged extends Map {
+      constructor(entries) {
+        super(entries);
+        this.tag = "keep-me";
+      }
+    }
+    class Ranked extends Set {
+      constructor(members) {
+        super(members);
+        this.rank = 3;
+      }
+    }
+    class Stamped extends Date {
+      constructor(ms) {
+        super(ms);
+        this.label = "created";
+      }
+    }
+
+    for (const [value, reader] of [
+      [new Tagged([["a", 1]]), (c) => c.get("a")],
+      [new Ranked([1, 2]), (c) => (c.has(1) ? 1 : undefined)],
+      [new Stamped(0), (c) => (c.getTime() === 0 ? 1 : undefined)],
+    ]) {
+      let cloned;
+      const captured = withConsoleCapture(() => {
+        cloned = captureOne(value);
+      });
+
+      // The clone still happened and still carries the CONTENT — that is the
+      // half worth keeping, and asserting it is what stops this case being
+      // satisfied by a build that silently switched to pass-through.
+      expect(cloned).not.toBe(value);
+      expect(reader(cloned)).toBeDefined();
+
+      // …and the loss is real, which is why it has to be reported.
+      expect(Object.getPrototypeOf(cloned)).toBe(Object.getPrototypeOf(Object.getPrototypeOf(value)));
+
+      expect(captured).toHaveLength(1);
+      expect(captured[0]).toContain("[snapshot_exotic]");
+      expect(captured[0]).toContain('snapshot "results.v"');
+    }
+
+    // THE CONTROL, and without it the fix could have been "always warn on this
+    // branch" — which would fire on every `Date` in every snapshot in every app
+    // and make the code carry no information at all. `D7` asserts these three
+    // clone correctly; this asserts they do it in silence.
+    const quiet = withConsoleCapture(() => {
+      captureOne(new Date(0));
+      captureOne(new Map([["a", 1]]));
+      captureOne(new Set([1, 2]));
+    });
+
+    expect(quiet).toHaveLength(0);
+  });
+
   it("D8 — a class instance comes back BY REFERENCE, is NOT frozen, and REPORTS", () => {
     class Model {
       constructor() {

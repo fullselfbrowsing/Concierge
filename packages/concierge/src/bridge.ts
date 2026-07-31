@@ -577,6 +577,28 @@ function cloneDetached(v: unknown, seen: WeakMap<object, unknown>, onExotic: () 
   // happens after it, so a throwing getter nested inside a `Map` value
   // propagates to the capture loop and is reported as a throwing getter rather
   // than mislabelled as an undetachable value. Every `catch` binds nothing.
+  //
+  // **EACH BRANCH REPORTS ITS OWN DOWNGRADE, and this is the one lossy clone in
+  // the file.** Every arm constructs a BASE instance, so a subclass loses its
+  // prototype and every own property it carries — measured,
+  // `class Tagged extends Map` came back as a plain `Map` with `.tag` gone and
+  // zero warnings. That contradicts the argument the pass-through branch below
+  // makes for itself, "a lossy clone that drops a prototype is worse than an
+  // honest reference", and unlike that branch it was doing it in silence.
+  //
+  // **Clone-and-report, rather than pass-through.** Restricting these arms to
+  // exact instances would send a CROSS-REALM `Date` or `Map` down the
+  // pass-through path — and the union-of-predicates test exists precisely to
+  // catch those, since a cross-realm instance fails `instanceof` and passes the
+  // tag. Detachment is worth more there than prototype fidelity, so the clone
+  // stays and only the loss becomes visible.
+  //
+  // Each report is gated on `instanceof` as well as the prototype test, and that
+  // conjunct is load-bearing rather than belt-and-braces: a cross-realm instance
+  // ALSO fails the prototype test — its prototype is the other realm's — so the
+  // bare test would report every cross-realm collection, where nothing carrying
+  // app data is actually lost. The remaining miss is a cross-realm SUBCLASS,
+  // which is silent; recorded here rather than chased.
   const tag: string = Object.prototype.toString.call(obj);
 
   if (obj instanceof Date || tag === "[object Date]") {
@@ -586,6 +608,9 @@ function cloneDetached(v: unknown, seen: WeakMap<object, unknown>, onExotic: () 
     } catch {
       onExotic();
       return v;
+    }
+    if (obj instanceof Date && Object.getPrototypeOf(obj) !== Date.prototype) {
+      onExotic();
     }
     const when: Date = new Date(time);
     seen.set(obj, when);
@@ -599,6 +624,9 @@ function cloneDetached(v: unknown, seen: WeakMap<object, unknown>, onExotic: () 
     } catch {
       onExotic();
       return v;
+    }
+    if (obj instanceof Map && Object.getPrototypeOf(obj) !== Map.prototype) {
+      onExotic();
     }
     const pairs: Map<unknown, unknown> = new Map<unknown, unknown>();
     seen.set(obj, pairs);
@@ -615,6 +643,9 @@ function cloneDetached(v: unknown, seen: WeakMap<object, unknown>, onExotic: () 
     } catch {
       onExotic();
       return v;
+    }
+    if (obj instanceof Set && Object.getPrototypeOf(obj) !== Set.prototype) {
+      onExotic();
     }
     const unique: Set<unknown> = new Set<unknown>();
     seen.set(obj, unique);
