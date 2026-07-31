@@ -239,8 +239,43 @@ function liveBridge(initial: string) {
   };
 }
 
+// The console-capture idiom, written once and reused, with the four load-bearing
+// notes from this file's header. `run` is invoked with a stand-in `console`
+// installed; the captured lines are returned.
+//
+// This exists in TWO registers, and both matter. The warn-policy cases below use
+// the returned array as the assertion subject. The ORDERING cases use it as a
+// muffler: five of the thirteen orderings displace a still-live registration, so
+// they emit a real 340-character `bridge_overwrite` line. MEASURED before this
+// file existed — `pnpm test` emitted ZERO `concierge: [` lines across the whole
+// suite, because every case in Phase 3 and Phase 4 that provokes a diagnostic
+// captures it. Letting eight cases here print would spend that invariant on
+// nothing: a suite whose output is full of expected warnings is a suite where an
+// UNEXPECTED one is invisible.
+//
+// All three sinks are stood in, not just `warn`, following
+// `concierge.test.ts:1074-1076`: a "warns never" claim that captured only `warn`
+// is satisfied by a diagnostic that reached for `console.log`.
+function withCapturedWarnings(run: () => void): string[] {
+  const realConsole = globalThis.console;
+  const captured: string[] = [];
+  const sink = (message: string) => {
+    captured.push(String(message));
+  };
+
+  globalThis.console = { ...realConsole, warn: sink, error: sink, log: sink };
+
+  try {
+    run();
+  } finally {
+    globalThis.console = realConsole;
+  }
+
+  return captured;
+}
+
 describe("BRG-01 — the unsubscriber clears the slot only when the slot still holds its own registration", () => {
-  it("B1 — O6 never registered → read() is null", () => {
+  it("B1 — O6 never registered → read() is null. CONTRACT PIN", () => {
     // CONTRACT PIN. Measured identical across the token guard, the
     // object-identity defect and the naive clear — all three return `null` here,
     // because none of their unsubscribers has run. It pins the initial state and
@@ -249,5 +284,281 @@ describe("BRG-01 — the unsubscriber clears the slot only when the slot still h
     const registry = createBridge("results");
 
     expect(registry.read()).toBeNull();
+  });
+
+  it("B2 — O1 `reg A(u1); u1(); reg A(u2)` → read() is A. CONTRACT PIN", () => {
+    // CONTRACT PIN. This is React StrictMode's double mount with the SAME bridge
+    // object, and it is the ordering every reader looks for first — its absence
+    // would read as an omission. It is also, measured, identical across the token
+    // guard, the object-identity defect and the naive clear: all three return `A`,
+    // because the second `register` runs against an already-empty slot and no
+    // unsubscriber fires afterwards. Proves nothing about the guard. Not counted
+    // toward BRG-01 or BRG-04 coverage; see the contract-pin block in the header.
+    // O1b, immediately below in the BRG-04 block, is this ordering plus the one
+    // extra step that makes it discriminate.
+    const registry = createBridge("results");
+    const A = named("A");
+
+    const u1 = registry.register(A);
+    u1();
+    registry.register(A);
+
+    expect(registry.read()).toBe(A);
+  });
+
+  it("B3 — O3 `reg A(u1); u1(); u1(); reg B` → read() is B. CONTRACT PIN", () => {
+    // CONTRACT PIN. Pins unsubscriber IDEMPOTENCE — calling the same cleanup
+    // twice must not be an error and must not clear anything the second time.
+    // Measured identical across all three implementations: the slot is already
+    // empty when the second `u1()` runs, so even the unconditional clear has
+    // nothing to destroy. Proves nothing about the guard; not counted toward
+    // BRG-01 or BRG-04 coverage.
+    const registry = createBridge("results");
+    const A = named("A");
+    const B = named("B");
+
+    const u1 = registry.register(A);
+    u1();
+    u1();
+    registry.register(B);
+
+    expect(registry.read()).toBe(B);
+  });
+
+  it("B4 — O5 `reg A; reg B(u2); u2()` → read() is null. CONTRACT PIN", () => {
+    // CONTRACT PIN. The ordinary happy path: the LIVE registration unsubscribes
+    // itself and the slot empties. Measured identical across all three
+    // implementations — the token matches, the bridge object matches, and the
+    // unconditional clear clears; every guard agrees when the cleanup is the
+    // live one. Proves nothing; not counted toward BRG-01 or BRG-04 coverage.
+    const registry = createBridge("results");
+    const A = named("A");
+    const B = named("B");
+    let u2;
+
+    // `reg B` displaces a still-live `A`, so this ordering emits a real
+    // `bridge_overwrite` line. Captured to keep the suite's output clean; the
+    // warning itself is the subject of B19, not of this case.
+    withCapturedWarnings(() => {
+      registry.register(A);
+      u2 = registry.register(B);
+      u2();
+    });
+
+    expect(registry.read()).toBeNull();
+  });
+
+  it("B5 — O7 `reg A(u1); u1()` → read() is null. CONTRACT PIN", () => {
+    // CONTRACT PIN. The simple unmount, and the second of the two orderings a
+    // developer writes first. Measured identical across all three
+    // implementations. Worth stating plainly: this case and B2 are the two a
+    // naive suite contains, and a build with the object-identity defect passes
+    // BOTH. Not counted toward BRG-01 or BRG-04 coverage.
+    const registry = createBridge("results");
+    const A = named("A");
+
+    const u1 = registry.register(A);
+    u1();
+
+    expect(registry.read()).toBeNull();
+  });
+
+  it("B6 — O2 `reg A(u1); reg B; u1()` → read() is B, the late cleanup is refused", () => {
+    // DISCRIMINATES M-05-2, the unconditional clear: the guarded clear becomes a
+    // bare `slot = null;`, and this case then returns `null` where the token
+    // guard returns `B`. That is the whole failure in one line — a component
+    // unmounting AFTER its replacement mounted takes the replacement's
+    // registration with it, and the page goes dark with a component still on it.
+    //
+    // It does NOT discriminate M-05-1: `A` and `B` are distinct objects, so the
+    // object guard refuses this cleanup correctly and also returns `B`. The
+    // object-identity defect needs the SAME object on both sides, which is B11.
+    const registry = createBridge("results");
+    const A = named("A");
+    const B = named("B");
+    let u1;
+
+    withCapturedWarnings(() => {
+      u1 = registry.register(A);
+      registry.register(B);
+      u1();
+    });
+
+    expect(registry.read()).toBe(B);
+  });
+
+  it("B7 — O3b `reg A(u1); u1(); reg B; u1()` → read() is B, the re-fired stale cleanup is refused", () => {
+    // DISCRIMINATES M-05-2: the unconditional clear returns `null` here where the
+    // token guard returns `B`. This is B3's idempotence claim carried ACROSS a
+    // replacement — the second `u1()` is both stale and a repeat, and it must
+    // still be a no-op.
+    const registry = createBridge("results");
+    const A = named("A");
+    const B = named("B");
+
+    const u1 = registry.register(A);
+    u1();
+    registry.register(B);
+    u1();
+
+    expect(registry.read()).toBe(B);
+  });
+
+  it("B8 — O4 `reg A; reg B(u2); reg A; u2()` → read() is A, B's cleanup cannot clear the restored A", () => {
+    // DISCRIMINATES M-05-2: the unconditional clear returns `null` where the
+    // token guard returns `A`. Replace-then-restore — B mounts over A, then A
+    // remounts, and only THEN does B's cleanup arrive. The registration standing
+    // at the end is A's second one, and B's stale cleanup has no claim on it.
+    //
+    // Not an M-05-1 detector: the live bridge is `A` and the cleanup captured
+    // `B`, so the object guard refuses correctly here too.
+    const registry = createBridge("results");
+    const A = named("A");
+    const B = named("B");
+    let u2;
+
+    withCapturedWarnings(() => {
+      registry.register(A);
+      u2 = registry.register(B);
+      registry.register(A);
+      u2();
+    });
+
+    expect(registry.read()).toBe(A);
+  });
+
+  it("B9 — O8 `reg A(u1); reg B(u2); reg A(u3); u2()` → read() is A, the middle component unmounts late", () => {
+    // DISCRIMINATES M-05-2: the unconditional clear returns `null` where the
+    // token guard returns `A`. Three registrations, and the MIDDLE one unmounts
+    // last — the shape a route transition produces when an exiting component's
+    // cleanup is deferred past the entering component's mount.
+    //
+    // Not an M-05-1 detector, for the same reason as B8: `u2` captured `B` and
+    // the live bridge is `A`.
+    const registry = createBridge("results");
+    const A = named("A");
+    const B = named("B");
+    let u2;
+
+    withCapturedWarnings(() => {
+      registry.register(A);
+      u2 = registry.register(B);
+      registry.register(A);
+      u2();
+    });
+
+    expect(registry.read()).toBe(A);
+  });
+});
+
+describe("BRG-04 — a stale unregister from a remounted component cannot clear a newer registration", () => {
+  // The four orderings in this block are the ONLY four of the thirteen that
+  // discriminate Anti-Pattern 6 (mutant M-05-1: the guard `slot?.token === token`
+  // becomes `slot?.bridge === bridge`). Every one of them requires a stale
+  // unsubscriber to fire AFTER a replacement whose bridge object is `===` the one
+  // that unsubscriber captured — which is why nine of thirteen orderings cannot
+  // see the defect at all. On M-05-1 each case below returns `null` where the
+  // token guard returns the live bridge; M-05-2, the unconditional clear, returns
+  // `null` on all four as well.
+  //
+  // If this block is ever deleted, BRG-04 is unvalidated and the remaining nine
+  // orderings will still be green.
+
+  it("B10 — O1b `reg A(u1); u1(); reg A(u2); u1()` → read() is A, the stale u1 is refused on re-fire", () => {
+    // DISCRIMINATES M-05-1 AND M-05-2. This is B2's StrictMode ordering plus one
+    // step: the already-spent `u1` fires a second time, after `A` has been
+    // re-registered. On the object guard the live slot holds `A` and `u1`
+    // captured `A`, so `slot?.bridge === bridge` is TRUE and it clears — read()
+    // returns `null` where the token guard returns `A`. The unconditional clear
+    // returns `null` too.
+    //
+    // The pair B2/B10 is the cheapest demonstration in this file that the
+    // ordering a developer writes first is one step short of the one that
+    // matters.
+    const registry = createBridge("results");
+    const A = named("A");
+
+    const u1 = registry.register(A);
+    u1();
+    registry.register(A);
+    u1();
+
+    expect(registry.read()).toBe(A);
+  });
+
+  it("B11 — O2b `reg A(u1); reg A(u2); u1()` → read() is A, the same object registered twice", () => {
+    // DISCRIMINATES M-05-1 AND M-05-2, and it is the MINIMAL spelling of the
+    // defect the ROADMAP note names — the whole reason the token exists. On the
+    // object guard `slot?.bridge === bridge` is TRUE (both sides are `A`), the
+    // stale cleanup clears the LIVE registration, and read() returns `null` where
+    // the token guard returns `A`. M-05-2 returns `null` as well.
+    //
+    // ONE construction, registered twice through the SAME identifier. Building a
+    // second structurally identical object here would silently convert this into
+    // the distinct-object case (B6) and destroy the discrimination entirely,
+    // while every assertion still read as if it were testing the hard case. The
+    // real shapes this models are a memoized object literal and a reused Svelte
+    // `$state` object, both of which are `===` across a remount.
+    const registry = createBridge("results");
+    const A = named("A");
+    let u1;
+
+    withCapturedWarnings(() => {
+      u1 = registry.register(A);
+      registry.register(A);
+      u1();
+    });
+
+    expect(registry.read()).toBe(A);
+  });
+
+  it("B12 — O4b `reg A(u1); reg B; reg A(u3); u1()` → read() is A, the first A's cleanup arrives last", () => {
+    // DISCRIMINATES M-05-1 AND M-05-2. The realistic one: a component unmounting
+    // late after a sibling has come and gone. It uses DISTINCT objects for the
+    // two components, which makes it harder to dismiss as contrived — the
+    // sameness that defeats the object guard is between A's FIRST and THIRD
+    // registrations, not between two different components.
+    //
+    // On the object guard the live slot holds `A` and `u1` captured `A`, so it
+    // clears and read() returns `null` where the token guard returns `A`. M-05-2
+    // returns `null` too.
+    const registry = createBridge("results");
+    const A = named("A");
+    const B = named("B");
+    let u1;
+
+    withCapturedWarnings(() => {
+      u1 = registry.register(A);
+      registry.register(B);
+      registry.register(A);
+      u1();
+    });
+
+    expect(registry.read()).toBe(A);
+  });
+
+  it("B13 — O4c `reg A(u1); reg A; reg A(u3); u1()` → read() is A, three registrations of one object", () => {
+    // DISCRIMINATES M-05-1 AND M-05-2. B12 with the SAME object throughout: every
+    // registration is the identical reference, so the object guard has literally
+    // no information to distinguish the first registration from the third. It
+    // clears, and read() returns `null` where the token guard returns `A`. M-05-2
+    // returns `null` as well.
+    //
+    // ONE construction, registered three times through the SAME identifier —
+    // three because that is what this ordering IS; collapsing it to two would
+    // make it B11. A monotonic token cannot collide with itself, which is the
+    // entire reason this case is green.
+    const registry = createBridge("results");
+    const A = named("A");
+    let u1;
+
+    withCapturedWarnings(() => {
+      u1 = registry.register(A);
+      registry.register(A);
+      registry.register(A);
+      u1();
+    });
+
+    expect(registry.read()).toBe(A);
   });
 });
