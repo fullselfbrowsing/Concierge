@@ -214,8 +214,8 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 05-01-PLAN.md — Wave 1: `src/bridge.ts` (NEW) — the monotonic-token registry closure, the frozen capability return, `offPageResult`, then the structural clone (`cloneDetached`) and the capture loop whose `try` wraps the **normalizer**, not just the getter. Deliberately left unbarrelled so the suite stays green (BRG-01, BRG-03, BRG-04, BRG-05)
-- [ ] 05-02-PLAN.md — Wave 1: `src/concierge.ts`'s module-private `resolveBridge` seam with `bridgeStatus` routed through it, plus the three shipped doc-comment corrections in `types.ts` (×2, both reaching `dist/index.d.ts`) and `contract.ts` (re-scoped, not deleted) (BRG-03, BRG-05, DX-02)
+- [x] 05-01-PLAN.md — Wave 1: `src/bridge.ts` (NEW) — the monotonic-token registry closure, the frozen capability return, `offPageResult`, then the structural clone (`cloneDetached`) and the capture loop whose `try` wraps the **normalizer**, not just the getter. Deliberately left unbarrelled so the suite stays green (BRG-01, BRG-03, BRG-04, BRG-05)
+- [x] 05-02-PLAN.md — Wave 1: `src/concierge.ts`'s module-private `resolveBridge` seam with `bridgeStatus` routed through it, plus the three shipped doc-comment corrections in `types.ts` (×2, both reaching `dist/index.d.ts`) and `contract.ts` (re-scoped, not deleted) (BRG-03, BRG-05, DX-02)
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -341,7 +341,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 2. Packaging, build, and release | 12/12 | Complete   | 2026-07-29 |
 | 3. Action declaration and build-time validation | 8/8 | Complete   | 2026-07-30 |
 | 4. Stages, catalog assembly, and explain() | 8/8 | Complete   | 2026-07-30 |
-| 5. Bridge registry and the no-bridge path | 0/TBD | Not started | - |
+| 5. Bridge registry and the no-bridge path | 2/7 | In Progress|  |
 | 6. Dispatcher | 0/TBD | Not started | - |
 | 7. Session and the transport seam | 0/TBD | Not started | - |
 | 8. Consent kernel | 0/TBD | Not started | - |
