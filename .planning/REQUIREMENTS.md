@@ -32,11 +32,11 @@
 
 ### Bridge
 
-- [ ] **BRG-01**: A page component registers `{actions, snapshot}` and receives an unsubscriber that removes the registration only if it is still the one it created
-- [ ] **BRG-02**: A handler reads live app state through snapshot getters, returning current values after the app has updated without the bridge being re-registered
-- [ ] **BRG-03**: A handler whose stage bridge is not mounted receives `bridge: null` and returns an honest off-page message
-- [ ] **BRG-04**: A stale unregister from a remounted component cannot clear a newer registration
-- [ ] **BRG-05**: Snapshots are detached from framework reactivity before storage, so a proxy-backed store cannot yield a stored snapshot that mutates with the app
+- [x] **BRG-01**: A page component registers `{actions, snapshot}` and receives an unsubscriber that removes the registration only if it is still the one it created
+- [x] **BRG-02**: A handler reads live app state through snapshot getters, returning current values after the app has updated without the bridge being re-registered
+- [x] **BRG-03**: A handler whose stage bridge is not mounted receives `bridge: null` and returns an honest off-page message
+- [x] **BRG-04**: A stale unregister from a remounted component cannot clear a newer registration
+- [x] **BRG-05**: Snapshots are detached from framework reactivity before storage, so a proxy-backed store cannot yield a stored snapshot that mutates with the app
 
 ### Stages
 
@@ -100,7 +100,7 @@
 ### Developer experience
 
 - [ ] **DX-01**: `concierge.explain()` reports the active stage, which bridges are registered, and the current catalog, so a developer can diagnose "why didn't my action fire" without a debugger
-- [ ] **DX-02**: An action can run against DOM or router state with no bridge registered, so an app gets value before instrumenting its components
+- [x] **DX-02**: An action can run against DOM or router state with no bridge registered, so an app gets value before instrumenting its components
 - [x] **DX-03**: Every build-time error names the offending action and states the fix
 
 ---
@@ -170,11 +170,11 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | DSP-07 | Phase 6 — Dispatcher | Pending |
 | DSP-08 | Phase 6 — Dispatcher | Pending |
 | DSP-09 | Phase 6 — Dispatcher | Pending |
-| BRG-01 | Phase 5 — Bridge registry and the no-bridge path | Pending |
-| BRG-02 | Phase 5 — Bridge registry and the no-bridge path | Pending |
-| BRG-03 | Phase 5 — Bridge registry and the no-bridge path | Pending |
-| BRG-04 | Phase 5 — Bridge registry and the no-bridge path | Pending |
-| BRG-05 | Phase 5 — Bridge registry and the no-bridge path | Pending |
+| BRG-01 | Phase 5 — Bridge registry and the no-bridge path | Complete — all thirteen mount/unmount orderings asserted against `dist/index.js`; discrimination proven by M-05-1 and M-05-2. Evidence: 05-04 B1–B13, 05-07 mutation battery |
+| BRG-02 | Phase 5 — Bridge registry and the no-bridge path | Complete — `register()` stores the bridge as given and `read()` returns it by reference, so getters stay live across an app state change. Evidence: 05-04 B14/B15 |
+| BRG-03 | Phase 5 — Bridge registry and the no-bridge path | Complete — proven as its two halves: resolution yields `null` for declared-but-unmounted and for a throwing `read()`, and a handler given `bridge: null` returns a bounded `no_bridge` sentence without throwing. Discriminated by M-05-13, M-05-14, M-05-12. **The end-to-end join through a real `dispatch` is deferred to Phase 6 by CONTEXT decision 3.3** — `dispatch` is still a stub, and no test pretends otherwise. Evidence: 05-05 D14–D19 |
+| BRG-04 | Phase 5 — Bridge registry and the no-bridge path | Complete — the unsubscriber is guarded on a monotonic token, so a stale cleanup is refused even when the replacement is `===` the original. M-05-1 reddens exactly the four discriminating orderings. Evidence: 05-04 B10–B13 |
+| BRG-05 | Phase 5 — Bridge registry and the no-bridge path | Complete — a structural clone detaches an accessor-backed `Proxy` while leaving the host store unfrozen; discriminated by M-05-3, M-05-4, M-05-5, M-05-6, M-05-9. The framework half (React StrictMode, Svelte `$state.snapshot`) is Phase 9's. Evidence: 05-05 D1–D13 |
 | STG-01 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
 | STG-02 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
 | STG-03 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
@@ -214,5 +214,5 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | PKG-04 | Phase 2 — Packaging, build, and release | Complete |
 | PKG-05 | Phase 2 — Packaging, build, and release | Complete |
 | DX-01 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
-| DX-02 | Phase 5 — Bridge registry and the no-bridge path | Pending |
+| DX-02 | Phase 5 — Bridge registry and the no-bridge path | Complete — proven in both variants: a stage declaring no bridge, and a stage declaring one with nothing registered. Both run their handler, which returns `{ok:true}` with `ctx.bridge` null; core never auto-fails an action over an unmounted bridge. Evidence: 05-05 D20/D21, 05-02 `resolveBridge` |
 | DX-03 | Phase 3 — Action declaration and build-time validation | Complete |
