@@ -63,6 +63,7 @@ import { warnHost } from "./host.js";
 import type { Catalog } from "./catalog.js";
 import type {
   ActionResult,
+  Bridge,
   Concierge,
   ConciergeConfig,
   EmittedTool,
@@ -181,6 +182,71 @@ function duplicateStageIdMessage(id: string): string {
 }
 
 /**
+ * The ONE place a stage becomes a bridge — the same rule header constraint 3
+ * states for `stage.match`, applied to the other consumer-supplied seam a stage
+ * carries.
+ *
+ * `bridgeStatus` is its only caller today. Phase 6's dispatcher is the second,
+ * and there must never be a third: the throw policy below and the not-declared
+ * policy below it are each written once here, so `explain` and a dispatcher
+ * cannot drift into two readers that disagree about the same stage. A second
+ * resolution path is not a duplicate function, it is a second answer to "is this
+ * bridge mounted" — and the two would be consulted by different callers.
+ *
+ * **A stage that declares no bridge resolves to `null` without error and without
+ * auto-failing anything (DX-02).** Declaring no bridge is a supported
+ * configuration rather than a defect: an action that reads router or DOM state
+ * must run with nothing registered at all. Core therefore never auto-fails an
+ * action because a stage's declared bridge is unmounted, and it certainly does
+ * not fail one for a stage that declares nothing. The handler receives `null`
+ * and decides.
+ *
+ * **`read()` is consumer code, so it is guarded exactly as `match` is** — the
+ * `catch` takes no binding, so there is no caught value in scope to interpolate
+ * and the property is structural rather than a matter of remembering not to
+ * echo one. A throwing `read()` is not a registration; it degrades to "not
+ * mounted" rather than taking down the one call a developer makes when they are
+ * already confused.
+ *
+ * **The `?? null` coalesce is a decision, not a tidying.** `BridgeRegistry.read`
+ * is typed `() => B | null`, but the interface is implemented by consumers, and
+ * a JavaScript consumer whose `read()` falls off the end returns `undefined`.
+ * That case is exactly why `bridgeStatus` tested both `null` and `undefined`
+ * before this seam existed; the arm does not disappear, it MOVES here. Two
+ * consequences, and both are why it is written rather than left implicit: the
+ * observable is unchanged — such a registry still reports `registered: false` —
+ * and the handler contract `ctx.bridge: B | null` becomes structurally true at
+ * the one point that produces the value, rather than merely annotated at the
+ * point that consumes it.
+ *
+ * **This deliberately collapses "not declared" and "declared but unmounted" into
+ * the same `null`,** because a handler has the same thing to do about both. The
+ * distinction is a *reporting* concern, not a resolution one, which is why
+ * `bridgeStatus` keeps its own `stage.bridge === undefined` early return ahead of
+ * the call rather than reconstructing the distinction from this return value.
+ *
+ * The parameter is spelled `ConciergeConfig["stages"][number]` for the reason
+ * already recorded on `bridgeStatus` below: the `any` lives in `types.ts`, where
+ * D-07's measured contravariance reason justifies it, and re-spelling it here
+ * would be a second, unargued occurrence of an erasure that was argued once.
+ * Because that collection is erased, `registry.read()` yields `any`; the
+ * explicit `Bridge | null` return annotation is what stops the erasure
+ * propagating to every caller.
+ */
+function resolveBridge(stage: ConciergeConfig["stages"][number]): Bridge | null {
+  const registry: ConciergeConfig["stages"][number]["bridge"] = stage.bridge;
+  if (registry === undefined) {
+    return null;
+  }
+
+  try {
+    return registry.read() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Everything `explain` can honestly say about one stage's bridge.
  *
  * Three states, and the distinction between the last two is the entire reason
@@ -223,18 +289,22 @@ function bridgeStatus(
   stage: ConciergeConfig["stages"][number],
 ): StageExplanation["bridge"] {
   const registry: ConciergeConfig["stages"][number]["bridge"] = stage.bridge;
+  // **This early return stays HERE, ahead of the seam, and is not a redundant
+  // repeat of the one inside it.** `resolveBridge` collapses "declares no
+  // bridge" and "declares one that is unmounted" into the same `null`, which is
+  // right for a handler and wrong for a report. Reading the row off that return
+  // value alone would turn a stage with no bridge from `null` into
+  // `{id, registered: false}` — and there is no `id` to put there. The
+  // three-state shape is pinned by `types.ts` and by
+  // `test-d/concierge.test-d.ts`'s `_stageExplanationBridgeShape`; do not
+  // "simplify" this away.
   if (registry === undefined) {
     return null;
   }
 
-  let live: unknown;
-  try {
-    live = registry.read();
-  } catch {
-    live = null;
-  }
+  const live: Bridge | null = resolveBridge(stage);
 
-  return { id: registry.id, registered: live !== null && live !== undefined };
+  return { id: registry.id, registered: live !== null };
 }
 
 // ---------------------------------------------------------------------------
