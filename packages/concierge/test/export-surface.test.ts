@@ -119,6 +119,9 @@ const VALUE_EXPORTS = [
   // and `new CatalogValidationError(…)` would be unreachable for a consumer.
   "CatalogValidationError",
   "createConcierge",
+  "createBridge",
+  "captureSnapshot",
+  "offPageResult",
 ];
 
 beforeAll(() => {
@@ -131,18 +134,18 @@ beforeAll(() => {
 });
 
 describe("the published export surface of dist/index.d.ts", () => {
-  it("is exactly 62 names — an export added or dropped by a build-config change lands here", () => {
+  it("is exactly 65 names — an export added or dropped by a build-config change lands here", () => {
     const { names } = readSurface();
-    expect(names).toHaveLength(62);
+    expect(names).toHaveLength(65);
   });
 
-  it("splits 51 types to 11 values", () => {
+  it("splits 51 types to 14 values", () => {
     const { types, values } = readSurface();
     expect(types).toHaveLength(51);
-    expect(values).toHaveLength(11);
+    expect(values).toHaveLength(14);
   });
 
-  it("carries all eleven runtime value exports by name", () => {
+  it("carries all fourteen runtime value exports by name", () => {
     const { values } = readSurface();
     for (const name of VALUE_EXPORTS) {
       expect(values).toContain(name);
