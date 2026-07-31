@@ -662,8 +662,12 @@ export type ConsentAck<Snapshot = unknown, Payload = unknown> =
  * drift," a gate that passes unconditionally while appearing to work.
  * `structuredClone` is not a fix; it throws `DataCloneError` on proxies.
  *
- * The Svelte adapter fills this with `$state.snapshot`. Frameworks without
- * proxy-based reactivity supply a deep freeze.
+ * The Svelte adapter fills this with `$state.snapshot`. Left unset, core
+ * supplies the default: a structural clone of the captured value, followed by a
+ * freeze over that clone. The clone is the half that detaches — a freeze applied
+ * in place does not, which is why the two are not interchangeable. See
+ * {@link ConciergeConfig.normalizeSnapshot} for the mechanism and for the
+ * documented limits of what the default carries.
  */
 export type SnapshotNormalizer = <T>(value: T) => T;
 
@@ -1606,7 +1610,45 @@ export interface ConciergeConfig {
   crossStage?: ReadonlyArray<AnyActionDefinition>;
   /**
    * Detaches snapshots from framework reactivity before storage. Supplied by
-   * the framework adapter; defaults to a deep freeze.
+   * the framework adapter; left unset, core supplies a structural clone of the
+   * captured value followed by a freeze over that clone.
+   *
+   * **This corrected an earlier claim, and the correction runs from false to
+   * measured.** This comment used to say the default was a freeze applied in
+   * place. It is not, and it could not have been: freezing a Proxy does not
+   * detach it. The stored snapshot stays a live view of the app, so the drift
+   * check at confirm time compares a value against itself and passes
+   * unconditionally — the same "passes unconditionally while appearing to work"
+   * shape {@link SnapshotNormalizer} already names. The correction is recorded
+   * here rather than silently applied because this comment ships inside
+   * `dist/index.d.ts`, so a reader who trusted it supplied no normalizer of
+   * their own and got no detachment at all.
+   *
+   * **The mechanism, measured rather than reasoned:** cloning fires only
+   * **read traps** (`ownKeys` / `getOwnPropertyDescriptor` / `get`); freezing
+   * fires **write traps** (`preventExtensions` / `defineProperty`).
+   *
+   * Two further failure modes of freezing in place, both measured, and both
+   * worse than merely not detaching:
+   *
+   * - It can freeze **the host app's own reactive store** through the proxy, so
+   *   the snapshot appears not to move only because the app it was observing has
+   *   been made permanently read-only and the app's next write throws.
+   * - It can throw `TypeError` out of the capture path entirely, on proxy shapes
+   *   whose traps do not satisfy the freeze invariants — an `ownKeys` trap
+   *   returning keys a now-non-extensible target does not have, or a
+   *   `preventExtensions` trap returning true over an extensible target.
+   *
+   * **The limits of the default, stated as limits.** Plain objects, arrays,
+   * `Date`, `Map` and `Set` are cloned. Everything else — class instances,
+   * cross-realm plain objects, and any value whose extraction throws — is passed
+   * through **by reference** and is therefore not detached. Symbol-keyed
+   * properties are not carried: the three target frameworks use symbol keys for
+   * internal markers, which is precisely the reactivity this is removing. And a
+   * frozen `Map`, `Set` or `Date` is still mutable through its own methods, so
+   * what the default delivers is **detachment, not immutability**. Supply your
+   * own normalizer — `$state.snapshot` on Svelte — when a payload carries values
+   * outside that set.
    */
   normalizeSnapshot?: SnapshotNormalizer;
   /**
