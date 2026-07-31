@@ -223,9 +223,9 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 — runtime suites import `../dist/index.js`, so they cannot precede the barrel)*
 
-- [ ] 05-04-PLAN.md — Wave 3: `test/bridge.test.ts` (NEW) — the thirteen mount/unmount orderings with the **five non-discriminating ones labelled as contract pins**, BRG-02 liveness and reference identity, the frozen-capability cases, and both warn policies (BRG-01, BRG-02, BRG-04)
-- [ ] 05-05-PLAN.md — Wave 3: `test/bridge-snapshot.test.ts` (NEW) — criterion 4 against the inline **Shape F** accessor-backed proxy (the only shape under which the deep-freeze mutant fails visibly and without throwing), every measured clone property, both capture warns, and BRG-03/DX-02 proved as separate halves with `dispatch` untouched (BRG-03, BRG-05, DX-02)
-- [ ] 05-06-PLAN.md — Wave 3: `test-d/bridge.test-d.ts` (NEW) signature pins from the barrel, plus `test/single-instance.test.ts` **F6** — the guard's third production call site and its first *direct* one, and the only home anywhere in the repo for mutant M-05-8 (BRG-01, BRG-03, BRG-05)
+- [x] 05-04-PLAN.md — Wave 3: `test/bridge.test.ts` (NEW) — the thirteen mount/unmount orderings with the **five non-discriminating ones labelled as contract pins**, BRG-02 liveness and reference identity, the frozen-capability cases, and both warn policies (BRG-01, BRG-02, BRG-04)
+- [x] 05-05-PLAN.md — Wave 3: `test/bridge-snapshot.test.ts` (NEW) — criterion 4 against the inline **Shape F** accessor-backed proxy (the only shape under which the deep-freeze mutant fails visibly and without throwing), every measured clone property, both capture warns, and BRG-03/DX-02 proved as separate halves with `dispatch` untouched (BRG-03, BRG-05, DX-02)
+- [x] 05-06-PLAN.md — Wave 3: `test-d/bridge.test-d.ts` (NEW) signature pins from the barrel, plus `test/single-instance.test.ts` **F6** — the guard's third production call site and its first *direct* one, and the only home anywhere in the repo for mutant M-05-8 (BRG-01, BRG-03, BRG-05)
 
 **Wave 4** *(blocked on Wave 3)*
 
@@ -341,7 +341,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 2. Packaging, build, and release | 12/12 | Complete   | 2026-07-29 |
 | 3. Action declaration and build-time validation | 8/8 | Complete   | 2026-07-30 |
 | 4. Stages, catalog assembly, and explain() | 8/8 | Complete   | 2026-07-30 |
-| 5. Bridge registry and the no-bridge path | 3/7 | In Progress|  |
+| 5. Bridge registry and the no-bridge path | 6/7 | In Progress|  |
 | 6. Dispatcher | 0/TBD | Not started | - |
 | 7. Session and the transport seam | 0/TBD | Not started | - |
 | 8. Consent kernel | 0/TBD | Not started | - |
