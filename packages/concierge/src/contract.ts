@@ -106,11 +106,11 @@ type Holder = Record<symbol, ContractRecord | undefined>;
  * Record this copy of core in the process-wide registry, and throw if a copy at
  * an incompatible contract version got there first.
  *
- * **Call this from the first reachable entry point** — `createConcierge`, and
- * each adapter's registration hook — and never at module scope. See constraint
- * 1 in this file's header: module scope does not survive `"sideEffects": false`,
- * so a registration hoisted out of this body is deleted from every bundled
- * consumer.
+ * **Call this from the first reachable entry point** — `createConcierge`,
+ * `createBridge`, and each adapter's registration hook — and never at module
+ * scope. See constraint 1 in this file's header: module scope does not survive
+ * `"sideEffects": false`, so a registration hoisted out of this body is deleted
+ * from every bundled consumer.
  *
  * **A same-version duplicate adopts rather than throws.** Two copies at the same
  * contract version share one record and therefore share state, which is exactly
@@ -156,11 +156,24 @@ type Holder = Record<symbol, ContractRecord | undefined>;
  * this comment reaches `dist/index.d.ts` verbatim, and it went false the moment
  * that function landed.
  *
- * The **adapter-registration** call site named above is genuinely still to
- * come, and stays named as such rather than being quietly folded into the
- * sentence above: an adapter can be imported and mounted in a module that never
- * builds a catalog, so it needs a call of its own and inherits nothing from
- * this one.
+ * **`createBridge` in `./bridge.ts` arrived in Phase 5, and it does add a second
+ * call here — it reaches this guard from its own body rather than through
+ * anything else.** On the registration side of the instruction above it is
+ * the first direct production call site — `buildCatalog` is a direct call too,
+ * but it is the catalog path, and `createConcierge` reaches the guard only
+ * transitively through it. Registration is also where two copies of core
+ * actually bite: a component registers into one instance, a handler reads the
+ * other, and `bridge` stays `null` forever on a page that is definitely open.
+ *
+ * **That narrows the reserved call site rather than closing it**, and the
+ * distinction is why this paragraph is re-scoped instead of deleted. An app that
+ * calls `createBridge` is now covered. A Phase 9 adapter that is imported and
+ * mounted in a module with no `createBridge` call anywhere in its graph is not:
+ * it inherits nothing from this call and nothing from `buildCatalog`'s, so it
+ * still needs a call of its own, and the site stays named as pending for that
+ * case alone. Corrected in place for the same reason as the `createConcierge`
+ * sentence above — this comment reaches `dist/index.d.ts` verbatim, and it went
+ * partly false the moment `createBridge` landed.
  *
  * Secondarily, this function is exercised by the tests in plan 02-07 and by the
  * Node-floor import harness in plan 02-09.
