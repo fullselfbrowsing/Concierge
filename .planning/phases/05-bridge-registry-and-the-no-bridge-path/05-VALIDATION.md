@@ -195,6 +195,68 @@ an uninvoked function, and the battery would have recorded an escape that is the
    `pnpm test -- single-instance` form was also run and also PASSes — as the superset it is, at
    1 failed / 132 passed of 133.
 
+### The five `concierge.ts` / `index.ts` / `types.ts` mutants
+
+| ID | Target | Final literal → replacement | Count | Exit | Build | Gate did work | Cases red |
+|---|---|---|---|---|---|---|---|
+| **M-05-13** | `src/concierge.ts` | `return registry.read() ?? null;` → `return null;` | 1 | **0 PASS** | ✔ | 42 tests ran | **D15** — declared-and-**mounted**: `expected { id: 'results', registered: false } to deeply equal { id: 'results', registered: true }` |
+| **M-05-14** | `src/concierge.ts` | anchored 5-line block; `bridgeStatus`'s `return null;` → `return { id: "", registered: false };` | 1 *(anchored)* | **0 PASS** | ✔ | 133 tests ran | **D17**, **S20**, plus D20 and S24 |
+| **P-05-1** | `src/index.ts` | the whole barrel line → `export type { createBridge } …` + `export { captureSnapshot, offPageResult } …` | 1 | **0 PASS** | n/a (typecheck gate) | `tsc` emitted 2 diagnostics | **TS1485** ×2, naming `createBridge` |
+| **P-05-2** | `src/index.ts` | same line → `export { createBridge, captureSnapshot } …` + `export type { offPageResult } …` | 1 | **0 PASS** | n/a | `tsc` emitted 2 diagnostics | **TS1485** ×2, naming `offPageResult` |
+| **P-05-3** | `src/types.ts` | `read: () => B \| null;` → `read: () => B;` | 1 | **0 PASS** | n/a | `tsc` emitted 2 diagnostics | **`test-d/actions.test-d.ts(436,39)` TS2344**, plus `src/bridge.ts(221,27)` TS2322 |
+
+### Four findings from the second half of the battery
+
+6. **The M-05-14 collision is real and was handled, not assumed away.** The bare literal
+   `if (registry === undefined)` measures **2** occurrences unfiltered in `src/concierge.ts` — at
+   `:238` inside `resolveBridge` and at `:301` inside `bridgeStatus`. `mutate-and-prove.sh` replaces
+   the FIRST, and `resolveBridge` is written immediately before `bridgeStatus`, so the naive pattern
+   mutates the wrong function to no observable effect and the run records an escape that is an
+   artefact of the pattern rather than a coverage gap. The pattern actually used anchors to
+   `bridgeStatus` by carrying the following blank line and the `const live: Bridge | null =
+   resolveBridge(stage);` statement, and **that anchored form measures exactly 1**.
+
+7. **M-05-14 is a value substitution, and the build succeeding is the proof it is not a delete.**
+   Deleting `bridgeStatus`'s early return leaves `registry` typed `BridgeRegistry<any> | undefined`
+   at the `registry.id` read, so `tsc` rejects it — a build-step exit 1 that this harness cannot
+   distinguish from a failing assertion, i.e. a vacuous PASS having run zero tests (Known Limitation
+   2). Returning `{ id: "", registered: false }` satisfies `StageExplanation["bridge"]`, compiles
+   clean through `attw` and `publint`, and collapses the not-declared state into the
+   declared-but-unmounted one — which is the defect the three-state row exists to prevent. **133
+   tests ran.**
+
+8. **M-05-14 reddens four cases, and all four fail for the same reason.** D17 and S20 are the two the
+   plan requires, and both report `expected { id: '', registered: false } to be null`. D20 and S24
+   are collateral: D20 reads the same `explain()` row for a stage with no bridge, and S24's
+   deep-equal over a stage row carries `bridge: null` inside it. The observable here is a **wrong
+   answer**, not a crash — which differs from 05-05's measurement of the *delete* spelling, where
+   `explain()` threw `TypeError: Cannot read properties of undefined (reading 'id')` and the same
+   cases went red for a different reason. Both spellings are caught; only one of them proves a test.
+
+9. **P-05-1 and P-05-2 each surface as TS1485 at a shared IMPORT line, across TWO files.** Not TS2344
+   on the predicate line named after the symbol — that is the counter-intuitive behaviour
+   `exports.test-d.ts`'s own header warns about, and it is why no result here was recorded by
+   grepping for a predicate's alias name, which non-TTY `tsc` output never prints. Recorded verbatim:
+
+   ```
+   P-05-1  test-d/bridge.test-d.ts(107,27):  error TS1485: 'createBridge' resolves to a type-only declaration …
+           test-d/exports.test-d.ts(73,118): error TS1485: 'createBridge' resolves to a type-only declaration …
+   P-05-2  test-d/bridge.test-d.ts(107,41):  error TS1485: 'offPageResult' resolves to a type-only declaration …
+           test-d/exports.test-d.ts(73,149): error TS1485: 'offPageResult' resolves to a type-only declaration …
+   ```
+
+   `tsc` exits **1**, not 2, under TypeScript 7.0.2 — confirmed on both runs. The second file is new
+   since 05-03 measured this: `test-d/bridge.test-d.ts` landed in 05-06 and its barrel import carries
+   the same three values, so the placement guard now has two independent readers.
+
+10. **P-05-3 now has two detectors where it had one.** `test-d/actions.test-d.ts(436,39)` is
+    `_registryReadIsNullable`, the pre-existing predicate plan 05-06 deliberately did not duplicate —
+    and `actions.test-d.ts:433` records that before that line existed this exact mutation escaped the
+    full four-file suite at exit 0. The second, `src/bridge.ts(221,27) TS2322: Type 'B | null' is not
+    assignable to type 'B'`, is new this phase: `createBridge`'s `read: (): B | null => slot?.bridge
+    ?? null` is now an implementation that stops conforming when the interface loses its nullability.
+    A predicate and an implementation disagreeing is stronger than either alone.
+
 ---
 
 ## Wave 0 Requirements
