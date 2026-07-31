@@ -34,12 +34,25 @@
 //      registration and clears it, and every handler afterwards reads `null` on a
 //      page where every component is still mounted.
 //
-//      Recorded because the number moved: `src/bridge.ts`'s guard comment and
-//      `05-04-PLAN.md` both say "ten of thirteen". The re-measurement above says
-//      NINE — the object guard differs from the token guard on exactly O1b, O2b,
-//      O4b and O4c, and 13 − 4 = 9. The count is written here as measured rather
-//      than as inherited; the source comment is one plan away from being
-//      corrected and this file does not modify source.
+//      Recorded because the number moved, and now SETTLED: `src/bridge.ts:245`
+//      and this file both say NINE. The earlier "ten of thirteen" — inherited
+//      from `05-04-PLAN.md` — was corrected in the source by commit `934b53f`
+//      ("fix(05): correct the object-guard ordering count from ten to nine").
+//      The figure is 13 − 4 = 9: the object guard differs from the token guard
+//      on exactly O1b, O2b, O4b and O4c. Both numbers are written as measured
+//      rather than as inherited, and they now agree.
+//
+//      An earlier draft of this paragraph still instructed a reader to go
+//      correct the source, three commits after the source had been corrected. It
+//      is replaced rather than amended because a reader who follows a stale
+//      instruction, finds nothing to correct, and concludes one of the two
+//      documents is untrustworthy has been failed by a file whose whole stated
+//      purpose is that the record and the code cannot drift apart silently.
+//
+//      The figure is contingent on the thirteen orderings being thirteen
+//      DISTINCT programs. They were not when this was first written — B8 and B9
+//      shipped byte-identical — and B9's own case comment records the
+//      re-measurement that fixed it and left every number here unchanged.
 //
 //   2. THE UNCONDITIONAL CLEAR — an unsubscriber that runs `slot = null` with no
 //      guard at all. MEASURED at 5 of 13 agreement above, so eight orderings
