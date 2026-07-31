@@ -138,6 +138,56 @@ describe("the built artifact still carries every value export", () => {
     expect(typeof m.createConcierge).toBe("function");
   });
 
+  it("createBridge reaches dist/index.js as a callable function", async () => {
+    const m = await import(DIST_URL.href);
+
+    // Lost to the `export type { … }` block, the registry capability leaves
+    // the package outright: no bridge can be constructed, so no stage's
+    // `bridge` can ever be filled and the no-bridge path becomes the only
+    // path. A consumer already calling it reads a
+    // `TypeError: createBridge is not a function` at their page module's
+    // scope, which says "the package is broken" rather than "one export
+    // moved". The worse read is the one that does not throw at all: a stage
+    // whose bridge is never registered resolves to `null` forever, and every
+    // handler answers "open the results page first" on a page that is
+    // visibly, definitely open. Nothing in the app reports an error, which
+    // leaves a developer nothing to work back from — the single most
+    // undebuggable failure this design has.
+    expect(typeof m.createBridge).toBe("function");
+  });
+
+  it("captureSnapshot reaches dist/index.js as a callable function", async () => {
+    const m = await import(DIST_URL.href);
+
+    // Lost to the `export type { … }` block, the detachment path becomes
+    // unreachable from the published entrypoint. BRG-05 would still be proven
+    // — but only against source no consumer can call, which is the "looks
+    // enforced without anything a consumer can reach" failure this phase
+    // exists to avoid. Phase 8's consent kernel would then have to
+    // re-implement it, and the two copies would drift over which values get
+    // cloned and which are carried by reference. The consumer-visible symptom
+    // is quieter than a crash: an app that supplies no `normalizeSnapshot`
+    // stores the live proxy view rather than a detached copy, so a snapshot
+    // taken before a confirmation still reads the store as it is afterwards,
+    // and a drift check compares a value against itself.
+    expect(typeof m.captureSnapshot).toBe("function");
+  });
+
+  it("offPageResult reaches dist/index.js as a callable function", async () => {
+    const m = await import(DIST_URL.href);
+
+    // Lost to the `export type { … }` block, the one shared off-page sentence
+    // leaves the package and every handler hand-writes its own — the exact
+    // outcome DX-03 exists to prevent — while the `MESSAGE_MAX_CHARS` bound
+    // stops being shared with the truncation Phase 6 applies under SEC-06.
+    // What the agent then receives is a set of unbounded, mutually
+    // inconsistent accounts of the same "that page is not open" condition,
+    // which is worse than a crash precisely because nothing fails: the model
+    // simply gets a different sentence from every action, and no two of them
+    // agree on what it should do next.
+    expect(typeof m.offPageResult).toBe("function");
+  });
+
   it("JSON_SCHEMA_TARGET reaches dist/index.js as the draft-2020-12 string", async () => {
     const m = await import(DIST_URL.href);
 
