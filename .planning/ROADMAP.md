@@ -209,8 +209,29 @@ Plans:
   4. A snapshot stored from a proxy-backed store does not move when the underlying store moves — demonstrated against a hand-rolled Proxy in core, before any framework adapter exists. (BRG-05)
   5. An action reading router or DOM state runs with no bridge registered at all, so the first useful action costs no instrumentation. (DX-02)
 
-**Plans**: TBD
-**Research**: None — the source system solved this and supplies the test list.
+**Plans**: 7 plans across **4 waves**. Waves 1 and 3 each run plans on disjoint files; every wave was checked for `files_modified` overlap. The hinge is plan 05-03 — the barrel plus **all eleven export pins**, which must move in one change or the first `pnpm test` after the export line lands is red for every plan behind it. The export surface moves 62/51/11 → **65/51/14**: CONTEXT's "Settled after research" section exports the capture function too, superseding RESEARCH § Q5's +2/64/51/13, and the live baseline was re-measured against the built artifact before planning.
+
+Plans:
+**Wave 1**
+
+- [ ] 05-01-PLAN.md — Wave 1: `src/bridge.ts` (NEW) — the monotonic-token registry closure, the frozen capability return, `offPageResult`, then the structural clone (`cloneDetached`) and the capture loop whose `try` wraps the **normalizer**, not just the getter. Deliberately left unbarrelled so the suite stays green (BRG-01, BRG-03, BRG-04, BRG-05)
+- [ ] 05-02-PLAN.md — Wave 1: `src/concierge.ts`'s module-private `resolveBridge` seam with `bridgeStatus` routed through it, plus the three shipped doc-comment corrections in `types.ts` (×2, both reaching `dist/index.d.ts`) and `contract.ts` (re-scoped, not deleted) (BRG-03, BRG-05, DX-02)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 05-03-PLAN.md — Wave 2: **THE HINGE** — `src/index.ts`'s value export line and stale-prose correction, then all eleven export pins moved together across `test/export-surface.test.ts` (7), `test-d/exports.test-d.ts` (3, including three separate numbers inside one header sentence) and `test/artifact.test.ts` (1) (BRG-01, BRG-03, BRG-05)
+
+**Wave 3** *(blocked on Wave 2 — runtime suites import `../dist/index.js`, so they cannot precede the barrel)*
+
+- [ ] 05-04-PLAN.md — Wave 3: `test/bridge.test.ts` (NEW) — the thirteen mount/unmount orderings with the **five non-discriminating ones labelled as contract pins**, BRG-02 liveness and reference identity, the frozen-capability cases, and both warn policies (BRG-01, BRG-02, BRG-04)
+- [ ] 05-05-PLAN.md — Wave 3: `test/bridge-snapshot.test.ts` (NEW) — criterion 4 against the inline **Shape F** accessor-backed proxy (the only shape under which the deep-freeze mutant fails visibly and without throwing), every measured clone property, both capture warns, and BRG-03/DX-02 proved as separate halves with `dispatch` untouched (BRG-03, BRG-05, DX-02)
+- [ ] 05-06-PLAN.md — Wave 3: `test-d/bridge.test-d.ts` (NEW) signature pins from the barrel, plus `test/single-instance.test.ts` **F6** — the guard's third production call site and its first *direct* one, and the only home anywhere in the repo for mutant M-05-8 (BRG-01, BRG-03, BRG-05)
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 05-07-PLAN.md — Wave 4: phase gate — the seventeen-mutant battery with every PASS confirmed from the gate's *output* to have compiled and run tests, the shipped-prose audit, the four packaging gates, a byte-identical lockfile, and the `05-VALIDATION.md` sign-off (BRG-01…05, DX-02)
+
+**Research**: None — the source system solved this and supplies the test list. Planning re-measured three things the upstream artifacts got wrong: the export growth is **+3 values, not +2** (CONTEXT supersedes RESEARCH); **eleven pins move, not seven** (`test/artifact.test.ts` and `test/single-instance.test.ts` were missing from both upstream file lists); and `src/index.ts`'s module header **does not reach `dist/`** (0 hits for `not yet constructible` in both built artifacts today), so that audit greps `src/`, not `dist/` — a `dist/` grep would pass vacuously.
 **Notes**: The identity guard is keyed on a monotonic token, not the bridge object: a component re-registering an object that is `===` its previous one (a memoized literal, a reused `$state` object) would otherwise let the stale cleanup match the live registration. Criterion 4 is the core-level half of the Svelte proxy defect; Phase 9 supplies the real-framework half. Guarding it twice is deliberate — it is a security defect that is invisible in a React-only suite.
 
 ### Phase 6: Dispatcher
