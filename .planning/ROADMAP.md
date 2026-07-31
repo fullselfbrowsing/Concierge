@@ -21,7 +21,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Packaging, build, and release** - Make the package buildable, publishable, and installable while there is one package rather than eight (completed 2026-07-29)
 - [x] **Phase 3: Action declaration and build-time validation** - One declaration derives everything downstream, and every wrong declaration fails the build naming the action (completed 2026-07-30)
 - [x] **Phase 4: Stages, catalog assembly, and explain()** - The agent sees only the actions valid for where the user is, and a developer can find out why one wasn't offered (completed 2026-07-30)
-- [ ] **Phase 5: Bridge registry and the no-bridge path** - Handlers read live app state through getters, and behave honestly when no component is mounted
+- [x] **Phase 5: Bridge registry and the no-bridge path** - Handlers read live app state through getters, and behave honestly when no component is mounted (completed 2026-07-31)
 - [ ] **Phase 6: Dispatcher** - A retried, malformed, aborted, or crashing call produces exactly one honest result and never fires an effect twice
 - [ ] **Phase 7: Session and the transport seam** - Something owns the loop between catalog and transport, driven by a stub with no network
 - [ ] **Phase 8: Consent kernel** - A consequential action runs only when a human, not the agent, confirmed this exact payload
@@ -229,7 +229,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3)*
 
-- [ ] 05-07-PLAN.md — Wave 4: phase gate — the seventeen-mutant battery with every PASS confirmed from the gate's *output* to have compiled and run tests, the shipped-prose audit, the four packaging gates, a byte-identical lockfile, and the `05-VALIDATION.md` sign-off (BRG-01…05, DX-02)
+- [x] 05-07-PLAN.md — Wave 4: phase gate — the seventeen-mutant battery with every PASS confirmed from the gate's *output* to have compiled and run tests, the shipped-prose audit, the four packaging gates, a byte-identical lockfile, and the `05-VALIDATION.md` sign-off (BRG-01…05, DX-02)
 
 **Research**: None — the source system solved this and supplies the test list. Planning re-measured three things the upstream artifacts got wrong: the export growth is **+3 values, not +2** (CONTEXT supersedes RESEARCH); **eleven pins move, not seven** (`test/artifact.test.ts` and `test/single-instance.test.ts` were missing from both upstream file lists); and `src/index.ts`'s module header **does not reach `dist/`** (0 hits for `not yet constructible` in both built artifacts today), so that audit greps `src/`, not `dist/` — a `dist/` grep would pass vacuously.
 **Notes**: The identity guard is keyed on a monotonic token, not the bridge object: a component re-registering an object that is `===` its previous one (a memoized literal, a reused `$state` object) would otherwise let the stale cleanup match the live registration. Criterion 4 is the core-level half of the Svelte proxy defect; Phase 9 supplies the real-framework half. Guarding it twice is deliberate — it is a security defect that is invisible in a React-only suite.
@@ -341,7 +341,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 2. Packaging, build, and release | 12/12 | Complete   | 2026-07-29 |
 | 3. Action declaration and build-time validation | 8/8 | Complete   | 2026-07-30 |
 | 4. Stages, catalog assembly, and explain() | 8/8 | Complete   | 2026-07-30 |
-| 5. Bridge registry and the no-bridge path | 6/7 | In Progress|  |
+| 5. Bridge registry and the no-bridge path | 7/7 | Complete   | 2026-07-31 |
 | 6. Dispatcher | 0/TBD | Not started | - |
 | 7. Session and the transport seam | 0/TBD | Not started | - |
 | 8. Consent kernel | 0/TBD | Not started | - |
