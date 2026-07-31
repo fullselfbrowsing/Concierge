@@ -134,14 +134,83 @@ demonstrated against a hand-rolled `Proxy` before any adapter exists.
 - **`index.ts:27-36`'s prose is now stale** and must be corrected in the same change: it says
   "bridges are declared but not yet constructible" and lists `createBridge` as still to come.
 
+### Settled after research (2026-07-31)
+
+Research surfaced three questions it declined to settle. Resolved here by the orchestrator so the
+planner has no open choices.
+
+- **The capture function is exported — the surface grows by 3 values, not 2**
+  (`createBridge`, the off-page helper, and the snapshot-capture function). The "fewer exports"
+  rule yields to the discretion clause's own condition: export only if a test cannot reach it
+  otherwise. It cannot. Runtime suites import `dist/index.js` and never `src/`, and research
+  confirms there is **no public caller** on the current design — `dispatch` is stubbed, `explain()`
+  does not capture, and consent is Phase 8. Criterion 4 must be proven at runtime against a
+  hand-rolled `Proxy`, so an unexported capture function is an unprovable one. **This moves seven
+  export pins, not three** — count them before writing the plan.
+- **`bridgeStatus` is routed through the new `resolveBridge` seam.** Without it `resolveBridge` has
+  no caller reachable from `dist/index.js` and becomes a second unprovable seam. `bridgeStatus`
+  (`concierge.ts:222-238`) is already the only `read()` call site, so this is a redirect, not new
+  behavior, and it makes the seam observable through `explain()`. **The Phase 6 fence still
+  holds:** the `dispatch` stub is not touched.
+- **The SSR registration leak (ARCHITECTURE item H) is out of scope.** Guarding it needs a
+  `typeof window` test, which needs a new `host.ts` capability, which collides with the hard
+  constraint that core constructs on the server with no environment guards. Record the invariant in
+  a doc comment on `createBridge` instead of leaving it unwritten. Deferred below.
+- **`contract.ts:159-163`'s reserved-call-site sentence is re-scoped, not deleted.** It reaches
+  `dist/index.d.ts:2028` verbatim, and Phase 4 already had to correct the adjacent
+  `createConcierge` sentence for exactly this reason. `createBridge` satisfies it for apps that call
+  `createBridge` directly; a Phase 9 adapter that mounts without any `createBridge` call in the
+  graph would still need its own. Add that clause; do not claim the obligation is discharged.
+- **A proxied exotic value that throws during cloning falls back to pass-through-by-reference
+  *and* warns once.** Research measured that a proxied `Date`/`Map`/`Set` throws on all six
+  extraction routes. Pass-through alone matches the stated "everything else by reference" rule but
+  leaves a **silent** BRG-05 hole — and BRG-05 is a security requirement, because it is what makes
+  Phase 8's CON-04 drift check meaningful. Dropping to `undefined` instead loses data silently,
+  which is no better. So: pass through, and warn once naming the registry id and the key, using the
+  same latch shape as the throwing-getter warn but a distinct code. This resolves research
+  assumptions A3 and A4 together — a hole we accept must not also be invisible.
+- **Symbol-keyed properties are not carried by the clone**, and the plan must say so in a doc
+  comment rather than leaving it to be discovered. The three target frameworks use symbol keys for
+  internal markers, which is exactly what detachment should drop (research assumption A1).
+- **The off-page helper takes two string parameters, `what` and `where`** (research assumption A5).
+  Shape was discretionary; fixing it here so the type-test predicate is stable.
+
+### Corrections to earlier decisions, from measurement
+
+- **Decision 2.2 understated the defect.** It said a deep freeze "fails to detach". Measured, the
+  deep-freeze default has **three** failure modes: it fails to detach; it **freezes the host app's
+  own reactive store through the proxy**, so the snapshot appears not to move only because the app
+  has been made permanently read-only; and it **throws `TypeError` out of the capture path** on
+  proxy shapes whose traps do not satisfy the freeze invariants. The mechanism is one sentence:
+  cloning fires only *read* traps (`ownKeys` / `getOwnPropertyDescriptor` / `get`), freezing fires
+  *write* traps (`preventExtensions` / `defineProperty`). The clone-then-freeze decision stands and
+  is now better justified.
+- **The criterion-4 fixture is not free choice.** Only one hand-rolled proxy shape makes the
+  deep-freeze mutant fail *correctly*: an accessor-backed target whose traps all forward honestly to
+  `Reflect`. The intuitive signal-backed proxy makes the mutant **throw** rather than return a wrong
+  value; a naively forwarding proxy makes the mutant **pass while destroying the app**. The plan
+  must pin this exact shape.
+- **Decision 2.4's `try` must wrap the normalizer, not just the getter.** A nested getter that
+  throws propagates out of the *normalizer*, not out of `snapshot[k]()`. A `try` scoped to the
+  getter call alone leaks a message echoing user input — the covert-PII channel CLAUDE.md forbids.
+- **`Date` / `Map` / `Set` cloning needs `try`/`catch`.** A *proxied* `Date`/`Map`/`Set` throws on
+  every extraction route (six measured, all `TypeError`).
+- **Five of thirteen mount/unmount orderings discriminate nothing** — including the two a developer
+  writes first (React StrictMode mount→unmount→mount, and double-invoking one unsubscriber). They
+  produce identical results on the correct guard, on the object-identity defect, and on the naive
+  clear. Exactly four orderings catch Anti-Pattern 6. Per project convention the five are **contract
+  pins, not validation, and must be labelled as such** so a later reader does not mistake them for
+  proof.
+- **Export baseline confirmed live at 62 names / 51 types / 11 values.** `MESSAGE_MAX_CHARS` is
+  `180` at `src/types.ts:279`. The Phase 1 deferred export-placement guard is **already closed** by
+  `test-d/exports.test-d.ts:72` — do not re-open it.
+
 ### Claude's Discretion
 
 - Internal file splits beyond `src/bridge.ts` (e.g. pulling the clone into its own module), all
   internal function and local names, and the division of tests across files.
 - The exact wording of the default off-page sentence, subject to the DX-03 standard: it must say
   what is wrong *and* what to do, and stay under 180 characters.
-- Whether the capture function is exported or internal — export only if a test cannot reach it
-  otherwise, given the "fewer exports" rule.
 
 </decisions>
 
@@ -273,5 +342,14 @@ There is **no existing path from a resolved stage to `stage.bridge` at invocatio
   normalizer (ADP-02)** → Phase 9. Phase 5 proves the core-level half only.
 - **SEC-03's registry-frozen-after-catalog-build requirement** is adjacent but owned elsewhere;
   Phase 5 freezes the registry object it constructs, which is a narrower claim.
+- **The SSR registration leak** (ARCHITECTURE item H) — a registration made during server render
+  outliving the request. Guarding it needs a `typeof window` test, which needs a new `host.ts`
+  capability, which collides with the hard constraint that core must construct on the server with
+  no environment guards. Phase 5 records the invariant in a doc comment on `createBridge` rather
+  than leaving it unwritten. Revisit alongside the Phase 9 adapters, which are where a real
+  server-render path first exists.
+- **The pending todo "correct the over-broad `sideEffects` headline"** was surfaced by research as
+  a possible fold-in "if Phase 5 touches `catalog.ts` anyway." It does not — `deepFreeze` is reused
+  without editing that file, so the trigger never fires. Stays where it is.
 
 </deferred>
