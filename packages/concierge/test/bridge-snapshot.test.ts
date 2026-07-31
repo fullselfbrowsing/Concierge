@@ -1377,6 +1377,61 @@ describe("BRG-03 / DX-02 — a handler given bridge: null returns a sentence, no
     expect(result.reason).toBe("no_bridge");
   });
 
+  it("D31 — truncation never splits a surrogate pair, so the bounded message is always well-formed", () => {
+    // `slice` cuts at UTF-16 CODE UNITS. A non-BMP character — an emoji, a
+    // CJK extension glyph, a mathematical alphanumeric — occupies two of them,
+    // and `what`/`where` are consumer-supplied prose that in a real product
+    // carries exactly those. Measured against the pre-fix artifact:
+    //
+    //   G1: LONE HIGH SURROGATE at n = 179 | len = 180 | tail = "AAA\ud83d" | wellFormed = false
+    //
+    // An ill-formed string is not a cosmetic problem here. It is spoken or
+    // rendered to a human AND serialized to the model: `JSON.stringify` emits
+    // the bare `\ud83d`, while `TextEncoder` substitutes U+FFFD — so the bytes
+    // Phase 8 would hash are not the bytes anyone saw. And `offPageResult`'s
+    // own doc states this bound IS the shared contract with Phase 6's SEC-06
+    // truncation, so an unfixed cut propagates by design rather than by
+    // accident.
+    //
+    // TRIMMING BACK IS BOUNDING, NOT SANITIZING. It removes no character the
+    // consumer wrote; it declines to emit half of one. SEC-06 — stripping C0/C1
+    // and collapsing whitespace — is still Phase 6's and is still not done here.
+    const emoji = "\u{1F600}";
+
+    // THE WHOLE WINDOW, not one lucky offset. A single n proves the fix at one
+    // boundary; sweeping the offsets proves no boundary in the region produces
+    // an ill-formed cut, which is the actual claim.
+    for (let n = 150; n <= 220; n += 1) {
+      const swept = offPageResult("A".repeat(n) + emoji, "results page");
+
+      expect(swept.message.isWellFormed()).toBe(true);
+      expect(swept.message.length).toBeLessThanOrEqual(MESSAGE_MAX_CHARS);
+    }
+
+    // AND THE EXACT MEASURED BOUNDARY, pinned so the shape of the fix is
+    // asserted rather than only its effect. At n = 179 the pair straddles the
+    // cut: the message comes back one character SHORT of the bound, with the
+    // pair dropped whole rather than half-emitted or replaced by U+FFFD.
+    const boundary = offPageResult("A".repeat(179) + emoji, "results page");
+
+    expect(boundary.message).toHaveLength(MESSAGE_MAX_CHARS - 1);
+    expect(boundary.message.isWellFormed()).toBe(true);
+    expect(boundary.message.endsWith("\ud83d")).toBe(false);
+    expect(boundary.message.endsWith("A")).toBe(true);
+
+    // The other two fields are unchanged by any of this — the helper still
+    // returns the same failure it always did.
+    expect(boundary.ok).toBe(false);
+    expect(boundary.reason).toBe("no_bridge");
+
+    // A MESSAGE THAT DOES NOT OVERSHOOT IS RETURNED WHOLE, emoji and all. This
+    // is what stops the fix being "always drop the last character".
+    const short = offPageResult(`The ${emoji} result count`, "results page");
+
+    expect(short.message).toContain(emoji);
+    expect(short.message.isWellFormed()).toBe(true);
+  });
+
   it("D20 — DX-02 criterion 5: a stage declaring NO bridge still runs its handler, which succeeds with ctx.bridge null", () => {
     // A handler that needs no instrumentation at all — it reads a stubbed
     // router value out of its OWN arguments. This is the "first useful action
