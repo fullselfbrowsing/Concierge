@@ -227,6 +227,15 @@ None.
 
 **Carried forward, not a blocker:** the SSR registration invariant is recorded on `createBridge`'s JSDoc — where it reaches `dist/index.d.ts`, unlike a module header — with no runtime guard and no `host.ts` change, exactly as CONTEXT settled. Phase 9 owns it.
 
+## Self-Check: PASSED
+
+- `packages/concierge/src/bridge.ts` — FOUND (37922 bytes, 731 lines)
+- `.planning/phases/05-bridge-registry-and-the-no-bridge-path/05-01-SUMMARY.md` — FOUND
+- `43cbf44` — FOUND in git log
+- `65cc1ca` — FOUND in git log
+- `f635d24` — FOUND in git log
+- Working tree clean; no shared orchestrator artifacts (STATE.md, ROADMAP.md, REQUIREMENTS.md) modified.
+
 ---
 *Phase: 05-bridge-registry-and-the-no-bridge-path*
 *Completed: 2026-07-31*
