@@ -103,6 +103,100 @@ comments included against the file the plan actually writes before using it (Kno
 
 ---
 
+## Mutation Battery — Measured Results
+
+Run in plan 05-07 (wave 4) against the completed phase tree. Baseline before the battery:
+**133 tests / 9 files**, `pnpm build` clean through `attw` and `publint --strict`, `pnpm typecheck`
+exit 0, `git status --porcelain` empty.
+
+**Gate form.** Every `src/` mutant asserted through the runtime suite uses
+`bash -c 'pnpm build > <file> 2>&1 && pnpm exec vitest run <filter> > <file> 2>&1'`. Three properties
+of that shape are load-bearing and each was learned the hard way by an earlier plan in this phase:
+
+1. **The gate rebuilds.** `test/*.test.ts` import `dist/index.js`, so `pnpm test` alone reads the
+   PRE-mutation artifact and every mutant escapes (05-06, Probe D).
+2. **The gate is never piped.** `mutate-and-prove.sh` reads the gate's exit status, and a gate ending
+   in `| tail` reports `tail`'s — printing `FAIL: mutant escaped` beside its own failing tests
+   (05-03).
+3. **The filter is `pnpm exec vitest run <name>`, not `pnpm test -- <name>`.** Under pnpm 11.17.0 the
+   latter does not filter — it runs the whole suite (05-04, 05-05). The register's documented
+   `pnpm test -- bridge` gate is *sound* (a superset run that reddens a bridge case still fires) but
+   vacuous in the filtering sense, so the filtering form was used throughout and the counts below are
+   scoped to the two bridge files (42 cases) unless stated otherwise.
+
+**`dist/` was rebuilt after every probe.** `mutate-and-prove.sh` restores `src/` but not `dist/`, and
+`dist/` is gitignored — so a mutant artifact survives a probe behind a clean `git status` (05-05).
+
+### Occurrence counts, taken UNFILTERED
+
+`grep -o -F "<literal>" packages/concierge/src/bridge.ts | wc -l`, comments left in, per Known
+Limitation 3. **Every literal below counted exactly 1.** The M-05-2 multi-line literal was counted
+with `String.split(literal).length - 1` over the raw file, which grep cannot do.
+
+**Pre-flight abort check, cleared:** `makeDefaultNormalizer(` occurs **exactly 2** times
+(unfiltered and comment-stripped alike) — the declaration plus the live call inside `captureSnapshot`'s
+key loop. Had it been 1 the normalizer would have been inlined anonymously, M-05-3 would have mutated
+an uninvoked function, and the battery would have recorded an escape that is the inverse of the truth.
+
+### The twelve `src/bridge.ts` mutants
+
+| ID | Final literal → replacement | Count | Exit | Build | Tests ran | Cases red |
+|---|---|---|---|---|---|---|
+| **M-05-1** | `if (slot?.token === token)` → `if (slot?.bridge === bridge)` | 1 | **0 PASS** | ✔ attw + publint clean | 42 | **B10** (O1b), **B11** (O2b), **B12** (O4b), **B13** (O4c), B20 |
+| **M-05-2** | the 3-line guarded block (8/10/8 indent) → `slot = null;` | 1 | **0 PASS** | ✔ | 42 | B6 (O2), B7 (O3b), B8 (O4), B9 (O8), B10, B11, B12, B13, B20 |
+| **M-05-3** | `cloneDetached(value, seen, onExotic) as T` → `Object.freeze(value) as T` | 1 | **0 PASS** | ✔ | 42 | **D1**, D3, D4, D5, D6, D7, D8, D9, D11, D12 |
+| **M-05-4** | `seen.get(obj)` → `undefined` | 1 | **0 PASS** | ✔ | 42 | **D2** (cycle), **D3** (DAG) |
+| **M-05-5** | `obj instanceof Date \|\| tag === "[object Date]"` → `false` | 1 | **0 PASS** | ✔ | 42 | **D7**, D12 |
+| **M-05-6** | `proto === Object.prototype \|\| proto === null` → `proto === Object.prototype` | 1 | **0 PASS** | ✔ | 42 | **D6** |
+| **M-05-7** | `return Object.freeze(registry);` → `return registry;` | 1 | **0 PASS** | ✔ | 42 | **B16**, **B17**, **B18** |
+| **M-05-9** | `normalizeValue(getter())` → `getter()` | 1 | **0 PASS** | ✔ | 42 | **D1**, D3, D4, **D5**, D6, D7, D9, D11, D12 |
+| **M-05-10** | `warnedOverwrite = true;` → *(empty)* | 1 | **0 PASS** | ✔ | 42 | **B19** — `expected […(3)] to have a length of 1 but got 3` |
+| **M-05-11** | `if (slot?.token === token) {` → a `warnHost` on the refusal condition, then the original line | 1 | **0 PASS** | ✔ | 42 | **B20** — `expected [Array(1)] to have a length of +0 but got 1` |
+| **M-05-12** | `message.slice(0, MESSAGE_MAX_CHARS)` → `message` | 1 | **0 PASS** | ✔ | 42 | **D19** — `to have a length of 180 but got 249` |
+| **M-05-8** | `assertSingleInstance();` → *(empty)*, gate `pnpm exec vitest run single-instance` | 1 | **0 PASS** | ✔ | 6 | **F6** — `expected undefined to deeply equal { version: 1 }` |
+
+**No mutant returned exit 3 (no-op), exit 2 (dirty/untracked) or exit 4 (not restored). No escapes.**
+`git status --porcelain` was empty before the first probe and after the last.
+
+### Five findings the exit codes alone do not carry
+
+1. **The five contract pins stay GREEN under M-05-1 — observed, not inferred.** M-05-1 was re-run
+   under `--reporter=verbose` so the passing cases print by name. `B1` (O6), `B2` (O1), `B3` (O3),
+   `B4` (O5) and `B5` (O7) each printed `✓` while B10–B13 printed `×`. That is the empirical
+   confirmation of the `CONTRACT PIN` label, which asserts exactly this and nothing wider. All five
+   also stay green under M-05-2.
+
+2. **M-05-3's output contains ZERO `TypeError`.** Grepped explicitly. A `TypeError` would have meant
+   the criterion-4 fixture is a Shape B or E proxy rather than Shape F — Pitfall 2 — and the case
+   would have been proving its own proxy malformed rather than proving the normalizer fails to
+   detach. D1's failure is the intended `expected 'boots' to be 'shoes'`.
+
+3. **M-05-4's cycle case surfaces as an absent key, not as a visible `RangeError`.** The infinite
+   recursion throws `RangeError: Maximum call stack size exceeded` *inside* `captureSnapshot`'s
+   `try`, which catches it and writes `out[key] = undefined`. D2 therefore fails at
+   `expect(result.self).toBe(result)` with `TypeError: Cannot read properties of undefined (reading
+   'self')` at `bridge-snapshot.test.ts:332`. The test ran and failed; the string
+   `Maximum call stack` does not appear in the output because the guard swallowed it. Recorded so a
+   later reader does not go looking for the wrong evidence.
+
+4. **M-05-5's three arms were each probed independently.** The `Date`/`Map`/`Set` branch is three
+   separate `if` statements, so one literal can only disable one arm. All three were run and all
+   three PASS: the Date arm reddens D7 **and D12**, the Map arm reddens D7 alone, the Set arm reddens
+   D7 alone. D12's extra redness under the Date arm is informative rather than noise — D12's exotic
+   fixture is a naively-proxied `Date`, and its `[snapshot_exotic]` warning is emitted from that
+   branch's extraction `catch`. Disable the branch and the value falls straight through to
+   pass-by-reference, so it is carried live *without* a warning, which is precisely the invisible
+   hole the exotic-warn signal path exists to close.
+
+5. **M-05-8 escapes the bridge suite, and that was measured rather than assumed.** Run under
+   `pnpm exec vitest run bridge` the same mutant returns **exit 1 — `FAIL: gate did NOT fire`** with
+   all 42 bridge cases green. That is the correct result and is the whole reason plan 05-06 wrote F6:
+   before it, M-05-8 had no detector anywhere in the repository. The register's documented
+   `pnpm test -- single-instance` form was also run and also PASSes — as the superset it is, at
+   1 failed / 132 passed of 133.
+
+---
+
 ## Wave 0 Requirements
 
 - [ ] `packages/concierge/test/bridge.test.ts` — new. Covers BRG-01…05 and DX-02. Opens with the
