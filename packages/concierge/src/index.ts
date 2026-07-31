@@ -24,12 +24,17 @@
  * Stated plainly so this is not oversold: nothing here dispatches. The
  * `dispatch` member exists because the interface requires it and returns a
  * not-implemented result; calling it runs no handler. There is no session, no
- * transport and no consent prompt in this package today, and bridges are
- * declared but not yet constructible. What you get is a validated, frozen,
- * correctly scoped description of what an agent would be permitted to do — not
- * the thing that lets it do so.
+ * transport and no consent prompt in this package today. Bridges are now
+ * constructible — `createBridge` returns a registry that a mounted page
+ * component registers itself into, `captureSnapshot` detaches what that
+ * component exposes so a captured value cannot drift afterwards, and
+ * `offPageResult` is the sentence a handler returns when nothing is
+ * registered — but nothing routes a call through a bridge: the only thing core
+ * does with a live registration is report it in `explain()`. What you get is a
+ * validated, frozen, correctly scoped description of what an agent would be
+ * permitted to do — not the thing that lets it do so.
  *
- * The runtime still to come is `createSession` and `createBridge`. `defineStage`
+ * The runtime still to come is `createSession`. `defineStage`
  * is **not planned**: a stage needs no identity mechanism, a plain
  * `StageDefinition` object literal already typechecks, and the unforgeable
  * bridge identity that would have justified it belongs to `createBridge`. See
@@ -125,3 +130,5 @@ export { buildCatalog, CatalogValidationError } from "./catalog.js";
 export { defineAction } from "./define-action.js";
 
 export { createConcierge } from "./concierge.js";
+
+export { createBridge, captureSnapshot, offPageResult } from "./bridge.js";
