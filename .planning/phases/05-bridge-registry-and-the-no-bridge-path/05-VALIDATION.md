@@ -122,7 +122,7 @@ growth) are what catch placement at the runtime layer**, and the three TS1485 pr
 the type layer. Recorded because a register that credits pin 2 with P-05-1 coverage would be claiming
 a detector that has been measured green under the defect.
 
-### Mutant register (17)
+### Mutant register (18)
 
 | ID | Target | Substitution (shape) | What it breaks |
 |---|---|---|---|
@@ -142,6 +142,7 @@ a detector that has been measured green under the defect.
 | M-05-14 | `src/concierge.ts` | remove `stage.bridge === undefined` early return | `explain()`'s three-state row collapses to two |
 | P-05-1/2 | `src/index.ts` | move `createBridge` / helper into the `export type` block | Export placement — surfaces as **TS1485 at the shared import line**, not TS2344 at the predicate |
 | P-05-3 | `src/types.ts` | `read: () => B \| null` → `read: () => B` | Nullability erased — caught by existing `_registryReadIsNullable` |
+| M-05-15 | `src/bridge.ts` | the array subclass report gate → `if (false) {` | **Added after re-review RR-01.** A `class X extends Array` downgrade goes unreported — the branch the WR-04 fix skipped, and the branch nothing in the suite covered until `D32` grew a fourth arm |
 
 **Uniqueness is not inherited.** Every literal above is a *shape*. Count occurrences unfiltered and
 comments included against the file the plan actually writes before using it (Known Limitation 3).
@@ -407,6 +408,97 @@ byte-unchanged by the fixes, so the phase-gate results for them stand.
 **The suite-output invariant still holds.** `pnpm test 2>&1 | grep -c "concierge: \["` is **0**: every
 one of the eleven new cases that provokes a diagnostic captures it, so an unexpected warning is still
 visible.
+
+---
+
+## Second re-measurement — after re-review RR-01
+
+Pass 2 of code review verified 8 of 9 fixes fully closed and found **RR-01**: WR-04's
+subclass-downgrade report was added to the `Date`, `Map` and `Set` arms and **not** to the `Array`
+arm, which is the *first* collection branch in the walk. Reproduced against the post-WR-04 artifact:
+
+```
+Array subclass        -> warns = 0 | ctor = Array | currency LOST = undefined | instanceof Basket = false
+nested Array subclass -> warns = 0
+Map / Set / Date subclass -> warns = 1
+```
+
+Fixed in `2551771`; the four warn builders' provenance claim softened in `ff311c3` (IN-02).
+
+**No registered anchor moved.** All ten pre-existing `src/bridge.ts` literals still count exactly 1,
+unfiltered. The suite stays at **144 tests / 9 files** — `D32` was *extended* rather than
+supplemented, so the case count is unchanged.
+
+### One mutant ADDED, because the fix created code no mutant covered
+
+`M-05-15` disables the array subclass report gate. It is the register's first mutant on any of the
+four report gates, and it exists because RR-01 was precisely a gate that shipped with no detector:
+`D32` was titled "a Date/Map/Set SUBCLASS" and was scoped one arm narrower than the claim the source
+comment made.
+
+| ID | Literal → replacement | Count | Exit | Build | Tests ran | Cases red |
+|---|---|---|---|---|---|---|
+| **M-05-15** | `if (Object.getPrototypeOf(obj) !== Array.prototype && obj instanceof Array) {` → `if (false) {` | 1 | **0 PASS** | ✔ | 53 | **D32** |
+
+### The battery re-run against the RR-01 tree
+
+Eleven mutants re-run (the ten `src/bridge.ts` literals whose surrounding region moved, plus
+M-05-15), each with build and test output captured separately so Known Limitation 2 is satisfied.
+**Eleven caught, zero escapes**, `git status --porcelain` empty before the first probe and after the
+last.
+
+| ID | Tests ran | Cases red |
+|---|---|---|
+| M-05-1 | 53 | B10, B11, B12, B13, B20 |
+| M-05-3 | 53 | D1, D3, D4, D5, D6, D7, D8, D9, D11, D12, D25, D26, D27, D29, D32 |
+| M-05-4 | 53 | D2, D3 |
+| M-05-5 | 53 | D7, D32 |
+| M-05-6 | 53 | D6, D27 |
+| M-05-7 | 53 | B16, B17, B18 |
+| M-05-8 | 6 | F6 |
+| M-05-9 | 53 | D1, D3, D4, D5, D6, D7, D8, D9, D11, D12, D25, D26, D27, D29, D32 |
+| M-05-10 | 53 | B19 |
+| M-05-12 | 53 | D19, D31 |
+| M-05-15 | 53 | D32 |
+
+M-05-2 and M-05-11 were not re-run in this round: both target `createBridge`'s unsubscriber, which is
+byte-unchanged since the previous re-measurement recorded them PASS.
+
+### Three comment claims corrected, all because measurement contradicted them
+
+RR-01's substance was half a code gap and half a **prose** gap, and the prose half is recorded here
+because this phase's gate exists to catch exactly that shape.
+
+1. *"EACH BRANCH REPORTS ITS OWN DOWNGRADE"* was false for the array arm. The shared rule moved
+   **above** the array branch and now covers all four arms rather than claiming "each branch" from a
+   position after one of them.
+2. *"The remaining miss is a cross-realm SUBCLASS"* understated the residual. A **same-realm**
+   base-prototype instance carrying own properties (`const a = []; a.total = 3`) is also silent.
+   Both are now written out as accepted residuals.
+3. *"…and these are the only lossy clones in the file"* was a third overclaim, found while fixing the
+   first two and verified by execution: the plain-object branch clones an `Object.create(null)`
+   record into a `{}`, so the result inherits `Object.prototype` where the source inherited nothing —
+   **0 warns**. It is named in the comment and explicitly *not* grouped with the two residuals,
+   because it adds inherited members rather than losing anything the app put there, `Object.keys`
+   agrees on both sides so the payload Phase 8 hashes is unaffected, and `D6`/`D27` both pin the
+   resulting prototype.
+
+### `D32`'s control grew from three shapes to seven, and the four additions are the point
+
+The array arm is the one where a report gated on the prototype **alone** would fire constantly, so
+the negative control carries every shape a framework actually produces:
+
+| Shape | Must be | Why it would otherwise fire |
+|---|---|---|
+| `[1, 2]` | silent | base case |
+| `new Proxy([1, 2], {})` | silent | Vue's `reactive([])`, on the hottest path in the file |
+| sparse array | silent | `new Array(3)` |
+| cross-realm array | silent | its prototype is the other realm's, so it is never `=== Array.prototype` |
+
+This is why the report gate carries `obj instanceof Array` even though the *detection* predicate four
+lines above is `Array.isArray` and the comment there forbids `instanceof`. The two uses want opposite
+properties from the same predicate — detection needs realm-transparency, the report needs
+realm-blindness — and both lines now say so, so neither gets "harmonized" onto the other.
 
 ---
 
