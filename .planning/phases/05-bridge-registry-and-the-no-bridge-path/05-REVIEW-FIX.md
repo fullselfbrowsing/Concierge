@@ -1,12 +1,25 @@
 ---
 phase: 05-bridge-registry-and-the-no-bridge-path
-fixed_at: 2026-07-31T19:38:00Z
+fixed_at: 2026-07-31T20:05:00Z
 review_path: .planning/phases/05-bridge-registry-and-the-no-bridge-path/05-REVIEW.md
-iteration: 1
-findings_in_scope: 9
-fixed: 9
+iteration: 2
+findings_in_scope: 10
+fixed: 10
 skipped: 0
 status: all_fixed
+iterations:
+  - iteration: 1
+    fixed_at: 2026-07-31T19:38:00Z
+    source: "05-REVIEW.md (pass 1)"
+    findings_in_scope: 9
+    fixed: 9
+    skipped: 0
+  - iteration: 2
+    fixed_at: 2026-07-31T20:05:00Z
+    source: "05-REVIEW.md (pass 2, re-review, commit de46ce5)"
+    findings_in_scope: 1
+    fixed: 1
+    skipped: 0
 ---
 
 # Phase 5: Code Review Fix Report
@@ -440,3 +453,220 @@ Each is written into the source with its reasoning, and each could be reversed w
 _Fixed: 2026-07-31_
 _Fixer: Claude (gsd-code-fixer)_
 _Iteration: 1_
+
+---
+---
+
+# Iteration 2 — fixes for the re-review (pass 2)
+
+**Source:** the re-review section appended to `05-REVIEW.md` in commit `de46ce5`
+**Fixed at:** 2026-07-31
+**Iteration:** 2
+
+Pass 2 verified 8 of 9 iteration-1 fixes fully closed, and verified them the honest way — the
+reviewer rebuilt the pre-fix artifact from `271a198` in a scratch mirror and ran the *current* tests
+against it rather than trusting the "observed red" claim. All eleven `D22`–`D32` regression cases
+were confirmed genuine detectors (12 failures against the pre-fix artifact, none vacuous).
+
+**Summary:**
+
+- Findings in scope: **1** (`RR-01`, Warning)
+- Fixed: **1**
+- Skipped: **0**
+- Plus one Info item the coordinator asked for by name: **IN-02**'s "soften the claim" branch.
+
+**Commits:**
+
+| Hash | What |
+|---|---|
+| `2551771` | `RR-01` — the `Array` subclass downgrade now reports |
+| `ff311c3` | `IN-02` — the four warn builders' provenance claim softened to what holds |
+| `7c7fc31` | register `M-05-15`, record the re-measurement in `05-VALIDATION.md` |
+
+**Gate, measured after the last commit:**
+
+| Gate | Result |
+|---|---|
+| `pnpm build` | exit 0 — `attw` **No problems found**, `publint --strict` **No issues found** |
+| `pnpm test` | **`Test Files 9 passed (9)` / `Tests 144 passed (144)`** — unchanged, because `D32` was *extended* rather than supplemented |
+| `pnpm typecheck` | exit 0 |
+| `check:deps` / `check:artifact` / `check:pack` / `check:node-floor` | all exit 0 |
+| `git status --porcelain` | empty |
+| Mutation | **eleven mutants re-run against the RR-01 tree, eleven caught, zero escapes** — including one **new** mutant |
+| `grep -c "concierge: \["` over suite output | **0** |
+
+**Constraints re-checked:** `^let ` = **0** · `catch (` = **0** · `makeDefaultNormalizer(` = **2** ·
+`structuredClone`/`globalThis` in `bridge.ts` = **0** · no top-level `await` · `ReasonCode` = **12** ·
+`concierge.ts` / `catalog.ts` / `host.ts` **byte-unchanged since `de46ce5`** (`git diff --stat`
+returns nothing) · `isolatedDeclarations` / `exactOptionalPropertyTypes` / `noUncheckedIndexedAccess`
+all on and `tsc` exit 0.
+
+---
+
+## Fixed — RR-01: WR-04's fix skipped the `Array` branch
+
+**Files modified:** `packages/concierge/src/bridge.ts`, `packages/concierge/test/bridge-snapshot.test.ts`
+**Commit:** `2551771`
+
+**Reproduced against the post-iteration-1 artifact:**
+
+```
+Array subclass        -> warns = 0 | ctor = Array | currency LOST = undefined | instanceof Basket = false | content kept = {"sku":"a"}
+Map   subclass        -> warns = 1
+Set   subclass        -> warns = 1
+Date  subclass        -> warns = 1
+nested Array subclass -> warns = 0
+```
+
+**Re-run after the fix:**
+
+```
+Array subclass        -> warns = 1 | ctor = Array | currency LOST = undefined | instanceof Basket = false | content kept = {"sku":"a"}
+Map/Set/Date subclass -> warns = 1
+nested Array subclass -> warns = 1
+--- must stay silent ---
+base array            -> warns = 0
+nested base array     -> warns = 0
+cross-realm array     -> warns = 0 | cloned = true | isArray = true
+proxy over array      -> warns = 0
+sparse array          -> warns = 0
+```
+
+**Applied fix**, exactly the gate the reviewer specified:
+
+```ts
+if (Object.getPrototypeOf(obj) !== Array.prototype && obj instanceof Array) {
+  onExotic();
+}
+```
+
+**Why `instanceof Array` appears one screen below a comment forbidding it.** The detection predicate
+four lines above is `Array.isArray`, and its comment says "never `instanceof Array`" — correctly, for
+detection, which needs realm-*transparency*. The report gate needs the opposite: realm-*blindness*,
+so that a cross-realm array — whose prototype is the other realm's and therefore never
+`=== Array.prototype` — is not reported for a downgrade it did not suffer. On this arm the same
+conjunct additionally silences a `Proxy` over an array, which is what Vue's `reactive([])` hands core
+on the hottest path in the file. Both lines now state which property they want, so neither gets
+"harmonized" onto the other.
+
+### The prose half of RR-01 — three claims corrected, not one
+
+The reviewer's second point was that the comment introduced with WR-04 *claimed* what the code did
+not do. Fixing that surfaced a third overclaim in the same paragraph.
+
+| Claim as it shipped | Status | Correction |
+|---|---|---|
+| *"EACH BRANCH REPORTS ITS OWN DOWNGRADE"* | **false** for the array arm | The shared rule moved **above** the array branch and now covers all four arms, rather than claiming "each branch" from a position after one of them |
+| *"The remaining miss is a cross-realm SUBCLASS"* | **understated** | A **same-realm** base-prototype instance carrying own properties (`const a = []; a.total = 3`, `const m = new Map(); m.tag = 1`) is also silent. Both residuals are now written out |
+| *"…and these are the only lossy clones in the file"* | **false**, found while fixing the other two | The plain-object branch clones an `Object.create(null)` record into a `{}`, so the result inherits `Object.prototype` where the source inherited nothing. **Verified by execution: 0 warns.** Named in the comment and explicitly *not* grouped with the two residuals — it adds inherited members rather than losing anything the app put there, `Object.keys` agrees on both sides so the payload Phase 8 hashes is unaffected, and since `defineField` landed an own `__proto__` key survives it intact. `D6` and `D27` both pin the resulting prototype |
+
+**Not chased, and recorded rather than absorbed:** an own-property test that would catch residual 2
+has to be spelled four different ways (array indices vs. `Map`/`Set` entries vs. `Date` internal
+slots) for a shape rarer than the subclass it would sit beside, and it carries real false-positive
+risk on the array arm. The residual is stated instead.
+
+### Regression
+
+`D32` **extended, not supplemented** — a fourth loop iteration (`class Basket extends Array`) and a
+retitle from "a Date/Map/Set SUBCLASS" to "an Array/Date/Map/Set SUBCLASS". Observed red against the
+pre-fix source at `expected [] to have a length of 1 but got +0`.
+
+Extending rather than adding is deliberate and is written into the case: RR-01 happened *because* a
+case scoped one arm narrower than the claim it backed sat next to a comment making the wider claim.
+Keeping all four arms in one loop is what stops the loop and the claim drifting apart again.
+
+**The negative control grew from three shapes to seven**, and the four additions are the substance:
+
+| Shape | Asserted | Why it would otherwise fire |
+|---|---|---|
+| `[1, 2]` | silent | base case |
+| `new Proxy([1, 2], {})` | silent | Vue's `reactive([])` — the hottest path in the file |
+| sparse array | silent | `new Array(3)` |
+| cross-realm array | silent | its prototype is the other realm's, so never `=== Array.prototype` |
+
+The array arm is the one where a report gated on the prototype **alone** would fire on values a
+framework produces constantly, so the control is doing more work here than on the other three.
+
+---
+
+## Also fixed — IN-02's "soften the claim" branch
+
+**Files modified:** `packages/concierge/src/bridge.ts` (comment-only)
+**Commit:** `ff311c3`
+
+The re-review's status line was *"IN-02 — still accurate, and now broader"*: the
+`snapshotHolderThrewMessage` builder added by CR-01 repeated the "interpolates `id` and nothing else"
+phrasing for a **third** message without the validation that phrasing implies. My iteration-1 fix
+made an Info finding worse, which is the right thing to be told about.
+
+Two of the four builders claimed `id` and `key` are *"developer-authored strings already in the app's
+own source"*. That is stronger than the code enforces: `key` comes from `Object.keys(bridge.snapshot)`,
+which an app may build from data (`Object.fromEntries(fields.map(f => [f.name, …]))` is an ordinary
+thing to write), and `id` is a free-form string a consumer passes to `createBridge`. Neither is
+validated, and both reach `warnHost` unescaped.
+
+The claim is now stated once in full on `bridgeOverwriteMessage` and cited from the other three. What
+it asserts is **provenance, not safety**: `id` and `key` originate in the consumer's application
+rather than in a caught exception or a snapshot value, so neither can carry the user input a
+handler's `Error` message would — and **core does not validate or sanitize either**.
+
+`snapshotHolderThrewMessage` additionally records *why* the caveat is repeated on it rather than only
+cited: it was added after the others, and an addition that reuses a sibling's phrasing without its
+caveats is how a claim quietly widens — which is exactly what happened.
+
+**Comment-only, and verified so.** No message text changed: `bridge_overwrite` still renders at
+**340 characters**, so `B19`'s exact-text pin against `05-01-SUMMARY.md` holds. The one remaining
+occurrence of "developer-authored" in the file is the quoted-and-retracted claim inside the
+correction itself.
+
+**IN-02 is now half-closed.** The "soften the claim" branch its own Fix section offered is done; the
+"strip C0/C1 before interpolation" branch remains **deferred to SEC-06**, which lands at the
+dispatcher boundary in Phase 6 and covers every result rather than the ones these four helpers build.
+Doing half of it here would put one policy in two places.
+
+---
+
+## Mutation — one mutant added, eleven re-run
+
+**No registered anchor moved.** All ten pre-existing `src/bridge.ts` literals still count exactly 1,
+taken unfiltered per Known Limitation 3.
+
+**`M-05-15` was ADDED to the register**, because the RR-01 fix created code no mutant covered — and
+because RR-01 *was* precisely a gate that shipped with no detector. It is the register's first mutant
+on any of the four report gates.
+
+| ID | Literal → replacement | Count | Exit | Build | Tests ran | Cases red |
+|---|---|---|---|---|---|---|
+| **M-05-15** | `if (Object.getPrototypeOf(obj) !== Array.prototype && obj instanceof Array) {` → `if (false) {` | 1 | **0 PASS** | ✔ | 53 | **D32** |
+
+Eleven mutants re-run against the RR-01 tree with build and test output captured separately, so
+Known Limitation 2 is satisfied — every PASS is confirmed to have compiled and run tests.
+**Eleven caught, zero escapes**; `git status --porcelain` empty before the first probe and after the
+last.
+
+`M-05-2` and `M-05-11` were **not** re-run this round: both target `createBridge`'s unsubscriber,
+which is byte-unchanged since the iteration-1 re-measurement recorded them PASS.
+
+`05-VALIDATION.md` updated in `7c7fc31` — register count 17 → **18**, plus a
+§ *Second re-measurement — after re-review RR-01* section carrying the tables above.
+
+---
+
+## Still not fixed — the four remaining Info findings
+
+Unchanged from iteration 1 and confirmed still accurate by the re-review. None is a correctness
+defect.
+
+| ID | Status |
+|---|---|
+| IN-01 | `ConciergeConfig.normalizeSnapshot` is wired to nothing. Verified by the reviewer: `createConcierge({ stages: [], normalizeSnapshot })` accepts the field and never invokes it. `concierge.ts` byte-unchanged |
+| IN-02 | **Half-closed this round.** "Soften the claim" done; "strip C0/C1" deferred to SEC-06 |
+| IN-03 | `register(null)` still occupies the slot and the next genuine registration still emits a spurious `bridge_overwrite` |
+| IN-04 | A `Symbol.toStringTag` spoof still diverts a cloneable plain object into a collection branch. It emits exactly one warning, so it stays visible, and the reviewer confirmed the new subclass report does not double-fire on it — the `instanceof` conjunct correctly excludes it |
+| IN-05 | **CLOSED** in iteration 1, confirmed by the re-review |
+
+---
+
+_Fixed: 2026-07-31_
+_Fixer: Claude (gsd-code-fixer)_
+_Iteration: 2_
