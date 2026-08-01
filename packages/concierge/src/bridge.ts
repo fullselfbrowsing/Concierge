@@ -130,8 +130,25 @@ import type { ActionResult, Bridge, BridgeRegistry, SnapshotNormalizer } from ".
  * through this registry, and nothing else in the package would ever mention it.
  *
  * It interpolates `id` and nothing else. Never a caught value, never a snapshot
- * value: `id` is a developer-authored string already in the config, and
- * everything around it is fixed prose.
+ * value; everything around `id` is fixed prose.
+ *
+ * **What that does and does not buy, stated once here for all four builders in
+ * this file.** The claim it carries is about PROVENANCE, not about safety:
+ * `id` and `key` originate in the consumer's own application rather than in a
+ * caught exception or a snapshot value, so neither can carry the user input a
+ * handler's `Error` message would. **Core does not validate or sanitize either
+ * of them.** `id` is a free-form string a consumer passes to
+ * {@link createBridge}, and `key` comes from `Object.keys(bridge.snapshot)`,
+ * which an app may well build from data — `Object.fromEntries(fields.map(f => [f.name, …]))`
+ * is an ordinary thing to write. So a newline or an ANSI sequence in either one
+ * reaches `warnHost` unescaped and can forge a log line on an SSR host.
+ *
+ * That channel is developer-facing rather than model-facing, which is why it is
+ * bounded rather than closed here: stripping C0/C1 is SEC-06, it lands at the
+ * dispatcher boundary in Phase 6, and doing half of it here would put one policy
+ * in two places. An earlier draft of these comments called both values
+ * "developer-authored strings already in the app's own source", which is a
+ * stronger claim than the code enforces and is not repeated.
  */
 function bridgeOverwriteMessage(id: string): string {
   return (
@@ -811,9 +828,13 @@ function makeDefaultNormalizer(onExotic: () => void): SnapshotNormalizer {
  * function for the same reason the overwrite message above is: the call site
  * becomes one short statement a mutation battery can target.
  *
- * Interpolates `id` and `key` and nothing else. Both are developer-authored
- * strings already in the app's own source; the caught value is not in scope at
- * the call site and could not be interpolated even by accident.
+ * Interpolates `id` and `key` and nothing else; the caught value is not in scope
+ * at the call site and could not be interpolated even by accident. Both values
+ * originate in the consumer's application rather than in core, and **core does
+ * not validate or sanitize either** — `key` in particular comes from
+ * `Object.keys(bridge.snapshot)`, which an app may build from data. See
+ * {@link bridgeOverwriteMessage} for the full statement of what that claim does
+ * and does not buy.
  */
 function snapshotThrewMessage(id: string, key: string): string {
   return (
@@ -840,8 +861,13 @@ function snapshotThrewMessage(id: string, key: string): string {
  * trap is the remedy `snapshotThrewMessage` already prints — make the accessor
  * total — so a third code would cost a developer the search and buy nothing.
  *
- * Interpolates `id` and nothing else. The caught value is not in scope at the
- * call site and could not be interpolated even by accident.
+ * Interpolates `id` and nothing else; the caught value is not in scope at the
+ * call site and could not be interpolated even by accident. `id` originates in
+ * the consumer's application rather than in core, and **core does not validate
+ * or sanitize it** — see {@link bridgeOverwriteMessage}. That statement is
+ * repeated here rather than assumed because this builder was ADDED after the
+ * others, and an addition that reuses a sibling's phrasing without its caveats
+ * is how a claim quietly widens.
  */
 function snapshotHolderThrewMessage(id: string): string {
   return (
@@ -859,7 +885,8 @@ function snapshotHolderThrewMessage(id: string): string {
  * A **distinct code** from the throwing-getter warning, deliberately: the two
  * failures need different fixes, and one code covering both would send a
  * developer looking at a getter that is working perfectly. Same house shape,
- * same subject spelling, same interpolation rule — `id` and `key` only.
+ * same subject spelling, same interpolation rule — `id` and `key` only, both
+ * unvalidated and unsanitized by core, per {@link bridgeOverwriteMessage}.
  */
 function snapshotExoticMessage(id: string, key: string): string {
   return (
