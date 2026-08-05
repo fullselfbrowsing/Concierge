@@ -247,7 +247,31 @@ Plans:
   4. A batch runs serially in `output_index` order, and every call in an aborted batch still produces a result, so the agent is never left waiting on a response that will not come. (DSP-07)
   5. A non-read-only effect does not land until the commit window has elapsed and an abort inside that window cancels it — all of it drivable from an application's own agent loop with no transport present. (DSP-08, TRN-04)
 
-**Plans**: TBD
+**Plans**: 6 plans across 5 waves
+
+Plans:
+
+**Wave 1**
+
+- [ ] 06-01-PLAN.md — Pin final dispatch contracts and create the single-call Wave 0 suite
+- [ ] 06-02-PLAN.md — Create the ToolBatch parse, ordering, abort, and direct-loop Wave 0 suite
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 06-03-PLAN.md — Extract the shared message sanitizer and add the structural host Scheduler fallback
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 06-04-PLAN.md — Replace the stub with the context-aware single-call dispatcher
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 06-05-PLAN.md — Add transport-independent serial ToolBatch execution
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 06-06-PLAN.md — Prove mutation coverage, run phase gates, and record requirement evidence
+
 **Research**: None — the source system solved this; the failure list is already enumerated.
 **Notes**: `dispatch` must not be `async`: an async wrapper allocates a fresh Promise per invocation and breaks dedup by identity, which is the mechanism criterion 1 tests. Handler lookup must not be a bare object literal — `dispatch("__proto__")` and `dispatch("constructor")` are test cases. **Amended after Phase 3:** a frozen `Map` still accepts `.set()`, so a `Map` cannot satisfy SEC-03. Phase 3 ships `catalog.byName` as a frozen `Object.create(null)` record, which removes the prototype chain *and* is freezable — it satisfies both constraints where a `Map` satisfies only the first. If Phase 6's handler lookup reads `catalog.byName`, it already has both properties and must **not** be converted to a `Map`. If Phase 6 keeps a separate, mutable lookup of its own, a `Map` is still correct there, because that structure is neither frozen nor part of the catalog. Phase 6's plan must state which of the two its lookup is. All mutable state (dedup map, timers, consent map) is allocated lazily on first dispatch and never during module evaluation, or a module-scoped instance bleeds across requests and tenants in production while looking fine in development.
 
