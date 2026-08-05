@@ -20,15 +20,15 @@
 
 ### Dispatch
 
-- [ ] **DSP-01**: A repeated call with the same `callId` inside the dedup window returns the *same Promise object by reference*, verifiable with `p1 === p2`
-- [ ] **DSP-02**: Dedup falls back to a name+arguments key when `callId` is absent, and degrades to a no-dedup path rather than throwing when that key cannot be serialized
-- [ ] **DSP-03**: A handler that throws returns `{ok: false, message: "Something went wrong."}` and the exception details reach neither the agent nor telemetry
-- [ ] **DSP-04**: An action invoked with no registered handler returns an honest result rather than throwing
-- [ ] **DSP-05**: Arguments are re-validated against the schema before the handler runs, independently of any validation the agent performed
+- [x] **DSP-01**: A repeated call with the same `callId` inside the dedup window returns the *same Promise object by reference*, verifiable with `p1 === p2`
+- [x] **DSP-02**: Dedup falls back to a name+arguments key when `callId` is absent, and degrades to a no-dedup path rather than throwing when that key cannot be serialized
+- [x] **DSP-03**: A handler that throws returns `{ok: false, message: "Something went wrong."}` and the exception details reach neither the agent nor telemetry
+- [x] **DSP-04**: An action invoked with no registered handler returns an honest result rather than throwing
+- [x] **DSP-05**: Arguments are re-validated against the schema before the handler runs, independently of any validation the agent performed
 - [ ] **DSP-06**: Malformed JSON in call arguments degrades to `{}` and is then rejected by validation, rather than crashing the dispatch loop
 - [ ] **DSP-07**: A batch executes serially in `output_index` order, and every call in an aborted batch still produces a result so the agent is never left waiting
-- [ ] **DSP-08**: A configurable commit window elapses before any non-read-only effect lands, and an abort during that window cancels the effect
-- [ ] **DSP-09**: A handler returning a value that is not a valid `ActionResult` produces an honest failure rather than propagating the malformed value to the agent
+- [x] **DSP-08**: A configurable commit window elapses before any non-read-only effect lands, and an abort during that window cancels the effect
+- [x] **DSP-09**: A handler returning a value that is not a valid `ActionResult` produces an honest failure rather than propagating the malformed value to the agent
 
 ### Bridge
 
@@ -70,7 +70,7 @@
 - [x] **TRN-01**: A transport is defined entirely by an interface with no vendor event names in core
 - [ ] **TRN-02**: A stub transport with configurable capabilities exercises the full consent kernel without any network or WebRTC
 - [ ] **TRN-03**: A transport that cannot derive turn identity is prevented from being used with `bindTo: "userTurn"`
-- [ ] **TRN-04**: Concierge is usable with no transport at all, driven directly from an application's own agent loop
+- [x] **TRN-04**: Concierge is usable with no transport at all, driven directly from an application's own agent loop
 - [x] **TRN-05**: A transport declares the *provenance* of its turn identity, not merely whether it has one, and a transport whose turn identity can be minted by the agent's own output cannot satisfy the strongest user-turn binding
 
 ### Adapters
@@ -83,11 +83,11 @@
 ### Security
 
 - [x] **SEC-01**: Redaction is required at declaration time for any action with a non-empty schema, and an unspecified policy defaults to dropping arguments
-- [ ] **SEC-02**: Telemetry never carries thrown error messages, only error class names
+- [x] **SEC-02**: Telemetry never carries thrown error messages, only error class names
 - [ ] **SEC-03**: The action registry is frozen after catalog build, so a handler cannot be replaced at runtime by third-party page script
 - [ ] **SEC-04**: Documentation states, with a worked example, that client-side consent is an assertion the server must re-verify
 - [x] **SEC-05**: An action that reads attacker-controllable content declares it, and catalog build reports an action that does so without a consent policy
-- [ ] **SEC-06**: `ActionResult.message` is sanitized before it leaves the dispatcher — control characters stripped, whitespace collapsed, and length capped
+- [x] **SEC-06**: `ActionResult.message` is sanitized before it leaves the dispatcher — control characters stripped, whitespace collapsed, and length capped
 
 ### Packaging
 
@@ -161,15 +161,15 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | CAT-05 | Phase 3 — Action declaration and build-time validation | Complete |
 | CAT-06 | Phase 3 — Action declaration and build-time validation | Complete |
 | CAT-07 | Phase 3 — Action declaration and build-time validation | Complete |
-| DSP-01 | Phase 6 — Dispatcher | Pending |
-| DSP-02 | Phase 6 — Dispatcher | Pending |
-| DSP-03 | Phase 6 — Dispatcher | Pending |
-| DSP-04 | Phase 6 — Dispatcher | Pending |
-| DSP-05 | Phase 6 — Dispatcher | Pending |
+| DSP-01 | Phase 6 — Dispatcher | Complete |
+| DSP-02 | Phase 6 — Dispatcher | Complete |
+| DSP-03 | Phase 6 — Dispatcher | Complete |
+| DSP-04 | Phase 6 — Dispatcher | Complete |
+| DSP-05 | Phase 6 — Dispatcher | Complete |
 | DSP-06 | Phase 6 — Dispatcher | Pending |
 | DSP-07 | Phase 6 — Dispatcher | Pending |
-| DSP-08 | Phase 6 — Dispatcher | Pending |
-| DSP-09 | Phase 6 — Dispatcher | Pending |
+| DSP-08 | Phase 6 — Dispatcher | Complete |
+| DSP-09 | Phase 6 — Dispatcher | Complete |
 | BRG-01 | Phase 5 — Bridge registry and the no-bridge path | Complete — all thirteen mount/unmount orderings asserted against `dist/index.js`; discrimination proven by M-05-1 and M-05-2. Evidence: 05-04 B1–B13, 05-07 mutation battery |
 | BRG-02 | Phase 5 — Bridge registry and the no-bridge path | Complete — `register()` stores the bridge as given and `read()` returns it by reference, so getters stay live across an app state change. Evidence: 05-04 B14/B15 |
 | BRG-03 | Phase 5 — Bridge registry and the no-bridge path | Complete — proven as its two halves: resolution yields `null` for declared-but-unmounted and for a throwing `read()`, and a handler given `bridge: null` returns a bounded `no_bridge` sentence without throwing. Discriminated by M-05-13, M-05-14, M-05-12. **The end-to-end join through a real `dispatch` is deferred to Phase 6 by CONTEXT decision 3.3** — `dispatch` is still a stub, and no test pretends otherwise. Evidence: 05-05 D14–D19 |
@@ -196,18 +196,18 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | TRN-01 | Phase 1 — Type surface completion | Complete |
 | TRN-02 | Phase 7 — Session and the transport seam | Pending |
 | TRN-03 | Phase 8 — Consent kernel | Pending |
-| TRN-04 | Phase 6 — Dispatcher | Pending |
+| TRN-04 | Phase 6 — Dispatcher | Complete |
 | TRN-05 | Phase 1 — Type surface completion | Complete |
 | ADP-01 | Phase 9 — React and Svelte adapters | Pending |
 | ADP-02 | Phase 9 — React and Svelte adapters | Pending |
 | ADP-03 | Phase 9 — React and Svelte adapters | Pending |
 | ADP-04 | Phase 9 — React and Svelte adapters | Pending |
 | SEC-01 | Phase 3 — Action declaration and build-time validation | Complete |
-| SEC-02 | Phase 6 — Dispatcher | Pending |
+| SEC-02 | Phase 6 — Dispatcher | Complete |
 | SEC-03 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
 | SEC-04 | Phase 8 — Consent kernel | Pending |
 | SEC-05 | Phase 3 — Action declaration and build-time validation | Complete |
-| SEC-06 | Phase 6 — Dispatcher | Pending |
+| SEC-06 | Phase 6 — Dispatcher | Complete |
 | PKG-01 | Phase 2 — Packaging, build, and release | Complete |
 | PKG-02 | Phase 2 — Packaging, build, and release | Complete |
 | PKG-03 | Phase 2 — Packaging, build, and release | Complete |

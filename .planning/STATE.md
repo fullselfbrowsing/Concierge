@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Phase 1 context gathered; milestone correction pass applied (57->62 requirements)
-last_updated: "2026-08-05T21:01:28.392Z"
-last_activity: 2026-08-05 -- Phase 06 planning complete
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-08-05T21:33:54.365Z"
+last_activity: 2026-08-05
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 56
-  completed_plans: 50
+  completed_plans: 51
   percent: 56
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-27)
 
 **Core value:** An agent can take a consequential action in a real app — and it is structurally guaranteed that a human, not the agent, confirmed this specific payload, or the action does not run.
-**Current focus:** Phase 04 — Stages, catalog assembly, and explain()
+**Current focus:** Phase 06 — dispatcher
 
 ## Current Position
 
-Phase: 04 — COMPLETE
-Plan: 1 of 8
+Phase: 06 (dispatcher) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-08-05 -- Phase 06 planning complete
+Last activity: 2026-08-05
 
-Progress: [█░░░░░░░░░] 11%
+Progress: [█████████░] 91%
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Progress: [█░░░░░░░░░] 11%
 - Trend: —
 
 *Updated after each plan completion*
+| Phase 06 P01 | 24min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,8 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - Nothing publishes until v0.1 completes, so Phase 1 type decisions remain amendable through Phase 8 at zero cost
 - [Phase ?]: Turn identity needs declared provenance (TRN-05, Phase 1) — a recognizer-derived userTurnId can be minted by the agent's own TTS echo, satisfying bindTo:'userTurn' with no human involved; not covered by PITFALLS P2, and TransportCapabilities is consumer-implemented so widening it post-publish is breaking
 - [Phase ?]: Milestone corrected 2026-07-27: 57 to 62 v1 requirements — added TRN-05 (Phase 1), SEC-05 (Phase 3), SEC-06 and DSP-09 (Phase 6), CON-10 (Phase 8), from advisor research plus a second prior implementation at portfolio@audit-fsb-ai-control-loop
+- [Phase 06-01]: Focused dispatcher RED gates register only selector-matching R-cases because Vitest reports ordinary name-filter exclusions as pending.
+- [Phase 06-01]: Dispatcher security tests use direct global replacement restored in finally; no Vitest mocking or telemetry seam was introduced.
 
 ### Pending Todos
 
@@ -100,6 +103,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-28T04:38:59.144Z
-Stopped at: Phase 1 context gathered; milestone correction pass applied (57->62 requirements)
-Resume file: .planning/phases/01-type-surface-completion/01-CONTEXT.md
+Last session: 2026-08-05T21:33:54.359Z
+Stopped at: Completed 06-01-PLAN.md
+Resume file: None
