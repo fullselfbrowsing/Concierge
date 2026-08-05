@@ -74,6 +74,12 @@ shape that carries `ack` through for gated and non-gated actions alike.
   `USER_DECLINED` and the handler's own. One boundary, no exceptions — an exception list is how a
   sanitizer stops being one.
 
+### Public dispatch seams (ratified 2026-08-05)
+
+- **Single-call dispatch is context-first:** `dispatch(ctx: StageContext, name: string, args: unknown, meta?: InvocationMeta) => Promise<ActionResult>`. `Concierge` remains stateless; current stage is supplied on every call and is never inferred from `catalogFor`, metadata, or hidden mutable state.
+- **Batch dispatch is transport-independent:** `dispatchBatch(ctx: StageContext, batch: ToolBatch) => Promise<ReadonlyArray<Readonly<{ callId: string; result: ActionResult }>>>`. The inline immutable row keeps response correlation without introducing a new exported result type or depending on Phase 7's Transport.
+- These signatures are locked and must be pinned in `test-d/` before implementation.
+
 ### Dedup (DSP-01, DSP-02)
 
 - **`dispatch` is not `async`.** An async wrapper allocates a fresh Promise per invocation and
@@ -87,11 +93,13 @@ shape that carries `ack` through for gated and non-gated actions alike.
   mutable and is not part of the catalog, which is exactly the distinction `catalog.ts:252-288`
   draws. Module scope is forbidden: a module-scoped instance bleeds across requests and tenants in
   production while looking fine in development.
-- ⚠️ **Eviction is by timestamp checked on access, not by timer.** Each entry stores its creation
-  time; a lookup older than `dedupeWindowMs` is treated as absent and replaced. **This removes the
-  scheduler dependency from dedup entirely**, leaving the commit window as its only consumer —
-  which matters because the scheduler seam is the least settled thing in this phase. It also means
-  no timer leaks a reference to a settled Promise.
+- **Eviction is by timestamp checked on access, not by timer, with pending entries retained until
+  settlement.** A keyed Promise can never be replaced while its pipeline is still pending, even if
+  wall-clock age passes `dedupeWindowMs`; this prevents a retry from scheduling a second effect.
+  Once settled, the entry receives its settled-window timestamp and is treated as absent and
+  replaced after `dedupeWindowMs`. Use coordinated lazy per-instance Promise, timestamp, and pending
+  stores rather than module state. Both `commitWindowMs` and `dedupeWindowMs` default to **600 ms**.
+  Dedup remains scheduler-free and access-evicted, and no timer retains a settled Promise.
 - **Failures are cached like successes.** DSP-01 is a claim about Promise *identity* for a retried
   call inside the window; the outcome is irrelevant to it. Caching only successes would let a
   retried failing call re-run its handler, which is the double-fire the requirement forbids.

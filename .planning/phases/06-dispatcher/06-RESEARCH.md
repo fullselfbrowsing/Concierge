@@ -402,19 +402,13 @@ Copy and stably order calls by `outputIndex`, parse each `arguments` string with
 
 **What goes wrong:** validation, timer, or normalizer failures are reported as handler crashes. **How to avoid:** use separate guarded boundaries for key derivation, validation, waiting, handler invocation, and result inspection. **Warning sign:** changing a validator throw changes the handler-error test rather than invalid-args behavior. [VERIFIED: codebase grep]
 
-## Open Questions
+## Open Questions (RESOLVED 2026-08-05)
 
-1. **What exact public signature carries `StageContext`?**
-   - What we know: current `dispatch` lacks context; stage enforcement requires it; Concierge is documented stateless. [VERIFIED: codebase grep]
-   - Recommendation: ratify context-first `dispatch(ctx, name, args, meta?)` before implementation and pin it in `test-d/`. [ASSUMED]
+1. **Stage context signature:** ratified as `dispatch(ctx: StageContext, name: string, args: unknown, meta?: InvocationMeta) => Promise<ActionResult>`. Concierge stays stateless and callers provide context on every call.
+2. **Batch signature and envelope:** ratified as `dispatchBatch(ctx: StageContext, batch: ToolBatch) => Promise<ReadonlyArray<Readonly<{ callId: string; result: ActionResult }>>>`, with no Transport dependency or new exported result type.
+3. **Timestamp/default overlap:** ratified as coordinated per-instance Promise, timestamp, and pending stores. Pending entries never expire before settlement; settled entries use access-only eviction after `dedupeWindowMs`. Both commit and dedupe defaults are 600 ms.
 
-2. **What exact batch member and result envelope ship?**
-   - What we know: Phase 6 owns batch execution, `ToolBatch` exists, and no callable batch seam exists. [VERIFIED: codebase grep]
-   - Recommendation: ratify `dispatchBatch(ctx, batch)` returning immutable `{callId, result}` rows, without a new runtime export. [ASSUMED]
-
-3. **How are timestamps represented and the 500/600 ms default overlap resolved?**
-   - What we know: the locked cache type and timestamp wording conflict, and current documented defaults permit dedup expiry before the commit callback. [VERIFIED: codebase grep]
-   - Recommendation: use timestamped entries and retain in-flight entries until settlement, subject to explicit CONTEXT amendment. [ASSUMED]
+These decisions supersede the earlier assumed recommendations and the prior literal pending-entry expiry wording in `06-CONTEXT.md`.
 
 ## Environment Availability
 
