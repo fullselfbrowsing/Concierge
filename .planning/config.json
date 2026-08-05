@@ -29,7 +29,7 @@
     "code_review": true,
     "code_review_depth": "standard",
     "ai_integration_phase": false,
-    "use_worktrees": true,
+    "use_worktrees": false,
     "_auto_chain_active": false
   },
   "ship": {
@@ -68,5 +68,6 @@
   "features": {},
   "resolve_model_ids": "omit",
   "mode": "yolo",
-  "granularity": "fine"
+  "granularity": "fine",
+  "runtime": "codex"
 }
