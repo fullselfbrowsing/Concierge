@@ -93,6 +93,74 @@ function successful(message = "Done.") {
   return { ok: true, message };
 }
 
+function createAbortController(initiallyAborted = false) {
+  let aborted = initiallyAborted;
+  const listeners = new Set();
+
+  const signal = {
+    get aborted() {
+      return aborted;
+    },
+    addEventListener(type, listener) {
+      if (type === "abort") listeners.add(listener);
+    },
+    removeEventListener(type, listener) {
+      if (type === "abort") listeners.delete(listener);
+    },
+  };
+
+  return {
+    abort() {
+      if (aborted) return;
+      aborted = true;
+      for (const listener of [...listeners]) listener.call(signal);
+    },
+    listenerCount() {
+      return listeners.size;
+    },
+    signal,
+  };
+}
+
+function createManualScheduler() {
+  const delays = [];
+  const pending = [];
+  let cancelCalls = 0;
+
+  function scheduler(fn, delayMs) {
+    const task = { cancelled: false, fn };
+    delays.push(delayMs);
+    pending.push(task);
+    return () => {
+      cancelCalls += 1;
+      task.cancelled = true;
+    };
+  }
+
+  function fireAll() {
+    const tasks = pending.splice(0);
+    for (const task of tasks) {
+      if (!task.cancelled) task.fn();
+    }
+  }
+
+  return {
+    get cancelCalls() {
+      return cancelCalls;
+    },
+    delays,
+    fireAll,
+    get pendingCount() {
+      return pending.length;
+    },
+    scheduler,
+  };
+}
+
+async function flushMicrotasks() {
+  for (let index = 0; index < 12; index += 1) await Promise.resolve();
+}
+
 // These top-level cases are the logical describe("DSP-07 — transport-independent batch execution")
 // suite. They intentionally remain top-level because the mandated focused selectors are anchored
 // at each `[Qxx]` token; a describe prefix would make those selectors miss every case.
@@ -496,5 +564,313 @@ it("[Q08] freezes the result container and every correlation row", async () => {
     rejected: false,
     rowWriteThrew: true,
     rowsFrozen: [true, true],
+  });
+});
+
+it("[Q09] settles every sorted call when the batch is already aborted", async () => {
+  const controller = createAbortController(true);
+  const entries = [];
+  const concierge = conciergeFor([
+    action("preaborted", ({ meta }) => {
+      entries.push(meta.callId);
+      return successful();
+    }),
+  ]);
+  const calls = [
+    toolCall("third", "preaborted", "{}", 2),
+    toolCall("first", "preaborted", "{}", 0),
+    toolCall("second", "preaborted", "{}", 1),
+  ];
+  let observed = { available: false };
+
+  if (typeof concierge.dispatchBatch === "function") {
+    try {
+      const rows = await concierge.dispatchBatch(
+        ACTIVE_CONTEXT,
+        toolBatch(calls, { signal: controller.signal }),
+      );
+      observed = {
+        available: true,
+        entries,
+        rejected: false,
+        rows: rows.map((row) => ({
+          callId: row.callId,
+          ok: row.result.ok,
+          reason: row.result.reason,
+        })),
+      };
+    } catch {
+      observed = { available: true, rejected: true };
+    }
+  }
+
+  expect(observed, "[RED:Q09:preaborted-completeness]").toEqual({
+    available: true,
+    entries: [],
+    rejected: false,
+    rows: [
+      { callId: "first", ok: false, reason: "aborted" },
+      { callId: "second", ok: false, reason: "aborted" },
+      { callId: "third", ok: false, reason: "aborted" },
+    ],
+  });
+});
+
+it("[Q10] aborts the first commit window and still settles every call", async () => {
+  const controller = createAbortController();
+  const manual = createManualScheduler();
+  const entries = [];
+  const concierge = conciergeFor(
+    [
+      action(
+        "commitWindow",
+        ({ meta }) => {
+          entries.push(meta.callId);
+          return successful();
+        },
+        { effects: {} },
+      ),
+    ],
+    { scheduler: manual.scheduler },
+  );
+  const calls = [
+    toolCall("later", "commitWindow", "{}", 1),
+    toolCall("first", "commitWindow", "{}", 0),
+  ];
+  let observed = { available: false };
+
+  if (typeof concierge.dispatchBatch === "function") {
+    try {
+      const pending = concierge.dispatchBatch(
+        ACTIVE_CONTEXT,
+        toolBatch(calls, { signal: controller.signal }),
+      );
+      await flushMicrotasks();
+      const pendingBeforeAbort = manual.pendingCount;
+      controller.abort();
+      manual.fireAll();
+      const rows = await pending;
+      observed = {
+        available: true,
+        delays: manual.delays,
+        entries,
+        pendingBeforeAbort,
+        rejected: false,
+        rows: rows.map((row) => ({
+          callId: row.callId,
+          ok: row.result.ok,
+          reason: row.result.reason,
+        })),
+      };
+    } catch {
+      observed = { available: true, rejected: true };
+    }
+  }
+
+  expect(observed, "[RED:Q10:abort-commit-window]").toEqual({
+    available: true,
+    delays: [600],
+    entries: [],
+    pendingBeforeAbort: 1,
+    rejected: false,
+    rows: [
+      { callId: "first", ok: false, reason: "aborted" },
+      { callId: "later", ok: false, reason: "aborted" },
+    ],
+  });
+});
+
+it("[Q11] keeps the first result and aborts every call remaining after its handler", async () => {
+  const controller = createAbortController();
+  const entries = [];
+  const concierge = conciergeFor([
+    action("abortAfterHandler", ({ meta }) => {
+      entries.push(meta.callId);
+      if (meta.callId === "first") controller.abort();
+      return successful(`handled:${meta.callId}`);
+    }),
+  ]);
+  const calls = [
+    toolCall("third", "abortAfterHandler", "{}", 2),
+    toolCall("first", "abortAfterHandler", "{}", 0),
+    toolCall("second", "abortAfterHandler", "{}", 1),
+  ];
+  let observed = { available: false };
+
+  if (typeof concierge.dispatchBatch === "function") {
+    try {
+      const rows = await concierge.dispatchBatch(
+        ACTIVE_CONTEXT,
+        toolBatch(calls, { signal: controller.signal }),
+      );
+      observed = {
+        available: true,
+        entries,
+        firstMessage: rows[0]?.result.message,
+        rejected: false,
+        rows: rows.map((row) => ({
+          callId: row.callId,
+          ok: row.result.ok,
+          reason: row.result.reason,
+        })),
+      };
+    } catch {
+      observed = { available: true, rejected: true };
+    }
+  }
+
+  expect(observed, "[RED:Q11:abort-after-handler]").toEqual({
+    available: true,
+    entries: ["first"],
+    firstMessage: "handled:first",
+    rejected: false,
+    rows: [
+      { callId: "first", ok: true, reason: undefined },
+      { callId: "second", ok: false, reason: "aborted" },
+      { callId: "third", ok: false, reason: "aborted" },
+    ],
+  });
+});
+
+it("[Q12] suppresses every handler after an abort and invokes one scheduler canceller", async () => {
+  const controller = createAbortController();
+  const manual = createManualScheduler();
+  const entries = { first: 0, second: 0, third: 0 };
+  const concierge = conciergeFor(
+    [
+      action(
+        "suppress",
+        ({ meta }) => {
+          entries[meta.callId] += 1;
+          return successful();
+        },
+        { effects: {} },
+      ),
+    ],
+    { scheduler: manual.scheduler },
+  );
+  const calls = [
+    toolCall("third", "suppress", "{}", 2),
+    toolCall("second", "suppress", "{}", 1),
+    toolCall("first", "suppress", "{}", 0),
+  ];
+  let observed = { available: false };
+
+  if (typeof concierge.dispatchBatch === "function") {
+    try {
+      const pending = concierge.dispatchBatch(
+        ACTIVE_CONTEXT,
+        toolBatch(calls, { signal: controller.signal }),
+      );
+      await flushMicrotasks();
+      controller.abort();
+      manual.fireAll();
+      const rows = await pending;
+      observed = {
+        available: true,
+        cancelCalls: manual.cancelCalls,
+        entries,
+        listeners: controller.listenerCount(),
+        rejected: false,
+        rows: rows.map((row) => ({ callId: row.callId, reason: row.result.reason })),
+      };
+    } catch {
+      observed = { available: true, rejected: true };
+    }
+  }
+
+  expect(observed, "[RED:Q12:suppress-later-handlers]").toEqual({
+    available: true,
+    cancelCalls: 1,
+    entries: { first: 0, second: 0, third: 0 },
+    listeners: 0,
+    rejected: false,
+    rows: [
+      { callId: "first", reason: "aborted" },
+      { callId: "second", reason: "aborted" },
+      { callId: "third", reason: "aborted" },
+    ],
+  });
+});
+
+it("[Q13] reuses the single-call cache for a repeated callId within one batch", async () => {
+  const handled = [];
+  const concierge = conciergeFor([
+    action("dedup", ({ args }) => {
+      handled.push(args.value);
+      return successful(`handled:${args.value}`);
+    }),
+  ]);
+  const calls = [
+    toolCall("repeated", "dedup", JSON.stringify({ value: "first" }), 0),
+    toolCall("repeated", "dedup", JSON.stringify({ value: "second" }), 1),
+  ];
+  let observed = { available: false };
+
+  if (typeof concierge.dispatchBatch === "function") {
+    try {
+      const rows = await concierge.dispatchBatch(ACTIVE_CONTEXT, toolBatch(calls));
+      observed = {
+        available: true,
+        handled,
+        rejected: false,
+        rows: rows.map((row) => ({
+          callId: row.callId,
+          message: row.result.message,
+        })),
+      };
+    } catch {
+      observed = { available: true, rejected: true };
+    }
+  }
+
+  expect(observed, "[RED:Q13:repeated-callid-dedup]").toEqual({
+    available: true,
+    handled: ["first"],
+    rejected: false,
+    rows: [
+      { callId: "repeated", message: "handled:first" },
+      { callId: "repeated", message: "handled:first" },
+    ],
+  });
+});
+
+it("[Q14] drives a direct application batch loop without constructing a Transport", async () => {
+  const handlerEntries = [];
+  const applicationResults = [];
+  const concierge = conciergeFor([
+    action("directBatch", ({ args, meta }) => {
+      handlerEntries.push(meta.callId);
+      return successful(`applied:${args.value}`);
+    }),
+  ]);
+  const incoming = toolBatch([
+    toolCall("second", "directBatch", JSON.stringify({ value: "two" }), 1),
+    toolCall("first", "directBatch", JSON.stringify({ value: "one" }), 0),
+  ]);
+  let observed = { available: false };
+
+  if (typeof concierge.dispatchBatch === "function") {
+    try {
+      const rows = await concierge.dispatchBatch(ACTIVE_CONTEXT, incoming);
+      for (const row of rows) {
+        applicationResults.push(`${row.callId}:${row.result.message}`);
+      }
+      observed = {
+        applicationResults,
+        available: true,
+        handlerEntries,
+        rejected: false,
+      };
+    } catch {
+      observed = { available: true, rejected: true };
+    }
+  }
+
+  expect(observed, "[RED:Q14:direct-no-transport]").toEqual({
+    applicationResults: ["first:applied:one", "second:applied:two"],
+    available: true,
+    handlerEntries: ["first", "second"],
+    rejected: false,
   });
 });
