@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, expect, it as vitestIt } from "vitest";
 
 const DIST_URL = new URL("../dist/index.js", import.meta.url);
 const DIST_PATH = fileURLToPath(DIST_URL);
@@ -9,6 +9,11 @@ const KEY = Symbol.for("@fullselfbrowsing/concierge.contract");
 const ACTIVE_CONTEXT = { pathname: "/active" };
 
 let createConcierge;
+let createBridge;
+let offPageResult;
+let USER_CANCELLED;
+let USER_DECLINED;
+let MESSAGE_MAX_CHARS;
 
 beforeAll(async () => {
   if (!existsSync(DIST_PATH)) {
@@ -19,11 +24,30 @@ beforeAll(async () => {
 
   const artifact = await import(DIST_URL.href);
   createConcierge = artifact.createConcierge;
+  createBridge = artifact.createBridge;
+  offPageResult = artifact.offPageResult;
+  USER_CANCELLED = artifact.USER_CANCELLED;
+  USER_DECLINED = artifact.USER_DECLINED;
+  MESSAGE_MAX_CHARS = artifact.MESSAGE_MAX_CHARS;
 });
 
 beforeEach(() => {
   delete (globalThis as Record<symbol, unknown>)[KEY];
 });
+
+// Vitest's JSON reporter counts name-filtered tests as pending. Register only cases selected
+// by a focused RED gate so each gate can prove an exact collected set; an unfiltered run still
+// registers every case.
+function it(title, run) {
+  const pattern = globalThis.__vitest_worker__?.config?.testNamePattern;
+  if (pattern instanceof RegExp) {
+    pattern.lastIndex = 0;
+    const selected = pattern.test(title);
+    pattern.lastIndex = 0;
+    if (!selected) return;
+  }
+  vitestIt(title, run);
+}
 
 function testSchema(validate = (value) => ({ value })) {
   return {
@@ -55,15 +79,17 @@ function action(name, handler, options = {}) {
 }
 
 function conciergeFor(actions, config = {}) {
+  const { bridge, ...conciergeConfig } = config;
+  const activeStage = {
+    id: "active",
+    match: (ctx) => ctx.pathname === ACTIVE_CONTEXT.pathname,
+    actions,
+  };
+  if (bridge !== undefined) activeStage.bridge = bridge;
+
   return createConcierge({
-    stages: [
-      {
-        id: "active",
-        match: (ctx) => ctx.pathname === ACTIVE_CONTEXT.pathname,
-        actions,
-      },
-    ],
-    ...config,
+    stages: [activeStage],
+    ...conciergeConfig,
   });
 }
 
@@ -74,13 +100,16 @@ function successful(message = "Done.") {
 function createManualScheduler() {
   const delays = [];
   const pending = [];
+  let cancelCalls = 0;
 
   function scheduler(fn, delayMs) {
     const task = { cancelled: false, fn };
     delays.push(delayMs);
     pending.push(task);
     return () => {
+      if (task.cancelled) return;
       task.cancelled = true;
+      cancelCalls += 1;
     };
   }
 
@@ -91,7 +120,44 @@ function createManualScheduler() {
     }
   }
 
-  return { delays, fireAll, pending, scheduler };
+  return {
+    get cancelCalls() {
+      return cancelCalls;
+    },
+    delays,
+    fireAll,
+    pending,
+    scheduler,
+  };
+}
+
+function createAbortController(initiallyAborted = false) {
+  let aborted = initiallyAborted;
+  const listeners = new Set();
+
+  const signal = {
+    get aborted() {
+      return aborted;
+    },
+    addEventListener(type, listener) {
+      if (type === "abort") listeners.add(listener);
+    },
+    removeEventListener(type, listener) {
+      if (type === "abort") listeners.delete(listener);
+    },
+  };
+
+  return {
+    abort() {
+      if (aborted) return;
+      aborted = true;
+      for (const listener of [...listeners]) listener.call(signal);
+    },
+    listenerCount() {
+      return listeners.size;
+    },
+    signal,
+  };
 }
 
 async function flushMicrotasks() {
@@ -626,5 +692,781 @@ async function withFakeNow(initial, run) {
         calls: 4,
         resurrected: false,
       });
+    });
+  });
+
+  it("[R25] waits for the commit window before a non-read-only handler", async () => {
+    let calls = 0;
+    const manual = createManualScheduler();
+    const concierge = conciergeFor(
+      [
+        action(
+          "write",
+          () => {
+            calls += 1;
+            return successful();
+          },
+          { effects: { readOnly: false } },
+        ),
+      ],
+      { scheduler: manual.scheduler },
+    );
+
+    const pending = concierge.dispatch(ACTIVE_CONTEXT, "write", {});
+    await flushMicrotasks();
+    const callsBeforeWindow = calls;
+    manual.fireAll();
+    const result = await pending;
+
+    expect(
+      { calls, callsBeforeWindow, delays: manual.delays, ok: result.ok },
+      "[RED:R25:non-readonly-wait]",
+    ).toEqual({ calls: 1, callsBeforeWindow: 0, delays: [600], ok: true });
+  });
+
+  it("[R26] waits when an action omits effects", async () => {
+    let calls = 0;
+    const manual = createManualScheduler();
+    const declaration = action("implicit-write", () => {
+      calls += 1;
+      return successful();
+    });
+    delete declaration.effects;
+    const concierge = conciergeFor([declaration], { scheduler: manual.scheduler });
+
+    const pending = concierge.dispatch(ACTIVE_CONTEXT, "implicit-write", {});
+    await flushMicrotasks();
+    const callsBeforeWindow = calls;
+    manual.fireAll();
+    const result = await pending;
+
+    expect(
+      { calls, callsBeforeWindow, delays: manual.delays, ok: result.ok },
+      "[RED:R26:omitted-effects-wait]",
+    ).toEqual({ calls: 1, callsBeforeWindow: 0, delays: [600], ok: true });
+  });
+
+  it("[R27] lets an explicitly read-only action bypass the commit window", async () => {
+    let calls = 0;
+    const manual = createManualScheduler();
+    const concierge = conciergeFor(
+      [
+        action("read", () => {
+          calls += 1;
+          return successful();
+        }),
+      ],
+      { scheduler: manual.scheduler },
+    );
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "read", {});
+
+    expect(
+      { calls, delays: manual.delays, ok: result.ok },
+      "[RED:R27:readonly-bypass]",
+    ).toEqual({ calls: 1, delays: [], ok: true });
+  });
+
+  it("[R28] refuses an already-aborted action before scheduling the wait", async () => {
+    let calls = 0;
+    const controller = createAbortController(true);
+    const manual = createManualScheduler();
+    const concierge = conciergeFor(
+      [
+        action(
+          "abort-before",
+          () => {
+            calls += 1;
+            return successful();
+          },
+          { effects: { readOnly: false } },
+        ),
+      ],
+      { scheduler: manual.scheduler },
+    );
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "abort-before", {}, {
+      signal: controller.signal,
+    });
+
+    expect(
+      { calls, delays: manual.delays, listeners: controller.listenerCount(), result },
+      "[RED:R28:abort-before-wait]",
+    ).toEqual({
+      calls: 0,
+      delays: [],
+      listeners: 0,
+      result: {
+        ok: false,
+        reason: "aborted",
+        message: "The action was cancelled before it ran.",
+      },
+    });
+  });
+
+  it("[R29] aborts during the commit window without running the handler", async () => {
+    let calls = 0;
+    const controller = createAbortController();
+    const manual = createManualScheduler();
+    const concierge = conciergeFor(
+      [
+        action(
+          "abort-during",
+          () => {
+            calls += 1;
+            return successful();
+          },
+          { effects: { readOnly: false } },
+        ),
+      ],
+      { scheduler: manual.scheduler },
+    );
+
+    const pending = concierge.dispatch(ACTIVE_CONTEXT, "abort-during", {}, {
+      signal: controller.signal,
+    });
+    await flushMicrotasks();
+    controller.abort();
+    manual.fireAll();
+    const result = await pending;
+
+    expect(
+      { calls, result },
+      "[RED:R29:abort-during-wait]",
+    ).toEqual({
+      calls: 0,
+      result: {
+        ok: false,
+        reason: "aborted",
+        message: "The action was cancelled before it ran.",
+      },
+    });
+  });
+
+  it("[R30] cleans up the scheduler canceller and abort listener exactly once", async () => {
+    let calls = 0;
+    const controller = createAbortController();
+    const manual = createManualScheduler();
+    const concierge = conciergeFor(
+      [
+        action(
+          "cleanup",
+          () => {
+            calls += 1;
+            return successful();
+          },
+          { effects: { readOnly: false } },
+        ),
+      ],
+      { scheduler: manual.scheduler },
+    );
+
+    const pending = concierge.dispatch(ACTIVE_CONTEXT, "cleanup", {}, {
+      signal: controller.signal,
+    });
+    await flushMicrotasks();
+    controller.abort();
+    controller.abort();
+    manual.fireAll();
+    const result = await pending;
+
+    expect(
+      {
+        calls,
+        cancelCalls: manual.cancelCalls,
+        listeners: controller.listenerCount(),
+        reason: result.reason,
+      },
+      "[RED:R30:cleanup]",
+    ).toEqual({ calls: 0, cancelCalls: 1, listeners: 0, reason: "aborted" });
+  });
+
+  it("[R31] handles a scheduler that fires synchronously during registration", async () => {
+    let calls = 0;
+    let cancelCalls = 0;
+    const delays = [];
+    const controller = createAbortController();
+    const scheduler = (fn, delayMs) => {
+      delays.push(delayMs);
+      fn();
+      return () => {
+        cancelCalls += 1;
+      };
+    };
+    const concierge = conciergeFor(
+      [
+        action(
+          "synchronous-scheduler",
+          () => {
+            calls += 1;
+            return successful();
+          },
+          { effects: { readOnly: false } },
+        ),
+      ],
+      { scheduler },
+    );
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "synchronous-scheduler", {}, {
+      signal: controller.signal,
+    });
+
+    expect(
+      { calls, cancelCalls, delays, listeners: controller.listenerCount(), ok: result.ok },
+      "[RED:R31:sync-registration-race]",
+    ).toEqual({ calls: 1, cancelCalls: 0, delays: [600], listeners: 0, ok: true });
+  });
+
+  it("[R32] gives an injected scheduler precedence over the host timer", async () => {
+    let calls = 0;
+    let hostSchedules = 0;
+    let hostCancels = 0;
+    const manual = createManualScheduler();
+    const realSetTimeout = globalThis.setTimeout;
+    const realClearTimeout = globalThis.clearTimeout;
+    globalThis.setTimeout = (() => {
+      hostSchedules += 1;
+      return 1;
+    });
+    globalThis.clearTimeout = (() => {
+      hostCancels += 1;
+    });
+
+    let result;
+    try {
+      const concierge = conciergeFor(
+        [
+          action(
+            "injected",
+            () => {
+              calls += 1;
+              return successful();
+            },
+            { effects: { readOnly: false } },
+          ),
+        ],
+        { scheduler: manual.scheduler },
+      );
+      const pending = concierge.dispatch(ACTIVE_CONTEXT, "injected", {});
+      await flushMicrotasks();
+      manual.fireAll();
+      result = await pending;
+    } finally {
+      globalThis.setTimeout = realSetTimeout;
+      globalThis.clearTimeout = realClearTimeout;
+    }
+
+    expect(
+      { calls, hostCancels, hostSchedules, injectedDelays: manual.delays, ok: result.ok },
+      "[RED:R32:injected-scheduler]",
+    ).toEqual({ calls: 1, hostCancels: 0, hostSchedules: 0, injectedDelays: [600], ok: true });
+  });
+
+  it("[R33] warns once and runs immediately when no timer capability exists", async () => {
+    let calls = 0;
+    const warnings = [];
+    const realSetTimeout = globalThis.setTimeout;
+    const realClearTimeout = globalThis.clearTimeout;
+    const realWarn = console.warn;
+    globalThis.setTimeout = undefined;
+    globalThis.clearTimeout = undefined;
+    console.warn = (...args) => {
+      warnings.push(args.map(String).join(" "));
+    };
+
+    let first;
+    let second;
+    try {
+      const concierge = conciergeFor([
+        action(
+          "timerless",
+          () => {
+            calls += 1;
+            return successful();
+          },
+          { effects: { readOnly: false } },
+        ),
+      ]);
+      first = await concierge.dispatch(ACTIVE_CONTEXT, "timerless", { call: 1 });
+      second = await concierge.dispatch(ACTIVE_CONTEXT, "timerless", { call: 2 });
+    } finally {
+      globalThis.setTimeout = realSetTimeout;
+      globalThis.clearTimeout = realClearTimeout;
+      console.warn = realWarn;
+    }
+
+    expect(
+      { calls, firstOk: first.ok, secondOk: second.ok, warnings: warnings.length },
+      "[RED:R33:timer-fallback]",
+    ).toEqual({ calls: 2, firstOk: true, secondOk: true, warnings: 1 });
+  });
+
+  it("[R34] contains a synchronous handler throw behind a generic result", async () => {
+    const concierge = conciergeFor([
+      action("sync-throw", () => {
+        throw new Error("private sync detail");
+      }),
+    ]);
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "sync-throw", {});
+
+    expect(result, "[RED:R34:sync-handler-throw]").toEqual({
+      ok: false,
+      reason: "handler_error",
+      message: "Something went wrong.",
+    });
+  });
+
+  it("[R35] contains a rejected handler Promise behind a generic result", async () => {
+    const concierge = conciergeFor([
+      action("reject", () => Promise.reject(new Error("private async detail"))),
+    ]);
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "reject", {});
+
+    expect(result, "[RED:R35:handler-rejection]").toEqual({
+      ok: false,
+      reason: "handler_error",
+      message: "Something went wrong.",
+    });
+  });
+
+  it("[R36] keeps an exception marker out of results and diagnostic channels", async () => {
+    const secret = "DISPATCH_SECRET_7f14b31a";
+    const channels = [];
+    const realWarn = console.warn;
+    const realError = console.error;
+    const realLog = console.log;
+    console.warn = (...args) => channels.push(args.map(String).join(" "));
+    console.error = (...args) => channels.push(args.map(String).join(" "));
+    console.log = (...args) => channels.push(args.map(String).join(" "));
+
+    let result;
+    try {
+      const concierge = conciergeFor([
+        action("secret-throw", () => {
+          throw new Error(secret);
+        }),
+      ]);
+      result = await concierge.dispatch(ACTIVE_CONTEXT, "secret-throw", {});
+    } finally {
+      console.warn = realWarn;
+      console.error = realError;
+      console.log = realLog;
+    }
+
+    expect(
+      {
+        channelsContainSecret: channels.join("\n").includes(secret),
+        message: result.message,
+        reason: result.reason,
+        resultContainsSecret: JSON.stringify(result).includes(secret),
+      },
+      "[RED:R36:exception-marker-absence]",
+    ).toEqual({
+      channelsContainSecret: false,
+      message: "Something went wrong.",
+      reason: "handler_error",
+      resultContainsSecret: false,
+    });
+  });
+
+  it("[R37] normalizes malformed scalar and null handler returns", async () => {
+    const concierge = conciergeFor([
+      action("scalar", () => 42),
+      action("null", () => null),
+    ]);
+
+    const results = await Promise.all([
+      concierge.dispatch(ACTIVE_CONTEXT, "scalar", {}),
+      concierge.dispatch(ACTIVE_CONTEXT, "null", {}),
+    ]);
+
+    expect(results, "[RED:R37:malformed-result]").toEqual([
+      {
+        ok: false,
+        reason: "invalid_result",
+        message: "The action returned an invalid result.",
+      },
+      {
+        ok: false,
+        reason: "invalid_result",
+        message: "The action returned an invalid result.",
+      },
+    ]);
+  });
+
+  it("[R38] normalizes an unknown reason code", async () => {
+    const concierge = conciergeFor([
+      action("unknown-reason", () => ({ ok: false, reason: "other", message: "No." })),
+    ]);
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "unknown-reason", {});
+
+    expect(result, "[RED:R38:unknown-reason]").toEqual({
+      ok: false,
+      reason: "invalid_result",
+      message: "The action returned an invalid result.",
+    });
+  });
+
+  it("[R39] normalizes a result whose message is not a string", async () => {
+    const concierge = conciergeFor([
+      action("numeric-message", () => ({ ok: true, message: 17 })),
+    ]);
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "numeric-message", {});
+
+    expect(result, "[RED:R39:nonstring-message]").toEqual({
+      ok: false,
+      reason: "invalid_result",
+      message: "The action returned an invalid result.",
+    });
+  });
+
+  it("[R40] contains a throwing result getter as an invalid result", async () => {
+    const hostile = {};
+    Object.defineProperty(hostile, "ok", {
+      enumerable: true,
+      get() {
+        throw new Error("getter detail must stay private");
+      },
+    });
+    const concierge = conciergeFor([action("throwing-getter", () => hostile)]);
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "throwing-getter", {});
+
+    expect(result, "[RED:R40:throwing-getter]").toEqual({
+      ok: false,
+      reason: "invalid_result",
+      message: "The action returned an invalid result.",
+    });
+  });
+
+  it("[R41] contains a throwing result proxy as an invalid result", async () => {
+    const hostile = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error("proxy detail must stay private");
+        },
+      },
+    );
+    const concierge = conciergeFor([action("throwing-proxy", () => hostile)]);
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "throwing-proxy", {});
+
+    expect(result, "[RED:R41:throwing-proxy]").toEqual({
+      ok: false,
+      reason: "invalid_result",
+      message: "The action returned an invalid result.",
+    });
+  });
+
+  it("[R42] strips extra fields from a valid handler result", async () => {
+    const concierge = conciergeFor([
+      action("extra-field", () => ({ ok: true, message: "Done.", privateToken: "do-not-forward" })),
+    ]);
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "extra-field", {});
+
+    expect(
+      { keys: Object.keys(result).sort(), result },
+      "[RED:R42:extra-field-stripping]",
+    ).toEqual({ keys: ["message", "ok"], result: { ok: true, message: "Done." } });
+  });
+
+  it("[R43] strips a contradictory reason from success and warns once", async () => {
+    const warnings = [];
+    const realWarn = console.warn;
+    console.warn = (...args) => warnings.push(args.map(String).join(" "));
+
+    let first;
+    let second;
+    try {
+      const concierge = conciergeFor([
+        action("success-contradiction", () => ({
+          ok: true,
+          reason: "handler_error",
+          message: "Completed.",
+        })),
+      ]);
+      first = await concierge.dispatch(ACTIVE_CONTEXT, "success-contradiction", { call: 1 });
+      second = await concierge.dispatch(ACTIVE_CONTEXT, "success-contradiction", { call: 2 });
+    } finally {
+      console.warn = realWarn;
+    }
+
+    expect(
+      { first, second, warnings: warnings.length },
+      "[RED:R43:success-contradiction]",
+    ).toEqual({
+      first: { ok: true, message: "Completed." },
+      second: { ok: true, message: "Completed." },
+      warnings: 1,
+    });
+  });
+
+  it("[R44] preserves a reasonless failure and warns once", async () => {
+    const warnings = [];
+    const realWarn = console.warn;
+    console.warn = (...args) => warnings.push(args.map(String).join(" "));
+
+    let first;
+    let second;
+    try {
+      const concierge = conciergeFor([
+        action("failure-contradiction", () => ({ ok: false, message: "Could not finish." })),
+      ]);
+      first = await concierge.dispatch(ACTIVE_CONTEXT, "failure-contradiction", { call: 1 });
+      second = await concierge.dispatch(ACTIVE_CONTEXT, "failure-contradiction", { call: 2 });
+    } finally {
+      console.warn = realWarn;
+    }
+
+    expect(
+      { first, second, warnings: warnings.length },
+      "[RED:R44:failure-contradiction]",
+    ).toEqual({
+      first: { ok: false, message: "Could not finish." },
+      second: { ok: false, message: "Could not finish." },
+      warnings: 1,
+    });
+  });
+
+  it("[R45] accepts every member of the closed twelve-reason vocabulary", async () => {
+    const reasons = [
+      "declined",
+      "cancelled",
+      "superseded",
+      "invalid_args",
+      "invalid_result",
+      "unknown_action",
+      "no_bridge",
+      "handler_error",
+      "aborted",
+      "consent_required",
+      "consent_stale",
+      "grade_unavailable",
+    ];
+    const concierge = conciergeFor(
+      reasons.map((reason) =>
+        action(`reason-${reason}`, () => ({ ok: false, reason, message: `Result: ${reason}` })),
+      ),
+    );
+
+    const results = await Promise.all(
+      reasons.map((reason) => concierge.dispatch(ACTIVE_CONTEXT, `reason-${reason}`, {})),
+    );
+
+    expect(
+      results.map((result) => result.reason),
+      "[RED:R45:all-reasons]",
+    ).toEqual(reasons);
+  });
+
+  it("[R46] passes one handler context with ack explicitly undefined", async () => {
+    let contextShape;
+    const concierge = conciergeFor([
+      action("context-shape", (ctx) => {
+        contextShape = {
+          ack: ctx.ack,
+          args: ctx.args,
+          hasAck: Object.hasOwn(ctx, "ack"),
+          meta: ctx.meta,
+        };
+        return successful();
+      }),
+    ]);
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "context-shape", { value: 7 }, {
+      responseId: "response-1",
+    });
+
+    expect(
+      { contextShape, ok: result.ok },
+      "[RED:R46:ack-undefined]",
+    ).toEqual({
+      contextShape: {
+        ack: undefined,
+        args: { value: 7 },
+        hasAck: true,
+        meta: { responseId: "response-1" },
+      },
+      ok: true,
+    });
+  });
+
+  it("[R47] replaces C0 and C1 controls in handler messages", async () => {
+    const concierge = conciergeFor([
+      action("controls", () => successful("  Hello\u0000\tworld\u001f\nfrom\u007f concierge  ")),
+    ]);
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "controls", {});
+
+    expect(result, "[RED:R47:control-stripping]").toEqual({
+      ok: true,
+      message: "Hello world from concierge",
+    });
+  });
+
+  it("[R48] collapses and trims whitespace in handler messages", async () => {
+    const concierge = conciergeFor([
+      action("whitespace", () => successful("  one\t\t two \n three \r\n  ")),
+    ]);
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "whitespace", {});
+
+    expect(result, "[RED:R48:whitespace-collapse]").toEqual({
+      ok: true,
+      message: "one two three",
+    });
+  });
+
+  it("[R49] applies the shared MESSAGE_MAX_CHARS bound", async () => {
+    const original = "x".repeat(MESSAGE_MAX_CHARS + 50);
+    const concierge = conciergeFor([action("bounded", () => successful(original))]);
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "bounded", {});
+
+    expect(
+      { bound: MESSAGE_MAX_CHARS, length: result.message.length, message: result.message },
+      "[RED:R49:shared-bound]",
+    ).toEqual({
+      bound: MESSAGE_MAX_CHARS,
+      length: MESSAGE_MAX_CHARS,
+      message: original.slice(0, MESSAGE_MAX_CHARS),
+    });
+  });
+
+  it("[R50] cuts before a surrogate pair that crosses the message bound", async () => {
+    const prefix = "a".repeat(MESSAGE_MAX_CHARS - 1);
+    const concierge = conciergeFor([
+      action("surrogate", () => successful(`${prefix}😀trailing`)),
+    ]);
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "surrogate", {});
+    const lastCodeUnit = result.message.charCodeAt(result.message.length - 1);
+
+    expect(
+      {
+        length: result.message.length,
+        message: result.message,
+        wellFormedTail: !(lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff),
+      },
+      "[RED:R50:surrogate-cut]",
+    ).toEqual({ length: MESSAGE_MAX_CHARS - 1, message: prefix, wellFormedTail: true });
+  });
+
+  it("[R51] returns sanitized fresh copies of cancelled and declined constants", async () => {
+    const concierge = conciergeFor([
+      action("cancelled", () => USER_CANCELLED),
+      action("declined", () => USER_DECLINED),
+    ]);
+
+    const cancelled = await concierge.dispatch(ACTIVE_CONTEXT, "cancelled", {});
+    const declined = await concierge.dispatch(ACTIVE_CONTEXT, "declined", {});
+
+    expect(
+      {
+        cancelled,
+        cancelledFresh: cancelled !== USER_CANCELLED,
+        declined,
+        declinedFresh: declined !== USER_DECLINED,
+        separateResults: cancelled !== declined,
+      },
+      "[RED:R51:cancelled-declined-copy]",
+    ).toEqual({
+      cancelled: { ok: false, reason: "cancelled", message: "Cancelled." },
+      cancelledFresh: true,
+      declined: { ok: false, reason: "declined", message: "Okay, I won't do that." },
+      declinedFresh: true,
+      separateResults: true,
+    });
+  });
+
+  it("[R52] hands the handler the mounted live bridge object", async () => {
+    const backing = { value: "first" };
+    const liveBridge = {
+      actions: {},
+      get value() {
+        return backing.value;
+      },
+    };
+    const registry = createBridge("active");
+    registry.register(liveBridge);
+    backing.value = "latest";
+    let received;
+    const concierge = conciergeFor(
+      [
+        action("live-bridge", ({ bridge }) => {
+          received = bridge;
+          return successful(bridge.value);
+        }),
+      ],
+      { bridge: registry },
+    );
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "live-bridge", {});
+
+    expect(
+      { message: result.message, receivedExactObject: received === liveBridge },
+      "[RED:R52:live-bridge]",
+    ).toEqual({ message: "latest", receivedExactObject: true });
+  });
+
+  it("[R53] hands null to a handler when its bridge is absent", async () => {
+    let received = "not-called";
+    const registry = createBridge("active");
+    const concierge = conciergeFor(
+      [
+        action("absent-bridge", ({ bridge }) => {
+          received = bridge;
+          return offPageResult("The selected rows", "results page");
+        }),
+      ],
+      { bridge: registry },
+    );
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "absent-bridge", {});
+
+    expect(
+      { received, result },
+      "[RED:R53:absent-bridge]",
+    ).toEqual({
+      received: null,
+      result: offPageResult("The selected rows", "results page"),
+    });
+  });
+
+  it("[R54] treats a throwing bridge read as an absent bridge", async () => {
+    let received = "not-called";
+    const registry = {
+      id: "active",
+      read() {
+        throw new Error("private bridge detail");
+      },
+      register() {
+        return () => {};
+      },
+    };
+    const concierge = conciergeFor(
+      [
+        action("throwing-bridge", ({ bridge }) => {
+          received = bridge;
+          return offPageResult("The selected rows", "results page");
+        }),
+      ],
+      { bridge: registry },
+    );
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "throwing-bridge", {});
+
+    expect(
+      { received, result },
+      "[RED:R54:throwing-bridge-read]",
+    ).toEqual({
+      received: null,
+      result: offPageResult("The selected rows", "results page"),
     });
   });
