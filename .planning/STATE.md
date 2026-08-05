@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-08-05T21:33:54.365Z"
+stopped_at: Completed 06-02-PLAN.md
+last_updated: "2026-08-05T21:53:39.793Z"
 last_activity: 2026-08-05
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 56
-  completed_plans: 51
+  completed_plans: 52
   percent: 56
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-07-27)
 ## Current Position
 
 Phase: 06 (dispatcher) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-08-05
 
-Progress: [█████████░] 91%
+Progress: [█████████░] 93%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [█████████░] 91%
 
 *Updated after each plan completion*
 | Phase 06 P01 | 24min | 3 tasks | 2 files |
+| Phase 06 P02 | 13min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,9 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase ?]: Milestone corrected 2026-07-27: 57 to 62 v1 requirements — added TRN-05 (Phase 1), SEC-05 (Phase 3), SEC-06 and DSP-09 (Phase 6), CON-10 (Phase 8), from advisor research plus a second prior implementation at portfolio@audit-fsb-ai-control-loop
 - [Phase 06-01]: Focused dispatcher RED gates register only selector-matching R-cases because Vitest reports ordinary name-filter exclusions as pending.
 - [Phase 06-01]: Dispatcher security tests use direct global replacement restored in finally; no Vitest mocking or telemetry seam was introduced.
+- [Phase 06-02]: Each case guards the absent dispatchBatch member and folds capability presence into its single fingerprinted observation. — This prevents incidental TypeErrors from satisfying Wave 0 RED evidence.
+- [Phase 06-02]: Batch ordering is tested independently through handler-entry order, correlated row order, and preservation of the caller frozen input order. — The suite distinguishes execution order, output order, and caller-input immutability.
+- [Phase 06-02]: Abort coverage uses application-local structural fixtures. — The tests assert complete sorted rows, zero later actuation, one canceller call, and listener cleanup without global timer mocks.
 
 ### Pending Todos
 
@@ -103,6 +107,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-05T21:33:54.359Z
-Stopped at: Completed 06-01-PLAN.md
+Last session: 2026-08-05T21:53:39.788Z
+Stopped at: Completed 06-02-PLAN.md
 Resume file: None

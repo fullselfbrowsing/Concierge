@@ -25,8 +25,8 @@
 - [x] **DSP-03**: A handler that throws returns `{ok: false, message: "Something went wrong."}` and the exception details reach neither the agent nor telemetry
 - [x] **DSP-04**: An action invoked with no registered handler returns an honest result rather than throwing
 - [x] **DSP-05**: Arguments are re-validated against the schema before the handler runs, independently of any validation the agent performed
-- [ ] **DSP-06**: Malformed JSON in call arguments degrades to `{}` and is then rejected by validation, rather than crashing the dispatch loop
-- [ ] **DSP-07**: A batch executes serially in `output_index` order, and every call in an aborted batch still produces a result so the agent is never left waiting
+- [x] **DSP-06**: Malformed JSON in call arguments degrades to `{}` and is then rejected by validation, rather than crashing the dispatch loop
+- [x] **DSP-07**: A batch executes serially in `output_index` order, and every call in an aborted batch still produces a result so the agent is never left waiting
 - [x] **DSP-08**: A configurable commit window elapses before any non-read-only effect lands, and an abort during that window cancels the effect
 - [x] **DSP-09**: A handler returning a value that is not a valid `ActionResult` produces an honest failure rather than propagating the malformed value to the agent
 
@@ -166,8 +166,8 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | DSP-03 | Phase 6 — Dispatcher | Complete |
 | DSP-04 | Phase 6 — Dispatcher | Complete |
 | DSP-05 | Phase 6 — Dispatcher | Complete |
-| DSP-06 | Phase 6 — Dispatcher | Pending |
-| DSP-07 | Phase 6 — Dispatcher | Pending |
+| DSP-06 | Phase 6 — Dispatcher | Complete |
+| DSP-07 | Phase 6 — Dispatcher | Complete |
 | DSP-08 | Phase 6 — Dispatcher | Complete |
 | DSP-09 | Phase 6 — Dispatcher | Complete |
 | BRG-01 | Phase 5 — Bridge registry and the no-bridge path | Complete — all thirteen mount/unmount orderings asserted against `dist/index.js`; discrimination proven by M-05-1 and M-05-2. Evidence: 05-04 B1–B13, 05-07 mutation battery |
