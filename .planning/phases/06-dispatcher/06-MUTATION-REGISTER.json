@@ -115,7 +115,7 @@
     "M-06-B19",
     "M-06-B20"
   ],
-  "registerDigest": "df05d684bd19c37389b761750f0e0a5bbca31f8db4cf4314b2d7f5defbf4a7db",
+  "registerDigest": "345318dd1fb2fb5594a05603e6b000333e4e04e60bfb9e0aba468edd21217dd4",
   "mutants": [
     {
       "id": "M-06-S01",
@@ -302,8 +302,8 @@
       "group": "single",
       "name": "dedupe timestamp starts at creation instead of settlement",
       "target": "packages/concierge/src/concierge.ts",
-      "literalPattern": "    const promise: Promise<ActionResult> = runDispatchPipeline(\n      index,\n      entry,\n      name,\n      argsSnapshot.value,\n      metaSnapshot.value,\n    );\n    dispatchPromises.set(key, promise);\n    dispatchSettledAt.delete(key);\n    dispatchPending.add(key);\n\n    const observeSettlement = (): void => {\n      markDispatchSettled(key, promise);\n    };",
-      "replacement": "    const promise: Promise<ActionResult> = runDispatchPipeline(\n      index,\n      entry,\n      name,\n      argsSnapshot.value,\n      metaSnapshot.value,\n    );\n    dispatchPromises.set(key, promise);\n    dispatchSettledAt.set(key, Date.now());\n    dispatchPending.add(key);\n\n    const observeSettlement = (): void => {\n      dispatchPending?.delete(key);\n    };",
+      "literalPattern": "    const promise: Promise<ActionResult> = Promise.resolve().then(() =>\n      runDispatchPipeline(\n        index,\n        entry,\n        name,\n        argsSnapshot.value,\n        metaSnapshot.value,\n      ),\n    );\n    dispatchPromises.set(key, promise);\n    dispatchSettledAt.delete(key);\n    dispatchPending.add(key);\n\n    const observeSettlement = (): void => {\n      markDispatchSettled(key, promise);\n    };",
+      "replacement": "    const promise: Promise<ActionResult> = Promise.resolve().then(() =>\n      runDispatchPipeline(\n        index,\n        entry,\n        name,\n        argsSnapshot.value,\n        metaSnapshot.value,\n      ),\n    );\n    dispatchPromises.set(key, promise);\n    dispatchSettledAt.set(key, Date.now());\n    dispatchPending.add(key);\n\n    const observeSettlement = (): void => {\n      dispatchPending?.delete(key);\n    };",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
@@ -402,7 +402,7 @@
       "group": "single",
       "name": "handler lookup regains an Object prototype",
       "target": "packages/concierge/src/concierge.ts",
-      "literalPattern": "    // The explicit prototype-name refusal stays ahead of the catalog read even\n    // though `byName` has a null prototype. It makes the security boundary\n    // independent of a future lookup refactor. Authorization also stays ahead\n    // of the cache: a key proves retry identity, never stage authority.\n    if (\n      name === \"__proto__\" ||\n      name === \"constructor\" ||\n      !allowedNames.includes(name)\n    ) {\n      return Promise.resolve(\n        authoredResult(\n          false,\n          \"This action is not available in the current stage.\",\n          \"unknown_action\",\n        ),\n      );\n    }\n\n    const entry: CatalogEntry | undefined = catalog.byName[name];",
+      "literalPattern": "    // Reserved prototype spellings are ordinary keys in the catalog's frozen\n    // null-prototype lookup. Authorization still stays ahead of the cache: a\n    // key proves retry identity, never stage authority.\n    if (!allowedNames.includes(name)) {\n      return Promise.resolve(\n        authoredResult(\n          false,\n          \"This action is not available in the current stage.\",\n          \"unknown_action\",\n        ),\n      );\n    }\n\n    const entry: CatalogEntry | undefined = catalog.byName[name];",
       "replacement": "    const prototypeEntry: CatalogEntry = Object.values(catalog.byName)[0] as CatalogEntry;\n    const prototypeLookup: Record<string, CatalogEntry> = {\n      __proto__: prototypeEntry,\n      constructor: prototypeEntry,\n      ...catalog.byName,\n    };\n    if (\n      !allowedNames.includes(name) &&\n      name !== \"__proto__\" &&\n      name !== \"constructor\"\n    ) {\n      return Promise.resolve(\n        authoredResult(\n          false,\n          \"This action is not available in the current stage.\",\n          \"unknown_action\",\n        ),\n      );\n    }\n\n    const entry: CatalogEntry | undefined = prototypeLookup[name];",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
@@ -791,7 +791,7 @@
       ],
       "expectedFailureFingerprint": [],
       "expectedTypeDiagnostics": [
-        "test-d/dispatcher.test-d.ts(17,35): error TS2344"
+        "test-d/dispatcher.test-d.ts(19,35): error TS2344"
       ]
     },
     {

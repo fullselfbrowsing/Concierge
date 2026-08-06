@@ -32,11 +32,16 @@ const SCOPED_PATHS = [
 ];
 const SINGLE_TEST = "packages/concierge/test/dispatcher.test.ts";
 const BATCH_TEST = "packages/concierge/test/dispatcher-batch.test.ts";
-const TYPE_TEST = "packages/concierge/test-d/dispatcher.test-d.ts";
 const BUILD_MARKER = "Build complete";
 const MAX_BUFFER = 64 * 1024 * 1024;
 const SCHEMA_VERSION = 2;
-const REVISION_CONFIG_PATHS = Object.freeze([
+const REVISION_DIRECTORY_SCOPES = Object.freeze([
+  "packages/concierge/src",
+  "packages/concierge/test",
+  "packages/concierge/test-d",
+  "scripts",
+]);
+const REVISION_REQUIRED_PATHS = Object.freeze([
   "package.json",
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
@@ -46,8 +51,6 @@ const REVISION_CONFIG_PATHS = Object.freeze([
   "packages/concierge/tsconfig.json",
   "packages/concierge/tsconfig.test-d.json",
   "packages/concierge/tsdown.config.ts",
-  "scripts/mutate-and-prove.sh",
-  "scripts/phase-06-mutation-battery.mjs",
 ]);
 
 export const EXPECTED_SINGLE_IDS = Object.freeze(
@@ -285,12 +288,14 @@ const MUTANTS = Object.freeze([
     name: "dedupe timestamp starts at creation instead of settlement",
     target: "packages/concierge/src/concierge.ts",
     literalPattern: lines(
-      "    const promise: Promise<ActionResult> = runDispatchPipeline(",
-      "      index,",
-      "      entry,",
-      "      name,",
-      "      argsSnapshot.value,",
-      "      metaSnapshot.value,",
+      "    const promise: Promise<ActionResult> = Promise.resolve().then(() =>",
+      "      runDispatchPipeline(",
+      "        index,",
+      "        entry,",
+      "        name,",
+      "        argsSnapshot.value,",
+      "        metaSnapshot.value,",
+      "      ),",
       "    );",
       "    dispatchPromises.set(key, promise);",
       "    dispatchSettledAt.delete(key);",
@@ -301,12 +306,14 @@ const MUTANTS = Object.freeze([
       "    };",
     ),
     replacement: lines(
-      "    const promise: Promise<ActionResult> = runDispatchPipeline(",
-      "      index,",
-      "      entry,",
-      "      name,",
-      "      argsSnapshot.value,",
-      "      metaSnapshot.value,",
+      "    const promise: Promise<ActionResult> = Promise.resolve().then(() =>",
+      "      runDispatchPipeline(",
+      "        index,",
+      "        entry,",
+      "        name,",
+      "        argsSnapshot.value,",
+      "        metaSnapshot.value,",
+      "      ),",
       "    );",
       "    dispatchPromises.set(key, promise);",
       "    dispatchSettledAt.set(key, Date.now());",
@@ -364,15 +371,10 @@ const MUTANTS = Object.freeze([
     name: "handler lookup regains an Object prototype",
     target: "packages/concierge/src/concierge.ts",
     literalPattern: lines(
-      "    // The explicit prototype-name refusal stays ahead of the catalog read even",
-      "    // though `byName` has a null prototype. It makes the security boundary",
-      "    // independent of a future lookup refactor. Authorization also stays ahead",
-      "    // of the cache: a key proves retry identity, never stage authority.",
-      "    if (",
-      "      name === \"__proto__\" ||",
-      "      name === \"constructor\" ||",
-      "      !allowedNames.includes(name)",
-      "    ) {",
+      "    // Reserved prototype spellings are ordinary keys in the catalog's frozen",
+      "    // null-prototype lookup. Authorization still stays ahead of the cache: a",
+      "    // key proves retry identity, never stage authority.",
+      "    if (!allowedNames.includes(name)) {",
       "      return Promise.resolve(",
       "        authoredResult(",
       "          false,",
@@ -665,7 +667,7 @@ const MUTANTS = Object.freeze([
       "export type Scheduler = (fn: () => void, delayMs: number) => void | (() => void);",
     intendedCaseIds: ["R31"],
     expectedTypeDiagnostics: [
-      "test-d/dispatcher.test-d.ts(17,35): error TS2344",
+      "test-d/dispatcher.test-d.ts(19,35): error TS2344",
     ],
   }),
   runtimeMutant({
@@ -1337,21 +1339,47 @@ function targetHash(mutant) {
   return sha256(readFileSync(join(ROOT, mutant.target)));
 }
 
-function revisionInputPaths(mutant) {
-  return [
-    ...new Set([
-      mutant.target,
-      mutant.intendedTestFile,
-      ...(mutant.detectorKind === "typecheck" ? [TYPE_TEST] : []),
-      ...REVISION_CONFIG_PATHS,
-    ]),
-  ].sort();
+let revisionInputPathCache;
+
+function revisionInputPaths() {
+  if (revisionInputPathCache !== undefined) {
+    return revisionInputPathCache;
+  }
+
+  const tracked = command("git", [
+    "ls-files",
+    "-z",
+    "--",
+    ...REVISION_DIRECTORY_SCOPES,
+    ...REVISION_REQUIRED_PATHS,
+  ]);
+  if (tracked.exitCode !== 0) {
+    throw new Error(`revision manifest lookup failed: ${tracked.output}`);
+  }
+
+  const paths = [...new Set(tracked.stdout.split("\0").filter(Boolean))].sort();
+  for (const requiredPath of REVISION_REQUIRED_PATHS) {
+    if (!paths.includes(requiredPath)) {
+      throw new Error(`revision manifest is missing required path: ${requiredPath}`);
+    }
+  }
+  for (const scope of REVISION_DIRECTORY_SCOPES) {
+    if (!paths.some((path) => path.startsWith(`${scope}/`))) {
+      throw new Error(`revision manifest scope is empty: ${scope}`);
+    }
+  }
+  if (paths.length === 0) {
+    throw new Error("revision manifest is empty");
+  }
+
+  revisionInputPathCache = Object.freeze(paths);
+  return revisionInputPathCache;
 }
 
 function revisionDigest(mutant, transform = (_path, content) => content) {
   const digest = createHash("sha256");
   digest.update(`mutant\0${JSON.stringify(mutant)}\0`);
-  for (const path of revisionInputPaths(mutant)) {
+  for (const path of revisionInputPaths()) {
     const content = readFileSync(join(ROOT, path));
     digest.update(`path\0${path}\0`);
     digest.update(transform(path, content));
@@ -1864,8 +1892,13 @@ function selfTest() {
     throw new Error("suite hook failure was discarded beside an assertion failure");
   }
 
-  const expectedDiagnostic =
-    "test-d/dispatcher.test-d.ts(17,35): error TS2344";
+  const typeMutantDefinition = MUTANTS.find(
+    (candidate) => candidate.detectorKind === "typecheck",
+  );
+  const expectedDiagnostic = typeMutantDefinition?.expectedTypeDiagnostics[0];
+  if (expectedDiagnostic === undefined) {
+    throw new Error("self-test requires an exact type diagnostic");
+  }
   const exactTypeOutput = `${expectedDiagnostic}: Type assertion failed.\n`;
   if (!exactTypeDiagnosticSet(exactTypeOutput, [expectedDiagnostic]).satisfied) {
     throw new Error("exact type diagnostic rejected its expected fingerprint");
@@ -1892,8 +1925,48 @@ function selfTest() {
   if (currentDigest === changedHarnessDigest) {
     throw new Error("harness changes do not invalidate the revision digest");
   }
+
+  const transitiveSourcePath = revisionInputPaths().find(
+    (path) =>
+      path.startsWith("packages/concierge/src/") && path !== mutant.target,
+  );
+  if (transitiveSourcePath === undefined) {
+    throw new Error("self-test requires a non-target transitive source");
+  }
+  const changedSourceDigest = revisionDigest(mutant, (path, content) =>
+    path === transitiveSourcePath
+      ? Buffer.concat([
+          content,
+          Buffer.from("\nself-test transitive source change"),
+        ])
+      : content,
+  );
+  if (currentDigest === changedSourceDigest) {
+    throw new Error(
+      "transitive source changes do not invalidate the revision digest",
+    );
+  }
+
+  const transitiveFixturePath = revisionInputPaths().find(
+    (path) =>
+      path.startsWith("packages/concierge/test/fixtures/") &&
+      path !== mutant.intendedTestFile,
+  );
+  if (transitiveFixturePath === undefined) {
+    throw new Error("self-test requires a non-intended test fixture");
+  }
+  const changedFixtureDigest = revisionDigest(mutant, (path, content) =>
+    path === transitiveFixturePath
+      ? Buffer.concat([content, Buffer.from("\nself-test fixture change")])
+      : content,
+  );
+  if (currentDigest === changedFixtureDigest) {
+    throw new Error(
+      "non-intended fixture changes do not invalidate the revision digest",
+    );
+  }
   console.log(
-    "Self-test passed: revision invalidation and exact runtime/type fingerprints are enforced",
+    "Self-test passed: full-tree revision invalidation and exact runtime/type fingerprints are enforced",
   );
 }
 
