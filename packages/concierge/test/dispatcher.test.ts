@@ -2051,3 +2051,54 @@ async function withFakeNow(initial, run) {
       valid: { ok: true, message: "Done." },
     });
   });
+
+  it("[R64] publishes a pending retry before a validator can reenter dispatch", async () => {
+    let concierge;
+    let reentrantPromise;
+    let handlerCalls = 0;
+    let validatorCalls = 0;
+    const meta = { callId: "validator-reentry" };
+    const declared = action(
+      "validator-reentry",
+      () => {
+        handlerCalls += 1;
+        return successful();
+      },
+      {
+        validate: (value) => {
+          validatorCalls += 1;
+          reentrantPromise ??= concierge.dispatch(
+            ACTIVE_CONTEXT,
+            "validator-reentry",
+            value,
+            meta,
+          );
+          return { value };
+        },
+      },
+    );
+    concierge = conciergeFor([declared]);
+
+    const first = concierge.dispatch(
+      ACTIVE_CONTEXT,
+      "validator-reentry",
+      { value: 1 },
+      meta,
+    );
+    const result = await first;
+
+    expect(
+      {
+        handlerCalls,
+        promiseIdentity: first === reentrantPromise,
+        result,
+        validatorCalls,
+      },
+      "[RED:R64:validator-reentrancy-dedup]",
+    ).toEqual({
+      handlerCalls: 1,
+      promiseIdentity: true,
+      result: { ok: true, message: "Done." },
+      validatorCalls: 1,
+    });
+  });

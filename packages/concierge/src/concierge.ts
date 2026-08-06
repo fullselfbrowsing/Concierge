@@ -1020,12 +1020,14 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       return hit;
     }
 
-    const promise: Promise<ActionResult> = runDispatchPipeline(
-      index,
-      entry,
-      name,
-      argsSnapshot.value,
-      metaSnapshot.value,
+    const promise: Promise<ActionResult> = Promise.resolve().then(() =>
+      runDispatchPipeline(
+        index,
+        entry,
+        name,
+        argsSnapshot.value,
+        metaSnapshot.value,
+      ),
     );
     dispatchPromises.set(key, promise);
     dispatchSettledAt.delete(key);
