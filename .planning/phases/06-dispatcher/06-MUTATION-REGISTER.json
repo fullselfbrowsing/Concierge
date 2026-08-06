@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "phase": "06-dispatcher",
   "expectedSingleIds": [
     "M-06-S01",
@@ -115,7 +115,7 @@
     "M-06-B19",
     "M-06-B20"
   ],
-  "registerDigest": "01013d0fafab25c58a2a030f606ac4633a78c5b65b02393c69a42a2d54b2d1ba",
+  "registerDigest": "df05d684bd19c37389b761750f0e0a5bbca31f8db4cf4314b2d7f5defbf4a7db",
   "mutants": [
     {
       "id": "M-06-S01",
@@ -128,6 +128,12 @@
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
         "R01"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R01",
+          "marker": "[RED:R01:promise-identity]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -143,6 +149,12 @@
       "intendedCaseIds": [
         "R01"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R01",
+          "marker": "[RED:R01:promise-identity]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -156,6 +168,12 @@
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
         "R01"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R01",
+          "marker": "[RED:R01:promise-identity]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -171,6 +189,12 @@
       "intendedCaseIds": [
         "R02"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R02",
+          "marker": "[RED:R02:cached-failure]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -185,6 +209,12 @@
       "intendedCaseIds": [
         "R04"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R04",
+          "marker": "[RED:R04:key-namespace-separation]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -193,11 +223,17 @@
       "name": "callId and fallback key namespaces collide",
       "target": "packages/concierge/src/dispatch.ts",
       "literalPattern": "      return `id:${callId}`;",
-      "replacement": "      return `args:${callId}`;",
+      "replacement": "      return `args:${authorizationScope === null ? \"cross\" : String(authorizationScope)}:${callId}`;",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
         "R04"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R04",
+          "marker": "[RED:R04:key-namespace-separation]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -206,12 +242,18 @@
       "group": "single",
       "name": "serialization failure catch is removed",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "  try {\n    const callId: string | undefined = meta?.callId;\n    if (callId !== undefined) {\n      return `id:${callId}`;\n    }\n    return `args:${name}:${JSON.stringify(args)}`;\n  } catch {\n    return null;\n  }",
-      "replacement": "  const callId: string | undefined = meta?.callId;\n  if (callId !== undefined) {\n    return `id:${callId}`;\n  }\n  return `args:${name}:${JSON.stringify(args)}`;",
+      "literalPattern": "  try {\n    const callId: string | undefined = meta?.callId;\n    if (callId !== undefined) {\n      return `id:${callId}`;\n    }\n    const scope: string = authorizationScope === null ? \"cross\" : String(authorizationScope);\n    return `args:${scope}:${name}:${JSON.stringify(args)}`;\n  } catch {\n    return null;\n  }",
+      "replacement": "  const callId: string | undefined = meta?.callId;\n  if (callId !== undefined) {\n    return `id:${callId}`;\n  }\n  const scope: string = authorizationScope === null ? \"cross\" : String(authorizationScope);\n  return `args:${scope}:${name}:${JSON.stringify(args)}`;",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
         "R05"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R05",
+          "marker": "[RED:R05:cyclic-args]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -227,6 +269,12 @@
       "intendedCaseIds": [
         "R07"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R07",
+          "marker": "[RED:R07:instance-isolation]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -241,6 +289,12 @@
       "intendedCaseIds": [
         "R21"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R21",
+          "marker": "[RED:R21:pending-beyond-window]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -248,12 +302,18 @@
       "group": "single",
       "name": "dedupe timestamp starts at creation instead of settlement",
       "target": "packages/concierge/src/concierge.ts",
-      "literalPattern": "    const promise: Promise<ActionResult> = runDispatchPipeline(ctx, name, args, meta);\n    dispatchPromises.set(key, promise);\n    dispatchSettledAt.delete(key);\n    dispatchPending.add(key);\n\n    const observeSettlement = (): void => {\n      markDispatchSettled(key, promise);\n    };",
-      "replacement": "    const promise: Promise<ActionResult> = runDispatchPipeline(ctx, name, args, meta);\n    dispatchPromises.set(key, promise);\n    dispatchSettledAt.set(key, Date.now());\n    dispatchPending.add(key);\n\n    const observeSettlement = (): void => {\n      dispatchPending?.delete(key);\n    };",
+      "literalPattern": "    const promise: Promise<ActionResult> = runDispatchPipeline(\n      index,\n      entry,\n      name,\n      argsSnapshot.value,\n      metaSnapshot.value,\n    );\n    dispatchPromises.set(key, promise);\n    dispatchSettledAt.delete(key);\n    dispatchPending.add(key);\n\n    const observeSettlement = (): void => {\n      markDispatchSettled(key, promise);\n    };",
+      "replacement": "    const promise: Promise<ActionResult> = runDispatchPipeline(\n      index,\n      entry,\n      name,\n      argsSnapshot.value,\n      metaSnapshot.value,\n    );\n    dispatchPromises.set(key, promise);\n    dispatchSettledAt.set(key, Date.now());\n    dispatchPending.add(key);\n\n    const observeSettlement = (): void => {\n      dispatchPending?.delete(key);\n    };",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
         "R22"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R22",
+          "marker": "[RED:R22:settlement-window]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -269,6 +329,12 @@
       "intendedCaseIds": [
         "R24"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R24",
+          "marker": "[RED:R24:all-key-sweep]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -276,12 +342,18 @@
       "group": "single",
       "name": "commit-window default changes from 600 ms",
       "target": "packages/concierge/src/concierge.ts",
-      "literalPattern": "  const commitWindowMs: number = config.commitWindowMs ?? 600;",
-      "replacement": "  const commitWindowMs: number = config.commitWindowMs ?? 500;",
+      "literalPattern": "    config.commitWindowMs ?? 600,",
+      "replacement": "    config.commitWindowMs ?? 500,",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
         "R20"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R20",
+          "marker": "[RED:R20:default-windows]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -290,12 +362,18 @@
       "group": "single",
       "name": "dedupe-window default changes from 600 ms",
       "target": "packages/concierge/src/concierge.ts",
-      "literalPattern": "  const dedupeWindowMs: number = config.dedupeWindowMs ?? 600;",
-      "replacement": "  const dedupeWindowMs: number = config.dedupeWindowMs ?? 500;",
+      "literalPattern": "    config.dedupeWindowMs ?? 600,",
+      "replacement": "    config.dedupeWindowMs ?? 500,",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
         "R20"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R20",
+          "marker": "[RED:R20:default-windows]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -311,6 +389,12 @@
       "intendedCaseIds": [
         "R08"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R08",
+          "marker": "[RED:R08:off-stage-refusal]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -318,12 +402,18 @@
       "group": "single",
       "name": "handler lookup regains an Object prototype",
       "target": "packages/concierge/src/concierge.ts",
-      "literalPattern": "    // The explicit prototype-name refusal stays ahead of the catalog read even\n    // though `byName` has a null prototype. It makes the security boundary\n    // independent of a future lookup refactor.\n    if (\n      name === \"__proto__\" ||\n      name === \"constructor\" ||\n      !allowedNames.includes(name)\n    ) {\n      return authoredResult(\n        false,\n        \"This action is not available in the current stage.\",\n        \"unknown_action\",\n      );\n    }\n\n    const entry: CatalogEntry | undefined = catalog.byName[name];",
-      "replacement": "    const prototypeLookup: Record<string, CatalogEntry> = { ...catalog.byName };\n    if (\n      !allowedNames.includes(name) &&\n      name !== \"__proto__\" &&\n      name !== \"constructor\"\n    ) {\n      return authoredResult(\n        false,\n        \"This action is not available in the current stage.\",\n        \"unknown_action\",\n      );\n    }\n\n    const entry: CatalogEntry | undefined = prototypeLookup[name];",
+      "literalPattern": "    // The explicit prototype-name refusal stays ahead of the catalog read even\n    // though `byName` has a null prototype. It makes the security boundary\n    // independent of a future lookup refactor. Authorization also stays ahead\n    // of the cache: a key proves retry identity, never stage authority.\n    if (\n      name === \"__proto__\" ||\n      name === \"constructor\" ||\n      !allowedNames.includes(name)\n    ) {\n      return Promise.resolve(\n        authoredResult(\n          false,\n          \"This action is not available in the current stage.\",\n          \"unknown_action\",\n        ),\n      );\n    }\n\n    const entry: CatalogEntry | undefined = catalog.byName[name];",
+      "replacement": "    const prototypeEntry: CatalogEntry = Object.values(catalog.byName)[0] as CatalogEntry;\n    const prototypeLookup: Record<string, CatalogEntry> = {\n      __proto__: prototypeEntry,\n      constructor: prototypeEntry,\n      ...catalog.byName,\n    };\n    if (\n      !allowedNames.includes(name) &&\n      name !== \"__proto__\" &&\n      name !== \"constructor\"\n    ) {\n      return Promise.resolve(\n        authoredResult(\n          false,\n          \"This action is not available in the current stage.\",\n          \"unknown_action\",\n        ),\n      );\n    }\n\n    const entry: CatalogEntry | undefined = prototypeLookup[name];",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
         "R09"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R09",
+          "marker": "[RED:R09:proto-key]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -339,6 +429,12 @@
       "intendedCaseIds": [
         "R13"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R13",
+          "marker": "[RED:R13:sync-validation]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -346,12 +442,18 @@
       "group": "single",
       "name": "handler receives original rather than transformed arguments",
       "target": "packages/concierge/src/concierge.ts",
-      "literalPattern": "        args: validation.value,",
+      "literalPattern": "        args: validatedSnapshot.value,",
       "replacement": "        args,",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
         "R15"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R15",
+          "marker": "[RED:R15:transformed-value]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -367,6 +469,12 @@
       "intendedCaseIds": [
         "R25"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R25",
+          "marker": "[RED:R25:non-readonly-wait]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -381,6 +489,12 @@
       "intendedCaseIds": [
         "R26"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R26",
+          "marker": "[RED:R26:omitted-effects-wait]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -388,12 +502,18 @@
       "group": "single",
       "name": "initial abort refusal is removed",
       "target": "packages/concierge/src/concierge.ts",
-      "literalPattern": "    if (isAborted(signal)) {\n      return authoredResult(\n        false,\n        \"The action was cancelled before it ran.\",\n        \"aborted\",\n      );\n    }\n\n    if (entry.action.effects?.readOnly !== true) {",
-      "replacement": "    if (isAborted(signal)) {\n      signal = undefined;\n    }\n\n    if (!isAborted(meta?.signal) && entry.action.effects?.readOnly !== true) {",
+      "literalPattern": "    const signal: AbortSignalLike | undefined = meta.signal;\n\n    if (isAborted(signal)) {\n      return authoredResult(\n        false,\n        \"The action was cancelled before it ran.\",\n        \"aborted\",\n      );\n    }\n\n    if (entry.action.effects?.readOnly !== true) {",
+      "replacement": "    let signal: AbortSignalLike | undefined = meta.signal;\n\n    if (isAborted(signal)) {\n      signal = undefined;\n    }\n\n    if (!isAborted(meta.signal) && entry.action.effects?.readOnly !== true) {",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
         "R28"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R28",
+          "marker": "[RED:R28:abort-before-wait]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -409,6 +529,12 @@
       "intendedCaseIds": [
         "R31"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R31",
+          "marker": "[RED:R31:sync-registration-race]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -422,6 +548,12 @@
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
         "R30"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R30",
+          "marker": "[RED:R30:cleanup]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -437,6 +569,12 @@
       "intendedCaseIds": [
         "R30"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R30",
+          "marker": "[RED:R30:cleanup]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -451,6 +589,12 @@
       "intendedCaseIds": [
         "R52"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R52",
+          "marker": "[RED:R52:live-bridge]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -458,12 +602,18 @@
       "group": "single",
       "name": "synchronous handler exception text is echoed",
       "target": "packages/concierge/src/concierge.ts",
-      "literalPattern": "    } catch {\n      return authoredResult(\n        false,\n        \"Something went wrong.\",\n        \"handler_error\",\n      );\n    }\n\n    let handlerResult: unknown = handlerReturn;",
-      "replacement": "    } catch (error) {\n      return authoredResult(\n        false,\n        String(error),\n        \"handler_error\",\n      );\n    }\n\n    let handlerResult: unknown = handlerReturn;",
+      "literalPattern": "    } catch {\n      return authoredResult(\n        false,\n        \"Something went wrong.\",\n        \"handler_error\",\n      );\n    }",
+      "replacement": "    } catch (error) {\n      return authoredResult(\n        false,\n        String(error),\n        \"handler_error\",\n      );\n    }",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
         "R36"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R36",
+          "marker": "[RED:R36:exception-marker-absence]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -479,6 +629,12 @@
       "intendedCaseIds": [
         "R42"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R42",
+          "marker": "[RED:R42:extra-field-stripping]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -487,11 +643,17 @@
       "name": "malformed result field guard is removed",
       "target": "packages/concierge/src/dispatch.ts",
       "literalPattern": "  if (typeof ok !== \"boolean\" || typeof message !== \"string\") {\n    return invalidResult();\n  }",
-      "replacement": "",
+      "replacement": "  if (typeof ok !== \"boolean\") {\n    return invalidResult();\n  }\n  if (typeof message !== \"string\") {\n    message = String(message);\n  }",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
         "R39"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R39",
+          "marker": "[RED:R39:nonstring-message]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -507,6 +669,12 @@
       "intendedCaseIds": [
         "R43"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R43",
+          "marker": "[RED:R43:success-contradiction]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -520,6 +688,12 @@
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
         "R44"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R44",
+          "marker": "[RED:R44:failure-contradiction]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -535,6 +709,12 @@
       "intendedCaseIds": [
         "R47"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R47",
+          "marker": "[RED:R47:control-stripping]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -548,6 +728,12 @@
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
         "R48"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R48",
+          "marker": "[RED:R48:whitespace-collapse]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -563,6 +749,12 @@
       "intendedCaseIds": [
         "R49"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R49",
+          "marker": "[RED:R49:shared-bound]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -576,6 +768,12 @@
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
         "R50"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R50",
+          "marker": "[RED:R50:surrogate-cut]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -591,8 +789,9 @@
       "intendedCaseIds": [
         "R31"
       ],
+      "expectedFailureFingerprint": [],
       "expectedTypeDiagnostics": [
-        "test-d/dispatcher.test-d.ts(16,35): error TS2344"
+        "test-d/dispatcher.test-d.ts(17,35): error TS2344"
       ]
     },
     {
@@ -606,6 +805,12 @@
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
         "Q02"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q02",
+          "marker": "[RED:Q02:stable-order]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -621,6 +826,12 @@
       "intendedCaseIds": [
         "Q02"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q02",
+          "marker": "[RED:Q02:stable-order]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -628,12 +839,18 @@
       "group": "batch",
       "name": "caller batch array is sorted in place",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "  const ordered: Array<{\n    readonly call: ToolBatch[\"calls\"][number];\n    readonly originalIndex: number;\n  }> = batch.calls.map((call, originalIndex) => ({ call, originalIndex }));",
-      "replacement": "  const mutableCalls: Array<ToolBatch[\"calls\"][number]> =\n    batch.calls as Array<ToolBatch[\"calls\"][number]>;\n  mutableCalls.sort((left, right): number => left.outputIndex - right.outputIndex);\n  const ordered: Array<{\n    readonly call: ToolBatch[\"calls\"][number];\n    readonly originalIndex: number;\n  }> = mutableCalls.map((call, originalIndex) => ({ call, originalIndex }));",
+      "literalPattern": "  const ordered: Array<{\n    readonly call: Readonly<{\n      callId: string;\n      name: string;\n      arguments: string;\n      outputIndex: number;\n    }>;\n    readonly originalIndex: number;\n  }> = batch.calls.map((call, originalIndex) => ({\n    call: Object.freeze({\n      callId: call.callId,\n      name: call.name,\n      arguments: call.arguments,\n      outputIndex: call.outputIndex,\n    }),\n    originalIndex,\n  }));",
+      "replacement": "  const mutableCalls: Array<ToolBatch[\"calls\"][number]> =\n    batch.calls as Array<ToolBatch[\"calls\"][number]>;\n  mutableCalls.sort((left, right): number => left.outputIndex - right.outputIndex);\n  const ordered: Array<{\n    readonly call: Readonly<{\n      callId: string;\n      name: string;\n      arguments: string;\n      outputIndex: number;\n    }>;\n    readonly originalIndex: number;\n  }> = mutableCalls.map((call, originalIndex) => ({\n    call: Object.freeze({\n      callId: call.callId,\n      name: call.name,\n      arguments: call.arguments,\n      outputIndex: call.outputIndex,\n    }),\n    originalIndex,\n  }));",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
         "Q01"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q01",
+          "marker": "[RED:Q01:copied-frozen-input]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -649,6 +866,12 @@
       "intendedCaseIds": [
         "Q03"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q03",
+          "marker": "[RED:Q03:serial-concurrency]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -662,6 +885,12 @@
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
         "Q04"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q04",
+          "marker": "[RED:Q04:malformed-json-validation]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -677,6 +906,12 @@
       "intendedCaseIds": [
         "Q04"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q04",
+          "marker": "[RED:Q04:malformed-json-validation]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -684,12 +919,18 @@
       "group": "batch",
       "name": "responseId metadata is omitted",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "        responseId: batch.responseId,",
+      "literalPattern": "        responseId: batchSnapshot.responseId,",
       "replacement": "        responseId: undefined,",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
         "Q06"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q06",
+          "marker": "[RED:Q06:metadata-forwarding]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -698,12 +939,18 @@
       "group": "batch",
       "name": "callId metadata is omitted",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "        responseId: batch.responseId,\n        callId: call.callId,",
-      "replacement": "        responseId: batch.responseId,\n        callId: undefined,",
+      "literalPattern": "        responseId: batchSnapshot.responseId,\n        callId: call.callId,",
+      "replacement": "        responseId: batchSnapshot.responseId,\n        callId: undefined,",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
         "Q06"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q06",
+          "marker": "[RED:Q06:metadata-forwarding]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -712,12 +959,18 @@
       "group": "batch",
       "name": "outputIndex metadata is omitted",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "        outputIndex: call.outputIndex,",
-      "replacement": "        outputIndex: undefined,",
+      "literalPattern": "        responseId: batchSnapshot.responseId,\n        callId: call.callId,\n        outputIndex: call.outputIndex,",
+      "replacement": "        responseId: batchSnapshot.responseId,\n        callId: call.callId,\n        outputIndex: undefined,",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
         "Q06"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q06",
+          "marker": "[RED:Q06:metadata-forwarding]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -726,12 +979,18 @@
       "group": "batch",
       "name": "userTurnId metadata is omitted",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "        userTurnId: batch.userTurnId,",
+      "literalPattern": "        userTurnId: batchSnapshot.userTurnId,",
       "replacement": "        userTurnId: undefined,",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
         "Q06"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q06",
+          "marker": "[RED:Q06:metadata-forwarding]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -740,12 +999,18 @@
       "group": "batch",
       "name": "abort signal metadata is omitted",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "        signal: batch.signal,",
+      "literalPattern": "        signal: batchSnapshot.signal,",
       "replacement": "        signal: undefined,",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
         "Q06"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q06",
+          "marker": "[RED:Q06:metadata-forwarding]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -754,12 +1019,18 @@
       "group": "batch",
       "name": "delivery hook metadata is omitted",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "        deferUntilDelivered: batch.deferUntilDelivered,",
+      "literalPattern": "        deferUntilDelivered: batchSnapshot.deferUntilDelivered,",
       "replacement": "        deferUntilDelivered: undefined,",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
         "Q06"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q06",
+          "marker": "[RED:Q06:metadata-forwarding]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -775,6 +1046,12 @@
       "intendedCaseIds": [
         "Q09"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q09",
+          "marker": "[RED:Q09:preaborted-completeness]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -782,12 +1059,18 @@
       "group": "batch",
       "name": "already-aborted calls are dispatched after erasing the signal",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "    if (isAborted(batch.signal)) {",
-      "replacement": "    if (isAborted(batch.signal) && (Reflect.deleteProperty(batch, \"signal\"), false)) {",
+      "literalPattern": "    signal: batch.signal,",
+      "replacement": "    signal: undefined,",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
         "Q09"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q09",
+          "marker": "[RED:Q09:preaborted-completeness]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -803,6 +1086,12 @@
       "intendedCaseIds": [
         "Q07"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q07",
+          "marker": "[RED:Q07:callid-correlation]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -816,6 +1105,12 @@
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
         "Q07"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q07",
+          "marker": "[RED:Q07:callid-correlation]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -831,6 +1126,12 @@
       "intendedCaseIds": [
         "Q08"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q08",
+          "marker": "[RED:Q08:frozen-results]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -844,6 +1145,12 @@
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
         "Q08"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q08",
+          "marker": "[RED:Q08:frozen-results]"
+        }
       ],
       "expectedTypeDiagnostics": []
     },
@@ -859,6 +1166,12 @@
       "intendedCaseIds": [
         "Q09"
       ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q09",
+          "marker": "[RED:Q09:preaborted-completeness]"
+        }
+      ],
       "expectedTypeDiagnostics": []
     },
     {
@@ -872,6 +1185,12 @@
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
         "Q13"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q13",
+          "marker": "[RED:Q13:repeated-callid-dedup]"
+        }
       ],
       "expectedTypeDiagnostics": []
     }

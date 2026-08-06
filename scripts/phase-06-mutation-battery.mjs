@@ -35,6 +35,20 @@ const BATCH_TEST = "packages/concierge/test/dispatcher-batch.test.ts";
 const TYPE_TEST = "packages/concierge/test-d/dispatcher.test-d.ts";
 const BUILD_MARKER = "Build complete";
 const MAX_BUFFER = 64 * 1024 * 1024;
+const SCHEMA_VERSION = 2;
+const REVISION_CONFIG_PATHS = Object.freeze([
+  "package.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "tsconfig.base.json",
+  "vitest.config.ts",
+  "packages/concierge/package.json",
+  "packages/concierge/tsconfig.json",
+  "packages/concierge/tsconfig.test-d.json",
+  "packages/concierge/tsdown.config.ts",
+  "scripts/mutate-and-prove.sh",
+  "scripts/phase-06-mutation-battery.mjs",
+]);
 
 export const EXPECTED_SINGLE_IDS = Object.freeze(
   Array.from({ length: 34 }, (_, index) =>
@@ -51,6 +65,20 @@ export const EXPECTED_M06_IDS = Object.freeze([
   ...EXPECTED_BATCH_IDS,
 ]);
 
+function failureMarkerForCase(testFile, caseId) {
+  const source = readFileSync(join(ROOT, testFile), "utf8");
+  const matches = [
+    ...source.matchAll(new RegExp(`\\[RED:${caseId}:[^\\]]+\\]`, "gu")),
+  ].map((match) => match[0]);
+  const unique = [...new Set(matches)];
+  if (unique.length !== 1) {
+    throw new Error(
+      `${testFile}: expected exactly one RED marker for ${caseId}, found ${JSON.stringify(unique)}`,
+    );
+  }
+  return unique[0];
+}
+
 function lines(...values) {
   return values.join("\n");
 }
@@ -64,6 +92,7 @@ function runtimeMutant({
   replacement,
   intendedCaseIds,
 }) {
+  const intendedTestFile = group === "single" ? SINGLE_TEST : BATCH_TEST;
   return Object.freeze({
     id,
     group,
@@ -72,8 +101,16 @@ function runtimeMutant({
     literalPattern,
     replacement,
     detectorKind: "vitest",
-    intendedTestFile: group === "single" ? SINGLE_TEST : BATCH_TEST,
+    intendedTestFile,
     intendedCaseIds: Object.freeze([...intendedCaseIds]),
+    expectedFailureFingerprint: Object.freeze(
+      intendedCaseIds.map((caseId) =>
+        Object.freeze({
+          caseId,
+          marker: failureMarkerForCase(intendedTestFile, caseId),
+        }),
+      ),
+    ),
     expectedTypeDiagnostics: Object.freeze([]),
   });
 }
@@ -97,6 +134,7 @@ function typeMutant({
     detectorKind: "typecheck",
     intendedTestFile: SINGLE_TEST,
     intendedCaseIds: Object.freeze([...intendedCaseIds]),
+    expectedFailureFingerprint: Object.freeze([]),
     expectedTypeDiagnostics: Object.freeze([...expectedTypeDiagnostics]),
   });
 }
@@ -182,7 +220,8 @@ const MUTANTS = Object.freeze([
     name: "callId and fallback key namespaces collide",
     target: "packages/concierge/src/dispatch.ts",
     literalPattern: "      return `id:${callId}`;",
-    replacement: "      return `args:${callId}`;",
+    replacement:
+      '      return `args:${authorizationScope === null ? "cross" : String(authorizationScope)}:${callId}`;',
     intendedCaseIds: ["R04"],
   }),
   runtimeMutant({
@@ -196,7 +235,8 @@ const MUTANTS = Object.freeze([
       "    if (callId !== undefined) {",
       "      return `id:${callId}`;",
       "    }",
-      "    return `args:${name}:${JSON.stringify(args)}`;",
+      '    const scope: string = authorizationScope === null ? "cross" : String(authorizationScope);',
+      "    return `args:${scope}:${name}:${JSON.stringify(args)}`;",
       "  } catch {",
       "    return null;",
       "  }",
@@ -206,7 +246,8 @@ const MUTANTS = Object.freeze([
       "  if (callId !== undefined) {",
       "    return `id:${callId}`;",
       "  }",
-      "  return `args:${name}:${JSON.stringify(args)}`;",
+      '  const scope: string = authorizationScope === null ? "cross" : String(authorizationScope);',
+      "  return `args:${scope}:${name}:${JSON.stringify(args)}`;",
     ),
     intendedCaseIds: ["R05"],
   }),
@@ -244,7 +285,13 @@ const MUTANTS = Object.freeze([
     name: "dedupe timestamp starts at creation instead of settlement",
     target: "packages/concierge/src/concierge.ts",
     literalPattern: lines(
-      "    const promise: Promise<ActionResult> = runDispatchPipeline(ctx, name, args, meta);",
+      "    const promise: Promise<ActionResult> = runDispatchPipeline(",
+      "      index,",
+      "      entry,",
+      "      name,",
+      "      argsSnapshot.value,",
+      "      metaSnapshot.value,",
+      "    );",
       "    dispatchPromises.set(key, promise);",
       "    dispatchSettledAt.delete(key);",
       "    dispatchPending.add(key);",
@@ -254,7 +301,13 @@ const MUTANTS = Object.freeze([
       "    };",
     ),
     replacement: lines(
-      "    const promise: Promise<ActionResult> = runDispatchPipeline(ctx, name, args, meta);",
+      "    const promise: Promise<ActionResult> = runDispatchPipeline(",
+      "      index,",
+      "      entry,",
+      "      name,",
+      "      argsSnapshot.value,",
+      "      metaSnapshot.value,",
+      "    );",
       "    dispatchPromises.set(key, promise);",
       "    dispatchSettledAt.set(key, Date.now());",
       "    dispatchPending.add(key);",
@@ -279,10 +332,8 @@ const MUTANTS = Object.freeze([
     group: "single",
     name: "commit-window default changes from 600 ms",
     target: "packages/concierge/src/concierge.ts",
-    literalPattern:
-      "  const commitWindowMs: number = config.commitWindowMs ?? 600;",
-    replacement:
-      "  const commitWindowMs: number = config.commitWindowMs ?? 500;",
+    literalPattern: "    config.commitWindowMs ?? 600,",
+    replacement: "    config.commitWindowMs ?? 500,",
     intendedCaseIds: ["R20"],
   }),
   runtimeMutant({
@@ -290,10 +341,8 @@ const MUTANTS = Object.freeze([
     group: "single",
     name: "dedupe-window default changes from 600 ms",
     target: "packages/concierge/src/concierge.ts",
-    literalPattern:
-      "  const dedupeWindowMs: number = config.dedupeWindowMs ?? 600;",
-    replacement:
-      "  const dedupeWindowMs: number = config.dedupeWindowMs ?? 500;",
+    literalPattern: "    config.dedupeWindowMs ?? 600,",
+    replacement: "    config.dedupeWindowMs ?? 500,",
     intendedCaseIds: ["R20"],
   }),
   runtimeMutant({
@@ -317,32 +366,42 @@ const MUTANTS = Object.freeze([
     literalPattern: lines(
       "    // The explicit prototype-name refusal stays ahead of the catalog read even",
       "    // though `byName` has a null prototype. It makes the security boundary",
-      "    // independent of a future lookup refactor.",
+      "    // independent of a future lookup refactor. Authorization also stays ahead",
+      "    // of the cache: a key proves retry identity, never stage authority.",
       "    if (",
       "      name === \"__proto__\" ||",
       "      name === \"constructor\" ||",
       "      !allowedNames.includes(name)",
       "    ) {",
-      "      return authoredResult(",
-      "        false,",
-      "        \"This action is not available in the current stage.\",",
-      "        \"unknown_action\",",
+      "      return Promise.resolve(",
+      "        authoredResult(",
+      "          false,",
+      "          \"This action is not available in the current stage.\",",
+      "          \"unknown_action\",",
+      "        ),",
       "      );",
       "    }",
       "",
       "    const entry: CatalogEntry | undefined = catalog.byName[name];",
     ),
     replacement: lines(
-      "    const prototypeLookup: Record<string, CatalogEntry> = { ...catalog.byName };",
+      "    const prototypeEntry: CatalogEntry = Object.values(catalog.byName)[0] as CatalogEntry;",
+      "    const prototypeLookup: Record<string, CatalogEntry> = {",
+      "      __proto__: prototypeEntry,",
+      "      constructor: prototypeEntry,",
+      "      ...catalog.byName,",
+      "    };",
       "    if (",
       "      !allowedNames.includes(name) &&",
       "      name !== \"__proto__\" &&",
       "      name !== \"constructor\"",
       "    ) {",
-      "      return authoredResult(",
-      "        false,",
-      "        \"This action is not available in the current stage.\",",
-      "        \"unknown_action\",",
+      "      return Promise.resolve(",
+      "        authoredResult(",
+      "          false,",
+      "          \"This action is not available in the current stage.\",",
+      "          \"unknown_action\",",
+      "        ),",
       "      );",
       "    }",
       "",
@@ -366,7 +425,7 @@ const MUTANTS = Object.freeze([
     group: "single",
     name: "handler receives original rather than transformed arguments",
     target: "packages/concierge/src/concierge.ts",
-    literalPattern: "        args: validation.value,",
+    literalPattern: "        args: validatedSnapshot.value,",
     replacement: "        args,",
     intendedCaseIds: ["R15"],
   }),
@@ -410,6 +469,8 @@ const MUTANTS = Object.freeze([
     name: "initial abort refusal is removed",
     target: "packages/concierge/src/concierge.ts",
     literalPattern: lines(
+      "    const signal: AbortSignalLike | undefined = meta.signal;",
+      "",
       "    if (isAborted(signal)) {",
       "      return authoredResult(",
       "        false,",
@@ -421,11 +482,13 @@ const MUTANTS = Object.freeze([
       "    if (entry.action.effects?.readOnly !== true) {",
     ),
     replacement: lines(
+      "    let signal: AbortSignalLike | undefined = meta.signal;",
+      "",
       "    if (isAborted(signal)) {",
       "      signal = undefined;",
       "    }",
       "",
-      "    if (!isAborted(meta?.signal) && entry.action.effects?.readOnly !== true) {",
+      "    if (!isAborted(meta.signal) && entry.action.effects?.readOnly !== true) {",
     ),
     intendedCaseIds: ["R28"],
   }),
@@ -493,8 +556,6 @@ const MUTANTS = Object.freeze([
       "        \"handler_error\",",
       "      );",
       "    }",
-      "",
-      "    let handlerResult: unknown = handlerReturn;",
     ),
     replacement: lines(
       "    } catch (error) {",
@@ -504,8 +565,6 @@ const MUTANTS = Object.freeze([
       "        \"handler_error\",",
       "      );",
       "    }",
-      "",
-      "    let handlerResult: unknown = handlerReturn;",
     ),
     intendedCaseIds: ["R36"],
   }),
@@ -528,7 +587,14 @@ const MUTANTS = Object.freeze([
       "    return invalidResult();",
       "  }",
     ),
-    replacement: "",
+    replacement: lines(
+      "  if (typeof ok !== \"boolean\") {",
+      "    return invalidResult();",
+      "  }",
+      "  if (typeof message !== \"string\") {",
+      "    message = String(message);",
+      "  }",
+    ),
     intendedCaseIds: ["R39"],
   }),
   runtimeMutant({
@@ -599,7 +665,7 @@ const MUTANTS = Object.freeze([
       "export type Scheduler = (fn: () => void, delayMs: number) => void | (() => void);",
     intendedCaseIds: ["R31"],
     expectedTypeDiagnostics: [
-      "test-d/dispatcher.test-d.ts(16,35): error TS2344",
+      "test-d/dispatcher.test-d.ts(17,35): error TS2344",
     ],
   }),
   runtimeMutant({
@@ -627,18 +693,44 @@ const MUTANTS = Object.freeze([
     target: "packages/concierge/src/dispatch.ts",
     literalPattern: lines(
       "  const ordered: Array<{",
-      "    readonly call: ToolBatch[\"calls\"][number];",
+      "    readonly call: Readonly<{",
+      "      callId: string;",
+      "      name: string;",
+      "      arguments: string;",
+      "      outputIndex: number;",
+      "    }>;",
       "    readonly originalIndex: number;",
-      "  }> = batch.calls.map((call, originalIndex) => ({ call, originalIndex }));",
+      "  }> = batch.calls.map((call, originalIndex) => ({",
+      "    call: Object.freeze({",
+      "      callId: call.callId,",
+      "      name: call.name,",
+      "      arguments: call.arguments,",
+      "      outputIndex: call.outputIndex,",
+      "    }),",
+      "    originalIndex,",
+      "  }));",
     ),
     replacement: lines(
       "  const mutableCalls: Array<ToolBatch[\"calls\"][number]> =",
       "    batch.calls as Array<ToolBatch[\"calls\"][number]>;",
       "  mutableCalls.sort((left, right): number => left.outputIndex - right.outputIndex);",
       "  const ordered: Array<{",
-      "    readonly call: ToolBatch[\"calls\"][number];",
+      "    readonly call: Readonly<{",
+      "      callId: string;",
+      "      name: string;",
+      "      arguments: string;",
+      "      outputIndex: number;",
+      "    }>;",
       "    readonly originalIndex: number;",
-      "  }> = mutableCalls.map((call, originalIndex) => ({ call, originalIndex }));",
+      "  }> = mutableCalls.map((call, originalIndex) => ({",
+      "    call: Object.freeze({",
+      "      callId: call.callId,",
+      "      name: call.name,",
+      "      arguments: call.arguments,",
+      "      outputIndex: call.outputIndex,",
+      "    }),",
+      "    originalIndex,",
+      "  }));",
     ),
     intendedCaseIds: ["Q01"],
   }),
@@ -695,7 +787,7 @@ const MUTANTS = Object.freeze([
     group: "batch",
     name: "responseId metadata is omitted",
     target: "packages/concierge/src/dispatch.ts",
-    literalPattern: "        responseId: batch.responseId,",
+    literalPattern: "        responseId: batchSnapshot.responseId,",
     replacement: "        responseId: undefined,",
     intendedCaseIds: ["Q06"],
   }),
@@ -705,11 +797,11 @@ const MUTANTS = Object.freeze([
     name: "callId metadata is omitted",
     target: "packages/concierge/src/dispatch.ts",
     literalPattern: lines(
-      "        responseId: batch.responseId,",
+      "        responseId: batchSnapshot.responseId,",
       "        callId: call.callId,",
     ),
     replacement: lines(
-      "        responseId: batch.responseId,",
+      "        responseId: batchSnapshot.responseId,",
       "        callId: undefined,",
     ),
     intendedCaseIds: ["Q06"],
@@ -719,8 +811,16 @@ const MUTANTS = Object.freeze([
     group: "batch",
     name: "outputIndex metadata is omitted",
     target: "packages/concierge/src/dispatch.ts",
-    literalPattern: "        outputIndex: call.outputIndex,",
-    replacement: "        outputIndex: undefined,",
+    literalPattern: lines(
+      "        responseId: batchSnapshot.responseId,",
+      "        callId: call.callId,",
+      "        outputIndex: call.outputIndex,",
+    ),
+    replacement: lines(
+      "        responseId: batchSnapshot.responseId,",
+      "        callId: call.callId,",
+      "        outputIndex: undefined,",
+    ),
     intendedCaseIds: ["Q06"],
   }),
   runtimeMutant({
@@ -728,7 +828,7 @@ const MUTANTS = Object.freeze([
     group: "batch",
     name: "userTurnId metadata is omitted",
     target: "packages/concierge/src/dispatch.ts",
-    literalPattern: "        userTurnId: batch.userTurnId,",
+    literalPattern: "        userTurnId: batchSnapshot.userTurnId,",
     replacement: "        userTurnId: undefined,",
     intendedCaseIds: ["Q06"],
   }),
@@ -737,7 +837,7 @@ const MUTANTS = Object.freeze([
     group: "batch",
     name: "abort signal metadata is omitted",
     target: "packages/concierge/src/dispatch.ts",
-    literalPattern: "        signal: batch.signal,",
+    literalPattern: "        signal: batchSnapshot.signal,",
     replacement: "        signal: undefined,",
     intendedCaseIds: ["Q06"],
   }),
@@ -747,7 +847,7 @@ const MUTANTS = Object.freeze([
     name: "delivery hook metadata is omitted",
     target: "packages/concierge/src/dispatch.ts",
     literalPattern:
-      "        deferUntilDelivered: batch.deferUntilDelivered,",
+      "        deferUntilDelivered: batchSnapshot.deferUntilDelivered,",
     replacement: "        deferUntilDelivered: undefined,",
     intendedCaseIds: ["Q06"],
   }),
@@ -778,9 +878,8 @@ const MUTANTS = Object.freeze([
     group: "batch",
     name: "already-aborted calls are dispatched after erasing the signal",
     target: "packages/concierge/src/dispatch.ts",
-    literalPattern: "    if (isAborted(batch.signal)) {",
-    replacement:
-      "    if (isAborted(batch.signal) && (Reflect.deleteProperty(batch, \"signal\"), false)) {",
+    literalPattern: "    signal: batch.signal,",
+    replacement: "    signal: undefined,",
     intendedCaseIds: ["Q09"],
   }),
   runtimeMutant({
@@ -917,6 +1016,8 @@ function summarizeVitestReport(reportPath) {
       numFailedTests: 0,
       numPendingTests: 0,
       assertions: [],
+      suiteErrors: [],
+      unhandledErrors: [],
     };
   }
 
@@ -933,6 +1034,20 @@ function summarizeVitestReport(reportPath) {
         };
       }),
     );
+    const suiteErrors = (report.testResults ?? []).flatMap((suite) => {
+      const assertionCount = suite.assertionResults?.length ?? 0;
+      if (assertionCount > 0) return [];
+      return [suite.message, suite.failureMessage]
+        .filter((message) => typeof message === "string" && message.trim() !== "")
+        .map((message) => message.trim());
+    });
+    const unhandledErrors = [...(report.unhandledErrors ?? []), ...(report.errors ?? [])]
+      .map((error) =>
+        typeof error === "string"
+          ? error
+          : JSON.stringify(error),
+      )
+      .filter((error) => error !== "" && error !== undefined);
     return {
       readable: true,
       numTotalTests: report.numTotalTests ?? 0,
@@ -940,6 +1055,8 @@ function summarizeVitestReport(reportPath) {
       numFailedTests: report.numFailedTests ?? 0,
       numPendingTests: report.numPendingTests ?? 0,
       assertions,
+      suiteErrors,
+      unhandledErrors,
     };
   } catch (error) {
     return {
@@ -950,6 +1067,8 @@ function summarizeVitestReport(reportPath) {
       numFailedTests: 0,
       numPendingTests: 0,
       assertions: [],
+      suiteErrors: [],
+      unhandledErrors: [],
     };
   }
 }
@@ -989,6 +1108,73 @@ function exactCaseSet(report, intendedCaseIds, expectedStatus) {
     JSON.stringify(observed) === JSON.stringify(intended) &&
     report.assertions.every((assertion) => assertion.status === expectedStatus)
   );
+}
+
+function runtimeFailureFingerprint(report) {
+  const fingerprint = [];
+  const errors = [];
+  for (const assertion of report.assertions) {
+    if (assertion.status !== "failed") continue;
+    const messages = assertion.failureMessages.filter(
+      (message) => typeof message === "string",
+    );
+    const markers = messages.flatMap((message) => [
+      ...message.matchAll(/\[RED:[RQ]\d{2}:[^\]]+\]/gu),
+    ].map((match) => match[0]));
+    if (messages.length !== 1) {
+      errors.push(`${assertion.caseId ?? assertion.title}: failureMessages=${messages.length}`);
+    }
+    if (markers.length !== 1) {
+      errors.push(`${assertion.caseId ?? assertion.title}: RED markers=${markers.length}`);
+      continue;
+    }
+    fingerprint.push({ caseId: assertion.caseId, marker: markers[0] });
+  }
+  fingerprint.sort((left, right) =>
+    `${left.caseId}:${left.marker}`.localeCompare(`${right.caseId}:${right.marker}`),
+  );
+  return { fingerprint, errors };
+}
+
+function exactRuntimeFailureSet(report, mutant) {
+  const observed = runtimeFailureFingerprint(report);
+  const expected = [...mutant.expectedFailureFingerprint].sort((left, right) =>
+    `${left.caseId}:${left.marker}`.localeCompare(`${right.caseId}:${right.marker}`),
+  );
+  return {
+    satisfied:
+      exactCaseSet(report, mutant.intendedCaseIds, "failed") &&
+      report.suiteErrors.length === 0 &&
+      report.unhandledErrors.length === 0 &&
+      observed.errors.length === 0 &&
+      JSON.stringify(observed.fingerprint) === JSON.stringify(expected),
+    observed: observed.fingerprint,
+    infrastructureErrors: [
+      ...report.suiteErrors,
+      ...report.unhandledErrors,
+      ...observed.errors,
+    ],
+  };
+}
+
+function parseTypeDiagnostics(output) {
+  const diagnostics = [];
+  const pattern = /^([^\n(]+)\((\d+),(\d+)\): error TS(\d+):/gmu;
+  for (const match of output.matchAll(pattern)) {
+    diagnostics.push(
+      `${match[1]}(${match[2]},${match[3]}): error TS${match[4]}`,
+    );
+  }
+  return diagnostics.sort();
+}
+
+function exactTypeDiagnosticSet(output, expectedDiagnostics) {
+  const observed = parseTypeDiagnostics(output);
+  const expected = [...expectedDiagnostics].sort();
+  return {
+    observed,
+    satisfied: JSON.stringify(observed) === JSON.stringify(expected),
+  };
 }
 
 function validateDefinitions() {
@@ -1036,7 +1222,7 @@ function validateDefinitions() {
 
 function makeRegister() {
   return {
-    schemaVersion: 1,
+    schemaVersion: SCHEMA_VERSION,
     phase: "06-dispatcher",
     expectedSingleIds: EXPECTED_SINGLE_IDS,
     expectedBatchIds: EXPECTED_BATCH_IDS,
@@ -1057,6 +1243,9 @@ function pendingEvidenceRow(mutant) {
     testsRan: 0,
     intendedCaseIds: mutant.intendedCaseIds,
     intendedFailingCaseIds: [],
+    expectedFailureFingerprint: mutant.expectedFailureFingerprint,
+    observedFailureFingerprint: [],
+    infrastructureErrors: [],
     expectedTypeDiagnostics: mutant.expectedTypeDiagnostics,
     observedTypeDiagnostics: [],
     detectorSatisfied: false,
@@ -1066,13 +1255,14 @@ function pendingEvidenceRow(mutant) {
     targetRestored: false,
     restoredGreen: false,
     scopedTreeClean: false,
+    revisionDigest: null,
     executedAt: null,
   };
 }
 
 function makeInitialEvidence() {
   return {
-    schemaVersion: 1,
+    schemaVersion: SCHEMA_VERSION,
     phase: "06-dispatcher",
     registerDigest: registerDigest(),
     expectedIds: EXPECTED_M06_IDS,
@@ -1140,6 +1330,29 @@ function targetHash(mutant) {
   return sha256(readFileSync(join(ROOT, mutant.target)));
 }
 
+function revisionInputPaths(mutant) {
+  return [
+    ...new Set([
+      mutant.target,
+      mutant.intendedTestFile,
+      ...(mutant.detectorKind === "typecheck" ? [TYPE_TEST] : []),
+      ...REVISION_CONFIG_PATHS,
+    ]),
+  ].sort();
+}
+
+function revisionDigest(mutant, transform = (_path, content) => content) {
+  const digest = createHash("sha256");
+  digest.update(`mutant\0${JSON.stringify(mutant)}\0`);
+  for (const path of revisionInputPaths(mutant)) {
+    const content = readFileSync(join(ROOT, path));
+    digest.update(`path\0${path}\0`);
+    digest.update(transform(path, content));
+    digest.update("\0");
+  }
+  return digest.digest("hex");
+}
+
 function shortOutput(output, maxLength = 12_000) {
   return output.length <= maxLength
     ? output
@@ -1194,9 +1407,13 @@ function runGate(mutantId, directory) {
   gate.vitestOutput = shortOutput(vitest.output);
 
   if (mutant.detectorKind === "vitest") {
+    const fingerprint = exactRuntimeFailureSet(vitest.report, mutant);
+    gate.observedFailureFingerprint = fingerprint.observed;
+    gate.infrastructureErrors = fingerprint.infrastructureErrors;
     gate.detectorSatisfied =
       vitest.exitCode !== 0 &&
-      exactCaseSet(vitest.report, mutant.intendedCaseIds, "failed");
+      vitest.signal === null &&
+      fingerprint.satisfied;
     writeGateResult(directory, gate);
     if (gate.detectorSatisfied) {
       process.exitCode = 1;
@@ -1220,12 +1437,15 @@ function runGate(mutantId, directory) {
   const typecheck = runTypecheck();
   gate.typecheckExit = typecheck.exitCode;
   gate.typecheckOutput = shortOutput(typecheck.output);
-  gate.observedTypeDiagnostics = mutant.expectedTypeDiagnostics.filter((diagnostic) =>
-    typecheck.output.includes(diagnostic),
+  const diagnostics = exactTypeDiagnosticSet(
+    typecheck.output,
+    mutant.expectedTypeDiagnostics,
   );
+  gate.observedTypeDiagnostics = diagnostics.observed;
   gate.detectorSatisfied =
     typecheck.exitCode !== 0 &&
-    gate.observedTypeDiagnostics.length === mutant.expectedTypeDiagnostics.length;
+    typecheck.signal === null &&
+    diagnostics.satisfied;
   writeGateResult(directory, gate);
   if (gate.detectorSatisfied) {
     process.exitCode = 1;
@@ -1287,6 +1507,7 @@ function executeMutant(mutant) {
   const tracked =
     command("git", ["ls-files", "--error-unmatch", mutant.target]).exitCode === 0;
   const hashBefore = targetHash(mutant);
+  const measuredRevisionDigest = revisionDigest(mutant);
   const directory = mkdtempSync(join(tmpdir(), "phase-06-mutation-"));
 
   try {
@@ -1340,6 +1561,9 @@ function executeMutant(mutant) {
           ?.filter((assertion) => assertion.status === "failed")
           .map((assertion) => assertion.caseId)
           .filter((caseId) => caseId !== null) ?? [],
+      expectedFailureFingerprint: mutant.expectedFailureFingerprint,
+      observedFailureFingerprint: gate?.observedFailureFingerprint ?? [],
+      infrastructureErrors: gate?.infrastructureErrors ?? [],
       expectedTypeDiagnostics: mutant.expectedTypeDiagnostics,
       observedTypeDiagnostics: gate?.observedTypeDiagnostics ?? [],
       detectorSatisfied: gate?.detectorSatisfied === true,
@@ -1354,6 +1578,7 @@ function executeMutant(mutant) {
       scopedStatusBefore: beforeStatus,
       scopedStatusAfter: afterStatus,
       scopedTreeClean,
+      revisionDigest: measuredRevisionDigest,
       harnessExit: harness.exitCode,
       harnessOutput: shortOutput(harness.output),
       mutantGate: gate,
@@ -1397,11 +1622,20 @@ function runGroup(group) {
   const selected = MUTANTS.filter((mutant) => mutant.group === group);
   for (const [index, mutant] of selected.entries()) {
     const existing = evidence.rows.find((row) => row.id === mutant.id);
-    if (existing?.status === "green") {
+    const currentRevisionDigest = revisionDigest(mutant);
+    if (
+      existing?.status === "green" &&
+      existing.revisionDigest === currentRevisionDigest
+    ) {
       console.log(
         `[${index + 1}/${selected.length}] ${mutant.id} already green; preserving measured evidence`,
       );
       continue;
+    }
+    if (existing?.status === "green") {
+      console.log(
+        `[${index + 1}/${selected.length}] ${mutant.id} evidence is stale; rerunning`,
+      );
     }
     console.log(
       `[${index + 1}/${selected.length}] ${mutant.id} ${mutant.name}`,
@@ -1434,6 +1668,12 @@ function assertGreenEvidenceRow(row, mutant) {
   if (row.targetHashBefore !== row.targetHashAfter) {
     errors.push("restored target hash differs");
   }
+  if (row.targetHashBefore !== targetHash(mutant)) {
+    errors.push("recorded target hash differs from current source");
+  }
+  if (row.revisionDigest !== revisionDigest(mutant)) {
+    errors.push("revision digest is stale");
+  }
   if (row.restoredGreen !== true) errors.push("restored gates not green");
   if (row.scopedTreeClean !== true) errors.push("scoped tree not clean");
   if (mutant.detectorKind === "vitest") {
@@ -1443,6 +1683,18 @@ function assertGreenEvidenceRow(row, mutant) {
       errors.push(
         `wrong failing cases: ${JSON.stringify(observed)} expected ${JSON.stringify(intended)}`,
       );
+    }
+    const observedFingerprint = [...row.observedFailureFingerprint].sort((left, right) =>
+      `${left.caseId}:${left.marker}`.localeCompare(`${right.caseId}:${right.marker}`),
+    );
+    const expectedFingerprint = [...mutant.expectedFailureFingerprint].sort((left, right) =>
+      `${left.caseId}:${left.marker}`.localeCompare(`${right.caseId}:${right.marker}`),
+    );
+    if (JSON.stringify(observedFingerprint) !== JSON.stringify(expectedFingerprint)) {
+      errors.push("runtime failure fingerprint differs from the expected assertion markers");
+    }
+    if (row.infrastructureErrors.length !== 0) {
+      errors.push(`infrastructure errors recorded: ${JSON.stringify(row.infrastructureErrors)}`);
     }
   } else {
     const observed = [...row.observedTypeDiagnostics].sort();
@@ -1504,9 +1756,97 @@ function init() {
   );
 }
 
+function refresh() {
+  validateDefinitions();
+  const register = makeRegister();
+  const evidence = makeInitialEvidence();
+  atomicWriteJson(REGISTER_PATH, register);
+  atomicWriteJson(EVIDENCE_PATH, evidence);
+  console.log(
+    `Refreshed immutable ${register.mutants.length}-row register ${register.registerDigest}; all evidence rows reset to pending`,
+  );
+}
+
+function selfTest() {
+  const mutant = MUTANTS.find(
+    (candidate) => candidate.detectorKind === "vitest",
+  );
+  if (mutant === undefined) {
+    throw new Error("self-test requires a runtime mutant");
+  }
+  const expected = mutant.expectedFailureFingerprint[0];
+  if (expected === undefined) {
+    throw new Error("self-test runtime mutant has no expected fingerprint");
+  }
+  const report = {
+    readable: true,
+    numTotalTests: 1,
+    numPassedTests: 0,
+    numFailedTests: 1,
+    numPendingTests: 0,
+    assertions: [
+      {
+        caseId: expected.caseId,
+        title: `[${expected.caseId}] self-test`,
+        status: "failed",
+        failureMessages: [`AssertionError: ${expected.marker}`],
+      },
+    ],
+    suiteErrors: [],
+    unhandledErrors: [],
+  };
+  if (!exactRuntimeFailureSet(report, mutant).satisfied) {
+    throw new Error("exact runtime fingerprint rejected its expected marker");
+  }
+  const unrelatedFailure = structuredClone(report);
+  unrelatedFailure.assertions[0].failureMessages = [
+    "TypeError: unrelated setup failure",
+  ];
+  if (exactRuntimeFailureSet(unrelatedFailure, mutant).satisfied) {
+    throw new Error("unrelated runtime failure satisfied the detector");
+  }
+  const infrastructureFailure = structuredClone(report);
+  infrastructureFailure.unhandledErrors = ["unhandled rejection"];
+  if (exactRuntimeFailureSet(infrastructureFailure, mutant).satisfied) {
+    throw new Error("unhandled runtime error satisfied the detector");
+  }
+
+  const expectedDiagnostic =
+    "test-d/dispatcher.test-d.ts(17,35): error TS2344";
+  const exactTypeOutput = `${expectedDiagnostic}: Type assertion failed.\n`;
+  if (!exactTypeDiagnosticSet(exactTypeOutput, [expectedDiagnostic]).satisfied) {
+    throw new Error("exact type diagnostic rejected its expected fingerprint");
+  }
+  const extraTypeOutput = `${exactTypeOutput}src/types.ts(1,1): error TS9999: extra\n`;
+  if (exactTypeDiagnosticSet(extraTypeOutput, [expectedDiagnostic]).satisfied) {
+    throw new Error("extra type diagnostic satisfied the detector");
+  }
+
+  const currentDigest = revisionDigest(mutant);
+  const changedTestDigest = revisionDigest(mutant, (path, content) =>
+    path === mutant.intendedTestFile
+      ? Buffer.concat([content, Buffer.from("\nself-test revision change")])
+      : content,
+  );
+  if (currentDigest === changedTestDigest) {
+    throw new Error("intended test changes do not invalidate the revision digest");
+  }
+  const changedHarnessDigest = revisionDigest(mutant, (path, content) =>
+    path === "scripts/phase-06-mutation-battery.mjs"
+      ? Buffer.concat([content, Buffer.from("\nself-test harness change")])
+      : content,
+  );
+  if (currentDigest === changedHarnessDigest) {
+    throw new Error("harness changes do not invalidate the revision digest");
+  }
+  console.log(
+    "Self-test passed: revision invalidation and exact runtime/type fingerprints are enforced",
+  );
+}
+
 function usage() {
   console.error(
-    "Usage: node scripts/phase-06-mutation-battery.mjs init | run single|batch | verify single|all",
+    "Usage: node scripts/phase-06-mutation-battery.mjs init | refresh | self-test | run single|batch | verify single|all",
   );
 }
 
@@ -1514,6 +1854,10 @@ const [operation, argument, gateDirectory] = process.argv.slice(2);
 try {
   if (operation === "init" && argument === undefined) {
     init();
+  } else if (operation === "refresh" && argument === undefined) {
+    refresh();
+  } else if (operation === "self-test" && argument === undefined) {
+    selfTest();
   } else if (operation === "run" && (argument === "single" || argument === "batch")) {
     runGroup(argument);
   } else if (
