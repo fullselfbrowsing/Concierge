@@ -10,6 +10,7 @@
  */
 
 import { sanitizeMessage } from "./message.js";
+import { validateCatalogEntry } from "./catalog.js";
 import type { CatalogEntry } from "./catalog.js";
 import type {
   AbortSignalLike,
@@ -157,7 +158,10 @@ export async function validateArguments(
   args: unknown,
 ): Promise<ArgumentValidation> {
   try {
-    const result = await entry.action.schema["~standard"].validate(args);
+    const result = await validateCatalogEntry(entry, args) as {
+      readonly issues?: unknown;
+      readonly value?: unknown;
+    };
     if (result.issues !== undefined) {
       return { ok: false };
     }

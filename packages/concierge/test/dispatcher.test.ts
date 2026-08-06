@@ -1982,3 +1982,72 @@ async function withFakeNow(initial, run) {
       })),
     );
   });
+
+  it("[R63] retains the construction-time validator after schema capability replacement", async () => {
+    let handlerCalls = 0;
+    const standard = {
+      version: 1,
+      vendor: "concierge-captured-validator-test",
+      expected: "allowed",
+      validate(value) {
+        return value?.token === this.expected
+          ? { value }
+          : { issues: [{ message: "invalid token" }] };
+      },
+    };
+    const schema = { "~standard": standard };
+    const declared = action("captured-validator", () => {
+      handlerCalls += 1;
+      return successful();
+    });
+    declared.schema = schema;
+    const concierge = conciergeFor([declared]);
+
+    const valid = await concierge.dispatch(
+      ACTIVE_CONTEXT,
+      "captured-validator",
+      { token: "allowed" },
+      { callId: "captured-valid" },
+    );
+    standard.validate = (value) => ({ value });
+    const afterValidateReplacement = await concierge.dispatch(
+      ACTIVE_CONTEXT,
+      "captured-validator",
+      { token: "denied" },
+      { callId: "captured-validate-replaced" },
+    );
+    schema["~standard"] = {
+      version: 1,
+      vendor: "replacement",
+      validate: (value) => ({ value }),
+    };
+    const afterStandardReplacement = await concierge.dispatch(
+      ACTIVE_CONTEXT,
+      "captured-validator",
+      { token: "denied" },
+      { callId: "captured-standard-replaced" },
+    );
+
+    expect(
+      {
+        afterStandardReplacement,
+        afterValidateReplacement,
+        handlerCalls,
+        valid,
+      },
+      "[RED:R63:captured-validator-capability]",
+    ).toEqual({
+      afterStandardReplacement: {
+        ok: false,
+        reason: "invalid_args",
+        message: "The action arguments are invalid.",
+      },
+      afterValidateReplacement: {
+        ok: false,
+        reason: "invalid_args",
+        message: "The action arguments are invalid.",
+      },
+      handlerCalls: 1,
+      valid: { ok: true, message: "Done." },
+    });
+  });

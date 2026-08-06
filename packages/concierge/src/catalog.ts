@@ -249,6 +249,47 @@ export interface CatalogEntry {
   readonly parameters: JsonSchemaObject;
 }
 
+type CatalogValidator = (value: unknown) => unknown;
+
+/** Captured validator capabilities stay private even though CatalogEntry is public. */
+const validatorByEntry: WeakMap<CatalogEntry, CatalogValidator> = new WeakMap<
+  CatalogEntry,
+  CatalogValidator
+>();
+
+function unusableValidator(): never {
+  throw new TypeError("The catalog entry has no captured validator.");
+}
+
+/** Read and bind the consumer-owned Standard Schema capability exactly once. */
+function captureValidator(action: AnyActionDefinition): CatalogValidator {
+  try {
+    const schema: unknown = action.schema;
+    if ((typeof schema !== "object" && typeof schema !== "function") || schema === null) {
+      return unusableValidator;
+    }
+    const standard: unknown = (schema as PropertyBag)["~standard"];
+    if (typeof standard !== "object" || standard === null) {
+      return unusableValidator;
+    }
+    const validate: unknown = (standard as PropertyBag)["validate"];
+    if (typeof validate !== "function") {
+      return unusableValidator;
+    }
+    return (value: unknown): unknown => validate.call(standard, value);
+  } catch {
+    return unusableValidator;
+  }
+}
+
+/** Invoke only the capability captured while the catalog entry was built. */
+export function validateCatalogEntry(
+  entry: CatalogEntry,
+  value: unknown,
+): unknown {
+  return (validatorByEntry.get(entry) ?? unusableValidator)(value);
+}
+
 /**
  * The frozen result of a successful build.
  *
@@ -982,7 +1023,9 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
       validators.add(validator);
     }
 
-    entries.push({ action: normalized, parameters });
+    const entry: CatalogEntry = { action: normalized, parameters };
+    validatorByEntry.set(entry, captureValidator(normalized));
+    entries.push(entry);
     names.push(action.name);
   }
 
