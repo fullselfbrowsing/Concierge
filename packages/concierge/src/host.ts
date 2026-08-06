@@ -83,6 +83,7 @@ interface TimerHost {
 }
 
 const DIAGNOSTIC_SUBJECT_MAX_CODE_POINTS: number = 120;
+const DIAGNOSTIC_LINE_MAX_CHARS: number = 800;
 
 /** Render one code point as JSON-compatible UTF-16 escapes. */
 function escapeDiagnosticCodePoint(codePoint: number): string {
@@ -96,6 +97,33 @@ function escapeDiagnosticCodePoint(codePoint: number): string {
     `\\u${high.toString(16).padStart(4, "0")}` +
     `\\u${low.toString(16).padStart(4, "0")}`
   );
+}
+
+/** Encode one control or format code point, leaving ordinary text untouched. */
+function encodeDiagnosticControl(point: string): string | null {
+  switch (point) {
+    case "\b":
+      return "\\b";
+    case "\f":
+      return "\\f";
+    case "\n":
+      return "\\n";
+    case "\r":
+      return "\\r";
+    case "\t":
+      return "\\t";
+    default:
+      break;
+  }
+
+  const codePoint: number = point.codePointAt(0) ?? 0;
+  return codePoint <= 0x1f ||
+    (codePoint >= 0x7f && codePoint <= 0x9f) ||
+    codePoint === 0x2028 ||
+    codePoint === 0x2029 ||
+    /\p{Cf}/u.test(point)
+    ? escapeDiagnosticCodePoint(codePoint)
+    : null;
 }
 
 /** Quote, escape, and bound a consumer-controlled diagnostic subject. */
@@ -118,40 +146,27 @@ export function encodeDiagnosticSubject(subject: string): string {
       case "\\":
         encoded += "\\\\";
         continue;
-      case "\b":
-        encoded += "\\b";
-        continue;
-      case "\f":
-        encoded += "\\f";
-        continue;
-      case "\n":
-        encoded += "\\n";
-        continue;
-      case "\r":
-        encoded += "\\r";
-        continue;
-      case "\t":
-        encoded += "\\t";
-        continue;
       default:
         break;
     }
 
-    const codePoint: number = point.codePointAt(0) ?? 0;
-    if (
-      codePoint <= 0x1f ||
-      (codePoint >= 0x7f && codePoint <= 0x9f) ||
-      codePoint === 0x2028 ||
-      codePoint === 0x2029 ||
-      /\p{Cf}/u.test(point)
-    ) {
-      encoded += escapeDiagnosticCodePoint(codePoint);
-    } else {
-      encoded += point;
-    }
+    encoded += encodeDiagnosticControl(point) ?? point;
   }
 
   return `${encoded}"`;
+}
+
+/** Bound one composed diagnostic line and encode every embedded control. */
+export function encodeDiagnosticLine(line: string): string {
+  let encoded: string = "";
+  for (const point of line) {
+    const fragment: string = encodeDiagnosticControl(point) ?? point;
+    if (encoded.length + fragment.length > DIAGNOSTIC_LINE_MAX_CHARS) {
+      return `${encoded}…`;
+    }
+    encoded += fragment;
+  }
+  return encoded;
 }
 
 // ---------------------------------------------------------------------------

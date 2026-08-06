@@ -57,7 +57,11 @@
  */
 
 import { assertSingleInstance } from "./contract.js";
-import { encodeDiagnosticSubject, warnHost } from "./host.js";
+import {
+  encodeDiagnosticLine,
+  encodeDiagnosticSubject,
+  warnHost,
+} from "./host.js";
 import { JSON_SCHEMA_TARGET, emitSchema, vendorOf } from "./json-schema.js";
 import type { JsonSchemaTarget, SchemaEmission } from "./json-schema.js";
 import type { AnyActionDefinition, JsonSchemaObject } from "./types.js";
@@ -170,6 +174,17 @@ export interface CatalogDiagnostic {
   readonly fix: string;
 }
 
+interface CatalogIssueDisplay {
+  readonly problem: string;
+  readonly fix: string;
+}
+
+/** Display-only encodings never overwrite the raw structured issue fields. */
+const displayByIssue: WeakMap<CatalogIssue, CatalogIssueDisplay> = new WeakMap<
+  CatalogIssue,
+  CatalogIssueDisplay
+>();
+
 // ---------------------------------------------------------------------------
 // The aggregate error
 // ---------------------------------------------------------------------------
@@ -186,12 +201,17 @@ export interface CatalogDiagnostic {
  */
 function formatIssues(issues: readonly CatalogIssue[]): string {
   const lines: string[] = [
-    `concierge: ${issues.length} problem(s) in the action catalog.`,
+    encodeDiagnosticLine(
+      `concierge: ${issues.length} problem(s) in the action catalog.`,
+    ),
   ];
   for (const issue of issues) {
+    const display: CatalogIssueDisplay = displayByIssue.get(issue) ?? issue;
     lines.push(
-      `  [${issue.code}] action "${issue.action}": ${issue.problem} ` +
-        `Fix: ${issue.fix}`,
+      encodeDiagnosticLine(
+        `  [${issue.code}] action ${encodeDiagnosticSubject(issue.action)}: ${display.problem} ` +
+          `Fix: ${display.fix}`,
+      ),
     );
   }
   return lines.join("\n");
@@ -1074,19 +1094,30 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
     }
 
     if (requires === action.name) {
-      issues.push({
+      const issue: CatalogIssue = {
         code: "consent_self_reference",
         action: action.name,
         problem: `its consent policy requires "${requires}", which is the action itself — arming the gate would mean running the very action the gate blocks, so it can never be satisfied.`,
         fix: "point `consent.requires` at the review action that should run first, or remove the `consent` policy if this action needs no gate.",
+      };
+      displayByIssue.set(issue, {
+        problem: `its consent policy requires ${encodeDiagnosticSubject(requires)}, which is the action itself — arming the gate would mean running the very action the gate blocks, so it can never be satisfied.`,
+        fix: issue.fix,
       });
+      issues.push(issue);
     } else if (!seenNames.has(requires)) {
-      issues.push({
+      const issue: CatalogIssue = {
         code: "consent_target_missing",
         action: action.name,
         problem: `its consent policy requires "${requires}", and no action by that name is declared in this catalog — so the gate can never arm and the action is permanently blocked.`,
         fix: `declare an action named "${requires}", or correct the spelling in \`consent.requires\`. The target may live in any stage, or in \`crossStage\`.`,
+      };
+      const displayRequires: string = encodeDiagnosticSubject(requires);
+      displayByIssue.set(issue, {
+        problem: `its consent policy requires ${displayRequires}, and no action by that name is declared in this catalog — so the gate can never arm and the action is permanently blocked.`,
+        fix: `declare an action named ${displayRequires}, or correct the spelling in \`consent.requires\`. The target may live in any stage, or in \`crossStage\`.`,
       });
+      issues.push(issue);
     }
   }
 

@@ -211,3 +211,43 @@ it("encodes catalog diagnostic action subjects", async () => {
   expect(warnings).toHaveLength(1);
   expectEncodedSubject(warnings[0], "destructive_without_consent");
 });
+
+it("encodes catalog build-error action subjects while preserving structured values", () => {
+  let error;
+  try {
+    buildCatalog([
+      action(HOSTILE_SUBJECT, () => ({ ok: true, message: "unused" })),
+      action(HOSTILE_SUBJECT, () => ({ ok: true, message: "unused" })),
+    ]);
+  } catch (caught) {
+    error = caught;
+  }
+
+  expect(error).toBeInstanceOf(Error);
+  expect(error.issues[0].action).toBe(HOSTILE_SUBJECT);
+  const lines = error.message.split("\n");
+  expect(lines).toHaveLength(2);
+  expectEncodedSubject(lines[1], "duplicate_action_name");
+  expect(lines[1].length).toBeLessThan(900);
+});
+
+it("encodes consent targets in catalog messages while preserving raw issue text", () => {
+  let error;
+  try {
+    buildCatalog([
+      action("confirm", () => ({ ok: true, message: "unused" }), {
+        consent: { requires: HOSTILE_SUBJECT },
+      }),
+    ]);
+  } catch (caught) {
+    error = caught;
+  }
+
+  expect(error).toBeInstanceOf(Error);
+  expect(error.issues[0].problem).toContain(HOSTILE_SUBJECT);
+  expect(error.issues[0].fix).toContain(HOSTILE_SUBJECT);
+  const lines = error.message.split("\n");
+  expect(lines).toHaveLength(2);
+  expectEncodedSubject(lines[1], "consent_target_missing");
+  expect(lines[1].length).toBeLessThan(900);
+});
