@@ -48,13 +48,13 @@ Use `pnpm exec vitest run <file>` for filtering—`pnpm test -- <name>` does not
 | 06-06-T1 | 06-06 | 5 | DSP-03 | T-06-Info | Sync throws and rejections become a generic message with no exception text | security runtime + mutation | `node scripts/phase-06-mutation-battery.mjs verify single` | ✅ | ✅ green |
 | 06-06-T1 | 06-06 | 5 | DSP-04 | T-06-DoS | Missing/non-callable handlers settle honestly | runtime | dispatcher quick run | ✅ | ✅ green |
 | 06-06-T1 | 06-06 | 5 | DSP-05 | T-06-Input | Sync/async validation runs before the handler and passes transformed output | runtime + mutation | `node scripts/phase-06-mutation-battery.mjs verify single` | ✅ | ✅ green |
-| 06-06-T2 | 06-06 | 5 | DSP-06 | T-06-Input | Malformed raw arguments become `{}`, are rejected by validation, and do not stop later calls | integration + mutation | `node scripts/phase-06-mutation-battery.mjs verify all` | ✅ | ⬜ pending |
-| 06-06-T2 | 06-06 | 5 | DSP-07 | T-06-Ordering | Batches are stable by `outputIndex`, serial, and settle every call after abort | integration + mutation | `node scripts/phase-06-mutation-battery.mjs verify all` | ✅ | ⬜ pending |
+| 06-06-T2 | 06-06 | 5 | DSP-06 | T-06-Input | Malformed raw arguments become `{}`, are rejected by validation, and do not stop later calls | integration + mutation | `node scripts/phase-06-mutation-battery.mjs verify all` | ✅ | ✅ green |
+| 06-06-T2 | 06-06 | 5 | DSP-07 | T-06-Ordering | Batches are stable by `outputIndex`, serial, and settle every call after abort | integration + mutation | `node scripts/phase-06-mutation-battery.mjs verify all` | ✅ | ✅ green |
 | 06-06-T1 | 06-06 | 5 | DSP-08 | T-06-Race | Effects wait for the commit window; abort cancels before invocation | runtime + mutation | `node scripts/phase-06-mutation-battery.mjs verify single` | ✅ | ✅ green |
 | 06-06-T1 | 06-06 | 5 | DSP-09 | T-06-Output | Malformed handler values/getters/proxies normalize to `invalid_result` | security runtime + mutation | `node scripts/phase-06-mutation-battery.mjs verify single` | ✅ | ✅ green |
 | 06-06-T3 | 06-06 | 5 | SEC-02 | T-06-Info | No thrown message reaches results, console, or a new telemetry seam | AST source audit + security runtime | `node scripts/check-no-telemetry.mjs` | ✅ | ⬜ pending |
 | 06-06-T1 | 06-06 | 5 | SEC-06 | T-06-Injection | Every outbound message strips controls, collapses whitespace, caps length, and preserves surrogate pairs | security runtime + mutation | `node scripts/phase-06-mutation-battery.mjs verify single` | ✅ | ✅ green |
-| 06-06-T2 | 06-06 | 5 | TRN-04 | T-06-Coupling | Single and batch dispatch run without constructing a transport | integration + mutation | `node scripts/phase-06-mutation-battery.mjs verify all` | ✅ | ⬜ pending |
+| 06-06-T2 | 06-06 | 5 | TRN-04 | T-06-Coupling | Single and batch dispatch run without constructing a transport | integration + mutation | `node scripts/phase-06-mutation-battery.mjs verify all` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -73,7 +73,7 @@ Use `pnpm exec vitest run <file>` for filtering—`pnpm test -- <name>` does not
 | Register | Digest | Executed | Result |
 |----------|--------|----------|--------|
 | M-06-S01…M-06-S34 | `01013d0fafab25c58a2a030f606ac4633a78c5b65b02393c69a42a2d54b2d1ba` | 34/34 | ✅ compiled, named detector fired, restored gates green, scoped tree clean |
-| M-06-B01…M-06-B20 | same immutable 54-row register | 0/20 | Explicitly pending and unexecuted for 06-06-T2 |
+| M-06-B01…M-06-B20 | same immutable 54-row register | 20/20 | ✅ compiled, named detector fired, restored gates green, scoped tree clean |
 
 ---
 
