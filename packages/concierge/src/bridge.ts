@@ -96,7 +96,7 @@
 
 import { assertSingleInstance } from "./contract.js";
 import { warnHost } from "./host.js";
-import { MESSAGE_MAX_CHARS } from "./types.js";
+import { boundedMessage } from "./message.js";
 import type { ActionResult, Bridge, BridgeRegistry, SnapshotNormalizer } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -333,75 +333,16 @@ export function createBridge<B extends Bridge = Bridge>(id: string): BridgeRegis
  * // length 108, which leaves 72 characters of headroom under the 180 bound
  * ```
  *
- * **BOUNDED, not SANITIZED — and the distinction is a scheduling decision
- * rather than an oversight.** This truncates at {@link MESSAGE_MAX_CHARS} and
- * does nothing else. Stripping C0/C1 control characters and collapsing
- * whitespace is SEC-06, and it lands at the dispatcher boundary in Phase 6 where
- * it covers *every* result rather than the ones this helper builds. Doing either
- * half here would put one policy in two places, which is how two copies of a
- * policy drift.
- *
- * The truncation is delegated to {@link boundedMessage} for one reason: the cut
- * must not land between the halves of a surrogate pair. That is still bounding
- * rather than sanitizing — it removes no character the consumer wrote, it
- * declines to emit half of one — and it belongs to the shared contract with
- * SEC-06 named below rather than to SEC-06 itself.
- *
- * {@link MESSAGE_MAX_CHARS} is imported from `./types.ts` rather than
- * re-declared. It is the shared contract between this bound and Phase 6's
- * truncation, and a second constant is two numbers that can disagree — a
- * disagreement that would stay invisible until a message was cut at the wrong
- * place.
+ * The composed sentence uses the shared {@link boundedMessage}. Final
+ * dispatcher sanitization happens later, at the outbound boundary, where C0/C1
+ * controls and whitespace are normalized for every result rather than only the
+ * ones this helper builds. Keeping this helper on the shared bound preserves its
+ * direct-call behavior and keeps the result wording unchanged.
  *
  * `"no_bridge"` is one of the twelve closed `ReasonCode` members, already
  * declared for exactly this case. That union is **final at twelve**: adding a
  * member is a breaking change by design, and this function needs no thirteenth.
  */
-/**
- * Cut a message to {@link MESSAGE_MAX_CHARS} without splitting a surrogate pair.
- *
- * Module-private. `String.prototype.slice` cuts at UTF-16 **code units**, and a
- * non-BMP character occupies two of them, so a bound landing between the two
- * halves of a pair emits a lone surrogate. `what` and `where` are
- * consumer-supplied prose that in a real product carries emoji, CJK extension
- * glyphs or mathematical alphanumerics, so this is reachable rather than
- * theoretical. Measured on the shipped composition:
- *
- * ```
- * LONE HIGH SURROGATE at n = 179 | len = 180 | tail = "AAA\ud83d" | wellFormed = false
- * ```
- *
- * **Why an ill-formed string matters here specifically.** This message is both
- * rendered to a human and serialized to the model, and the two disagree about
- * what it says: `JSON.stringify` emits the bare `\ud83d` while `TextEncoder`
- * substitutes U+FFFD — so the bytes Phase 8 would hash are not the bytes anyone
- * saw. {@link offPageResult}'s own doc states this bound is the shared contract
- * with Phase 6's SEC-06 truncation, so leaving the cut naive propagates the
- * defect by design rather than by accident.
- *
- * **This is BOUNDING, not SANITIZING, and the line is the same one
- * {@link offPageResult} draws.** It removes no character the consumer wrote; it
- * declines to emit half of one. Stripping C0/C1 and collapsing whitespace is
- * still SEC-06's and still does not happen in this file.
- *
- * `charCodeAt` and a numeric range rather than a regular expression or
- * `codePointAt`: the test is "is the last retained code unit a HIGH surrogate",
- * which is one comparison, and it is ES5 — nothing here needs a lib beyond
- * `ES2022`. A low surrogate in that position cannot be orphaned by this cut,
- * because its high half is retained with it.
- */
-function boundedMessage(message: string): string {
-  if (message.length <= MESSAGE_MAX_CHARS) {
-    return message;
-  }
-
-  const lastRetained: number = message.charCodeAt(MESSAGE_MAX_CHARS - 1);
-  const cut: number =
-    lastRetained >= 0xd800 && lastRetained <= 0xdbff ? MESSAGE_MAX_CHARS - 1 : MESSAGE_MAX_CHARS;
-
-  return message.slice(0, cut);
-}
-
 export function offPageResult(what: string, where: string): ActionResult {
   const message: string =
     `${what} is not available because the ${where} is not open. ` +
