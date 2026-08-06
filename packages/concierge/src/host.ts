@@ -123,10 +123,6 @@ export function readHostScheduler():
  * Write one developer-facing warning to the host, if the host has anywhere to
  * write it.
  *
- * Optional-chained rather than branched on `undefined`. `contract.ts` uses the
- * explicit branch because it has a second thing to do in the absent case
- * (seeding the registry); this has none, so the branch would be ceremony.
- *
  * **Silent on a host with no console, by design.** A diagnostic that cannot be
  * printed is not a reason to fail a build. This is the convenience channel; the
  * assertable one is the `diagnostics` array `buildCatalog` returns, and the
@@ -134,6 +130,32 @@ export function readHostScheduler():
  * these reliably uses the hook and depends on no host global whatsoever.
  */
 export function warnHost(message: string): void {
-  const host: { console?: ConsoleLike } = globalThis as { console?: ConsoleLike };
-  host.console?.warn(message);
+  const host: { console?: ConsoleLike | null } = globalThis as {
+    console?: ConsoleLike | null;
+  };
+  let consoleLike: ConsoleLike | null | undefined;
+  try {
+    consoleLike = host.console;
+  } catch {
+    return;
+  }
+  if (consoleLike === undefined || consoleLike === null) {
+    return;
+  }
+
+  let warn: unknown;
+  try {
+    warn = (consoleLike as unknown as { warn?: unknown }).warn;
+  } catch {
+    return;
+  }
+  if (typeof warn !== "function") {
+    return;
+  }
+
+  try {
+    (warn as (message: string) => void).call(consoleLike, message);
+  } catch {
+    // A convenience diagnostic can never become application control flow.
+  }
 }

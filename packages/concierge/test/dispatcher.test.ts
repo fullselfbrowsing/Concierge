@@ -1910,3 +1910,75 @@ async function withFakeNow(initial, run) {
       }
     }
   });
+
+  it("[R62] contains absent and hostile console warning sinks", async () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(globalThis, "console");
+    if (originalDescriptor === undefined) {
+      throw new Error("The test host must expose a restorable console descriptor.");
+    }
+
+    const throwingWarnGetter = {};
+    Object.defineProperty(throwingWarnGetter, "warn", {
+      get() {
+        throw new Error("broken warn getter");
+      },
+    });
+    const scenarios = [
+      { name: "absent", descriptor: { value: undefined } },
+      { name: "missing", descriptor: { value: {} } },
+      { name: "noncallable", descriptor: { value: { warn: 42 } } },
+      {
+        name: "throwing-call",
+        descriptor: {
+          value: {
+            warn() {
+              throw new Error("broken console");
+            },
+          },
+        },
+      },
+      { name: "throwing-warn-getter", descriptor: { value: throwingWarnGetter } },
+      {
+        name: "throwing-console-getter",
+        descriptor: {
+          get() {
+            throw new Error("broken console getter");
+          },
+        },
+      },
+    ];
+    const outcomes = [];
+
+    for (const scenario of scenarios) {
+      const concierge = createConcierge({
+        stages: [
+          {
+            id: `hostile-${scenario.name}`,
+            match() {
+              throw new Error("private matcher detail");
+            },
+            actions: [action("diagnostic", () => successful())],
+          },
+        ],
+      });
+      Object.defineProperty(globalThis, "console", {
+        configurable: true,
+        ...scenario.descriptor,
+      });
+      try {
+        const result = await concierge.dispatch(ACTIVE_CONTEXT, "diagnostic", {});
+        outcomes.push({ name: scenario.name, reason: result.reason });
+      } catch {
+        outcomes.push({ name: scenario.name, reason: "escaped" });
+      } finally {
+        Object.defineProperty(globalThis, "console", originalDescriptor);
+      }
+    }
+
+    expect(outcomes, "[RED:R62:total-warning-sink]").toEqual(
+      scenarios.map((scenario) => ({
+        name: scenario.name,
+        reason: "unknown_action",
+      })),
+    );
+  });
