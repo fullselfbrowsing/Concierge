@@ -1706,7 +1706,7 @@ export interface ConciergeConfig {
   /**
    * Window in which a repeated call returns the *same Promise by reference*,
    * so a retrying agent cannot double-fire an effect.
-   * @default 500
+   * @default 600
    */
   dedupeWindowMs?: number;
 }
@@ -1716,7 +1716,7 @@ export interface Concierge {
    * NOT `async`. An async wrapper allocates a fresh Promise per invocation,
    * which breaks deduplication by reference identity.
    */
-  dispatch: (name: string, args: unknown, meta?: InvocationMeta) => Promise<ActionResult>;
+  dispatch: (ctx: StageContext, name: string, args: unknown, meta?: InvocationMeta) => Promise<ActionResult>;
   /**
    * Catalog for the stage matching `ctx`.
    *

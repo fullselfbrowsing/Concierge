@@ -59,16 +59,27 @@
  */
 
 import { buildCatalog, deepFreeze } from "./catalog.js";
-import { warnHost } from "./host.js";
-import type { Catalog } from "./catalog.js";
+import {
+  authoredResult,
+  deriveDispatchKey,
+  isAborted,
+  normalizeActionResult,
+  validateArguments,
+  waitForCommit,
+} from "./dispatch.js";
+import { readHostScheduler, warnHost } from "./host.js";
+import type { ArgumentValidation, CommitWaitOutcome } from "./dispatch.js";
+import type { Catalog, CatalogEntry } from "./catalog.js";
 import type {
   ActionResult,
+  AbortSignalLike,
   Bridge,
   Concierge,
   ConciergeConfig,
   EmittedTool,
   Explanation,
   InvocationMeta,
+  Scheduler,
   StageContext,
   StageExplanation,
 } from "./types.js";
@@ -354,6 +365,8 @@ function bridgeStatus(
 export function createConcierge(config: ConciergeConfig): Concierge {
   const stages: ConciergeConfig["stages"] = config.stages;
   const crossStage: NonNullable<ConciergeConfig["crossStage"]> = config.crossStage ?? [];
+  const commitWindowMs: number = config.commitWindowMs ?? 600;
+  const dedupeWindowMs: number = config.dedupeWindowMs ?? 600;
 
   // ONE flat build over every stage's actions followed by the cross-stage
   // actions — not one build per stage, and the choice is a requirement rather
@@ -456,10 +469,10 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     seenStageIds.add(stage.id);
   }
 
-  // The instance's only mutable state. Both are `null` until first use, per
-  // header constraint 1 — a server process reuses this module across every
-  // request it serves, and these are the two structures that would carry one
-  // config's answers into another's if they lived a scope up.
+  // Instance-local mutable state. Every structure is `null` until its first
+  // use, per header constraint 1 — a server process reuses this module across
+  // every request it serves, and any one of these at module scope would carry
+  // one config's answers, retries, or warnings into another's.
   //
   // **A `Map` and not a null-prototype record, because the key type is
   // `number | null`.** That is a measurement, not a preference. A record cannot
@@ -479,6 +492,24 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   // that sentence carves out rather than the case it rules against.
   let memo: Map<number | null, ReadonlyArray<EmittedTool>> | null = null;
   let warnedStages: Set<string> | null = null;
+  let dispatchPromises: Map<string, Promise<ActionResult>> | null = null;
+  let dispatchSettledAt: Map<string, number> | null = null;
+  let dispatchPending: Set<string> | null = null;
+  let warnedDispatch: Set<string> | null = null;
+
+  /** Report one runtime dispatch problem per subject and Concierge instance. */
+  function warnDispatchOnce(key: string, message: string): void {
+    warnedDispatch ??= new Set<string>();
+    if (warnedDispatch.has(key)) {
+      return;
+    }
+    warnedDispatch.add(key);
+    try {
+      warnHost(message);
+    } catch {
+      // A host diagnostic is a convenience channel, never dispatch control flow.
+    }
+  }
 
   /**
    * Latch a stage id, warn about it once, and report "did not match".
@@ -645,12 +676,241 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     return built;
   }
 
-  function dispatch(
-    _name: string,
-    _args: unknown,
-    _meta?: InvocationMeta,
+  /** Remove every settled retry whose full post-settlement window elapsed. */
+  function sweepSettledDispatches(now: number): void {
+    if (
+      dispatchPromises === null ||
+      dispatchSettledAt === null ||
+      dispatchPending === null
+    ) {
+      return;
+    }
+
+    for (const [key, settledAt] of dispatchSettledAt) {
+      if (dispatchPending.has(key)) {
+        continue;
+      }
+      if (now - settledAt > dedupeWindowMs) {
+        dispatchSettledAt.delete(key);
+        dispatchPromises.delete(key);
+      }
+    }
+  }
+
+  /** Begin the settled access window without replacing the cached Promise. */
+  function markDispatchSettled(key: string, promise: Promise<ActionResult>): void {
+    if (
+      dispatchPromises === null ||
+      dispatchSettledAt === null ||
+      dispatchPending === null ||
+      dispatchPromises.get(key) !== promise
+    ) {
+      return;
+    }
+
+    dispatchPending.delete(key);
+    dispatchSettledAt.set(key, Date.now());
+  }
+
+  /** Execute one call after the synchronous deduplication boundary. */
+  async function runDispatchPipeline(
+    ctx: StageContext,
+    name: string,
+    args: unknown,
+    meta: InvocationMeta | undefined,
   ): Promise<ActionResult> {
-    return Promise.resolve(DISPATCH_NOT_IMPLEMENTED);
+    const index: number | null = resolveIndex(ctx);
+    const allowedNames: readonly string[] =
+      index === null ? crossNames : (namesByStage[index] ?? crossNames);
+
+    // The explicit prototype-name refusal stays ahead of the catalog read even
+    // though `byName` has a null prototype. It makes the security boundary
+    // independent of a future lookup refactor.
+    if (
+      name === "__proto__" ||
+      name === "constructor" ||
+      !allowedNames.includes(name)
+    ) {
+      return authoredResult(
+        false,
+        "This action is not available in the current stage.",
+        "unknown_action",
+      );
+    }
+
+    const entry: CatalogEntry | undefined = catalog.byName[name];
+    if (entry === undefined) {
+      return authoredResult(
+        false,
+        "This action is not available in the current stage.",
+        "unknown_action",
+      );
+    }
+
+    const handler: unknown = entry.action.handler;
+    if (typeof handler !== "function") {
+      warnDispatchOnce(
+        `handler-missing:${name}`,
+        `concierge: [handler_missing] action "${name}": no callable handler is registered, so the action did not run. Fix: provide a callable handler in the action declaration.`,
+      );
+      return authoredResult(
+        false,
+        "This action is unavailable because no handler is registered.",
+      );
+    }
+
+    const validation: ArgumentValidation = await validateArguments(entry, args);
+    if (!validation.ok) {
+      return authoredResult(
+        false,
+        "The action arguments are invalid.",
+        "invalid_args",
+      );
+    }
+
+    let signal: AbortSignalLike | undefined;
+    try {
+      signal = meta?.signal;
+    } catch {
+      return authoredResult(
+        false,
+        "The action was cancelled before it ran.",
+        "aborted",
+      );
+    }
+
+    if (isAborted(signal)) {
+      return authoredResult(
+        false,
+        "The action was cancelled before it ran.",
+        "aborted",
+      );
+    }
+
+    if (entry.action.effects?.readOnly !== true) {
+      let scheduler: Scheduler | undefined;
+      try {
+        scheduler = config.scheduler ?? readHostScheduler();
+      } catch {
+        scheduler = undefined;
+      }
+
+      const wait: CommitWaitOutcome = await waitForCommit(
+        scheduler,
+        commitWindowMs,
+        signal,
+      );
+      if (wait === "aborted") {
+        return authoredResult(
+          false,
+          "The action was cancelled before it ran.",
+          "aborted",
+        );
+      }
+      if (wait === "unavailable") {
+        warnDispatchOnce(
+          "commit-window-unavailable",
+          "concierge: [commit_window_unavailable] config \"scheduler\": no cancellable timer is available, so the commit window was skipped. Fix: provide `ConciergeConfig.scheduler` in this host.",
+        );
+      }
+    }
+
+    // Close the interval between a ready scheduler callback and this async
+    // continuation entering the handler.
+    if (isAborted(signal)) {
+      return authoredResult(
+        false,
+        "The action was cancelled before it ran.",
+        "aborted",
+      );
+    }
+
+    const stage: ConciergeConfig["stages"][number] | undefined =
+      index === null ? undefined : stages[index];
+    const bridge: Bridge | null = stage === undefined ? null : resolveBridge(stage);
+    const handlerMeta: InvocationMeta = meta ?? {};
+
+    let handlerReturn: unknown;
+    try {
+      handlerReturn = handler({
+        args: validation.value,
+        bridge,
+        meta: handlerMeta,
+        ack: undefined,
+      });
+    } catch {
+      return authoredResult(
+        false,
+        "Something went wrong.",
+        "handler_error",
+      );
+    }
+
+    let handlerResult: unknown = handlerReturn;
+    if (handlerReturn instanceof Promise) {
+      try {
+        handlerResult = await handlerReturn;
+      } catch {
+        return authoredResult(
+          false,
+          "Something went wrong.",
+          "handler_error",
+        );
+      }
+    }
+
+    return normalizeActionResult(handlerResult, {
+      successReason: (): void => {
+        warnDispatchOnce(
+          `success-reason:${name}`,
+          `concierge: [invalid_result] action "${name}": its handler returned a success carrying a failure reason, so the reason was removed. Fix: omit \`reason\` when \`ok\` is true.`,
+        );
+      },
+      reasonlessFailure: (): void => {
+        warnDispatchOnce(
+          `reasonless-failure:${name}`,
+          `concierge: [invalid_result] action "${name}": its handler returned a failure without a reason, so the result carries no machine-readable cause. Fix: return one of the declared \`ReasonCode\` values when \`ok\` is false.`,
+        );
+      },
+    });
+  }
+
+  /**
+   * Dispatch is deliberately not async. The final pipeline Promise is stored
+   * synchronously and cache hits return that exact object by reference.
+   */
+  function dispatch(
+    ctx: StageContext,
+    name: string,
+    args: unknown,
+    meta?: InvocationMeta,
+  ): Promise<ActionResult> {
+    const key: string | null = deriveDispatchKey(name, args, meta);
+    if (key === null) {
+      return runDispatchPipeline(ctx, name, args, meta);
+    }
+
+    dispatchPromises ??= new Map<string, Promise<ActionResult>>();
+    dispatchSettledAt ??= new Map<string, number>();
+    dispatchPending ??= new Set<string>();
+
+    sweepSettledDispatches(Date.now());
+    const hit: Promise<ActionResult> | undefined = dispatchPromises.get(key);
+    if (hit !== undefined) {
+      return hit;
+    }
+
+    const promise: Promise<ActionResult> = runDispatchPipeline(ctx, name, args, meta);
+    dispatchPromises.set(key, promise);
+    dispatchSettledAt.delete(key);
+    dispatchPending.add(key);
+
+    const observeSettlement = (): void => {
+      markDispatchSettled(key, promise);
+    };
+    void promise.then(observeSettlement, observeSettlement);
+
+    return promise;
   }
 
   function catalogFor(ctx: StageContext): ReadonlyArray<EmittedTool> {

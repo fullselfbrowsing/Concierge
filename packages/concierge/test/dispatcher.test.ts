@@ -395,21 +395,59 @@ async function withFakeNow(initial, run) {
   });
 
   it("[R11] settles honestly when a catalog entry has no handler", async () => {
+    const warnings = [];
+    const realWarn = console.warn;
+    console.warn = (...args) => warnings.push(args.map(String).join(" "));
     const missing = action("missing", () => successful());
     delete missing.handler;
-    const concierge = conciergeFor([missing]);
+    let first;
+    let second;
+    try {
+      const concierge = conciergeFor([missing]);
+      first = await concierge.dispatch(ACTIVE_CONTEXT, "missing", { call: 1 });
+      second = await concierge.dispatch(ACTIVE_CONTEXT, "missing", { call: 2 });
+    } finally {
+      console.warn = realWarn;
+    }
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "missing", {});
-
-    expect(result.reason, "[RED:R11:missing-handler]").toBe("unknown_action");
+    expect({ first, second, warnings: warnings.length }, "[RED:R11:missing-handler]").toEqual({
+      first: {
+        ok: false,
+        message: "This action is unavailable because no handler is registered.",
+      },
+      second: {
+        ok: false,
+        message: "This action is unavailable because no handler is registered.",
+      },
+      warnings: 1,
+    });
   });
 
   it("[R12] settles honestly when a catalog entry's handler is not callable", async () => {
-    const concierge = conciergeFor([action("broken", 42)]);
+    const warnings = [];
+    const realWarn = console.warn;
+    console.warn = (...args) => warnings.push(args.map(String).join(" "));
+    let first;
+    let second;
+    try {
+      const concierge = conciergeFor([action("broken", 42)]);
+      first = await concierge.dispatch(ACTIVE_CONTEXT, "broken", { call: 1 });
+      second = await concierge.dispatch(ACTIVE_CONTEXT, "broken", { call: 2 });
+    } finally {
+      console.warn = realWarn;
+    }
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "broken", {});
-
-    expect(result.reason, "[RED:R12:noncallable-handler]").toBe("unknown_action");
+    expect({ first, second, warnings: warnings.length }, "[RED:R12:noncallable-handler]").toEqual({
+      first: {
+        ok: false,
+        message: "This action is unavailable because no handler is registered.",
+      },
+      second: {
+        ok: false,
+        message: "This action is unavailable because no handler is registered.",
+      },
+      warnings: 1,
+    });
   });
 
 // DSP-05 — Standard Schema validation runs before handler entry.
