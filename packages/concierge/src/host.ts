@@ -82,6 +82,78 @@ interface TimerHost {
   clearTimeout?(handle: unknown): void;
 }
 
+const DIAGNOSTIC_SUBJECT_MAX_CODE_POINTS: number = 120;
+
+/** Render one code point as JSON-compatible UTF-16 escapes. */
+function escapeDiagnosticCodePoint(codePoint: number): string {
+  if (codePoint <= 0xffff) {
+    return `\\u${codePoint.toString(16).padStart(4, "0")}`;
+  }
+  const adjusted: number = codePoint - 0x10000;
+  const high: number = 0xd800 + (adjusted >> 10);
+  const low: number = 0xdc00 + (adjusted & 0x3ff);
+  return (
+    `\\u${high.toString(16).padStart(4, "0")}` +
+    `\\u${low.toString(16).padStart(4, "0")}`
+  );
+}
+
+/** Quote, escape, and bound a consumer-controlled diagnostic subject. */
+export function encodeDiagnosticSubject(subject: string): string {
+  const points: string[] = Array.from(subject);
+  const bounded: string[] =
+    points.length > DIAGNOSTIC_SUBJECT_MAX_CODE_POINTS
+      ? [
+          ...points.slice(0, DIAGNOSTIC_SUBJECT_MAX_CODE_POINTS),
+          "…",
+        ]
+      : points;
+  let encoded: string = '"';
+
+  for (const point of bounded) {
+    switch (point) {
+      case '"':
+        encoded += '\\"';
+        continue;
+      case "\\":
+        encoded += "\\\\";
+        continue;
+      case "\b":
+        encoded += "\\b";
+        continue;
+      case "\f":
+        encoded += "\\f";
+        continue;
+      case "\n":
+        encoded += "\\n";
+        continue;
+      case "\r":
+        encoded += "\\r";
+        continue;
+      case "\t":
+        encoded += "\\t";
+        continue;
+      default:
+        break;
+    }
+
+    const codePoint: number = point.codePointAt(0) ?? 0;
+    if (
+      codePoint <= 0x1f ||
+      (codePoint >= 0x7f && codePoint <= 0x9f) ||
+      codePoint === 0x2028 ||
+      codePoint === 0x2029 ||
+      /\p{Cf}/u.test(point)
+    ) {
+      encoded += escapeDiagnosticCodePoint(codePoint);
+    } else {
+      encoded += point;
+    }
+  }
+
+  return `${encoded}"`;
+}
+
 // ---------------------------------------------------------------------------
 // The seam
 // ---------------------------------------------------------------------------

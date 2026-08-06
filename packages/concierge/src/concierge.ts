@@ -69,7 +69,11 @@ import {
   validateArguments,
   waitForCommit,
 } from "./dispatch.js";
-import { readHostScheduler, warnHost } from "./host.js";
+import {
+  encodeDiagnosticSubject,
+  readHostScheduler,
+  warnHost,
+} from "./host.js";
 import type { ArgumentValidation, CommitWaitOutcome } from "./dispatch.js";
 import type { InvocationValueSnapshot } from "./dispatch.js";
 import type { Catalog, CatalogEntry } from "./catalog.js";
@@ -214,7 +218,7 @@ function validateWindowMs(value: number, field: string): number {
  */
 function duplicateStageIdMessage(id: string): string {
   return (
-    `concierge: [duplicate_stage_id] stage "${id}": two stages declare this id, and ` +
+    `concierge: [duplicate_stage_id] stage ${encodeDiagnosticSubject(id)}: two stages declare this id, and ` +
     `\`stageFor()\`, \`Session.stage()\` and \`explain()\` all report it, so the two are ` +
     `indistinguishable to a developer reading any of them. Catalog scoping is unaffected — ` +
     `the per-stage catalog is keyed by declaration order, not by id. ` +
@@ -583,7 +587,9 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       return false;
     }
     warnedStages.add(id);
-    warnHost(`concierge: [stage_match] stage "${id}": ${problem} Fix: ${fix}`);
+    warnHost(
+      `concierge: [stage_match] stage ${encodeDiagnosticSubject(id)}: ${problem} Fix: ${fix}`,
+    );
     return false;
   }
 
@@ -773,7 +779,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     if (typeof handler !== "function") {
       warnDispatchOnce(
         `handler-missing:${name}`,
-        `concierge: [handler_missing] action "${name}": no callable handler is registered, so the action did not run. Fix: provide a callable handler in the action declaration.`,
+        `concierge: [handler_missing] action ${encodeDiagnosticSubject(name)}: no callable handler is registered, so the action did not run. Fix: provide a callable handler in the action declaration.`,
       );
       return authoredResult(
         false,
@@ -882,13 +888,13 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       successReason: (): void => {
         warnDispatchOnce(
           `success-reason:${name}`,
-          `concierge: [invalid_result] action "${name}": its handler returned a success carrying a failure reason, so the reason was removed. Fix: omit \`reason\` when \`ok\` is true.`,
+          `concierge: [invalid_result] action ${encodeDiagnosticSubject(name)}: its handler returned a success carrying a failure reason, so the reason was removed. Fix: omit \`reason\` when \`ok\` is true.`,
         );
       },
       reasonlessFailure: (): void => {
         warnDispatchOnce(
           `reasonless-failure:${name}`,
-          `concierge: [invalid_result] action "${name}": its handler returned a failure without a reason, so the result carries no machine-readable cause. Fix: return one of the declared \`ReasonCode\` values when \`ok\` is false.`,
+          `concierge: [invalid_result] action ${encodeDiagnosticSubject(name)}: its handler returned a failure without a reason, so the result carries no machine-readable cause. Fix: return one of the declared \`ReasonCode\` values when \`ok\` is false.`,
         );
       },
     });

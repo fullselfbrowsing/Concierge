@@ -95,7 +95,7 @@
  */
 
 import { assertSingleInstance } from "./contract.js";
-import { warnHost } from "./host.js";
+import { encodeDiagnosticSubject, warnHost } from "./host.js";
 import { boundedMessage } from "./message.js";
 import type { ActionResult, Bridge, BridgeRegistry, SnapshotNormalizer } from "./types.js";
 
@@ -152,7 +152,7 @@ import type { ActionResult, Bridge, BridgeRegistry, SnapshotNormalizer } from ".
  */
 function bridgeOverwriteMessage(id: string): string {
   return (
-    `concierge: [bridge_overwrite] bridge "${id}": a second component registered over a ` +
+    `concierge: [bridge_overwrite] bridge ${encodeDiagnosticSubject(id)}: a second component registered over a ` +
     `still-live registration, so the first component's snapshot and actions are no longer ` +
     `reachable through this registry. ` +
     `Fix: make sure exactly one mounted component registers this bridge. This warning fires ` +
@@ -779,7 +779,7 @@ function makeDefaultNormalizer(onExotic: () => void): SnapshotNormalizer {
  */
 function snapshotThrewMessage(id: string, key: string): string {
   return (
-    `concierge: [snapshot_threw] snapshot "${id}.${key}": the getter threw, so this key is ` +
+    `concierge: [snapshot_threw] snapshot ${encodeDiagnosticSubject(`${id}.${key}`)}: the getter threw, so this key is ` +
     `absent from the captured snapshot and every reader of it sees nothing where a value ` +
     `should be. ` +
     `Fix: make the getter total — it runs on every capture, so it must not assume any part of ` +
@@ -812,7 +812,7 @@ function snapshotThrewMessage(id: string, key: string): string {
  */
 function snapshotHolderThrewMessage(id: string): string {
   return (
-    `concierge: [snapshot_threw] snapshot "${id}": reading the snapshot holder's own keys threw, ` +
+    `concierge: [snapshot_threw] snapshot ${encodeDiagnosticSubject(id)}: reading the snapshot holder's own keys threw, ` +
     `so the whole captured snapshot is empty and every reader of it sees nothing where the ` +
     `component's state should be. ` +
     `Fix: make the holder total — enumerating \`bridge.snapshot\` runs on every capture, so its ` +
@@ -831,7 +831,7 @@ function snapshotHolderThrewMessage(id: string): string {
  */
 function snapshotExoticMessage(id: string, key: string): string {
   return (
-    `concierge: [snapshot_exotic] snapshot "${id}.${key}": a value here could not be detached ` +
+    `concierge: [snapshot_exotic] snapshot ${encodeDiagnosticSubject(`${id}.${key}`)}: a value here could not be detached ` +
     `and was carried by reference, so it may still change after capture and a later drift ` +
     `check may not see the change. ` +
     `Fix: supply a \`normalizeSnapshot\` that understands this value — for Svelte that is ` +

@@ -57,7 +57,7 @@
  */
 
 import { assertSingleInstance } from "./contract.js";
-import { warnHost } from "./host.js";
+import { encodeDiagnosticSubject, warnHost } from "./host.js";
 import { JSON_SCHEMA_TARGET, emitSchema, vendorOf } from "./json-schema.js";
 import type { JsonSchemaTarget, SchemaEmission } from "./json-schema.js";
 import type { AnyActionDefinition, JsonSchemaObject } from "./types.js";
@@ -580,7 +580,7 @@ function withoutActionPrefix(detail: string, name: string): string {
  */
 function defaultDiagnosticSink(diagnostic: CatalogDiagnostic): void {
   warnHost(
-    `concierge: [${diagnostic.code}] action "${diagnostic.action}": ` +
+    `concierge: [${diagnostic.code}] action ${encodeDiagnosticSubject(diagnostic.action)}: ` +
       `${diagnostic.problem} Fix: ${diagnostic.fix}`,
   );
 }
