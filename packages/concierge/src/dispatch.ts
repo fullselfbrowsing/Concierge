@@ -17,6 +17,8 @@ import type {
   InvocationMeta,
   ReasonCode,
   Scheduler,
+  StageContext,
+  ToolBatch,
 } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -324,4 +326,71 @@ export function normalizeActionResult(
   }
 
   return authoredResult(false, message, reason);
+}
+
+// ---------------------------------------------------------------------------
+// Batch execution
+// ---------------------------------------------------------------------------
+
+/**
+ * Execute one transport-independent batch through an existing single-call
+ * dispatcher.
+ *
+ * The decorated copy makes the tie-break explicit instead of relying on the
+ * host sort implementation, and the serial loop keeps the current call as the
+ * only call that may enter application code. Calls that have not started when
+ * the batch aborts still receive correlated rows, but never reach `dispatch`.
+ */
+export async function executeDispatchBatch(
+  ctx: StageContext,
+  batch: ToolBatch,
+  dispatch: (
+    ctx: StageContext,
+    name: string,
+    args: unknown,
+    meta?: InvocationMeta,
+  ) => Promise<ActionResult>,
+): Promise<ReadonlyArray<Readonly<{ callId: string; result: ActionResult }>>> {
+  const ordered: Array<{
+    readonly call: ToolBatch["calls"][number];
+    readonly originalIndex: number;
+  }> = batch.calls.map((call, originalIndex) => ({ call, originalIndex }));
+  ordered.sort(
+    (left, right): number =>
+      left.call.outputIndex - right.call.outputIndex ||
+      left.originalIndex - right.originalIndex,
+  );
+
+  const rows: Array<Readonly<{ callId: string; result: ActionResult }>> = [];
+  for (const { call } of ordered) {
+    let result: ActionResult;
+    if (isAborted(batch.signal)) {
+      result = authoredResult(
+        false,
+        "The action was cancelled before it ran.",
+        "aborted",
+      );
+    } else {
+      let args: unknown;
+      try {
+        args = JSON.parse(call.arguments);
+      } catch {
+        args = {};
+      }
+
+      const meta: InvocationMeta = {
+        responseId: batch.responseId,
+        callId: call.callId,
+        outputIndex: call.outputIndex,
+        userTurnId: batch.userTurnId,
+        signal: batch.signal,
+        deferUntilDelivered: batch.deferUntilDelivered,
+      };
+      result = await dispatch(ctx, call.name, args, meta);
+    }
+
+    rows.push(Object.freeze({ callId: call.callId, result }));
+  }
+
+  return Object.freeze(rows);
 }

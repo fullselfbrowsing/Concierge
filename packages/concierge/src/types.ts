@@ -1710,6 +1710,7 @@ export interface Concierge {
    * which breaks deduplication by reference identity.
    */
   dispatch: (ctx: StageContext, name: string, args: unknown, meta?: InvocationMeta) => Promise<ActionResult>;
+  dispatchBatch: (ctx: StageContext, batch: ToolBatch) => Promise<ReadonlyArray<Readonly<{ callId: string; result: ActionResult }>>>;
   /**
    * Catalog for the stage matching `ctx`.
    *

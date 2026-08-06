@@ -62,6 +62,7 @@ import { buildCatalog, deepFreeze } from "./catalog.js";
 import {
   authoredResult,
   deriveDispatchKey,
+  executeDispatchBatch,
   isAborted,
   normalizeActionResult,
   validateArguments,
@@ -82,6 +83,7 @@ import type {
   Scheduler,
   StageContext,
   StageExplanation,
+  ToolBatch,
 } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -877,6 +879,14 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     return promise;
   }
 
+  /** Execute a copied, stably ordered ToolBatch through the same dispatch cache. */
+  async function dispatchBatch(
+    ctx: StageContext,
+    batch: ToolBatch,
+  ): Promise<ReadonlyArray<Readonly<{ callId: string; result: ActionResult }>>> {
+    return executeDispatchBatch(ctx, batch, dispatch);
+  }
+
   function catalogFor(ctx: StageContext): ReadonlyArray<EmittedTool> {
     return projectFor(resolveIndex(ctx));
   }
@@ -988,5 +998,5 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   // number of seals in this file; that argument was arithmetically wrong, and
   // a wrong reason attached to a right decision is how a right decision gets
   // reversed by the first reader who checks it.
-  return { dispatch, catalogFor, stageFor, explain };
+  return { dispatch, dispatchBatch, catalogFor, stageFor, explain };
 }
