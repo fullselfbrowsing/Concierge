@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-04-PLAN.md
-last_updated: "2026-08-06T04:10:13.066Z"
+stopped_at: Completed 06-05-PLAN.md
+last_updated: "2026-08-06T04:21:23.613Z"
 last_activity: 2026-08-06
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 56
-  completed_plans: 54
+  completed_plans: 55
   percent: 56
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-07-27)
 ## Current Position
 
 Phase: 06 (dispatcher) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
 Last activity: 2026-08-06
 
-Progress: [██████████] 96%
+Progress: [██████████] 98%
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Progress: [██████████] 96%
 | Phase 06 P02 | 13min | 2 tasks | 1 files |
 | Phase 06 P03 | 9min | 2 tasks | 3 files |
 | Phase 06 P04 | 24min | 2 tasks | 6 files |
+| Phase 06 P05 | 6min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -86,6 +87,9 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 06-04]: Cache the final dispatch Promise synchronously; pending entries never expire, and timer-free settled windows begin at settlement and sweep on access. — This preserves retry identity even when a handler outlives the nominal dedupe window.
 - [Phase 06-04]: Authorize through the active stage name projection before the null-prototype catalog lookup, and keep resolveBridge as the only bridge seam. — Wrong-stage and prototype names cannot reach handlers, and bridge truth remains centralized.
 - [Phase 06-04]: A registered action without a callable handler returns the exact reasonless unavailable result and warns once. — No declared ReasonCode truthfully means that a registered handler is missing.
+- [Phase 06-05]: Batch execution delegates every live call to the existing cached dispatch function. — This preserves one stage, validation, timing, bridge, handler, normalization, sanitization, and deduplication boundary.
+- [Phase 06-05]: Batch ordering decorates a copied call list with original positions. — Sorting by outputIndex and original position makes tie stability explicit without mutating caller input.
+- [Phase 06-05]: Only unstarted calls after abort receive synthesized authored aborted results. — The current call remains owned by single dispatch while the batch still returns one immutable correlated row per input.
 
 ### Pending Todos
 
@@ -114,6 +118,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-06T04:10:13.062Z
-Stopped at: Completed 06-04-PLAN.md
+Last session: 2026-08-06T04:21:23.608Z
+Stopped at: Completed 06-05-PLAN.md
 Resume file: None
