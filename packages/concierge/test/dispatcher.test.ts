@@ -1885,3 +1885,28 @@ async function withFakeNow(initial, run) {
       thenableResult: { ok: true, message: "thenable" },
     });
   });
+
+  it("[R61] accepts zero windows and rejects invalid timing configuration", async () => {
+    const manual = createManualScheduler();
+    const zeroWindow = conciergeFor(
+      [action("zero-window", () => successful(), { effects: { readOnly: false } })],
+      { commitWindowMs: 0, dedupeWindowMs: 0, scheduler: manual.scheduler },
+    );
+    const pending = zeroWindow.dispatch(ACTIVE_CONTEXT, "zero-window", {});
+    await flushMicrotasks();
+
+    expect(manual.delays, "[RED:R61:zero-window]").toEqual([0]);
+    manual.fireAll();
+    expect(await pending).toEqual({ ok: true, message: "Done." });
+
+    for (const field of ["commitWindowMs", "dedupeWindowMs"]) {
+      for (const value of [-1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+        expect(
+          () => conciergeFor([], { [field]: value }),
+          `[RED:R61:${field}:${String(value)}]`,
+        ).toThrow(
+          `Invalid Concierge configuration: ${field} must be a finite, non-negative number.`,
+        );
+      }
+    }
+  });

@@ -164,6 +164,16 @@ function snapshotAction(action: AnyActionDefinition): AnyActionDefinition {
   }
 }
 
+/** Reject timer values whose host coercion would silently change gate semantics. */
+function validateWindowMs(value: number, field: string): number {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new TypeError(
+      `Invalid Concierge configuration: ${field} must be a finite, non-negative number.`,
+    );
+  }
+  return value;
+}
+
 // ---------------------------------------------------------------------------
 // Module-private helpers
 // ---------------------------------------------------------------------------
@@ -398,8 +408,14 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     ...(config.crossStage ?? []).map(snapshotAction),
   ]);
   const configuredScheduler: Scheduler | undefined = config.scheduler;
-  const commitWindowMs: number = config.commitWindowMs ?? 600;
-  const dedupeWindowMs: number = config.dedupeWindowMs ?? 600;
+  const commitWindowMs: number = validateWindowMs(
+    config.commitWindowMs ?? 600,
+    "commitWindowMs",
+  );
+  const dedupeWindowMs: number = validateWindowMs(
+    config.dedupeWindowMs ?? 600,
+    "dedupeWindowMs",
+  );
 
   // ONE flat build over every stage's actions followed by the cross-stage
   // actions — not one build per stage, and the choice is a requirement rather

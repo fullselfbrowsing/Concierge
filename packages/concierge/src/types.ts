@@ -1691,6 +1691,7 @@ export interface ConciergeConfig {
   scheduler?: Scheduler;
   /**
    * Grace period before any side effect lands, so a human can interrupt.
+   * Must be finite and non-negative; invalid values throw during construction.
    * @default 600
    */
   commitWindowMs?: number;
@@ -1699,6 +1700,7 @@ export interface ConciergeConfig {
    * so a retrying agent cannot double-fire an effect. Pending entries never
    * expire; the window begins when the Promise settles, and later dispatch
    * accesses evict expired entries without scheduling a timer.
+   * Must be finite and non-negative; invalid values throw during construction.
    * @default 600
    */
   dedupeWindowMs?: number;
