@@ -262,7 +262,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 06-04-PLAN.md — Replace the stub with the context-aware single-call dispatcher
+- [x] 06-04-PLAN.md — Replace the stub with the context-aware single-call dispatcher
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -366,7 +366,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 3. Action declaration and build-time validation | 8/8 | Complete   | 2026-07-30 |
 | 4. Stages, catalog assembly, and explain() | 8/8 | Complete   | 2026-07-30 |
 | 5. Bridge registry and the no-bridge path | 7/7 | Complete   | 2026-07-31 |
-| 6. Dispatcher | 3/6 | In Progress|  |
+| 6. Dispatcher | 4/6 | In Progress|  |
 | 7. Session and the transport seam | 0/TBD | Not started | - |
 | 8. Consent kernel | 0/TBD | Not started | - |
 | 9. React and Svelte adapters | 0/TBD | Not started | - |
