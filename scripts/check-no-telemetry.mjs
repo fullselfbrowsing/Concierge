@@ -14,6 +14,37 @@ const RESULT_PATH_FILES = new Set([
   "packages/concierge/src/message.ts",
 ]);
 const FORBIDDEN_NAMES = new Set(["telemetry", "ontelemetry", "onerror"]);
+const SELF_TEST_FILE = "packages/concierge/src/__no_telemetry_self_test__.ts";
+const SELF_TEST_SOURCE = [
+  'const prefix = "tele";',
+  'const suffix = "metry";',
+  "const concatenatedName = prefix + suffix;",
+  "const templateName = `${prefix}${suffix}`;",
+  "const aliasedName = concatenatedName;",
+  "const sink = (): void => {};",
+  "const channel = { [concatenatedName]: sink };",
+  "channel[templateName] = sink;",
+  "void channel[aliasedName];",
+  "const { [aliasedName]: extracted } = channel;",
+  "void extracted;",
+  "declare const dynamicName: () => string;",
+  "const runtimeName = dynamicName();",
+  "const dynamicChannel = { [runtimeName]: sink };",
+  "channel[runtimeName] = sink;",
+  "void dynamicChannel;",
+  "declare const operation: Promise<unknown>;",
+  "declare const authoredResult: (...args: unknown[]) => unknown;",
+  "declare const externalForwarder: (error: unknown) => unknown;",
+  "operation.catch((error) => authoredResult(false, String(error)));",
+  "operation.then(() => undefined, ({ message: alias }) => authoredResult(false, alias));",
+  "function forwardError(error: unknown): unknown {",
+  "  return authoredResult(false, error);",
+  "}",
+  "operation.catch(forwardError);",
+  "operation.catch(externalForwarder);",
+  "const observeSettlement = (): void => {};",
+  "operation.then(observeSettlement, observeSettlement);",
+].join("\n");
 
 function loadCompilerApi() {
   const rootRequire = createRequire(import.meta.url);
@@ -94,32 +125,43 @@ function checkForbiddenName(text) {
   return FORBIDDEN_NAMES.has(text.replace(/^#/u, "").toLowerCase());
 }
 
-function main() {
+function main(selfTest = false) {
   const ts = loadCompilerApi();
-  const files = enumerateTypeScriptFiles(SOURCE_ROOT);
-  if (files.length === 0) {
+  const files = selfTest ? [] : enumerateTypeScriptFiles(SOURCE_ROOT);
+  const units = selfTest
+    ? [{ file: SELF_TEST_FILE, text: SELF_TEST_SOURCE, resultPath: true }]
+    : files.map((path) => ({
+        file: portablePath(path),
+        path,
+        resultPath: RESULT_PATH_FILES.has(portablePath(path)),
+      }));
+  if (units.length === 0) {
     throw new Error("source scan is empty");
   }
 
-  const scannedPaths = new Set(files.map(portablePath));
-  for (const required of RESULT_PATH_FILES) {
-    if (!scannedPaths.has(required)) {
-      throw new Error(`required dispatcher result-path file is absent: ${required}`);
+  if (!selfTest) {
+    const scannedPaths = new Set(files.map(portablePath));
+    for (const required of RESULT_PATH_FILES) {
+      if (!scannedPaths.has(required)) {
+        throw new Error(`required dispatcher result-path file is absent: ${required}`);
+      }
     }
   }
 
   const findings = [];
   const findingKeys = new Set();
 
-  for (const path of files) {
-    const file = portablePath(path);
-    let text;
-    try {
-      text = readFileSync(path, "utf8");
-    } catch (error) {
-      throw new Error(
-        `cannot read source file ${file}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+  for (const unit of units) {
+    const { file, resultPath } = unit;
+    let text = unit.text;
+    if (text === undefined) {
+      try {
+        text = readFileSync(unit.path, "utf8");
+      } catch (error) {
+        throw new Error(
+          `cannot read source file ${file}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
 
     const sourceFile = ts.createSourceFile(
@@ -176,16 +218,181 @@ function main() {
       }
     }
 
+    const constInitializers = new Map();
+    const callbackDeclarations = new Map();
+
+    function rememberDeclaration(map, name, value) {
+      map.set(name, map.has(name) ? null : value);
+    }
+
+    const collectDeclarations = (node) => {
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.initializer !== undefined
+      ) {
+        const declarationList = node.parent;
+        if ((declarationList.flags & ts.NodeFlags.Const) !== 0) {
+          rememberDeclaration(constInitializers, node.name.text, node.initializer);
+        }
+        if (
+          ts.isArrowFunction(node.initializer) ||
+          ts.isFunctionExpression(node.initializer)
+        ) {
+          rememberDeclaration(
+            callbackDeclarations,
+            node.name.text,
+            node.initializer,
+          );
+        }
+      } else if (
+        ts.isFunctionDeclaration(node) &&
+        node.name !== undefined
+      ) {
+        rememberDeclaration(callbackDeclarations, node.name.text, node);
+      }
+      ts.forEachChild(node, collectDeclarations);
+    };
+    collectDeclarations(sourceFile);
+
+    function unwrapExpression(expression) {
+      if (
+        ts.isParenthesizedExpression(expression) ||
+        ts.isAsExpression(expression) ||
+        ts.isTypeAssertionExpression(expression) ||
+        ts.isNonNullExpression(expression) ||
+        (typeof ts.isSatisfiesExpression === "function" &&
+          ts.isSatisfiesExpression(expression))
+      ) {
+        return unwrapExpression(expression.expression);
+      }
+      return expression;
+    }
+
+    function resolveStaticProperty(expression, seen = new Set()) {
+      const candidate = unwrapExpression(expression);
+      if (
+        ts.isStringLiteral(candidate) ||
+        ts.isNoSubstitutionTemplateLiteral(candidate)
+      ) {
+        return { kind: "string", value: candidate.text };
+      }
+      if (ts.isNumericLiteral(candidate)) {
+        return { kind: "number", value: candidate.text };
+      }
+      if (
+        ts.isPrefixUnaryExpression(candidate) &&
+        (candidate.operator === ts.SyntaxKind.PlusToken ||
+          candidate.operator === ts.SyntaxKind.MinusToken) &&
+        ts.isNumericLiteral(candidate.operand)
+      ) {
+        return {
+          kind: "number",
+          value: `${candidate.operator === ts.SyntaxKind.MinusToken ? "-" : ""}${candidate.operand.text}`,
+        };
+      }
+      if (
+        ts.isBinaryExpression(candidate) &&
+        candidate.operatorToken.kind === ts.SyntaxKind.PlusToken
+      ) {
+        const left = resolveStaticProperty(candidate.left, new Set(seen));
+        const right = resolveStaticProperty(candidate.right, new Set(seen));
+        if (left?.kind === "string" && right?.kind === "string") {
+          return { kind: "string", value: `${left.value}${right.value}` };
+        }
+        return null;
+      }
+      if (ts.isTemplateExpression(candidate)) {
+        let value = candidate.head.text;
+        for (const span of candidate.templateSpans) {
+          const resolved = resolveStaticProperty(span.expression, new Set(seen));
+          if (resolved === null) return null;
+          value += `${resolved.value}${span.literal.text}`;
+        }
+        return { kind: "string", value };
+      }
+      if (ts.isIdentifier(candidate)) {
+        if (seen.has(candidate.text)) return null;
+        const initializer = constInitializers.get(candidate.text);
+        if (initializer === undefined || initializer === null) return null;
+        const nextSeen = new Set(seen);
+        nextSeen.add(candidate.text);
+        return resolveStaticProperty(initializer, nextSeen);
+      }
+      return null;
+    }
+
+    function inspectComputedExpression(node, context, ambiguousRule) {
+      const resolved = resolveStaticProperty(node);
+      if (resolved?.kind === "string") {
+        inspectForbiddenText(node, resolved.value, context);
+        return;
+      }
+      if (resolved?.kind === "number") return;
+      addFinding(
+        node,
+        ambiguousRule,
+        `${context} must resolve to a static string or numeric literal`,
+      );
+    }
+
+    function inspectComputedElement(node) {
+      const argument = node.argumentExpression;
+      const resolved = resolveStaticProperty(argument);
+      if (resolved?.kind === "string") {
+        inspectForbiddenText(argument, resolved.value, "computed element access");
+        return;
+      }
+      if (resolved?.kind === "number") return;
+
+      const parent = node.parent;
+      if (
+        ts.isBinaryExpression(parent) &&
+        parent.left === node &&
+        parent.operatorToken.kind === ts.SyntaxKind.EqualsToken
+      ) {
+        const assigned = unwrapExpression(parent.right);
+        const assignedCallback = ts.isIdentifier(assigned)
+          ? callbackDeclarations.get(assigned.text)
+          : assigned;
+        if (
+          assignedCallback !== undefined &&
+          assignedCallback !== null &&
+          (ts.isArrowFunction(assignedCallback) ||
+            ts.isFunctionExpression(assignedCallback) ||
+            ts.isFunctionDeclaration(assignedCallback))
+        ) {
+          addFinding(
+            argument,
+            "ambiguous-computed-access",
+            "dynamic computed assignment of a callable channel is prohibited",
+          );
+        }
+      }
+    }
+
     function inspectNamedShape(node) {
       if (!("name" in node) || node.name === undefined) return;
       const name = node.name;
+      if (ts.isComputedPropertyName(name)) {
+        if (
+          node.kind !== ts.SyntaxKind.PropertySignature &&
+          node.kind !== ts.SyntaxKind.MethodSignature
+        ) {
+          inspectComputedExpression(
+            name.expression,
+            "computed declaration/property name",
+            "ambiguous-computed-name",
+          );
+        }
+        return;
+      }
       if (
         ts.isIdentifier(name) ||
         ts.isPrivateIdentifier(name) ||
         ts.isStringLiteral(name) ||
         ts.isNumericLiteral(name) ||
         ts.isNoSubstitutionTemplateLiteral(name) ||
-        ts.isComputedPropertyName(name) ||
         ts.isObjectBindingPattern(name) ||
         ts.isArrayBindingPattern(name)
       ) {
@@ -224,18 +431,14 @@ function main() {
       if (ts.isPropertyAccessExpression(expression)) return expression.name.text;
       if (ts.isElementAccessExpression(expression)) {
         const argument = expression.argumentExpression;
-        if (
-          ts.isStringLiteral(argument) ||
-          ts.isNoSubstitutionTemplateLiteral(argument) ||
-          ts.isIdentifier(argument) ||
-          ts.isPrivateIdentifier(argument)
-        ) {
-          return argument.text;
+        const resolved = resolveStaticProperty(argument);
+        if (resolved !== null) {
+          return resolved.value;
         }
         addFinding(
           argument,
           "ambiguous-call-target",
-          `computed call target uses ${String(ts.SyntaxKind[argument.kind])}`,
+          "computed call target must resolve to a static property name",
         );
         return null;
       }
@@ -265,13 +468,13 @@ function main() {
       }
       addFinding(
         name,
-        "ambiguous-catch-binding",
-        `unhandled catch binding kind ${String(ts.SyntaxKind[name.kind])}`,
+        "ambiguous-exception-binding",
+        `unhandled exception binding kind ${String(ts.SyntaxKind[name.kind])}`,
       );
     }
 
     function inspectCatchClause(node) {
-      if (!RESULT_PATH_FILES.has(file) || node.variableDeclaration === undefined) {
+      if (!resultPath || node.variableDeclaration === undefined) {
         return;
       }
       addFinding(
@@ -294,6 +497,53 @@ function main() {
       visitUse(node.block);
     }
 
+    function resolveRejectionCallback(expression) {
+      const candidate = unwrapExpression(expression);
+      if (ts.isArrowFunction(candidate) || ts.isFunctionExpression(candidate)) {
+        return candidate;
+      }
+      if (ts.isIdentifier(candidate)) {
+        const declaration = callbackDeclarations.get(candidate.text);
+        return declaration === null ? null : (declaration ?? null);
+      }
+      return null;
+    }
+
+    function inspectRejectionCallback(callback, context) {
+      if (!resultPath) return;
+      const resolved = resolveRejectionCallback(callback);
+      if (resolved === null) {
+        addFinding(
+          callback,
+          "ambiguous-rejection-callback",
+          `${context} must use a locally auditable function with no rejection parameter`,
+        );
+        return;
+      }
+      if (resolved.parameters.length === 0) return;
+
+      const names = new Set();
+      for (const parameter of resolved.parameters) {
+        addFinding(
+          parameter,
+          "rejection-binding",
+          `${context} must not bind the rejected value`,
+        );
+        collectBindingNames(parameter.name, names);
+      }
+      const visitUse = (candidate) => {
+        if (ts.isIdentifier(candidate) && names.has(candidate.text)) {
+          addFinding(
+            candidate,
+            "caught-value-forwarding",
+            `rejected value '${candidate.text}' is referenced and could reach a message, stack, string, return, result field, console, or callback`,
+          );
+        }
+        ts.forEachChild(candidate, visitUse);
+      };
+      if (resolved.body !== undefined) visitUse(resolved.body);
+    }
+
     const visit = (node) => {
       if (typeof ts.SyntaxKind[node.kind] !== "string") {
         addFinding(node, "unknown-node-kind", `unhandled AST node kind ${String(node.kind)}`);
@@ -301,6 +551,17 @@ function main() {
       }
 
       inspectNamedShape(node);
+      if (
+        ts.isComputedPropertyName(node) &&
+        node.parent.kind !== ts.SyntaxKind.PropertySignature &&
+        node.parent.kind !== ts.SyntaxKind.MethodSignature
+      ) {
+        inspectComputedExpression(
+          node.expression,
+          "computed declaration/property name",
+          "ambiguous-computed-name",
+        );
+      }
       if (ts.isIdentifier(node) || ts.isPrivateIdentifier(node)) {
         inspectForbiddenText(node, node.text, "identifier");
       } else if (
@@ -308,6 +569,9 @@ function main() {
         ts.isNoSubstitutionTemplateLiteral(node)
       ) {
         inspectForbiddenText(node, node.text, "string/computed name");
+      }
+      if (ts.isElementAccessExpression(node)) {
+        inspectComputedElement(node);
       }
 
       if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
@@ -337,6 +601,21 @@ function main() {
             );
           }
         }
+        if (targetName?.toLowerCase() === "catch") {
+          const rejection = node.arguments[0];
+          if (rejection !== undefined) {
+            inspectRejectionCallback(rejection, "Promise.catch rejection callback");
+          }
+        }
+        if (targetName?.toLowerCase() === "then") {
+          const rejection = node.arguments[1];
+          if (rejection !== undefined) {
+            inspectRejectionCallback(
+              rejection,
+              "Promise.then rejection callback",
+            );
+          }
+        }
       }
       if (ts.isCatchClause(node)) inspectCatchClause(node);
 
@@ -359,22 +638,84 @@ function main() {
       left.character - right.character ||
       left.rule.localeCompare(right.rule),
   );
+  if (selfTest) {
+    const expectedMinimums = new Map([
+      ["forbidden-channel-name", 4],
+      ["ambiguous-computed-name", 1],
+      ["ambiguous-computed-access", 1],
+      ["rejection-binding", 3],
+      ["caught-value-forwarding", 3],
+      ["ambiguous-rejection-callback", 1],
+    ]);
+    for (const [rule, minimum] of expectedMinimums) {
+      const count = findings.filter((finding) => finding.rule === rule).length;
+      if (count < minimum) {
+        throw new Error(
+          `self-test expected at least ${minimum} '${rule}' findings, observed ${count}`,
+        );
+      }
+    }
+    for (const fragment of [
+      "{ [concatenatedName]",
+      "channel[templateName] =",
+      "channel[aliasedName]",
+      "{ [aliasedName]: extracted }",
+    ]) {
+      const line = SELF_TEST_SOURCE.split("\n").findIndex((sourceLine) =>
+        sourceLine.includes(fragment),
+      ) + 1;
+      if (
+        line === 0 ||
+        !findings.some(
+          (finding) =>
+            finding.line === line && finding.rule === "forbidden-channel-name",
+        )
+      ) {
+        throw new Error(
+          `self-test did not reject computed forbidden-name fixture '${fragment}'`,
+        );
+      }
+    }
+    const observeLine = SELF_TEST_SOURCE.split("\n").findIndex((line) =>
+      line.includes("operation.then(observeSettlement"),
+    ) + 1;
+    if (
+      findings.some(
+        (finding) =>
+          finding.line === observeLine &&
+          (finding.rule === "rejection-binding" ||
+            finding.rule === "ambiguous-rejection-callback"),
+      )
+    ) {
+      throw new Error(
+        "self-test rejected a locally resolved zero-parameter rejection callback",
+      );
+    }
+    console.log(
+      `No-telemetry AST audit self-test: ${findings.length} malicious finding(s) detected across computed names and rejection callbacks`,
+    );
+    return;
+  }
   if (findings.length > 0) {
     for (const finding of findings) {
       console.error(
         `${finding.file}:${finding.line}:${finding.character} [${finding.rule}] ${finding.message}`,
       );
     }
-    console.error(`No-telemetry AST audit: ${files.length} files scanned, ${findings.length} finding(s)`);
+    console.error(`No-telemetry AST audit: ${units.length} files scanned, ${findings.length} finding(s)`);
     process.exitCode = 1;
     return;
   }
 
-  console.log(`No-telemetry AST audit: ${files.length} files scanned, 0 findings`);
+  console.log(`No-telemetry AST audit: ${units.length} files scanned, 0 findings`);
 }
 
 try {
-  main();
+  const [argument] = process.argv.slice(2);
+  if (argument !== undefined && argument !== "--self-test") {
+    throw new Error("Usage: node scripts/check-no-telemetry.mjs [--self-test]");
+  }
+  main(argument === "--self-test");
 } catch (error) {
   console.error(error instanceof Error ? error.stack ?? error.message : String(error));
   process.exitCode = 1;
