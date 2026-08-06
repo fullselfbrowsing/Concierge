@@ -38,13 +38,15 @@ export function deriveDispatchKey(
   name: string,
   args: unknown,
   meta: InvocationMeta | undefined,
+  authorizationScope: number | null,
 ): string | null {
   try {
     const callId: string | undefined = meta?.callId;
     if (callId !== undefined) {
       return `id:${callId}`;
     }
-    return `args:${name}:${JSON.stringify(args)}`;
+    const scope: string = authorizationScope === null ? "cross" : String(authorizationScope);
+    return `args:${scope}:${name}:${JSON.stringify(args)}`;
   } catch {
     return null;
   }

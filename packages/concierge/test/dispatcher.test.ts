@@ -1582,3 +1582,82 @@ async function withFakeNow(initial, run) {
       stage: "first",
     });
   });
+
+  it("[R56] authorizes every retry before consulting a stage-scoped cache", async () => {
+    let localCalls = 0;
+    let sharedCalls = 0;
+    let matcherCalls = 0;
+    const local = action("local", () => {
+      localCalls += 1;
+      return successful("local");
+    });
+    const shared = action("shared", () => {
+      sharedCalls += 1;
+      return successful("shared");
+    });
+    const concierge = createConcierge({
+      stages: [
+        {
+          id: "a",
+          match: (ctx) => {
+            matcherCalls += 1;
+            return ctx.pathname === "/a";
+          },
+          actions: [local],
+        },
+        { id: "b", match: (ctx) => ctx.pathname === "/b", actions: [] },
+      ],
+      crossStage: [shared],
+    });
+
+    const allowed = concierge.dispatch({ pathname: "/a" }, "local", {}, { callId: "replay" });
+    const cachedAllowed = concierge.dispatch(
+      { pathname: "/a" },
+      "local",
+      {},
+      { callId: "replay" },
+    );
+    const forbidden = await concierge.dispatch(
+      { pathname: "/b" },
+      "local",
+      {},
+      { callId: "replay" },
+    );
+    const poisoned = await concierge.dispatch(
+      { pathname: "/b" },
+      "local",
+      {},
+      { callId: "later-valid" },
+    );
+    const laterValid = await concierge.dispatch(
+      { pathname: "/a" },
+      "local",
+      {},
+      { callId: "later-valid" },
+    );
+    await concierge.dispatch({ pathname: "/a" }, "shared", { value: 1 });
+    await concierge.dispatch({ pathname: "/b" }, "shared", { value: 1 });
+
+    expect(
+      {
+        allowed: await allowed,
+        cachedIdentity: allowed === cachedAllowed,
+        forbiddenReason: forbidden.reason,
+        laterValid,
+        localCalls,
+        matcherCalls,
+        poisonedReason: poisoned.reason,
+        sharedCalls,
+      },
+      "[RED:R56:authorize-before-cache]",
+    ).toEqual({
+      allowed: { ok: true, message: "local" },
+      cachedIdentity: true,
+      forbiddenReason: "unknown_action",
+      laterValid: { ok: true, message: "local" },
+      localCalls: 2,
+      matcherCalls: 7,
+      poisonedReason: "unknown_action",
+      sharedCalls: 2,
+    });
+  });

@@ -692,39 +692,12 @@ export function createConcierge(config: ConciergeConfig): Concierge {
 
   /** Execute one call after the synchronous deduplication boundary. */
   async function runDispatchPipeline(
-    ctx: StageContext,
+    index: number | null,
+    entry: CatalogEntry,
     name: string,
     args: unknown,
     meta: InvocationMeta | undefined,
   ): Promise<ActionResult> {
-    const index: number | null = resolveIndex(ctx);
-    const allowedNames: readonly string[] =
-      index === null ? crossNames : (namesByStage[index] ?? crossNames);
-
-    // The explicit prototype-name refusal stays ahead of the catalog read even
-    // though `byName` has a null prototype. It makes the security boundary
-    // independent of a future lookup refactor.
-    if (
-      name === "__proto__" ||
-      name === "constructor" ||
-      !allowedNames.includes(name)
-    ) {
-      return authoredResult(
-        false,
-        "This action is not available in the current stage.",
-        "unknown_action",
-      );
-    }
-
-    const entry: CatalogEntry | undefined = catalog.byName[name];
-    if (entry === undefined) {
-      return authoredResult(
-        false,
-        "This action is not available in the current stage.",
-        "unknown_action",
-      );
-    }
-
     const handler: unknown = entry.action.handler;
     if (typeof handler !== "function") {
       warnDispatchOnce(
@@ -863,9 +836,42 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     args: unknown,
     meta?: InvocationMeta,
   ): Promise<ActionResult> {
-    const key: string | null = deriveDispatchKey(name, args, meta);
+    const index: number | null = resolveIndex(ctx);
+    const allowedNames: readonly string[] =
+      index === null ? crossNames : (namesByStage[index] ?? crossNames);
+
+    // The explicit prototype-name refusal stays ahead of the catalog read even
+    // though `byName` has a null prototype. It makes the security boundary
+    // independent of a future lookup refactor. Authorization also stays ahead
+    // of the cache: a key proves retry identity, never stage authority.
+    if (
+      name === "__proto__" ||
+      name === "constructor" ||
+      !allowedNames.includes(name)
+    ) {
+      return Promise.resolve(
+        authoredResult(
+          false,
+          "This action is not available in the current stage.",
+          "unknown_action",
+        ),
+      );
+    }
+
+    const entry: CatalogEntry | undefined = catalog.byName[name];
+    if (entry === undefined) {
+      return Promise.resolve(
+        authoredResult(
+          false,
+          "This action is not available in the current stage.",
+          "unknown_action",
+        ),
+      );
+    }
+
+    const key: string | null = deriveDispatchKey(name, args, meta, index);
     if (key === null) {
-      return runDispatchPipeline(ctx, name, args, meta);
+      return runDispatchPipeline(index, entry, name, args, meta);
     }
 
     dispatchPromises ??= new Map<string, Promise<ActionResult>>();
@@ -878,7 +884,13 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       return hit;
     }
 
-    const promise: Promise<ActionResult> = runDispatchPipeline(ctx, name, args, meta);
+    const promise: Promise<ActionResult> = runDispatchPipeline(
+      index,
+      entry,
+      name,
+      args,
+      meta,
+    );
     dispatchPromises.set(key, promise);
     dispatchSettledAt.delete(key);
     dispatchPending.add(key);
