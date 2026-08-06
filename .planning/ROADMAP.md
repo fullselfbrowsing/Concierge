@@ -22,7 +22,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Action declaration and build-time validation** - One declaration derives everything downstream, and every wrong declaration fails the build naming the action (completed 2026-07-30)
 - [x] **Phase 4: Stages, catalog assembly, and explain()** - The agent sees only the actions valid for where the user is, and a developer can find out why one wasn't offered (completed 2026-07-30)
 - [x] **Phase 5: Bridge registry and the no-bridge path** - Handlers read live app state through getters, and behave honestly when no component is mounted (completed 2026-07-31)
-- [x] **Phase 6: Dispatcher** - A retried, malformed, aborted, or crashing call produces exactly one honest result and never fires an effect twice (completed 2026-08-06)
+- [x] **Phase 6: Dispatcher** - A retried, malformed, aborted, or crashing call produces exactly one honest result and never fires an effect twice (completed 2026-08-06; **verification gap closure planned — plans 06-07–06-08**)
 - [ ] **Phase 7: Session and the transport seam** - Something owns the loop between catalog and transport, driven by a stub with no network
 - [ ] **Phase 8: Consent kernel** - A consequential action runs only when a human, not the agent, confirmed this exact payload
 - [ ] **Phase 9: React and Svelte adapters** - Two opposite reactivity models drive the same core through adapters small enough to prove no logic leaked out
@@ -247,7 +247,7 @@ Plans:
   4. A batch runs serially in `output_index` order, and every call in an aborted batch still produces a result, so the agent is never left waiting on a response that will not come. (DSP-07)
   5. A non-read-only effect does not land until the commit window has elapsed and an abort inside that window cancels it — all of it drivable from an application's own agent loop with no transport present. (DSP-08, TRN-04)
 
-**Plans**: 6 plans across 5 waves
+**Plans**: 8 plans across 7 waves
 
 Plans:
 
@@ -271,6 +271,14 @@ Plans:
 **Wave 5** *(blocked on Wave 4 completion)*
 
 - [x] 06-06-PLAN.md — Prove mutation coverage, run phase gates, and record requirement evidence
+
+**Gap closure — Wave 6** *(blocked on completed Wave 5 evidence)*
+
+- [ ] 06-07-PLAN.md — Restore malformed-call totality, locked BigInt degradation, and validator-mediated malformed JSON
+
+**Gap closure — Wave 7** *(blocked on Wave 6 runtime repairs)*
+
+- [ ] 06-08-PLAN.md — Regenerate mutation proof and enforce live validation/requirements ledger consistency
 
 **Research**: None — the source system solved this; the failure list is already enumerated.
 **Notes**: `dispatch` must not be `async`: an async wrapper allocates a fresh Promise per invocation and breaks dedup by identity, which is the mechanism criterion 1 tests. Handler lookup must not be a bare object literal — `dispatch("__proto__")` and `dispatch("constructor")` are test cases. **Amended after Phase 3:** a frozen `Map` still accepts `.set()`, so a `Map` cannot satisfy SEC-03. Phase 3 ships `catalog.byName` as a frozen `Object.create(null)` record, which removes the prototype chain *and* is freezable — it satisfies both constraints where a `Map` satisfies only the first. If Phase 6's handler lookup reads `catalog.byName`, it already has both properties and must **not** be converted to a `Map`. If Phase 6 keeps a separate, mutable lookup of its own, a `Map` is still correct there, because that structure is neither frozen nor part of the catalog. Phase 6's plan must state which of the two its lookup is. All mutable state (dedup map, timers, consent map) is allocated lazily on first dispatch and never during module evaluation, or a module-scoped instance bleeds across requests and tenants in production while looking fine in development.
