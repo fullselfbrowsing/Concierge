@@ -640,6 +640,52 @@ async function withFakeNow(initial, run) {
     });
   });
 
+  it("[R18a] accepts only structurally valid Standard Schema result branches", async () => {
+    const calls = { empty: 0, issuesUndefined: 0, valueUndefined: 0, valueAccessor: 0 };
+    let received = "not-called";
+    let valueAccessorReads = 0;
+    const throwingValue = {};
+    Object.defineProperty(throwingValue, "value", {
+      enumerable: true,
+      get() {
+        valueAccessorReads += 1;
+        throw new Error("PRIVATE-VALIDATOR-VALUE-GETTER");
+      },
+    });
+    const concierge = conciergeFor([
+      action("empty-result", () => { calls.empty += 1; return successful(); }, { validate: () => ({}) }),
+      action("issues-undefined", () => { calls.issuesUndefined += 1; return successful(); }, { validate: () => ({ issues: undefined }) }),
+      action("value-undefined", ({ args }) => {
+        calls.valueUndefined += 1;
+        received = args;
+        return successful();
+      }, { validate: () => ({ value: undefined }) }),
+      action("throwing-value", () => { calls.valueAccessor += 1; return successful(); }, { validate: () => throwingValue }),
+    ]);
+
+    const [empty, issuesUndefined, valueUndefined, valueAccessor] = await Promise.all([
+      concierge.dispatch(ACTIVE_CONTEXT, "empty-result", {}),
+      concierge.dispatch(ACTIVE_CONTEXT, "issues-undefined", {}),
+      concierge.dispatch(ACTIVE_CONTEXT, "value-undefined", {}),
+      concierge.dispatch(ACTIVE_CONTEXT, "throwing-value", {}),
+    ]);
+
+    expect(
+      {
+        calls,
+        reasons: [empty.reason, issuesUndefined.reason, valueUndefined.reason, valueAccessor.reason],
+        received,
+        valueAccessorReads,
+      },
+      "[RED:R18a:validator-result-discriminator]",
+    ).toEqual({
+      calls: { empty: 0, issuesUndefined: 0, valueUndefined: 1, valueAccessor: 0 },
+      reasons: ["invalid_args", "invalid_args", undefined, "invalid_args"],
+      received: undefined,
+      valueAccessorReads: 1,
+    });
+  });
+
 // TRN-04 and dispatcher timing — direct calls need no transport.
   it("[R19] invokes a direct action loop without constructing a Transport", async () => {
     let calls = 0;

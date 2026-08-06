@@ -244,14 +244,17 @@ export async function validateArguments(
   args: unknown,
 ): Promise<ArgumentValidation> {
   try {
-    const result = await validateCatalogEntry(entry, args) as {
-      readonly issues?: unknown;
-      readonly value?: unknown;
-    };
-    if (result.issues !== undefined) {
+    const result: unknown = await validateCatalogEntry(entry, args);
+    if (typeof result !== "object" || result === null) {
       return { ok: false };
     }
-    return { ok: true, value: result.value };
+    if ("issues" in result || !("value" in result)) {
+      return { ok: false };
+    }
+    return {
+      ok: true,
+      value: (result as { readonly value: unknown }).value,
+    };
   } catch {
     return { ok: false };
   }
