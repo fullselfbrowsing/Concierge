@@ -21,6 +21,89 @@ import type {
   ToolBatch,
 } from "./types.js";
 
+export type InvocationValueSnapshot =
+  | { readonly ok: true; readonly value: unknown }
+  | { readonly ok: false };
+
+/** Clone the plain-data invocation boundary without retaining caller aliases. */
+function cloneInvocationValue(
+  value: unknown,
+  seen: WeakMap<object, unknown>,
+): unknown {
+  if (value === null || typeof value !== "object") {
+    if (typeof value === "function" || typeof value === "symbol") {
+      throw new TypeError("Invocation values must be data.");
+    }
+    return value;
+  }
+
+  const existing: unknown = seen.get(value);
+  if (existing !== undefined) {
+    return existing;
+  }
+
+  if (Array.isArray(value)) {
+    const clone: unknown[] = new Array<unknown>(value.length);
+    seen.set(value, clone);
+    for (let index: number = 0; index < value.length; index += 1) {
+      if (Object.prototype.hasOwnProperty.call(value, index)) {
+        clone[index] = cloneInvocationValue(value[index], seen);
+      }
+    }
+    return clone;
+  }
+
+  const prototype: object | null = Object.getPrototypeOf(value);
+  if (prototype !== null && Object.getPrototypeOf(prototype) !== null) {
+    throw new TypeError("Invocation values must use plain objects.");
+  }
+
+  const clone: Record<string, unknown> = Object.create(
+    prototype === null ? null : Object.prototype,
+  ) as Record<string, unknown>;
+  seen.set(value, clone);
+  for (const key of Object.keys(value)) {
+    Object.defineProperty(clone, key, {
+      configurable: true,
+      enumerable: true,
+      value: cloneInvocationValue((value as Record<string, unknown>)[key], seen),
+      writable: true,
+    });
+  }
+  return clone;
+}
+
+/** Recursively freeze only objects produced by {@link cloneInvocationValue}. */
+function freezeInvocationValue(value: unknown, seen: WeakSet<object>): void {
+  if (typeof value !== "object" || value === null || seen.has(value)) {
+    return;
+  }
+  seen.add(value);
+  for (const key of Object.keys(value)) {
+    freezeInvocationValue((value as Record<string, unknown>)[key], seen);
+  }
+  Object.freeze(value);
+}
+
+/** Detach an invocation value, returning a closed failure instead of throwing. */
+export function snapshotInvocationValue(
+  value: unknown,
+  freeze: boolean = false,
+): InvocationValueSnapshot {
+  try {
+    const detached: unknown = cloneInvocationValue(
+      value,
+      new WeakMap<object, unknown>(),
+    );
+    if (freeze) {
+      freezeInvocationValue(detached, new WeakSet<object>());
+    }
+    return { ok: true, value: detached };
+  } catch {
+    return { ok: false };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Deduplication keys
 // ---------------------------------------------------------------------------

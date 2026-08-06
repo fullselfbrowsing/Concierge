@@ -1661,3 +1661,89 @@ async function withFakeNow(initial, run) {
       sharedCalls: 2,
     });
   });
+
+  it("[R57] detaches validated arguments and metadata before the commit wait", async () => {
+    const manual = createManualScheduler();
+    const originalSignal = createAbortController().signal;
+    const replacementSignal = createAbortController(true).signal;
+    const originalHook = () => {};
+    const replacementHook = () => {};
+    const args = { amount: 10, nested: { currency: "USD" } };
+    const meta = {
+      responseId: "original-response",
+      userTurnId: "original-turn",
+      callId: "original-call",
+      outputIndex: 3,
+      signal: originalSignal,
+      deferUntilDelivered: originalHook,
+    };
+    let validatedInput;
+    let received;
+    const concierge = conciergeFor(
+      [
+        action(
+          "snapshot-invocation",
+          (context) => {
+            received = context;
+            return successful();
+          },
+          {
+            effects: { readOnly: false },
+            validate: (value) => {
+              validatedInput = value;
+              return { value };
+            },
+          },
+        ),
+      ],
+      { scheduler: manual.scheduler },
+    );
+
+    const pending = concierge.dispatch(ACTIVE_CONTEXT, "snapshot-invocation", args, meta);
+    args.amount = 999;
+    args.nested.currency = "REWRITTEN";
+    meta.responseId = "rewritten-response";
+    meta.userTurnId = "rewritten-turn";
+    meta.callId = "rewritten-call";
+    meta.outputIndex = 99;
+    meta.signal = replacementSignal;
+    meta.deferUntilDelivered = replacementHook;
+    const retry = concierge.dispatch(
+      ACTIVE_CONTEXT,
+      "snapshot-invocation",
+      { amount: 10, nested: { currency: "USD" } },
+      { callId: "original-call" },
+    );
+
+    await flushMicrotasks();
+    manual.fireAll();
+    const result = await pending;
+
+    expect(
+      {
+        args: received.args,
+        argsDetachedBeforeValidation: validatedInput !== args,
+        argsFrozen: Object.isFrozen(received.args) && Object.isFrozen(received.args.nested),
+        meta: received.meta,
+        metaFrozen: Object.isFrozen(received.meta),
+        result,
+        retryIdentity: retry === pending,
+      },
+      "[RED:R57:invocation-snapshot]",
+    ).toEqual({
+      args: { amount: 10, nested: { currency: "USD" } },
+      argsDetachedBeforeValidation: true,
+      argsFrozen: true,
+      meta: {
+        responseId: "original-response",
+        userTurnId: "original-turn",
+        callId: "original-call",
+        outputIndex: 3,
+        signal: originalSignal,
+        deferUntilDelivered: originalHook,
+      },
+      metaFrozen: true,
+      result: { ok: true, message: "Done." },
+      retryIdentity: true,
+    });
+  });

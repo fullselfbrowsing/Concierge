@@ -65,11 +65,13 @@ import {
   executeDispatchBatch,
   isAborted,
   normalizeActionResult,
+  snapshotInvocationValue,
   validateArguments,
   waitForCommit,
 } from "./dispatch.js";
 import { readHostScheduler, warnHost } from "./host.js";
 import type { ArgumentValidation, CommitWaitOutcome } from "./dispatch.js";
+import type { InvocationValueSnapshot } from "./dispatch.js";
 import type { Catalog, CatalogEntry } from "./catalog.js";
 import type {
   ActionResult,
@@ -109,6 +111,35 @@ import type {
  * bundler about a call with no observable effect, not a claim about behaviour.
  */
 const NO_SKIP: ReadonlySet<object> = /* @__PURE__ */ new Set<object>();
+
+type InvocationMetaSnapshot =
+  | { readonly ok: true; readonly value: InvocationMeta }
+  | { readonly ok: false };
+
+/** Copy every public metadata field once, before any asynchronous work begins. */
+function snapshotInvocationMeta(
+  meta: InvocationMeta | undefined,
+): InvocationMetaSnapshot {
+  if (meta === undefined) {
+    return { ok: true, value: Object.freeze({}) };
+  }
+
+  try {
+    return {
+      ok: true,
+      value: Object.freeze({
+        responseId: meta.responseId,
+        userTurnId: meta.userTurnId,
+        callId: meta.callId,
+        outputIndex: meta.outputIndex,
+        signal: meta.signal,
+        deferUntilDelivered: meta.deferUntilDelivered,
+      }),
+    };
+  } catch {
+    return { ok: false };
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Module-private helpers
@@ -696,7 +727,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     entry: CatalogEntry,
     name: string,
     args: unknown,
-    meta: InvocationMeta | undefined,
+    meta: InvocationMeta,
   ): Promise<ActionResult> {
     const handler: unknown = entry.action.handler;
     if (typeof handler !== "function") {
@@ -719,16 +750,19 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       );
     }
 
-    let signal: AbortSignalLike | undefined;
-    try {
-      signal = meta?.signal;
-    } catch {
+    const validatedSnapshot: InvocationValueSnapshot = snapshotInvocationValue(
+      validation.value,
+      true,
+    );
+    if (!validatedSnapshot.ok) {
       return authoredResult(
         false,
-        "The action was cancelled before it ran.",
-        "aborted",
+        "The action arguments are invalid.",
+        "invalid_args",
       );
     }
+
+    const signal: AbortSignalLike | undefined = meta.signal;
 
     if (isAborted(signal)) {
       return authoredResult(
@@ -779,14 +813,12 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     const stage: ConciergeConfig["stages"][number] | undefined =
       index === null ? undefined : stages[index];
     const bridge: Bridge | null = stage === undefined ? null : resolveBridge(stage);
-    const handlerMeta: InvocationMeta = meta ?? {};
-
     let handlerReturn: unknown;
     try {
       handlerReturn = handler({
-        args: validation.value,
+        args: validatedSnapshot.value,
         bridge,
-        meta: handlerMeta,
+        meta,
         ack: undefined,
       });
     } catch {
@@ -869,9 +901,42 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       );
     }
 
-    const key: string | null = deriveDispatchKey(name, args, meta, index);
+    const argsSnapshot: InvocationValueSnapshot = snapshotInvocationValue(args);
+    if (!argsSnapshot.ok) {
+      return Promise.resolve(
+        authoredResult(
+          false,
+          "The action arguments are invalid.",
+          "invalid_args",
+        ),
+      );
+    }
+
+    const metaSnapshot: InvocationMetaSnapshot = snapshotInvocationMeta(meta);
+    if (!metaSnapshot.ok) {
+      return Promise.resolve(
+        authoredResult(
+          false,
+          "The action was cancelled before it ran.",
+          "aborted",
+        ),
+      );
+    }
+
+    const key: string | null = deriveDispatchKey(
+      name,
+      argsSnapshot.value,
+      metaSnapshot.value,
+      index,
+    );
     if (key === null) {
-      return runDispatchPipeline(index, entry, name, args, meta);
+      return runDispatchPipeline(
+        index,
+        entry,
+        name,
+        argsSnapshot.value,
+        metaSnapshot.value,
+      );
     }
 
     dispatchPromises ??= new Map<string, Promise<ActionResult>>();
@@ -888,8 +953,8 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       index,
       entry,
       name,
-      args,
-      meta,
+      argsSnapshot.value,
+      metaSnapshot.value,
     );
     dispatchPromises.set(key, promise);
     dispatchSettledAt.delete(key);
