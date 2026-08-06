@@ -28,6 +28,14 @@
  * normalized and sanitized result. Retries share the exact final Promise while
  * pending and through the configured settled window.
  *
+ * `dispatchBatch(ctx, batch)` adds transport-independent `ToolBatch` parsing
+ * and serial execution on top of that same single-call boundary. It copies and
+ * stably orders calls by `outputIndex`, returns a frozen array of frozen
+ * `{ callId, result }` correlation rows, and includes an `aborted` result for
+ * every call that remains after cancellation. An application agent loop can
+ * supply its own `StageContext` and `ToolBatch` directly; no `Transport` is
+ * required to use either dispatch method.
+ *
  * Bridges are constructible — `createBridge` returns a registry that a mounted
  * page component registers itself into, `captureSnapshot` detaches what that
  * component exposes so a captured value cannot drift afterwards, and
@@ -35,11 +43,11 @@
  * Direct dispatch now routes through that one live registry seam and passes
  * `null` honestly when nothing is mounted.
  *
- * Stated plainly so this is not oversold: there is still no Session-owned
- * transport loop and no consent gate in this package today. Callers supply the
- * current context and invoke direct dispatch themselves; transport routing,
- * catalog republishing, and human-confirmation enforcement remain later
- * runtime layers.
+ * Stated plainly so this is not oversold: there is still no Session ownership,
+ * transport subscription/respond routing, telemetry channel, or consent gate
+ * in this package today. Callers supply the current context and invoke direct
+ * dispatch themselves; transport routing, catalog republishing, telemetry, and
+ * human-confirmation enforcement remain later runtime layers.
  *
  * The runtime still to come is `createSession`. `defineStage`
  * is **not planned**: a stage needs no identity mechanism, a plain

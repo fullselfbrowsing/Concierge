@@ -1704,12 +1704,28 @@ export interface ConciergeConfig {
   dedupeWindowMs?: number;
 }
 
+/**
+ * Context-aware direct dispatch for application-owned agent loops.
+ *
+ * An application may call `dispatch(ctx, name, args, meta?)` or
+ * `dispatchBatch(ctx, batch)` with its own {@link StageContext} and
+ * {@link ToolBatch}; neither method requires a {@link Transport}. Session
+ * ownership, transport subscription/respond routing, telemetry, and consent
+ * gating are separate runtime layers and are not implemented by this handle.
+ */
 export interface Concierge {
   /**
    * NOT `async`. An async wrapper allocates a fresh Promise per invocation,
    * which breaks deduplication by reference identity.
    */
   dispatch: (ctx: StageContext, name: string, args: unknown, meta?: InvocationMeta) => Promise<ActionResult>;
+  /**
+   * Parse and execute a {@link ToolBatch} serially through {@link dispatch}.
+   *
+   * Calls are copied and stably ordered by `outputIndex`. The returned array
+   * and every inline `{ callId, result }` correlation row are immutable, and
+   * cancellation still returns an `aborted` row for every call that remains.
+   */
   dispatchBatch: (ctx: StageContext, batch: ToolBatch) => Promise<ReadonlyArray<Readonly<{ callId: string; result: ActionResult }>>>;
   /**
    * Catalog for the stage matching `ctx`.
