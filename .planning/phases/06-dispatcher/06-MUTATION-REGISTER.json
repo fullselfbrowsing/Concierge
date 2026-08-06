@@ -115,7 +115,7 @@
     "M-06-B19",
     "M-06-B20"
   ],
-  "registerDigest": "345318dd1fb2fb5594a05603e6b000333e4e04e60bfb9e0aba468edd21217dd4",
+  "registerDigest": "2fa78c31beaaacf85383e28832fca2a01e0526ed17169ad9ec1deb2d3fc58a2a",
   "mutants": [
     {
       "id": "M-06-S01",
@@ -202,7 +202,7 @@
       "group": "single",
       "name": "callId key selection is removed",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "    if (callId !== undefined) {\n      return `id:${callId}`;\n    }",
+      "literalPattern": "  if (callId !== undefined) {\n    return `id:${callId}`;\n  }",
       "replacement": "",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
@@ -222,8 +222,8 @@
       "group": "single",
       "name": "callId and fallback key namespaces collide",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "      return `id:${callId}`;",
-      "replacement": "      return `args:${authorizationScope === null ? \"cross\" : String(authorizationScope)}:${callId}`;",
+      "literalPattern": "    return `id:${callId}`;",
+      "replacement": "    return `args:${JSON.stringify([authorizationScope === null ? \"cross\" : String(authorizationScope), name, encodeInvocationValue(args)])}`;",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
@@ -240,10 +240,10 @@
     {
       "id": "M-06-S07",
       "group": "single",
-      "name": "serialization failure catch is removed",
+      "name": "unencodable arguments receive a shared fallback key",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "  try {\n    const callId: string | undefined = meta?.callId;\n    if (callId !== undefined) {\n      return `id:${callId}`;\n    }\n    const scope: string = authorizationScope === null ? \"cross\" : String(authorizationScope);\n    return `args:${scope}:${name}:${JSON.stringify(args)}`;\n  } catch {\n    return null;\n  }",
-      "replacement": "  const callId: string | undefined = meta?.callId;\n  if (callId !== undefined) {\n    return `id:${callId}`;\n  }\n  const scope: string = authorizationScope === null ? \"cross\" : String(authorizationScope);\n  return `args:${scope}:${name}:${JSON.stringify(args)}`;",
+      "literalPattern": "function encodeInvocationValue(value: unknown): string | null {\n  try {\n    return JSON.stringify(\n      canonicalInvocationValue(value, new WeakSet<object>()),\n    );\n  } catch {\n    return null;\n  }\n}",
+      "replacement": "function encodeInvocationValue(value: unknown): string | null {\n  try {\n    return JSON.stringify(\n      canonicalInvocationValue(value, new WeakSet<object>()),\n    );\n  } catch {\n    return \"unkeyable\";\n  }\n}",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
@@ -791,7 +791,7 @@
       ],
       "expectedFailureFingerprint": [],
       "expectedTypeDiagnostics": [
-        "test-d/dispatcher.test-d.ts(19,35): error TS2344"
+        "test-d/dispatcher.test-d.ts(22,35): error TS2344"
       ]
     },
     {
@@ -879,7 +879,7 @@
       "group": "batch",
       "name": "JSON.parse is left uncaught",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "      let args: unknown;\n      try {\n        args = JSON.parse(call.arguments);\n      } catch {\n        args = {};\n      }",
+      "literalPattern": "      let args: unknown;\n      try {\n        args = JSON.parse(call.arguments);\n      } catch {\n        result = authoredResult(\n          false,\n          \"The action arguments are invalid.\",\n          \"invalid_args\",\n        );\n        rows.push(Object.freeze({ callId: call.callId, result }));\n        continue;\n      }",
       "replacement": "      const args: unknown = JSON.parse(call.arguments);",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
@@ -897,10 +897,10 @@
     {
       "id": "M-06-B06",
       "group": "batch",
-      "name": "malformed parse fallback bypasses schema validation",
+      "name": "malformed parse fallback reaches a defaulting validator",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "      } catch {\n        args = {};\n      }",
-      "replacement": "      } catch {\n        rows.push(Object.freeze({\n          callId: call.callId,\n          result: authoredResult(false, \"The action arguments are invalid.\", \"invalid_args\"),\n        }));\n        continue;\n      }",
+      "literalPattern": "      } catch {\n        result = authoredResult(\n          false,\n          \"The action arguments are invalid.\",\n          \"invalid_args\",\n        );\n        rows.push(Object.freeze({ callId: call.callId, result }));\n        continue;\n      }",
+      "replacement": "      } catch {\n        args = {};\n      }",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
@@ -1079,8 +1079,8 @@
       "group": "batch",
       "name": "correlation result rows are omitted",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "    rows.push(Object.freeze({ callId: call.callId, result }));",
-      "replacement": "",
+      "literalPattern": "    rows.push(Object.freeze({ callId: call.callId, result }));\n  }\n\n  return Object.freeze(rows);\n}",
+      "replacement": "  }\n\n  return Object.freeze(rows);\n}",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
@@ -1099,8 +1099,8 @@
       "group": "batch",
       "name": "results are positional and omit callId correlation",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "    rows.push(Object.freeze({ callId: call.callId, result }));",
-      "replacement": "    rows.push(Object.freeze(\n      { result } as Readonly<{ callId: string; result: ActionResult }>,\n    ));",
+      "literalPattern": "    rows.push(Object.freeze({ callId: call.callId, result }));\n  }\n\n  return Object.freeze(rows);\n}",
+      "replacement": "    rows.push(Object.freeze(\n      { result } as Readonly<{ callId: string; result: ActionResult }>,\n    ));\n  }\n\n  return Object.freeze(rows);\n}",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
@@ -1119,8 +1119,8 @@
       "group": "batch",
       "name": "correlation rows are mutable",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "    rows.push(Object.freeze({ callId: call.callId, result }));",
-      "replacement": "    rows.push({ callId: call.callId, result });",
+      "literalPattern": "    rows.push(Object.freeze({ callId: call.callId, result }));\n  }\n\n  return Object.freeze(rows);\n}",
+      "replacement": "    rows.push({ callId: call.callId, result });\n  }\n\n  return Object.freeze(rows);\n}",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
