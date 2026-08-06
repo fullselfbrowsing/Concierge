@@ -293,7 +293,7 @@ it("[Q03] never has more than one handler active", async () => {
   });
 });
 
-it("[Q04] routes malformed JSON through validation and continues with the later call", async () => {
+it("[Q04] rejects malformed JSON before a defaulting validator and continues", async () => {
   const validated = [];
   const handled = [];
   const concierge = conciergeFor([
@@ -311,7 +311,7 @@ it("[Q04] routes malformed JSON through validation and continues with the later 
             value === null ||
             !("value" in value)
           ) {
-            return { issues: [{ message: "value is required" }] };
+            return { value: { value: "defaulted" } };
           }
           return { value };
         },
@@ -329,6 +329,7 @@ it("[Q04] routes malformed JSON through validation and continues with the later 
       const rows = await concierge.dispatchBatch(ACTIVE_CONTEXT, toolBatch(calls));
       observed = {
         available: true,
+        frozen: rows.map((row) => [Object.isFrozen(row), Object.isFrozen(row.result)]),
         handled,
         rejected: false,
         rows: rows.map((row) => ({
@@ -345,13 +346,14 @@ it("[Q04] routes malformed JSON through validation and continues with the later 
 
   expect(observed, "[RED:Q04:malformed-json-validation]").toEqual({
     available: true,
+    frozen: [[true, true], [true, true]],
     handled: [{ args: { value: "later" }, callId: "later" }],
     rejected: false,
     rows: [
       { callId: "malformed", ok: false, reason: "invalid_args" },
       { callId: "later", ok: true, reason: undefined },
     ],
-    validated: [{}, { value: "later" }],
+    validated: [{ value: "later" }],
   });
 });
 
