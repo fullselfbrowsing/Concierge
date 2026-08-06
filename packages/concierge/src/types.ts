@@ -1149,11 +1149,11 @@ export interface StageDefinition<B extends Bridge = Bridge> {
 // ---------------------------------------------------------------------------
 
 export interface ToolCall {
-  callId: string;
-  name: string;
+  readonly callId: string;
+  readonly name: string;
   /** Raw string as received. Malformed JSON degrades to `{}`, never throws. */
-  arguments: string;
-  outputIndex: number;
+  readonly arguments: string;
+  readonly outputIndex: number;
 }
 
 /**
@@ -1176,15 +1176,15 @@ export interface ToolCall {
  * thing that goes red.
  */
 export interface ToolBatch {
-  responseId: string;
+  readonly responseId: string;
   /**
    * Absent on transports that cannot derive turn identity. Present does not
    * mean trustworthy — {@link TurnIdentityProvenance} is what says whether the
    * agent's own output could have minted it.
    */
-  userTurnId?: string | undefined;
-  calls: ReadonlyArray<ToolCall>;
-  signal?: AbortSignalLike | undefined;
+  readonly userTurnId?: string | undefined;
+  readonly calls: ReadonlyArray<ToolCall>;
+  readonly signal?: AbortSignalLike | undefined;
   /**
    * Defer a side effect until the agent's response has reached the human.
    *
@@ -1208,7 +1208,7 @@ export interface ToolBatch {
    * {@link InvocationMeta} twin: unparenthesised, the `| undefined` binds inside
    * the return position and the two signatures stop agreeing while both compile.
    */
-  deferUntilDelivered?: ((effect: (report: DeliveryReport) => void) => void) | undefined;
+  readonly deferUntilDelivered?: ((effect: (report: DeliveryReport) => void) => void) | undefined;
 }
 
 /**

@@ -353,10 +353,34 @@ export async function executeDispatchBatch(
     meta?: InvocationMeta,
   ) => Promise<ActionResult>,
 ): Promise<ReadonlyArray<Readonly<{ callId: string; result: ActionResult }>>> {
+  const batchSnapshot: Readonly<{
+    responseId: string;
+    userTurnId: string | undefined;
+    signal: AbortSignalLike | undefined;
+    deferUntilDelivered: InvocationMeta["deferUntilDelivered"];
+  }> = Object.freeze({
+    responseId: batch.responseId,
+    userTurnId: batch.userTurnId,
+    signal: batch.signal,
+    deferUntilDelivered: batch.deferUntilDelivered,
+  });
   const ordered: Array<{
-    readonly call: ToolBatch["calls"][number];
+    readonly call: Readonly<{
+      callId: string;
+      name: string;
+      arguments: string;
+      outputIndex: number;
+    }>;
     readonly originalIndex: number;
-  }> = batch.calls.map((call, originalIndex) => ({ call, originalIndex }));
+  }> = batch.calls.map((call, originalIndex) => ({
+    call: Object.freeze({
+      callId: call.callId,
+      name: call.name,
+      arguments: call.arguments,
+      outputIndex: call.outputIndex,
+    }),
+    originalIndex,
+  }));
   ordered.sort(
     (left, right): number =>
       left.call.outputIndex - right.call.outputIndex ||
@@ -366,7 +390,7 @@ export async function executeDispatchBatch(
   const rows: Array<Readonly<{ callId: string; result: ActionResult }>> = [];
   for (const { call } of ordered) {
     let result: ActionResult;
-    if (isAborted(batch.signal)) {
+    if (isAborted(batchSnapshot.signal)) {
       result = authoredResult(
         false,
         "The action was cancelled before it ran.",
@@ -381,12 +405,12 @@ export async function executeDispatchBatch(
       }
 
       const meta: InvocationMeta = {
-        responseId: batch.responseId,
+        responseId: batchSnapshot.responseId,
         callId: call.callId,
         outputIndex: call.outputIndex,
-        userTurnId: batch.userTurnId,
-        signal: batch.signal,
-        deferUntilDelivered: batch.deferUntilDelivered,
+        userTurnId: batchSnapshot.userTurnId,
+        signal: batchSnapshot.signal,
+        deferUntilDelivered: batchSnapshot.deferUntilDelivered,
       };
       result = await dispatch(ctx, call.name, args, meta);
     }

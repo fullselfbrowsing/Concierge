@@ -9,12 +9,15 @@ import type {
   Scheduler,
   StageContext,
   ToolBatch,
+  ToolCall,
 } from "../src/types.js";
 
 type _dispatchSignature = Expect<Equals<Concierge["dispatch"], (ctx: StageContext, name: string, args: unknown, meta?: InvocationMeta) => Promise<ActionResult>>>;
 type _dispatchBatchSignature = Expect<Equals<Concierge["dispatchBatch"], (ctx: StageContext, batch: ToolBatch) => Promise<ReadonlyArray<Readonly<{ callId: string; result: ActionResult }>>>>>;
 type _schedulerSignature = Expect<Equals<Scheduler, (fn: () => void, delayMs: number) => () => void>>;
 type _conciergeKeys = Expect<Equals<keyof Concierge, "dispatch" | "dispatchBatch" | "catalogFor" | "stageFor" | "explain">>;
+type _toolCallEnvelopeIsReadonly = Expect<Equals<Pick<ToolCall, "callId" | "name" | "arguments" | "outputIndex">, { readonly callId: string; readonly name: string; readonly arguments: string; readonly outputIndex: number }>>;
+type _toolBatchEnvelopeIsReadonly = Expect<Equals<Pick<ToolBatch, "responseId" | "userTurnId" | "calls" | "signal" | "deferUntilDelivered">, { readonly responseId: string; readonly userTurnId?: string | undefined; readonly calls: ReadonlyArray<ToolCall>; readonly signal?: import("../src/types.js").AbortSignalLike | undefined; readonly deferUntilDelivered?: InvocationMeta["deferUntilDelivered"] }>>;
 
 const _metaAcceptsExplicitUndefined: InvocationMeta = {
   responseId: undefined,

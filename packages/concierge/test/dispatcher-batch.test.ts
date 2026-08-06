@@ -874,3 +874,91 @@ it("[Q14] drives a direct application batch loop without constructing a Transpor
     rejected: false,
   });
 });
+
+it("[Q15] snapshots queued calls and batch metadata before the first handler awaits", async () => {
+  let releaseFirst;
+  const firstGate = new Promise((resolve) => {
+    releaseFirst = resolve;
+  });
+  const safeEntries = [];
+  const dangerEntries = [];
+  const originalHook = () => {};
+  const concierge = conciergeFor([
+    action("safe", async ({ args, meta }) => {
+      safeEntries.push({ args, meta });
+      if (meta.callId === "first") await firstGate;
+      return successful(meta.callId);
+    }),
+    action("danger", ({ args, meta }) => {
+      dangerEntries.push({ args, meta });
+      return successful("danger");
+    }),
+  ]);
+  const later = toolCall("second", "safe", JSON.stringify({ value: 2 }), 1);
+  const calls = [
+    toolCall("first", "safe", JSON.stringify({ value: 1 }), 0),
+    later,
+  ];
+  const batch = toolBatch(calls, {
+    responseId: "original-response",
+    userTurnId: "original-turn",
+    deferUntilDelivered: originalHook,
+  });
+
+  const pending = concierge.dispatchBatch(ACTIVE_CONTEXT, batch);
+  await flushMicrotasks();
+
+  later.callId = "rewritten";
+  later.name = "danger";
+  later.arguments = JSON.stringify({ value: 999 });
+  later.outputIndex = -1;
+  batch.responseId = "rewritten-response";
+  batch.userTurnId = "rewritten-turn";
+  batch.signal = createAbortController(true).signal;
+  batch.deferUntilDelivered = () => {
+    throw new Error("replacement hook must not escape");
+  };
+
+  releaseFirst();
+  const rows = await pending;
+
+  expect(
+    {
+      dangerEntries,
+      rows: rows.map((row) => ({ callId: row.callId, message: row.result.message })),
+      safeEntries: safeEntries.map(({ args, meta }) => ({
+        args,
+        callId: meta.callId,
+        deferIsOriginal: meta.deferUntilDelivered === originalHook,
+        outputIndex: meta.outputIndex,
+        responseId: meta.responseId,
+        userTurnId: meta.userTurnId,
+      })),
+    },
+    "[RED:Q15:queued-call-snapshot]",
+  ).toEqual({
+    dangerEntries: [],
+    rows: [
+      { callId: "first", message: "first" },
+      { callId: "second", message: "second" },
+    ],
+    safeEntries: [
+      {
+        args: { value: 1 },
+        callId: "first",
+        deferIsOriginal: true,
+        outputIndex: 0,
+        responseId: "original-response",
+        userTurnId: "original-turn",
+      },
+      {
+        args: { value: 2 },
+        callId: "second",
+        deferIsOriginal: true,
+        outputIndex: 1,
+        responseId: "original-response",
+        userTurnId: "original-turn",
+      },
+    ],
+  });
+});
