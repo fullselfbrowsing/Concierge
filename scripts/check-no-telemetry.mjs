@@ -44,6 +44,12 @@ const SELF_TEST_SOURCE = [
   "operation.catch(externalForwarder);",
   "const observeSettlement = (): void => {};",
   "operation.then(observeSettlement, observeSettlement);",
+  "operation.catch(function () { return authoredResult(false, String(arguments[0])); });",
+  "operation.then(() => undefined, function rejected() { return authoredResult(false, String(arguments[0])); });",
+  "function forwardArguments(): unknown {",
+  "  return authoredResult(false, String(arguments[0]));",
+  "}",
+  "operation.catch(forwardArguments);",
 ].join("\n");
 
 function loadCompilerApi() {
@@ -520,7 +526,30 @@ function main(selfTest = false) {
         );
         return;
       }
-      if (resolved.parameters.length === 0) return;
+      if (resolved.parameters.length === 0) {
+        if (ts.isArrowFunction(resolved)) return;
+
+        const visitArguments = (candidate) => {
+          if (
+            candidate !== resolved &&
+            (ts.isFunctionExpression(candidate) ||
+              ts.isFunctionDeclaration(candidate) ||
+              ts.isMethodDeclaration(candidate))
+          ) {
+            return;
+          }
+          if (ts.isIdentifier(candidate) && candidate.text === "arguments") {
+            addFinding(
+              candidate,
+              "rejection-arguments",
+              `${context} must not read the callback-local arguments object`,
+            );
+          }
+          ts.forEachChild(candidate, visitArguments);
+        };
+        if (resolved.body !== undefined) visitArguments(resolved.body);
+        return;
+      }
 
       const names = new Set();
       for (const parameter of resolved.parameters) {
@@ -646,6 +675,7 @@ function main(selfTest = false) {
       ["rejection-binding", 3],
       ["caught-value-forwarding", 3],
       ["ambiguous-rejection-callback", 1],
+      ["rejection-arguments", 3],
     ]);
     for (const [rule, minimum] of expectedMinimums) {
       const count = findings.filter((finding) => finding.rule === rule).length;
@@ -684,12 +714,33 @@ function main(selfTest = false) {
         (finding) =>
           finding.line === observeLine &&
           (finding.rule === "rejection-binding" ||
+            finding.rule === "rejection-arguments" ||
             finding.rule === "ambiguous-rejection-callback"),
       )
     ) {
       throw new Error(
         "self-test rejected a locally resolved zero-parameter rejection callback",
       );
+    }
+    for (const fragment of [
+      "operation.catch(function ()",
+      "function rejected()",
+      "  return authoredResult(false, String(arguments[0]))",
+    ]) {
+      const line = SELF_TEST_SOURCE.split("\n").findIndex((sourceLine) =>
+        sourceLine.includes(fragment),
+      ) + 1;
+      if (
+        line === 0 ||
+        !findings.some(
+          (finding) =>
+            finding.line === line && finding.rule === "rejection-arguments",
+        )
+      ) {
+        throw new Error(
+          `self-test did not reject callback-local arguments fixture '${fragment}'`,
+        );
+      }
     }
     console.log(
       `No-telemetry AST audit self-test: ${findings.length} malicious finding(s) detected across computed names and rejection callbacks`,
