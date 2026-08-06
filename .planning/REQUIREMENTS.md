@@ -161,18 +161,18 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | CAT-05 | Phase 3 — Action declaration and build-time validation | Complete |
 | CAT-06 | Phase 3 — Action declaration and build-time validation | Complete |
 | CAT-07 | Phase 3 — Action declaration and build-time validation | Complete |
-| DSP-01 | Phase 6 — Dispatcher | Complete |
-| DSP-02 | Phase 6 — Dispatcher | Complete |
-| DSP-03 | Phase 6 — Dispatcher | Complete |
-| DSP-04 | Phase 6 — Dispatcher | Complete |
-| DSP-05 | Phase 6 — Dispatcher | Complete |
-| DSP-06 | Phase 6 — Dispatcher | Complete |
-| DSP-07 | Phase 6 — Dispatcher | Complete |
-| DSP-08 | Phase 6 — Dispatcher | Complete |
-| DSP-09 | Phase 6 — Dispatcher | Complete |
+| DSP-01 | Phase 6 — Dispatcher | Complete — R01/R02 prove same-Promise identity and failure reuse; M-06-S01…S04 kill async/wrapper/insertion/failure-cache regressions. |
+| DSP-02 | Phase 6 — Dispatcher | Complete — R03…R07 prove fallback keys, namespace separation, cyclic/BigInt degradation, and instance isolation; M-06-S05…S11 discriminate each cache boundary. |
+| DSP-03 | Phase 6 — Dispatcher | Complete — R34…R36 prove sync throws and rejections return only the generic authored result and leak no marker to result or console; M-06-S25 kills exception echo. |
+| DSP-04 | Phase 6 — Dispatcher | Complete — R09…R12 prove prototype names, absent handlers, and non-callable handlers settle honestly without entering application code. |
+| DSP-05 | Phase 6 — Dispatcher | Complete — R13…R18 prove sync/async validation, transformed arguments, and contained validator failures; M-06-S16/S17 kill bypass and original-argument regressions. |
+| DSP-06 | Phase 6 — Dispatcher | Complete — Q04/Q05 prove malformed JSON becomes `{}`, validation still runs, primitives stay intact, and later calls continue; M-06-B05/B06 kill uncaught-parse and validation-bypass regressions. |
+| DSP-07 | Phase 6 — Dispatcher | Complete — Q01…Q03 and Q07…Q13 prove copied stable ordering, strict seriality, correlation, immutability, abort completeness, and dedup reuse; M-06-B01…B04 and B13…B20 discriminate those boundaries. |
+| DSP-08 | Phase 6 — Dispatcher | Complete — R20…R33 and Q10…Q12 prove both 600 ms defaults, settlement-based expiry, commit waits, abort cancellation, cleanup, and scheduler fallback; M-06-S12/S13/S18…S23 kill timing and cleanup regressions. |
+| DSP-09 | Phase 6 — Dispatcher | Complete — R37…R45 normalize scalars, null, bad fields/getters/proxies/reasons, strip extras, and preserve the closed reason vocabulary; M-06-S26…S29 kill pass-through and contradiction regressions. |
 | BRG-01 | Phase 5 — Bridge registry and the no-bridge path | Complete — all thirteen mount/unmount orderings asserted against `dist/index.js`; discrimination proven by M-05-1 and M-05-2. Evidence: 05-04 B1–B13, 05-07 mutation battery |
 | BRG-02 | Phase 5 — Bridge registry and the no-bridge path | Complete — `register()` stores the bridge as given and `read()` returns it by reference, so getters stay live across an app state change. Evidence: 05-04 B14/B15 |
-| BRG-03 | Phase 5 — Bridge registry and the no-bridge path | Complete — proven as its two halves: resolution yields `null` for declared-but-unmounted and for a throwing `read()`, and a handler given `bridge: null` returns a bounded `no_bridge` sentence without throwing. Discriminated by M-05-13, M-05-14, M-05-12. **The end-to-end join through a real `dispatch` is deferred to Phase 6 by CONTEXT decision 3.3** — `dispatch` is still a stub, and no test pretends otherwise. Evidence: 05-05 D14–D19 |
+| BRG-03 | Phase 5 — Bridge registry and the no-bridge path | Complete — Phase 5 proves registry resolution and honest `no_bridge` handling (05-05 D14–D19, M-05-12…M-05-14); Phase 6 closes the real-dispatch join: R52 passes the mounted live bridge, R53 resolves an absent bridge to `null` at the handler, R54 turns a throwing `read()` into `null`, and M-06-S24 kills `resolveBridge` bypass. |
 | BRG-04 | Phase 5 — Bridge registry and the no-bridge path | Complete — the unsubscriber is guarded on a monotonic token, so a stale cleanup is refused even when the replacement is `===` the original. M-05-1 reddens exactly the four discriminating orderings. Evidence: 05-04 B10–B13 |
 | BRG-05 | Phase 5 — Bridge registry and the no-bridge path | Complete — a structural clone detaches an accessor-backed `Proxy` while leaving the host store unfrozen; discriminated by M-05-3, M-05-4, M-05-5, M-05-6, M-05-9. The framework half (React StrictMode, Svelte `$state.snapshot`) is Phase 9's. Evidence: 05-05 D1–D13 |
 | STG-01 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
@@ -196,18 +196,18 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | TRN-01 | Phase 1 — Type surface completion | Complete |
 | TRN-02 | Phase 7 — Session and the transport seam | Pending |
 | TRN-03 | Phase 8 — Consent kernel | Pending |
-| TRN-04 | Phase 6 — Dispatcher | Complete |
+| TRN-04 | Phase 6 — Dispatcher | Complete — R19 drives one action and Q14 drives a batch directly from an application loop without constructing a Transport; the complete 54-row mutation register remains green. |
 | TRN-05 | Phase 1 — Type surface completion | Complete |
 | ADP-01 | Phase 9 — React and Svelte adapters | Pending |
 | ADP-02 | Phase 9 — React and Svelte adapters | Pending |
 | ADP-03 | Phase 9 — React and Svelte adapters | Pending |
 | ADP-04 | Phase 9 — React and Svelte adapters | Pending |
 | SEC-01 | Phase 3 — Action declaration and build-time validation | Complete |
-| SEC-02 | Phase 6 — Dispatcher | Complete |
-| SEC-03 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
+| SEC-02 | Phase 6 — Dispatcher | Complete structurally — the TypeScript AST audit parses all 11 production files and proves Phase 6 defines no telemetry/onTelemetry/onError channel or emission and no bound exception forwarding path. R34…R36 prove at runtime that handler exception text reaches neither `ActionResult` nor console; M-06-S25 kills exception echo. |
+| SEC-03 | Phase 4 — Stages, catalog assembly, and explain() | Pending overall under Phase 4's recorded consumer-supplied `jsonSchema` getter carve-out. Phase 6 completes the dispatch-side lookup proof without remapping the requirement: R09/R10 execute zero handlers for `__proto__`/`constructor`, and M-06-S15 kills a prototype-bearing lookup. |
 | SEC-04 | Phase 8 — Consent kernel | Pending |
 | SEC-05 | Phase 3 — Action declaration and build-time validation | Complete |
-| SEC-06 | Phase 6 — Dispatcher | Complete |
+| SEC-06 | Phase 6 — Dispatcher | Complete — R47…R51 prove C0/C1 replacement, whitespace normalization, the shared length cap, surrogate-pair preservation, and fresh sanitized constants; M-06-S30…S33 kill every sanitizer boundary. |
 | PKG-01 | Phase 2 — Packaging, build, and release | Complete |
 | PKG-02 | Phase 2 — Packaging, build, and release | Complete |
 | PKG-03 | Phase 2 — Packaging, build, and release | Complete |

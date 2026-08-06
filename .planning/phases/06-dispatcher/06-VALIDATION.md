@@ -1,9 +1,9 @@
 ---
 phase: 6
 slug: dispatcher
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-08-05
 ---
 
@@ -52,11 +52,11 @@ Use `pnpm exec vitest run <file>` for filtering—`pnpm test -- <name>` does not
 | 06-06-T2 | 06-06 | 5 | DSP-07 | T-06-Ordering | Batches are stable by `outputIndex`, serial, and settle every call after abort | integration + mutation | `node scripts/phase-06-mutation-battery.mjs verify all` | ✅ | ✅ green |
 | 06-06-T1 | 06-06 | 5 | DSP-08 | T-06-Race | Effects wait for the commit window; abort cancels before invocation | runtime + mutation | `node scripts/phase-06-mutation-battery.mjs verify single` | ✅ | ✅ green |
 | 06-06-T1 | 06-06 | 5 | DSP-09 | T-06-Output | Malformed handler values/getters/proxies normalize to `invalid_result` | security runtime + mutation | `node scripts/phase-06-mutation-battery.mjs verify single` | ✅ | ✅ green |
-| 06-06-T3 | 06-06 | 5 | SEC-02 | T-06-Info | No thrown message reaches results, console, or a new telemetry seam | AST source audit + security runtime | `node scripts/check-no-telemetry.mjs` | ✅ | ⬜ pending |
+| 06-06-T3 | 06-06 | 5 | SEC-02 | T-06-Info | No thrown message reaches results, console, or a new telemetry seam | AST source audit + security runtime | `node scripts/check-no-telemetry.mjs` | ✅ | ✅ green |
 | 06-06-T1 | 06-06 | 5 | SEC-06 | T-06-Injection | Every outbound message strips controls, collapses whitespace, caps length, and preserves surrogate pairs | security runtime + mutation | `node scripts/phase-06-mutation-battery.mjs verify single` | ✅ | ✅ green |
 | 06-06-T2 | 06-06 | 5 | TRN-04 | T-06-Coupling | Single and batch dispatch run without constructing a transport | integration + mutation | `node scripts/phase-06-mutation-battery.mjs verify all` | ✅ | ✅ green |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Measured status: every row is green.*
 
 ---
 
@@ -79,20 +79,39 @@ Use `pnpm exec vitest run <file>` for filtering—`pnpm test -- <name>` does not
 
 ## Manual-Only Verifications
 
-All post-decision Phase 6 behaviors have automated verification. Before implementation, planning
-must explicitly settle the context-aware dispatch signature, transport-independent batch signature,
-and dedupe timestamp/default-window overlap; these must not be implemented through hidden mutable context.
+None. Every locked Phase 6 behavior has automated runtime, type, source-structure, mutation,
+or package-gate evidence.
+
+---
+
+## Phase Gate Evidence
+
+Measured on 2026-08-05 with the exact chained phase command. Every command exited 0.
+
+| Gate | Headline evidence | Result |
+|------|-------------------|--------|
+| Immutable mutation register | Digest `01013d0fafab25c58a2a030f606ac4633a78c5b65b02393c69a42a2d54b2d1ba`; 54/54 compiled mutants killed; 54 named tests ran; 54 restored gates and scoped-tree checks green | ✅ |
+| No-telemetry AST audit | TypeScript `createSourceFile` parsed 11/11 production files; required result-path files present; 0 executable channel, emission, or caught-value findings. Positive controls adding a `telemetry` identifier and a catch binding each fired, then restored clean | ✅ |
+| `pnpm build` | 4 artifacts, 615.21 kB total; Build complete; embedded ATTW and publint checks clean | ✅ |
+| `pnpm typecheck` | `tsc -p tsconfig.test-d.json`; exit 0 | ✅ |
+| `pnpm test` | 11 test files passed; 211/211 tests passed | ✅ |
+| `pnpm check:artifact` | publint strict: All good; ATTW ESM and JSON profiles green | ✅ |
+| `pnpm check:deps` | 1 built chunk / 1 module; no vendored modules or external runtime imports; dependency ESM entries contribute 0 bytes | ✅ |
+| `pnpm check:pack` | Foreign scratch install, declaration typecheck with TypeScript 7.0.2, and runtime import passed | ✅ |
+| `pnpm check:node-floor` | Packed artifact installed and imported on pinned Node v22.12.0 | ✅ |
+| Test isolation audit | 0 Vitest/Jest mocking API findings in either dispatcher suite | ✅ |
+| Mutation restoration audit | Production source, dispatcher tests, type tests, manifests, and lockfile clean after all probes | ✅ |
 
 ---
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verification or Wave 0 dependencies.
-- [ ] Sampling continuity: no three consecutive tasks without automated verification.
-- [ ] Wave 0 covers every missing test reference above.
-- [ ] No watch-mode flags.
-- [ ] Feedback latency remains below 30 seconds.
-- [ ] Each security threat in PLAN.md has a discriminating source or runtime detector.
-- [ ] `nyquist_compliant: true` and `wave_0_complete: true` are set after measured evidence exists.
+- [x] All tasks have `<automated>` verification or completed Wave 0 dependencies.
+- [x] Sampling continuity: no three consecutive tasks without automated verification.
+- [x] Wave 0 covers every test reference above.
+- [x] No watch-mode flags.
+- [x] Feedback latency remained below 30 seconds for quick feedback.
+- [x] Each security threat in PLAN.md has a discriminating source or runtime detector.
+- [x] `nyquist_compliant: true` and `wave_0_complete: true` were set only after measured evidence existed.
 
-**Approval:** pending
+**Approval:** complete — mutation, AST, runtime, type, artifact, dependency, pack-install, and Node-floor gates are green.
