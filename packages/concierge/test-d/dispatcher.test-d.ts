@@ -3,8 +3,10 @@
 
 import type { Equals, Expect } from "./_assert.js";
 import type {
+  ActionHandler,
   ActionResult,
   Concierge,
+  DeepReadonly,
   InvocationMeta,
   Scheduler,
   StageContext,
@@ -18,6 +20,10 @@ type _schedulerSignature = Expect<Equals<Scheduler, (fn: () => void, delayMs: nu
 type _conciergeKeys = Expect<Equals<keyof Concierge, "dispatch" | "dispatchBatch" | "catalogFor" | "stageFor" | "explain">>;
 type _toolCallEnvelopeIsReadonly = Expect<Equals<Pick<ToolCall, "callId" | "name" | "arguments" | "outputIndex">, { readonly callId: string; readonly name: string; readonly arguments: string; readonly outputIndex: number }>>;
 type _toolBatchEnvelopeIsReadonly = Expect<Equals<Pick<ToolBatch, "responseId" | "userTurnId" | "calls" | "signal" | "deferUntilDelivered">, { readonly responseId: string; readonly userTurnId?: string | undefined; readonly calls: ReadonlyArray<ToolCall>; readonly signal?: import("../src/types.js").AbortSignalLike | undefined; readonly deferUntilDelivered?: InvocationMeta["deferUntilDelivered"] }>>;
+type _deepReadonlyInvocationData = Expect<Equals<DeepReadonly<{ amount: number; nested: { currency: string }; tags: string[] }>, { readonly amount: number; readonly nested: { readonly currency: string }; readonly tags: readonly string[] }>>;
+type _handlerContext = Parameters<ActionHandler<{ amount: number; nested: { currency: string } }, null>>[0];
+type _handlerArgsAreDeepReadonly = Expect<Equals<_handlerContext["args"], { readonly amount: number; readonly nested: { readonly currency: string } }>>;
+type _handlerMetaIsReadonly = Expect<Equals<_handlerContext["meta"], Readonly<InvocationMeta>>>;
 
 const _metaAcceptsExplicitUndefined: InvocationMeta = {
   responseId: undefined,

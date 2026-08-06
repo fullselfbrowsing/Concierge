@@ -69,6 +69,7 @@ export type {
   ReasonCode,
   // Invocation
   InvocationMeta,
+  DeepReadonly,
   ActionHandler,
   // Consent
   ConsentGrade,

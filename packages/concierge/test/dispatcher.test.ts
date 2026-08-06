@@ -2166,3 +2166,68 @@ async function withFakeNow(initial, run) {
       retry: { ok: true, message: "original result" },
     });
   });
+
+  it("[R66] exposes handler arguments and metadata as immutable values", async () => {
+    let observed;
+    const concierge = conciergeFor([
+      action(
+        "readonly-handler-inputs",
+        ({ args, meta }) => {
+          let rejectedWrites = 0;
+          for (const write of [
+            () => {
+              args.amount = 99;
+            },
+            () => {
+              args.nested.currency = "rewritten";
+            },
+            () => {
+              meta.callId = "rewritten";
+            },
+          ]) {
+            try {
+              write();
+            } catch {
+              rejectedWrites += 1;
+            }
+          }
+          observed = {
+            args,
+            argsFrozen: Object.isFrozen(args),
+            metaCallId: meta.callId,
+            metaFrozen: Object.isFrozen(meta),
+            nestedFrozen: Object.isFrozen(args.nested),
+            rejectedWrites,
+          };
+          return successful();
+        },
+        {
+          validate: () => ({
+            value: { amount: 10, nested: { currency: "USD" } },
+          }),
+        },
+      ),
+    ]);
+
+    const result = await concierge.dispatch(
+      ACTIVE_CONTEXT,
+      "readonly-handler-inputs",
+      { amount: 0 },
+      { callId: "readonly-handler-call" },
+    );
+
+    expect(
+      { observed, result },
+      "[RED:R66:readonly-handler-inputs]",
+    ).toEqual({
+      observed: {
+        args: { amount: 10, nested: { currency: "USD" } },
+        argsFrozen: true,
+        metaCallId: "readonly-handler-call",
+        metaFrozen: true,
+        nestedFrozen: true,
+        rejectedWrites: 3,
+      },
+      result: { ok: true, message: "Done." },
+    });
+  });

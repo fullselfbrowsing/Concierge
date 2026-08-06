@@ -277,7 +277,7 @@ type Ctx = Parameters<ActionDefinition<"x", typeof schema, PlainBridge, Booking,
 type _handlerAck = Expect<Equals<Ctx["ack"], ConsentAck<Booking, AckShape> | undefined>>;
 
 /** The schema's output still reaches `args` — the forward did not displace it. */
-type _handlerArgs = Expect<Equals<Ctx["args"], { q: string }>>;
+type _handlerArgs = Expect<Equals<Ctx["args"], { readonly q: string }>>;
 
 /**
  * The bridge reaches `bridge` **and arrives nullable** — WR-03's detector, and the `| null`

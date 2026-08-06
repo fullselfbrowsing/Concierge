@@ -275,6 +275,13 @@ export const MESSAGE_MAX_CHARS = 180;
 // Invocation
 // ---------------------------------------------------------------------------
 
+/** Recursively expose invocation data exactly as the dispatcher freezes it. */
+export type DeepReadonly<T> = T extends (...args: never[]) => unknown
+  ? T
+  : T extends object
+    ? { readonly [Key in keyof T]: DeepReadonly<T[Key]> }
+    : T;
+
 /**
  * What the transport knows about *this* call, as distinct from its arguments.
  *
@@ -409,10 +416,10 @@ export type ActionHandler<
   Snapshot = unknown,
   AckPayload = unknown,
 > = (ctx: {
-  args: Args;
+  args: DeepReadonly<Args>;
   /** `null` when the owning stage's bridge is not mounted. Always check it. */
   bridge: B | null;
-  meta: InvocationMeta;
+  meta: Readonly<InvocationMeta>;
   /** Present only for actions declaring `consent.requires`. */
   ack?: ConsentAck<Snapshot, AckPayload> | undefined;
 }) => ActionResult | Promise<ActionResult>;
