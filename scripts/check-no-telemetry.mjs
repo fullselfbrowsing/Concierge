@@ -35,11 +35,17 @@ const SELF_TEST_SOURCE = [
   "declare const operation: Promise<unknown>;",
   "declare const authoredResult: (...args: unknown[]) => unknown;",
   "declare const externalForwarder: (error: unknown) => unknown;",
+  "declare const channels: Record<string, { send: (input: unknown) => void }>;",
+  "declare const secret: unknown;",
+  "channels[runtimeName].send(secret);",
   "void channel[runtimeName];",
   "channel[runtimeName]({});",
   "channel[runtimeName] ||= sink;",
   "channel[runtimeName] = externalForwarder;",
   "Object.defineProperty(channel, runtimeName, { value: externalForwarder });",
+  "const value = externalForwarder;",
+  "Object.defineProperty(channel, runtimeName, { value });",
+  "Reflect.defineProperty(channel, runtimeName, { value: externalForwarder });",
   "Reflect.set(channel, runtimeName, externalForwarder);",
   "declare const dataKey: string;",
   "const dataRows: Record<string, { value: number }> = {};",
@@ -404,6 +410,50 @@ function main(selfTest = false) {
       });
     }
 
+    function typeIsKnownInertData(type, seen = new Set(), depth = 0) {
+      if (depth > 12) return false;
+      return typeParts(type).every((part) => {
+        if (
+          (part.flags &
+            (ts.TypeFlags.Any |
+              ts.TypeFlags.Unknown |
+              ts.TypeFlags.TypeParameter)) !==
+          0
+        ) {
+          return false;
+        }
+        if (
+          (part.flags &
+            (ts.TypeFlags.StringLike |
+              ts.TypeFlags.NumberLike |
+              ts.TypeFlags.BooleanLike |
+              ts.TypeFlags.BigIntLike |
+              ts.TypeFlags.ESSymbolLike |
+              ts.TypeFlags.Null |
+              ts.TypeFlags.Undefined |
+              ts.TypeFlags.Never)) !==
+          0
+        ) {
+          return true;
+        }
+        if (checker.getSignaturesOfType(part, ts.SignatureKind.Call).length > 0) {
+          return false;
+        }
+        if (seen.has(part)) return true;
+        const nextSeen = new Set(seen);
+        nextSeen.add(part);
+        return checker.getPropertiesOfType(part).every((property) => {
+          const location =
+            property.valueDeclaration ?? property.declarations?.[0] ?? sourceFile;
+          return typeIsKnownInertData(
+            checker.getTypeOfSymbolAtLocation(property, location),
+            nextSeen,
+            depth + 1,
+          );
+        });
+      });
+    }
+
     function keyCannotNameAStringChannel(argument) {
       const type = checker.getTypeAtLocation(argument);
       return typeParts(type).every(
@@ -564,6 +614,22 @@ function main(selfTest = false) {
         return;
       }
 
+      const usedAsPropertyReceiver =
+        ((ts.isPropertyAccessExpression(parent) ||
+          ts.isElementAccessExpression(parent)) &&
+          parent.expression === node);
+      if (
+        usedAsPropertyReceiver &&
+        !typeIsKnownInertData(checker.getTypeAtLocation(node))
+      ) {
+        addFinding(
+          argument,
+          "ambiguous-computed-access",
+          "dynamic computed receiver can select an object carrying a callable channel",
+        );
+        return;
+      }
+
       if (typeMayBeCallable(checker.getTypeAtLocation(node))) {
         addFinding(
           argument,
@@ -577,6 +643,12 @@ function main(selfTest = false) {
       const candidate = unwrapExpression(object);
       if (!ts.isObjectLiteralExpression(candidate)) return null;
       for (const property of candidate.properties) {
+        if (
+          ts.isShorthandPropertyAssignment(property) &&
+          property.name.text === name
+        ) {
+          return property.name;
+        }
         if (
           ts.isPropertyAssignment(property) &&
           ((ts.isIdentifier(property.name) && property.name.text === name) ||
@@ -600,7 +672,10 @@ function main(selfTest = false) {
     function inspectDynamicChannelInstaller(node) {
       let key = null;
       let installedValues = [];
-      if (staticMemberCall(node.expression, "Object", "defineProperty")) {
+      if (
+        staticMemberCall(node.expression, "Object", "defineProperty") ||
+        staticMemberCall(node.expression, "Reflect", "defineProperty")
+      ) {
         key = node.arguments[1] ?? null;
         const descriptor = node.arguments[2];
         if (descriptor === undefined) return;
@@ -970,7 +1045,10 @@ function main(selfTest = false) {
       ["channel[runtimeName]({})", "ambiguous-call-target"],
       ["channel[runtimeName] ||=", "ambiguous-computed-access"],
       ["channel[runtimeName] = externalForwarder", "ambiguous-computed-access"],
-      ["Object.defineProperty(channel, runtimeName", "ambiguous-computed-access"],
+      ["Object.defineProperty(channel, runtimeName, { value: externalForwarder", "ambiguous-computed-access"],
+      ["channels[runtimeName].send(secret)", "ambiguous-computed-access"],
+      ["Object.defineProperty(channel, runtimeName, { value })", "ambiguous-computed-access"],
+      ["Reflect.defineProperty(channel, runtimeName", "ambiguous-computed-access"],
       ["Reflect.set(channel, runtimeName", "ambiguous-computed-access"],
     ]) {
       const line = SELF_TEST_SOURCE.split("\n").findIndex((sourceLine) =>
