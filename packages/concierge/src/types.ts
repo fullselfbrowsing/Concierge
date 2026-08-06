@@ -96,7 +96,7 @@ export interface AbortSignalLike {
  * user ratification.
  */
 export interface ActionResult {
-  ok: boolean;
+  readonly ok: boolean;
   /**
    * Stable machine-readable failure code. Closed on purpose — see
    * {@link ReasonCode}. An open `string` would let a handler place arbitrary
@@ -109,7 +109,7 @@ export interface ActionResult {
    * `{ reason: computeReason(), … }` idiom whenever the computed value is
    * `ReasonCode | undefined` — which is every real mapper. Do not remove it.
    */
-  reason?: ReasonCode | undefined;
+  readonly reason?: ReasonCode | undefined;
   /**
    * One sentence, safe to show or speak. Never a stack trace.
    *
@@ -126,7 +126,7 @@ export interface ActionResult {
    * The dispatcher enforces the bound and strips C0/C1 control characters at
    * its result boundary.
    */
-  message: string;
+  readonly message: string;
 }
 
 /**

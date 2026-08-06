@@ -343,9 +343,11 @@ export function authoredResult(
   reason?: ReasonCode | undefined,
 ): ActionResult {
   const sanitized: string = sanitizeMessage(message);
-  return reason === undefined
-    ? { ok, message: sanitized }
-    : { ok, reason, message: sanitized };
+  return Object.freeze(
+    reason === undefined
+      ? { ok, message: sanitized }
+      : { ok, reason, message: sanitized },
+  );
 }
 
 /** The one fixed result for a malformed handler return. */

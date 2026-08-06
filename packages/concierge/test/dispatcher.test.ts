@@ -2102,3 +2102,67 @@ async function withFakeNow(initial, run) {
       validatorCalls: 1,
     });
   });
+
+  it("[R65] freezes a cached result so one caller cannot poison a retry", async () => {
+    let handlerCalls = 0;
+    const concierge = conciergeFor([
+      action("immutable-result", () => {
+        handlerCalls += 1;
+        return successful("original result");
+      }),
+    ]);
+    const meta = { callId: "immutable-result-call" };
+
+    const firstPromise = concierge.dispatch(
+      ACTIVE_CONTEXT,
+      "immutable-result",
+      {},
+      meta,
+    );
+    const first = await firstPromise;
+    let rejectedWrites = 0;
+    for (const write of [
+      () => {
+        first.ok = false;
+      },
+      () => {
+        first.reason = "handler_error";
+      },
+      () => {
+        first.message = "\u001b[31mpoisoned";
+      },
+    ]) {
+      try {
+        write();
+      } catch {
+        rejectedWrites += 1;
+      }
+    }
+
+    const retryPromise = concierge.dispatch(
+      ACTIVE_CONTEXT,
+      "immutable-result",
+      {},
+      meta,
+    );
+    const retry = await retryPromise;
+
+    expect(
+      {
+        frozen: Object.isFrozen(first),
+        handlerCalls,
+        promiseIdentity: firstPromise === retryPromise,
+        rejectedWrites,
+        resultIdentity: first === retry,
+        retry,
+      },
+      "[RED:R65:immutable-cached-result]",
+    ).toEqual({
+      frozen: true,
+      handlerCalls: 1,
+      promiseIdentity: true,
+      rejectedWrites: 3,
+      resultIdentity: true,
+      retry: { ok: true, message: "original result" },
+    });
+  });

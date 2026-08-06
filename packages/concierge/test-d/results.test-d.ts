@@ -174,3 +174,8 @@ type _resultOkRequired = Expect<Equals<ActionResult["ok"], boolean>>;
 
 /** The field `MESSAGE_MAX_CHARS` and the whole `ConsentGrade` ladder are written about. Optional, the one sentence a human might actually be shown becomes something a handler may simply not supply. */
 type _resultMessageRequired = Expect<Equals<ActionResult["message"], string>>;
+
+/** Dispatcher results are immutable through every public field. */
+type _resultOkIsReadonly = Expect<Equals<Pick<ActionResult, "ok">, { readonly ok: boolean }>>;
+type _resultReasonIsReadonly = Expect<Equals<Pick<ActionResult, "reason">, { readonly reason?: ActionResult["reason"] }>>;
+type _resultMessageIsReadonly = Expect<Equals<Pick<ActionResult, "message">, { readonly message: string }>>;

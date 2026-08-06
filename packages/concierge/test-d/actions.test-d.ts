@@ -239,7 +239,7 @@ type _minGradeIsGrade = Expect<Equals<ConsentPolicy["minGrade"], ConsentGrade | 
 // be re-derived from the new declaration rather than relaxed.
 
 /** The result an action returns when its consent policy was never armed. Drop `reason` and the dispatcher loses the machine-readable half of "why nothing happened". */
-type _onMissingShape = Expect<Equals<ConsentPolicy["onMissing"], { reason?: ReasonCode | undefined; message: string } | undefined>>;
+type _onMissingShape = Expect<Equals<ConsentPolicy["onMissing"], { readonly reason?: ReasonCode | undefined; readonly message: string } | undefined>>;
 
 /** Modelled on `_transportKeys` in `transport.test-d.ts`, and for the same reason: the member set is closed, so a second severity dial cannot appear beside `minGrade` unnoticed — which is the failure D-04 spent four entries preventing. */
 type _policyKeys = Expect<Equals<keyof ConsentPolicy, "requires" | "bindTo" | "snapshotEquality" | "minGrade" | "onMissing">>;

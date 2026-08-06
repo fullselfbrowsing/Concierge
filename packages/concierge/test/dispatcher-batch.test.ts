@@ -962,3 +962,44 @@ it("[Q15] snapshots queued calls and batch metadata before the first handler awa
     ],
   });
 });
+
+it("[Q16] keeps nested batch results immutable across cached retries", async () => {
+  let handlerCalls = 0;
+  const concierge = conciergeFor([
+    action("batch-result", () => {
+      handlerCalls += 1;
+      return successful("batch original");
+    }),
+  ]);
+  const batch = toolBatch([
+    toolCall("batch-result-call", "batch-result", "{}", 0),
+  ]);
+
+  const firstRows = await concierge.dispatchBatch(ACTIVE_CONTEXT, batch);
+  const firstResult = firstRows[0].result;
+  let mutationThrew = false;
+  try {
+    firstResult.message = "\u001b[31mpoisoned";
+  } catch {
+    mutationThrew = true;
+  }
+  const retryRows = await concierge.dispatchBatch(ACTIVE_CONTEXT, batch);
+  const retryResult = retryRows[0].result;
+
+  expect(
+    {
+      frozen: Object.isFrozen(firstResult),
+      handlerCalls,
+      mutationThrew,
+      resultIdentity: firstResult === retryResult,
+      retryResult,
+    },
+    "[RED:Q16:immutable-nested-result]",
+  ).toEqual({
+    frozen: true,
+    handlerCalls: 1,
+    mutationThrew: true,
+    resultIdentity: true,
+    retryResult: { ok: true, message: "batch original" },
+  });
+});
