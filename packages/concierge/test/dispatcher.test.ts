@@ -1747,3 +1747,71 @@ async function withFakeNow(initial, run) {
       retryIdentity: true,
     });
   });
+
+  it("[R58] snapshots effect hints and the injected scheduler at construction", async () => {
+    const original = createManualScheduler();
+    const replacement = createManualScheduler();
+    let readOnly = false;
+    let handlerCalls = 0;
+    const effects = {
+      get readOnly() {
+        return readOnly;
+      },
+    };
+    const config = {
+      stages: [
+        {
+          id: "active",
+          match: (ctx) => ctx.pathname === ACTIVE_CONTEXT.pathname,
+          actions: [
+            action(
+              "fixed-effects",
+              () => {
+                handlerCalls += 1;
+                return successful();
+              },
+              { effects },
+            ),
+          ],
+        },
+      ],
+      scheduler: original.scheduler,
+    };
+    const concierge = createConcierge(config);
+
+    readOnly = true;
+    config.scheduler = replacement.scheduler;
+    const pending = concierge.dispatch(ACTIVE_CONTEXT, "fixed-effects", {});
+    await flushMicrotasks();
+
+    expect(
+      {
+        handlerCalls,
+        originalDelays: original.delays,
+        replacementDelays: replacement.delays,
+      },
+      "[RED:R58:fixed-effects-and-scheduler-before-release]",
+    ).toEqual({
+      handlerCalls: 0,
+      originalDelays: [600],
+      replacementDelays: [],
+    });
+
+    original.fireAll();
+    expect(await pending).toEqual({ ok: true, message: "Done." });
+    expect(handlerCalls).toBe(1);
+
+    const unreadableEffects = {};
+    Object.defineProperty(unreadableEffects, "readOnly", {
+      enumerable: true,
+      get() {
+        throw new Error("PRIVATE-EFFECT-DETAIL");
+      },
+    });
+    expect(
+      () => conciergeFor([action("unreadable-effects", () => successful(), {
+        effects: unreadableEffects,
+      })]),
+      "[RED:R58:throwing-effects-configuration]",
+    ).toThrow("Invalid Concierge configuration: an action's effects could not be read.");
+  });

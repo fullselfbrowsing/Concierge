@@ -76,6 +76,7 @@ import type { Catalog, CatalogEntry } from "./catalog.js";
 import type {
   ActionResult,
   AbortSignalLike,
+  AnyActionDefinition,
   Bridge,
   Concierge,
   ConciergeConfig,
@@ -138,6 +139,28 @@ function snapshotInvocationMeta(
     };
   } catch {
     return { ok: false };
+  }
+}
+
+/** Convert mutable effect hints and action accessors into fixed data properties. */
+function snapshotAction(action: AnyActionDefinition): AnyActionDefinition {
+  try {
+    const snapshot: AnyActionDefinition = { ...action };
+    if (snapshot.effects === undefined) {
+      return snapshot;
+    }
+    return {
+      ...snapshot,
+      effects: Object.freeze({
+        readOnly: snapshot.effects.readOnly === true,
+        destructive: snapshot.effects.destructive === true,
+        idempotent: snapshot.effects.idempotent === true,
+      }),
+    };
+  } catch {
+    throw new TypeError(
+      "Invalid Concierge configuration: an action's effects could not be read.",
+    );
   }
 }
 
@@ -363,7 +386,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   const stages: ConciergeConfig["stages"] = config.stages.map(
     (stage): ConciergeConfig["stages"][number] => {
       const actions: ConciergeConfig["stages"][number]["actions"] =
-        Object.freeze([...stage.actions]);
+        Object.freeze(stage.actions.map(snapshotAction));
       return Object.freeze(
         stage.bridge === undefined
           ? { id: stage.id, match: stage.match, actions }
@@ -372,8 +395,9 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     },
   );
   const crossStage: NonNullable<ConciergeConfig["crossStage"]> = Object.freeze([
-    ...(config.crossStage ?? []),
+    ...(config.crossStage ?? []).map(snapshotAction),
   ]);
+  const configuredScheduler: Scheduler | undefined = config.scheduler;
   const commitWindowMs: number = config.commitWindowMs ?? 600;
   const dedupeWindowMs: number = config.dedupeWindowMs ?? 600;
 
@@ -773,11 +797,13 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     }
 
     if (entry.action.effects?.readOnly !== true) {
-      let scheduler: Scheduler | undefined;
-      try {
-        scheduler = config.scheduler ?? readHostScheduler();
-      } catch {
-        scheduler = undefined;
+      let scheduler: Scheduler | undefined = configuredScheduler;
+      if (scheduler === undefined) {
+        try {
+          scheduler = readHostScheduler();
+        } catch {
+          scheduler = undefined;
+        }
       }
 
       const wait: CommitWaitOutcome = await waitForCommit(
