@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,6 +35,16 @@ const SELF_TEST_SOURCE = [
   "declare const operation: Promise<unknown>;",
   "declare const authoredResult: (...args: unknown[]) => unknown;",
   "declare const externalForwarder: (error: unknown) => unknown;",
+  "void channel[runtimeName];",
+  "channel[runtimeName]({});",
+  "channel[runtimeName] ||= sink;",
+  "channel[runtimeName] = externalForwarder;",
+  "Object.defineProperty(channel, runtimeName, { value: externalForwarder });",
+  "Reflect.set(channel, runtimeName, externalForwarder);",
+  "declare const dataKey: string;",
+  "const dataRows: Record<string, { value: number }> = {};",
+  "dataRows[dataKey] = { value: 1 };",
+  "void dataRows[dataKey];",
   "operation.catch((error) => authoredResult(false, String(error)));",
   "operation.then(() => undefined, ({ message: alias }) => authoredResult(false, alias));",
   "function forwardError(error: unknown): unknown {",
@@ -80,15 +90,19 @@ function loadCompilerApi() {
   const compiler = candidates.find(
     (candidate) =>
       typeof candidate?.createSourceFile === "function" &&
+      typeof candidate?.createCompilerHost === "function" &&
+      typeof candidate?.createProgram === "function" &&
       typeof candidate?.forEachChild === "function" &&
       typeof candidate?.flattenDiagnosticMessageText === "function" &&
       typeof candidate?.SyntaxKind === "object" &&
       typeof candidate?.ScriptTarget === "object" &&
-      typeof candidate?.ScriptKind === "object",
+      typeof candidate?.ScriptKind === "object" &&
+      typeof candidate?.SignatureKind === "object" &&
+      typeof candidate?.TypeFlags === "object",
   );
   if (compiler === undefined) {
     throw new Error(
-      "TypeScript compiler API unavailable: createSourceFile/forEachChild capability missing",
+      "TypeScript compiler API unavailable: parser/program/checker capability missing",
     );
   }
   return compiler;
@@ -134,8 +148,9 @@ function checkForbiddenName(text) {
 function main(selfTest = false) {
   const ts = loadCompilerApi();
   const files = selfTest ? [] : enumerateTypeScriptFiles(SOURCE_ROOT);
+  const selfTestPath = join(ROOT, SELF_TEST_FILE);
   const units = selfTest
-    ? [{ file: SELF_TEST_FILE, text: SELF_TEST_SOURCE, resultPath: true }]
+    ? [{ file: SELF_TEST_FILE, path: selfTestPath, resultPath: true }]
     : files.map((path) => ({
         file: portablePath(path),
         path,
@@ -154,32 +169,54 @@ function main(selfTest = false) {
     }
   }
 
+  const compilerOptions = {
+    target: ts.ScriptTarget.Latest,
+    module: ts.ModuleKind.NodeNext,
+    moduleResolution: ts.ModuleResolutionKind.NodeNext,
+    strict: true,
+    skipLibCheck: true,
+    noEmit: true,
+  };
+  const compilerHost = ts.createCompilerHost(compilerOptions, true);
+  const defaultFileExists = compilerHost.fileExists.bind(compilerHost);
+  const defaultReadFile = compilerHost.readFile.bind(compilerHost);
+  const defaultGetSourceFile = compilerHost.getSourceFile.bind(compilerHost);
+  compilerHost.fileExists = (path) =>
+    resolve(path) === selfTestPath || defaultFileExists(path);
+  compilerHost.readFile = (path) =>
+    resolve(path) === selfTestPath ? SELF_TEST_SOURCE : defaultReadFile(path);
+  compilerHost.getSourceFile = (path, languageVersion, onError, shouldCreateNewSourceFile) =>
+    resolve(path) === selfTestPath
+      ? ts.createSourceFile(
+          path,
+          SELF_TEST_SOURCE,
+          languageVersion,
+          true,
+          ts.ScriptKind.TS,
+        )
+      : defaultGetSourceFile(
+          path,
+          languageVersion,
+          onError,
+          shouldCreateNewSourceFile,
+        );
+  const program = ts.createProgram({
+    rootNames: units.map((unit) => unit.path),
+    options: compilerOptions,
+    host: compilerHost,
+  });
+  const checker = program.getTypeChecker();
+
   const findings = [];
   const findingKeys = new Set();
 
   for (const unit of units) {
     const { file, resultPath } = unit;
-    let text = unit.text;
-    if (text === undefined) {
-      try {
-        text = readFileSync(unit.path, "utf8");
-      } catch (error) {
-        throw new Error(
-          `cannot read source file ${file}: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    }
-
-    const sourceFile = ts.createSourceFile(
-      file,
-      text,
-      ts.ScriptTarget.Latest,
-      true,
-      ts.ScriptKind.TS,
-    );
+    const sourceFile = program.getSourceFile(unit.path);
     if (sourceFile?.kind !== ts.SyntaxKind.SourceFile) {
       throw new Error(`parser returned an invalid SourceFile for ${file}`);
     }
+    const text = sourceFile.text;
     if (!Array.isArray(sourceFile.parseDiagnostics)) {
       throw new Error(`parser did not expose parse diagnostics for ${file}`);
     }
@@ -226,6 +263,7 @@ function main(selfTest = false) {
 
     const constInitializers = new Map();
     const callbackDeclarations = new Map();
+    const objectKeySources = new Map();
 
     function rememberDeclaration(map, name, value) {
       map.set(name, map.has(name) ? null : value);
@@ -273,6 +311,137 @@ function main(selfTest = false) {
         return unwrapExpression(expression.expression);
       }
       return expression;
+    }
+
+    function staticMemberCall(expression, objectName, memberName) {
+      const candidate = unwrapExpression(expression);
+      if (ts.isPropertyAccessExpression(candidate)) {
+        const base = unwrapExpression(candidate.expression);
+        return (
+          ts.isIdentifier(base) &&
+          base.text === objectName &&
+          candidate.name.text === memberName
+        );
+      }
+      if (ts.isElementAccessExpression(candidate)) {
+        const base = unwrapExpression(candidate.expression);
+        const member = resolveStaticProperty(candidate.argumentExpression);
+        return (
+          ts.isIdentifier(base) &&
+          base.text === objectName &&
+          member?.kind === "string" &&
+          member.value === memberName
+        );
+      }
+      return false;
+    }
+
+    function objectKeysSource(expression) {
+      const candidate = unwrapExpression(expression);
+      if (
+        ts.isCallExpression(candidate) &&
+        staticMemberCall(candidate.expression, "Object", "keys")
+      ) {
+        return candidate.arguments[0] ?? null;
+      }
+      if (ts.isIdentifier(candidate)) {
+        return objectKeySources.get(candidate.text) ?? null;
+      }
+      return null;
+    }
+
+    const collectObjectKeySources = (node) => {
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.initializer !== undefined
+      ) {
+        const source = objectKeysSource(node.initializer);
+        if (source !== null) {
+          rememberDeclaration(objectKeySources, node.name.text, source);
+        }
+      } else if (
+        ts.isBinaryExpression(node) &&
+        node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+        ts.isIdentifier(node.left)
+      ) {
+        const source = objectKeysSource(node.right);
+        if (source !== null) {
+          rememberDeclaration(objectKeySources, node.left.text, source);
+        }
+      }
+      ts.forEachChild(node, collectObjectKeySources);
+    };
+    collectObjectKeySources(sourceFile);
+
+    function typeParts(type) {
+      return type.isUnionOrIntersection?.() ? type.types : [type];
+    }
+
+    function typeMayBeCallable(type) {
+      return typeParts(type).some((part) => {
+        if (
+          (part.flags &
+            (ts.TypeFlags.Any |
+              ts.TypeFlags.Unknown |
+              ts.TypeFlags.TypeParameter)) !==
+          0
+        ) {
+          return true;
+        }
+        return (
+          checker.getSignaturesOfType(part, ts.SignatureKind.Call).length > 0
+        );
+      });
+    }
+
+    function typeIsKnownCallable(type) {
+      return typeParts(type).some((part) => {
+        if ((part.flags & ts.TypeFlags.Any) !== 0) return true;
+        return (
+          checker.getSignaturesOfType(part, ts.SignatureKind.Call).length > 0
+        );
+      });
+    }
+
+    function keyCannotNameAStringChannel(argument) {
+      const type = checker.getTypeAtLocation(argument);
+      return typeParts(type).every(
+        (part) =>
+          (part.flags &
+            (ts.TypeFlags.Number |
+              ts.TypeFlags.NumberLiteral |
+              ts.TypeFlags.ESSymbol |
+              ts.TypeFlags.UniqueESSymbol)) !==
+          0,
+      );
+    }
+
+    function enumeratedObjectForKey(argument) {
+      if (!ts.isIdentifier(argument)) return null;
+      let current = argument.parent;
+      while (current !== undefined) {
+        if (ts.isForOfStatement(current)) {
+          const declaration = current.initializer.declarations?.[0];
+          if (
+            declaration !== undefined &&
+            ts.isIdentifier(declaration.name) &&
+            declaration.name.text === argument.text
+          ) {
+            return objectKeysSource(current.expression);
+          }
+          return null;
+        }
+        current = current.parent;
+      }
+      return null;
+    }
+
+    function sameDataObject(left, right) {
+      return (
+        unwrapExpression(left).getText(sourceFile) ===
+        unwrapExpression(right).getText(sourceFile)
+      );
     }
 
     function resolveStaticProperty(expression, seen = new Set()) {
@@ -350,30 +519,118 @@ function main(selfTest = false) {
         return;
       }
       if (resolved?.kind === "number") return;
+      if (keyCannotNameAStringChannel(argument)) return;
 
       const parent = node.parent;
       if (
         ts.isBinaryExpression(parent) &&
         parent.left === node &&
-        parent.operatorToken.kind === ts.SyntaxKind.EqualsToken
+        parent.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+        parent.operatorToken.kind <= ts.SyntaxKind.LastAssignment
       ) {
-        const assigned = unwrapExpression(parent.right);
-        const assignedCallback = ts.isIdentifier(assigned)
-          ? callbackDeclarations.get(assigned.text)
-          : assigned;
         if (
-          assignedCallback !== undefined &&
-          assignedCallback !== null &&
-          (ts.isArrowFunction(assignedCallback) ||
-            ts.isFunctionExpression(assignedCallback) ||
-            ts.isFunctionDeclaration(assignedCallback))
+          parent.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+          !typeMayBeCallable(checker.getTypeAtLocation(parent.right))
         ) {
-          addFinding(
-            argument,
-            "ambiguous-computed-access",
-            "dynamic computed assignment of a callable channel is prohibited",
-          );
+          return;
         }
+        addFinding(
+          argument,
+          "ambiguous-computed-access",
+          "dynamic computed assignment can install or update a callable channel",
+        );
+        return;
+      }
+
+      if (
+        (ts.isPrefixUnaryExpression(parent) ||
+          ts.isPostfixUnaryExpression(parent)) &&
+        (parent.operator === ts.SyntaxKind.PlusPlusToken ||
+          parent.operator === ts.SyntaxKind.MinusMinusToken)
+      ) {
+        addFinding(
+          argument,
+          "ambiguous-computed-access",
+          "dynamic computed update can read and replace a channel",
+        );
+        return;
+      }
+
+      const enumeratedObject = enumeratedObjectForKey(argument);
+      if (
+        enumeratedObject !== null &&
+        sameDataObject(node.expression, enumeratedObject)
+      ) {
+        return;
+      }
+
+      if (typeMayBeCallable(checker.getTypeAtLocation(node))) {
+        addFinding(
+          argument,
+          "ambiguous-computed-access",
+          "dynamic computed read can resolve to a callable channel",
+        );
+      }
+    }
+
+    function objectLiteralMember(object, name) {
+      const candidate = unwrapExpression(object);
+      if (!ts.isObjectLiteralExpression(candidate)) return null;
+      for (const property of candidate.properties) {
+        if (
+          ts.isPropertyAssignment(property) &&
+          ((ts.isIdentifier(property.name) && property.name.text === name) ||
+            (ts.isStringLiteral(property.name) && property.name.text === name))
+        ) {
+          return property.initializer;
+        }
+        if (
+          (ts.isMethodDeclaration(property) ||
+            ts.isGetAccessorDeclaration(property) ||
+            ts.isSetAccessorDeclaration(property)) &&
+          ((ts.isIdentifier(property.name) && property.name.text === name) ||
+            (ts.isStringLiteral(property.name) && property.name.text === name))
+        ) {
+          return property;
+        }
+      }
+      return null;
+    }
+
+    function inspectDynamicChannelInstaller(node) {
+      let key = null;
+      let installedValues = [];
+      if (staticMemberCall(node.expression, "Object", "defineProperty")) {
+        key = node.arguments[1] ?? null;
+        const descriptor = node.arguments[2];
+        if (descriptor === undefined) return;
+        installedValues = [
+          objectLiteralMember(descriptor, "value"),
+          objectLiteralMember(descriptor, "get"),
+          objectLiteralMember(descriptor, "set"),
+        ].filter((value) => value !== null);
+        if (installedValues.length === 0 && !ts.isObjectLiteralExpression(unwrapExpression(descriptor))) {
+          installedValues = [descriptor];
+        }
+      } else if (staticMemberCall(node.expression, "Reflect", "set")) {
+        key = node.arguments[1] ?? null;
+        const value = node.arguments[2];
+        if (value !== undefined) installedValues = [value];
+      } else {
+        return;
+      }
+
+      if (key === null || resolveStaticProperty(key) !== null) return;
+      if (
+        installedValues.some((value) =>
+          typeIsKnownCallable(checker.getTypeAtLocation(value)),
+        )
+      ) {
+        addFinding(
+          key,
+          "ambiguous-computed-access",
+          "dynamic property installation of a callable channel is prohibited",
+        );
       }
     }
 
@@ -607,6 +864,7 @@ function main(selfTest = false) {
         inspectModuleSpecifier(node);
       }
       if (ts.isCallExpression(node)) {
+        inspectDynamicChannelInstaller(node);
         const targetName = staticCallTargetName(node.expression);
         if (targetName !== null) {
           inspectForbiddenText(node.expression, targetName, "call target");
@@ -671,7 +929,8 @@ function main(selfTest = false) {
     const expectedMinimums = new Map([
       ["forbidden-channel-name", 4],
       ["ambiguous-computed-name", 1],
-      ["ambiguous-computed-access", 1],
+      ["ambiguous-computed-access", 6],
+      ["ambiguous-call-target", 1],
       ["rejection-binding", 3],
       ["caught-value-forwarding", 3],
       ["ambiguous-rejection-callback", 1],
@@ -703,6 +962,48 @@ function main(selfTest = false) {
       ) {
         throw new Error(
           `self-test did not reject computed forbidden-name fixture '${fragment}'`,
+        );
+      }
+    }
+    for (const [fragment, rule] of [
+      ["void channel[runtimeName]", "ambiguous-computed-access"],
+      ["channel[runtimeName]({})", "ambiguous-call-target"],
+      ["channel[runtimeName] ||=", "ambiguous-computed-access"],
+      ["channel[runtimeName] = externalForwarder", "ambiguous-computed-access"],
+      ["Object.defineProperty(channel, runtimeName", "ambiguous-computed-access"],
+      ["Reflect.set(channel, runtimeName", "ambiguous-computed-access"],
+    ]) {
+      const line = SELF_TEST_SOURCE.split("\n").findIndex((sourceLine) =>
+        sourceLine.includes(fragment),
+      ) + 1;
+      if (
+        line === 0 ||
+        !findings.some(
+          (finding) => finding.line === line && finding.rule === rule,
+        )
+      ) {
+        throw new Error(
+          `self-test did not reject dynamic channel fixture '${fragment}' as '${rule}'`,
+        );
+      }
+    }
+    for (const fragment of [
+      "dataRows[dataKey] =",
+      "void dataRows[dataKey]",
+    ]) {
+      const line = SELF_TEST_SOURCE.split("\n").findIndex((sourceLine) =>
+        sourceLine.includes(fragment),
+      ) + 1;
+      if (
+        findings.some(
+          (finding) =>
+            finding.line === line &&
+            (finding.rule === "ambiguous-computed-access" ||
+              finding.rule === "ambiguous-call-target"),
+        )
+      ) {
+        throw new Error(
+          `self-test rejected checker-classified indexed data fixture '${fragment}'`,
         );
       }
     }
@@ -743,7 +1044,7 @@ function main(selfTest = false) {
       }
     }
     console.log(
-      `No-telemetry AST audit self-test: ${findings.length} malicious finding(s) detected across computed names and rejection callbacks`,
+      `No-telemetry AST audit self-test: ${findings.length} malicious finding(s) detected across computed names, channel access, and rejection callbacks`,
     );
     return;
   }
