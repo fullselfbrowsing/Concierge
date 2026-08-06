@@ -83,17 +83,12 @@ export interface AbortSignalLike {
  * the generic-over-reason and `` `app.${string}` `` variants {@link ReasonCode}
  * documents.
  *
- * **So the property is enforced at runtime, not in this type.** Phase 6
- * normalizes at the dispatcher boundary — the same boundary where
- * `invalid_result` (DSP-09) already rejects a handler return that is not a
- * valid result, and the SEC-06 sanitizer already truncates `message` to
- * {@link MESSAGE_MAX_CHARS} and strips control characters. A success carrying a
- * `reason`, and a failure carrying none, belong to that normalizer. The
- * obligation is tracked as a Deferred Item in `.planning/STATE.md` rather than
- * left here, because a mitigation living only in a doc comment is an unenforced
- * marker beside a control that genuinely fails closed — the pattern
- * {@link SideEffects} already exhibits, where `destructive: true` merely *warns*
- * when it carries no {@link ConsentPolicy}.
+ * **So the property is enforced at runtime, not in this type.** The dispatcher
+ * normalizes at its handler boundary: it strips a `reason` from success and
+ * preserves a reasonless failure, warning once per contradiction. An unknown
+ * reason or any other invalid handler return becomes `invalid_result`. The same
+ * boundary truncates `message` to {@link MESSAGE_MAX_CHARS} and strips control
+ * characters.
  *
  * Re-examined 2026-07-28, after a code review demonstrated both contradictory
  * states, and the trade was re-affirmed rather than merely inherited — see
@@ -128,9 +123,8 @@ export interface ActionResult {
    * cannot express a length constraint, which is why the bound is a constant
    * rather than a branded type — branding `string` would reject
    * `` `Filtered to ${x}.` ``, the single most-written line in the library.
-   * Enforcement is therefore a runtime obligation: Phase 6 (SEC-06) truncates
-   * to the bound and strips C0/C1 control characters at the dispatcher
-   * boundary. The constant is the shared contract between the two phases.
+   * The dispatcher enforces the bound and strips C0/C1 control characters at
+   * its result boundary.
    */
   message: string;
 }
@@ -157,14 +151,14 @@ export type AbandonReason =
  * {@link ReasonCode} admits.
  *
  * Adding a member here is a breaking change *by design*, and the breakage is
- * the feature. Phase 6 will add codes; every exhaustive mapper stops compiling
- * until it handles the new one. The alternative is a silent `default:` arm
+ * the feature: every exhaustive mapper stops compiling until it handles the
+ * new code. The alternative is a silent `default:` arm
  * reporting a new failure mode as an old one — a repudiation risk, and exactly
  * what a closed union exists to remove. Do not add a `default` that swallows.
  *
  * `batch_aborted` deliberately collapses into `aborted`: the agent has nothing
  * usefully different to say about "your call was killed" versus "the batch was
- * killed". Split it only if Phase 6 finds it needs the distinction.
+ * killed". Split it only if a caller needs the distinction.
  *
  * `grade_unavailable` is a *runtime* code, for capability degradation after a
  * reconnect. A build-time grade mismatch never reaches this field — CAT-04
@@ -177,8 +171,8 @@ export type FailureReason =
    * The handler returned something that is not a valid {@link ActionResult}.
    * The return type enforces the shape at compile time, but the dispatcher
    * receives whatever actually arrives — a JavaScript consumer, a handler that
-   * falls off the end returning `undefined`, a promise resolving to a string.
-   * Phase 6 (DSP-09) owns the runtime half.
+   * falls off the end returning `undefined`, a promise resolving to a string —
+   * and maps it to this code.
    */
   | "invalid_result"
   /** No action by that name is registered in the current stage. */
@@ -273,8 +267,7 @@ export const USER_DECLINED: Readonly<{
  * changed bound. Annotating it `: number` would discard exactly that signal.
  *
  * A constant, not a branded type, because a length constraint is not
- * expressible in the type system. Phase 6 (SEC-06) enforces it at the
- * dispatcher boundary.
+ * expressible in the type system. The dispatcher enforces it at runtime.
  */
 export const MESSAGE_MAX_CHARS = 180;
 
@@ -1374,11 +1367,10 @@ export interface EmittedTool {
  * Injectable timing seam: run `fn` after `delayMs`, and return a function that
  * cancels it if it has not run yet.
  *
- * It exists so the two windows on {@link ConciergeConfig} —
- * {@link ConciergeConfig.commitWindowMs} and
- * {@link ConciergeConfig.dedupeWindowMs} — are driven through a seam the app
- * injects rather than a hard-wired global timer. Three things follow, and the
- * third is the one that makes this structural rather than merely tidy:
+ * It exists so the cancellable {@link ConciergeConfig.commitWindowMs} delay is
+ * driven through a seam the app can inject rather than a hard-wired global
+ * timer. Three things follow, and the third is the one that makes this
+ * structural rather than merely tidy:
  *
  * 1. **Testable without fake timers.** A test passes a scheduler that records
  *    the callback and fires it on demand, so a 600 ms commit window costs no
@@ -1402,13 +1394,11 @@ export interface EmittedTool {
  * timer-id type, whose spelling differs between the DOM (`number`) and Node
  * (`Timeout`) — the same `BufferSource` split that shapes {@link DigestLike}.
  *
- * **Phase 6 (DSP-08) implements both windows against this and may refine this
- * signature.** Nothing publishes until v0.1 completes, so that change is free
- * now and will not be free later. Phase 6 also owns what an *omitted* scheduler
- * means: because of point 3 there is no `setTimeout` in scope to fall back to,
- * so a default has to reach a platform timer through a structural access or the
- * seam has to become required. Phase 1 declares the shape and does not decide
- * that.
+ * The signature is settled. When this capability is omitted, the dispatcher
+ * asks `host.ts` for a structural host timer. If none exists, or scheduling
+ * throws, it warns once and skips only the commit delay. Deduplication is
+ * timer-free: it records settlement timestamps and evicts expired entries on a
+ * later dispatch access.
  */
 export type Scheduler = (fn: () => void, delayMs: number) => () => void;
 
@@ -1498,8 +1488,9 @@ export interface Explanation {
  * reading before adding a member here. `normalizeSnapshot`, `presentReadback`,
  * `digest`, and `scheduler` are **injected capabilities**: each is something
  * core structurally cannot do — detach a framework proxy, render a payload to a
- * human, hash bytes, read a clock — and every one of them is unreachable under
- * `lib: ["ES2022"]` or unknowable without the app. `commitWindowMs` and
+ * human, hash bytes, schedule cancellable host work — and every one of them is
+ * unreachable under `lib: ["ES2022"]` or unknowable without the app.
+ * `commitWindowMs` and
  * `dedupeWindowMs` are **policy numbers**. Keep the two groups apart.
  *
  * **`maxPerTurn` is deliberately absent, and it is not merely misplaced — it is
@@ -1693,9 +1684,9 @@ export interface ConciergeConfig {
    */
   digest?: DigestLike;
   /**
-   * Timer seam for the two windows below. See {@link Scheduler}, which records
-   * why core cannot simply call `setTimeout` and what an omitted scheduler is
-   * left for Phase 6 to decide.
+   * Timer seam for the commit window below. When omitted, the dispatcher asks
+   * `host.ts` for a structural host timer. If neither route can schedule, it
+   * warns once and skips only the commit delay; deduplication is unaffected.
    */
   scheduler?: Scheduler;
   /**
@@ -1705,7 +1696,9 @@ export interface ConciergeConfig {
   commitWindowMs?: number;
   /**
    * Window in which a repeated call returns the *same Promise by reference*,
-   * so a retrying agent cannot double-fire an effect.
+   * so a retrying agent cannot double-fire an effect. Pending entries never
+   * expire; the window begins when the Promise settles, and later dispatch
+   * accesses evict expired entries without scheduling a timer.
    * @default 600
    */
   dedupeWindowMs?: number;

@@ -1,7 +1,7 @@
 /**
  * `createConcierge` — catalog assembly, stage resolution, the memoized
- * per-stage projection, `explain`, and the Phase 6 dispatch stub (STG-01,
- * STG-02, STG-03, STG-04, SEC-03, DX-01, CAT-01).
+ * per-stage projection, `explain`, and context-aware direct dispatch (STG-01,
+ * STG-02, STG-03, STG-04, SEC-03, DX-01, CAT-01, DSP-01–05, DSP-08–09).
  *
  * A separate module from `./catalog.ts`, deliberately. That file's header
  * states that every catalog rule lives there, so "did we check X?" is a
@@ -107,42 +107,6 @@ import type {
  * bundler about a call with no observable effect, not a claim about behaviour.
  */
 const NO_SKIP: ReadonlySet<object> = /* @__PURE__ */ new Set<object>();
-
-/**
- * What `dispatch` returns until Phase 6 implements it — a failure, one plain
- * sentence, and **no `reason`**.
- *
- * **The omission is deliberate, and it is the load-bearing half.** It looks
- * like an oversight, so it is written down here: `ReasonCode` is a CLOSED union
- * of twelve members, and `types.ts:159-163` states that adding a member to it
- * is a breaking change *by design* — every exhaustive mapper stops compiling
- * until it handles the new one. None of the twelve means "this runtime is not
- * built yet". `unknown_action` would be a lie about an action plainly present
- * in the array `catalogFor` just handed the agent, and `handler_error` would be
- * a lie about a handler that was never reached. Omitting the field asserts
- * nothing false, which is the only honest option a closed union leaves.
- *
- * **Rejected: adding `not_implemented` to the union.** That is a `types.ts`
- * contract change Phase 6 would immediately have to remove, and removing a
- * member from a closed union is itself a breaking change — so a placeholder
- * code costs two breaking changes to say what an absent field already says.
- *
- * **Hand-off to Phase 6: the DSP-09 normalizer must REPLACE this shape, not
- * normalize it.** DSP-09 exists to reject a *handler* return that is not a
- * valid `ActionResult`. This value is not a handler return at all — it is the
- * dispatcher's own stand-in for a dispatcher that does not exist yet — so
- * routing it through the normalizer would produce a well-formed report about a
- * call that never happened. Phase 6 deletes this constant and the function that
- * returns it together.
- *
- * The message is 106 characters, comfortably inside `MESSAGE_MAX_CHARS` (180),
- * so SEC-06's truncation at the dispatcher boundary will never reach it.
- */
-const DISPATCH_NOT_IMPLEMENTED: ActionResult = /* @__PURE__ */ Object.freeze({
-  ok: false,
-  message:
-    "concierge: dispatch is not implemented in this build, which ships catalog assembly and stage scoping only.",
-});
 
 // ---------------------------------------------------------------------------
 // Module-private helpers
@@ -406,14 +370,14 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   // `tools['__proto__']` and `tools['constructor']` are ordinary absent keys
   // and every write throws.
   //
-  // The seal appears FOUR times in this file, each spelled as its own
-  // single-occurrence statement: the tool, this lookup, the projection below,
-  // and the dispatch stub at module scope. That is not stylistic. Each is a
-  // distinct target for the mutation battery that proves the corresponding test
-  // actually fires, and folding any two of them into one shared helper — or
-  // inlining one into a larger expression — collapses two independent proofs
-  // into one. Four is the number; if a later change makes it a different
-  // number, this sentence is what has to be corrected with it.
+  // The assembly seal appears THREE times in this file, each spelled as its own
+  // single-occurrence statement: the tool, this lookup, and the projection
+  // below. That is not stylistic. Each is a distinct target for the mutation
+  // battery that proves the corresponding test actually fires, and folding any
+  // two of them into one shared helper — or inlining one into a larger
+  // expression — collapses two independent proofs into one. Three is the
+  // measured number; if a later change makes it different, this sentence must
+  // move with it.
   const toolByName: Record<string, EmittedTool> = Object.create(null);
   for (const entry of catalog.entries) {
     const tool: EmittedTool = {
@@ -1015,10 +979,9 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   // per-action tool, the lookup and every projection. The `Concierge` object is
   // not part of that registry: it is the handle the consumer's own code holds,
   // and page script that can reach it can already reach the module that made
-  // it. Phase 6 replaces `dispatch` wholesale, and `ServerSafeConcierge`
-  // (deferred to Phase 9) may yet change this object's shape, so freezing now
-  // would harden a surface that is not final against an attacker who is not
-  // constrained by it.
+  // it. `dispatchBatch` and `ServerSafeConcierge` are still scheduled to widen
+  // this object's shape, so freezing now would harden a surface that is not
+  // final against an attacker who is not constrained by it.
   //
   // Deliberately NOT justified by a count of anything. An earlier draft argued
   // the freeze would disturb a mutation battery that depends on a particular

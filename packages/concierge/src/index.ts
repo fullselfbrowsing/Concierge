@@ -21,18 +21,25 @@
  * which reports the active stage, every stage's matched flag, each stage's
  * bridge status and the live catalog in one pass.
  *
- * Stated plainly so this is not oversold: nothing here dispatches. The
- * `dispatch` member exists because the interface requires it and returns a
- * not-implemented result; calling it runs no handler. There is no session, no
- * transport and no consent prompt in this package today. Bridges are now
- * constructible — `createBridge` returns a registry that a mounted page
- * component registers itself into, `captureSnapshot` detaches what that
+ * Direct context-aware dispatch is now implemented. `dispatch(ctx, name, args,
+ * meta?)` checks the supplied stage before handler lookup, revalidates the
+ * arguments, holds non-read-only actions behind a cancellable commit window,
+ * resolves the stage's live bridge, invokes the handler, and returns a fresh
+ * normalized and sanitized result. Retries share the exact final Promise while
+ * pending and through the configured settled window.
+ *
+ * Bridges are constructible — `createBridge` returns a registry that a mounted
+ * page component registers itself into, `captureSnapshot` detaches what that
  * component exposes so a captured value cannot drift afterwards, and
- * `offPageResult` is the sentence a handler returns when nothing is
- * registered — but nothing routes a call through a bridge: the only thing core
- * does with a live registration is report it in `explain()`. What you get is a
- * validated, frozen, correctly scoped description of what an agent would be
- * permitted to do — not the thing that lets it do so.
+ * `offPageResult` is the sentence a handler returns when nothing is registered.
+ * Direct dispatch now routes through that one live registry seam and passes
+ * `null` honestly when nothing is mounted.
+ *
+ * Stated plainly so this is not oversold: there is still no Session-owned
+ * transport loop and no consent gate in this package today. Callers supply the
+ * current context and invoke direct dispatch themselves; transport routing,
+ * catalog republishing, and human-confirmation enforcement remain later
+ * runtime layers.
  *
  * The runtime still to come is `createSession`. `defineStage`
  * is **not planned**: a stage needs no identity mechanism, a plain
