@@ -708,11 +708,8 @@ function defaultDiagnosticSink(diagnostic: CatalogDiagnostic): void {
  * `deepFreeze` per projection is correct, 510× slower, and hides the coupling
  * that makes the cheap form safe.
  *
- * One accepted consequence: when the emission `source` is `"explicit"`, the
- * `parameters` object *is* the consumer's own `jsonSchema` by reference (03-02
- * measured the identity), so building a catalog freezes it. That is the right
- * outcome — it has become the agent-facing contract — but it is a visible effect
- * on an object the consumer still holds, so it is stated rather than discovered.
+ * Schema emission supplies a detached data-only `parameters` graph. The walk
+ * freezes only core-owned copies and retains no consumer schema accessors.
  *
  * **Exported, and yet deliberately not public.** The `export` keyword exists for
  * `src/concierge.ts`'s `explain()`, which returns a deep-frozen structure and
@@ -967,6 +964,7 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
     const emission: SchemaEmission = emitSchema(action, target);
     if (!emission.ok) {
       const rootFailure: boolean = emission.reason === "root_not_object";
+      const dataFailure: boolean = emission.reason === "not_data";
       issues.push({
         code: rootFailure ? "schema_root_not_object" : "schema_not_emittable",
         action: action.name,
@@ -974,7 +972,9 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
         problem: withoutActionPrefix(emission.detail, action.name),
         fix: rootFailure
           ? "wrap the schema in an object, or move the union inside a property."
-          : "supply an explicit `jsonSchema` on the action, or switch to a validator that implements Standard JSON Schema — zod 4.2+ and arktype 2.1.28+ do; valibot 1.4.2 does not.",
+          : dataFailure
+            ? "replace accessors, functions, symbols, exotic objects, cycles, and non-JSON primitives with plain data properties before supplying or emitting the schema."
+            : "supply an explicit `jsonSchema` on the action, or switch to a validator that implements Standard JSON Schema — zod 4.2+ and arktype 2.1.28+ do; valibot 1.4.2 does not.",
       });
       continue;
     }
@@ -1031,9 +1031,12 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
     // then actually hold down. `deepFreeze`'s accessor skip covers what the
     // spread does not flatten: `effects`, `consent`, `parameters`, and anything
     // nested below them.
-    const normalized: AnyActionDefinition = redactionMissing
-      ? { ...action, redact: "drop" }
+    const detachedAction: AnyActionDefinition = emission.source === "explicit"
+      ? { ...action, jsonSchema: parameters }
       : { ...action };
+    const normalized: AnyActionDefinition = redactionMissing
+      ? { ...detachedAction, redact: "drop" }
+      : detachedAction;
 
     // The `deepFreeze` skip set. Only object-shaped validators need an entry:
     // an arktype instance is a `function` and is skipped by the walk's own

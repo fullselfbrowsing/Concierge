@@ -188,8 +188,8 @@ export function vendorOf(schema: StandardSchemaV1): string {
  * `types.ts:22-28` already records *why* the root must be `type: "object"` and
  * what happens downstream when it is not; that is not restated here.
  */
-function hasObjectRoot(emitted: PropertyBag): emitted is JsonSchemaObject {
-  return emitted["type"] === "object";
+function hasObjectRoot(emitted: unknown): emitted is JsonSchemaObject {
+  return typeof emitted === "object" && emitted !== null && !Array.isArray(emitted) && (emitted as PropertyBag)["type"] === "object";
 }
 
 /**
@@ -211,11 +211,15 @@ function hasObjectRoot(emitted: PropertyBag): emitted is JsonSchemaObject {
  * its `typeof`, which cannot throw the way `String()` or `JSON.stringify()` can
  * on a BigInt, a null-prototype object, or a cycle.
  */
-function describeRoot(emitted: PropertyBag): string {
-  const rootType: unknown = emitted["type"];
+function describeRoot(emitted: unknown): string {
+  if (typeof emitted !== "object" || emitted === null || Array.isArray(emitted)) {
+    return `has a ${Array.isArray(emitted) ? "array" : typeof emitted} root, not an object root`;
+  }
+  const view: PropertyBag = emitted as PropertyBag;
+  const rootType: unknown = view["type"];
 
   if (rootType === undefined) {
-    const keys: readonly string[] = Object.keys(emitted);
+    const keys: readonly string[] = Object.keys(view);
     const shown: string = keys.length === 0 ? "none at all" : keys.join(", ");
     return `has no root \`type\` at all (keys: ${shown})`;
   }
@@ -245,6 +249,77 @@ function describeCause(cause: unknown): string {
 }
 
 // ---------------------------------------------------------------------------
+// Agent-facing schema detachment
+// ---------------------------------------------------------------------------
+
+class SchemaDataError extends Error {
+  constructor(readonly problem: string) {
+    super(problem);
+  }
+}
+
+/** Copy enumerable JSON data through descriptors without invoking accessors. */
+function cloneSchemaData(value: unknown, copies: WeakMap<object, object>, active: WeakSet<object>): unknown {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new SchemaDataError("it contains a non-finite number");
+    return value;
+  }
+  if (typeof value === "function") throw new SchemaDataError("it contains a function value");
+  if (typeof value === "symbol") throw new SchemaDataError("it contains a symbol value");
+  if (typeof value === "bigint") throw new SchemaDataError("it contains a bigint value");
+  if (value === undefined) throw new SchemaDataError("it contains an undefined value");
+
+  if (active.has(value)) throw new SchemaDataError("it contains a cyclic reference");
+  const prior: object | undefined = copies.get(value);
+  if (prior !== undefined) return prior;
+
+  const isArray: boolean = Array.isArray(value);
+  if (!isArray) {
+    const prototype: object | null = Reflect.getPrototypeOf(value);
+    if (prototype !== null && Reflect.getPrototypeOf(prototype) !== null) {
+      throw new SchemaDataError("it contains an object with an exotic prototype");
+    }
+  }
+
+  const clone: unknown[] | PropertyBag = isArray ? new Array<unknown>((value as unknown[]).length) : Object.create(null) as PropertyBag;
+  copies.set(value, clone);
+  active.add(value);
+  try {
+    for (const key of Reflect.ownKeys(value)) {
+      const descriptor: PropertyDescriptor | undefined = Reflect.getOwnPropertyDescriptor(value, key);
+      if (descriptor === undefined) throw new SchemaDataError("one of its properties cannot be inspected");
+      // Zod attaches callable `~standard` metadata as non-enumerable. It is not
+      // agent-facing JSON and must not make an otherwise valid emission fail.
+      if (descriptor.enumerable !== true) continue;
+      if (typeof key === "symbol") throw new SchemaDataError("it contains a symbol-keyed property");
+      if (!("value" in descriptor)) throw new SchemaDataError("it contains an accessor property");
+      Object.defineProperty(clone, key, {
+        configurable: true,
+        enumerable: true,
+        value: cloneSchemaData(descriptor.value, copies, active),
+        writable: true,
+      });
+    }
+  } finally {
+    active.delete(value);
+  }
+  return clone;
+}
+
+type SchemaDataSnapshot =
+  | { readonly ok: true; readonly value: unknown }
+  | { readonly ok: false; readonly problem: string };
+
+function snapshotSchemaData(value: unknown): SchemaDataSnapshot {
+  try {
+    return { ok: true, value: cloneSchemaData(value, new WeakMap<object, object>(), new WeakSet<object>()) };
+  } catch (cause) {
+    return { ok: false, problem: cause instanceof SchemaDataError ? cause.problem : "it cannot be inspected safely" };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Emission
 // ---------------------------------------------------------------------------
 
@@ -268,7 +343,7 @@ export type SchemaEmission =
     }
   | {
       readonly ok: false;
-      readonly reason: "not_emittable" | "threw" | "root_not_object";
+      readonly reason: "not_emittable" | "threw" | "root_not_object" | "not_data";
       readonly vendor: string;
       readonly detail: string;
     };
@@ -352,20 +427,29 @@ export function emitSchema(
   const vendor: string = vendorOf(schema);
 
   // 1. The developer's explicit schema wins — CAT-06.
-  const explicit: JsonSchemaObject | undefined = action.jsonSchema;
+  let explicit: JsonSchemaObject | undefined;
+  try {
+    explicit = action.jsonSchema;
+  } catch {
+    return { ok: false, reason: "not_data", vendor, detail: `action "${action.name}": the explicit \`jsonSchema\` property could not be read safely. Agent-facing JSON Schema must be a stable data-only graph.` };
+  }
   if (explicit !== undefined) {
-    if (!hasObjectRoot(explicit)) {
+    const detached: SchemaDataSnapshot = snapshotSchemaData(explicit);
+    if (!detached.ok) {
+      return { ok: false, reason: "not_data", vendor, detail: `action "${action.name}": the explicit \`jsonSchema\` you supplied is not a stable data-only graph because ${detached.problem}.` };
+    }
+    if (!hasObjectRoot(detached.value)) {
       return {
         ok: false,
         reason: "root_not_object",
         vendor,
         detail:
           `action "${action.name}": the explicit \`jsonSchema\` you supplied ` +
-          `${describeRoot(explicit)}. The root handed to an agent must be ` +
+          `${describeRoot(detached.value)}. The root handed to an agent must be ` +
           `\`type: "object"\`; wrap it in an object schema.`,
       };
     }
-    return { ok: true, parameters: explicit, source: "explicit" };
+    return { ok: true, parameters: detached.value, source: "explicit" };
   }
 
   // 2. Standard JSON Schema, INPUT projection only.
@@ -397,19 +481,25 @@ export function emitSchema(
     };
   }
 
-  // 3. The root check applies to the derived schema too — CAT-02.
-  if (!hasObjectRoot(derived)) {
+  // 3. Detach third-party output before inspecting or publishing it.
+  const detached: SchemaDataSnapshot = snapshotSchemaData(derived);
+  if (!detached.ok) {
+    return { ok: false, reason: "not_data", vendor, detail: `action "${action.name}": the JSON Schema emitted by "${vendor}" is not a stable data-only graph because ${detached.problem}.` };
+  }
+
+  // 4. The root check applies to the detached derived schema too — CAT-02.
+  if (!hasObjectRoot(detached.value)) {
     return {
       ok: false,
       reason: "root_not_object",
       vendor,
       detail:
         `action "${action.name}": the JSON Schema emitted by "${vendor}" ` +
-        `${describeRoot(derived)}. The root handed to an agent must be ` +
+        `${describeRoot(detached.value)}. The root handed to an agent must be ` +
         `\`type: "object"\`; wrap the schema in an object, or supply an ` +
         `explicit \`jsonSchema\` on the action.`,
     };
   }
 
-  return { ok: true, parameters: derived, source: "derived" };
+  return { ok: true, parameters: detached.value, source: "derived" };
 }

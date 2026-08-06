@@ -787,40 +787,48 @@ describe("SEC-03 — the tool list handed to the agent cannot be tampered with",
     expect(fromResults).not.toBe(fromCheckout);
   });
 
-  // S15 — THE DELIBERATE NON-CLAIM, written down rather than asserted.
-  //
-  // Recorded as prose in `catalog.test.ts:509-515`'s register (whose own
-  // precedent is Trap 2 in `export-surface.test.ts:31-46`), because a
-  // vacuously-passing check would be worse than nothing: it would report
-  // coverage of a channel that is open.
-  //
-  // SEC-03 is not fully closed by this phase. What DOES close here is the half
-  // this phase owns — handler and entry replacement (S11, S12 above and C17-C21
-  // in `catalog.test.ts`), and the tool array handed to the agent.
-  //
-  // What remains open, measured and inherited from Phase 3: A GETTER INSIDE A
-  // CONSUMER-SUPPLIED `jsonSchema` SURVIVES THE FREEZE. `deepFreeze` skips
-  // accessors deliberately — `"value" in descriptor` — so that walking the
-  // catalog never invokes application code, which is itself the right decision.
-  // And for `emission.source === "explicit"` the `parameters` object IS the
-  // consumer's own `jsonSchema` object by reference. Measured against the real
-  // artifact:
-  //
-  //     parameters is the consumer object by reference: true
-  //     Object.isFrozen(parameters): true
-  //     accessor still varies after freeze: read #1 | read #2 | read #3
-  //
-  // So a consumer supplying an explicit `jsonSchema` carrying a getter can
-  // still vary what the agent is shown after the build. Re-freezing the
-  // projection changes NOTHING — it is the same object, already frozen. Closing
-  // it means flattening accessors during emission, which is a `json-schema.ts`
-  // contract decision with its own trade-off, and it is not this phase's.
-  //
-  // The honest sentence for the phase-close record, and no plan in this phase
-  // may write a shorter one: *SEC-03 is closed for handler and entry
-  // replacement, and for the tool array handed to the agent; a getter inside a
-  // consumer-supplied `jsonSchema` remains a channel and is recorded, not
-  // fixed.*
+  it("S15a — a root JSON Schema accessor is rejected without being invoked", () => {
+    let reads = 0;
+    const explicit = {};
+    Object.defineProperty(explicit, "type", { enumerable: true, get() { reads += 1; return "object"; } });
+    let error;
+    try {
+      createConcierge({ stages: [stage("accessor-root", () => true, [declare("rootAccessor", zodEmptyObject, { jsonSchema: explicit })])] });
+    } catch (cause) {
+      error = cause;
+    }
+    expect(error).toBeInstanceOf(CatalogValidationError);
+    expect(error.issues[0].code).toBe("schema_not_emittable");
+    expect(error.issues[0].problem).toMatch(/data-only graph.*accessor/);
+    expect(reads).toBe(0);
+  });
+
+  it("S15b — a nested JSON Schema accessor is rejected without being invoked", () => {
+    let reads = 0;
+    const nested = { type: "string" };
+    Object.defineProperty(nested, "description", { enumerable: true, get() { reads += 1; return "poisoned"; } });
+    const explicit = { type: "object", properties: { query: nested } };
+    let error;
+    try {
+      createConcierge({ stages: [stage("accessor-nested", () => true, [declare("nestedAccessor", zodEmptyObject, { jsonSchema: explicit })])] });
+    } catch (cause) {
+      error = cause;
+    }
+    expect(error).toBeInstanceOf(CatalogValidationError);
+    expect(error.issues[0].code).toBe("schema_not_emittable");
+    expect(error.issues[0].problem).toMatch(/data-only graph.*accessor/);
+    expect(reads).toBe(0);
+  });
+
+  it("S15c — published parameters are detached from the explicit schema", () => {
+    const explicit = { type: "object", properties: { query: { type: "string", description: "reviewed" } } };
+    const concierge = createConcierge({ stages: [stage("detached", () => true, [declare("detachedSchema", zodEmptyObject, { jsonSchema: explicit })])] });
+    const parameters = concierge.catalogFor({ pathname: "/any" })[0].parameters;
+    expect(parameters).not.toBe(explicit);
+    explicit.properties.query.description = "poisoned";
+    expect(parameters.properties.query.description).toBe("reviewed");
+    expect(Object.isFrozen(parameters.properties.query)).toBe(true);
+  });
 });
 
 describe("DX-01 — explain() answers \"why didn't my action fire\"", () => {
