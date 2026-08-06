@@ -109,14 +109,100 @@ export function snapshotInvocationValue(
 // Deduplication keys
 // ---------------------------------------------------------------------------
 
+type CanonicalValue =
+  | readonly ["undefined"]
+  | readonly ["null"]
+  | readonly ["boolean", boolean]
+  | readonly ["string", string]
+  | readonly ["number", string]
+  | readonly ["bigint", string]
+  | readonly ["array", ReadonlyArray<CanonicalValue | readonly ["hole"]>]
+  | readonly [
+      "object",
+      "plain" | "null-prototype",
+      ReadonlyArray<readonly [string, CanonicalValue]>,
+    ];
+
+/** Build an injective tagged tree for every detached invocation-data value. */
+function canonicalInvocationValue(
+  value: unknown,
+  seen: WeakSet<object>,
+): CanonicalValue {
+  if (value === undefined) return ["undefined"];
+  if (value === null) return ["null"];
+  if (typeof value === "boolean") return ["boolean", value];
+  if (typeof value === "string") return ["string", value];
+  if (typeof value === "bigint") return ["bigint", value.toString()];
+  if (typeof value === "number") {
+    const encoded: string = Number.isNaN(value)
+      ? "NaN"
+      : value === Number.POSITIVE_INFINITY
+        ? "+Infinity"
+        : value === Number.NEGATIVE_INFINITY
+          ? "-Infinity"
+          : Object.is(value, -0)
+            ? "-0"
+            : String(value);
+    return ["number", encoded];
+  }
+  if (typeof value !== "object") {
+    throw new TypeError("Invocation values must be data.");
+  }
+
+  // A repeated reference is observable by a validator or handler. Encoding it
+  // as a second structural copy would collide with two genuinely distinct
+  // objects, so cyclic and aliased graphs deliberately disable fallback dedupe.
+  if (seen.has(value)) {
+    throw new TypeError("Aliased invocation graphs cannot be keyed injectively.");
+  }
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    const slots: Array<CanonicalValue | readonly ["hole"]> = [];
+    for (let index: number = 0; index < value.length; index += 1) {
+      slots.push(
+        Object.prototype.hasOwnProperty.call(value, index)
+          ? canonicalInvocationValue(value[index], seen)
+          : ["hole"],
+      );
+    }
+    return ["array", slots];
+  }
+
+  const prototype: object | null = Object.getPrototypeOf(value);
+  const entries: Array<readonly [string, CanonicalValue]> = [];
+  for (const key of Object.keys(value)) {
+    entries.push([
+      key,
+      canonicalInvocationValue((value as Record<string, unknown>)[key], seen),
+    ]);
+  }
+  return [
+    "object",
+    prototype === null ? "null-prototype" : "plain",
+    entries,
+  ];
+}
+
+/** Serialize a detached invocation tree without JSON's lossy coercions. */
+function encodeInvocationValue(value: unknown): string | null {
+  try {
+    return JSON.stringify(
+      canonicalInvocationValue(value, new WeakSet<object>()),
+    );
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Derive the namespaced key for one call without ever throwing.
  *
  * `callId` is authoritative when present. Otherwise the action name and the
- * serialized arguments form the retry key. `JSON.stringify` is application
- * code in practice — cycles, BigInts, and a throwing `toJSON` can all reject
- * the operation — so failure deliberately means "run without deduplication",
- * not "reject the dispatch".
+ * tagged argument tree form the retry key. The tags retain distinctions plain
+ * JSON erases (`undefined`, holes, non-finite numbers, and negative zero).
+ * Cyclic or aliased graphs cannot be flattened injectively, so they deliberately
+ * run without fallback deduplication rather than sharing the wrong Promise.
  */
 export function deriveDispatchKey(
   name: string,
@@ -124,16 +210,16 @@ export function deriveDispatchKey(
   meta: InvocationMeta | undefined,
   authorizationScope: number | null,
 ): string | null {
-  try {
-    const callId: string | undefined = meta?.callId;
-    if (callId !== undefined) {
-      return `id:${callId}`;
-    }
-    const scope: string = authorizationScope === null ? "cross" : String(authorizationScope);
-    return `args:${scope}:${name}:${JSON.stringify(args)}`;
-  } catch {
+  const callId: string | undefined = meta?.callId;
+  if (callId !== undefined) {
+    return `id:${callId}`;
+  }
+  const encodedArgs: string | null = encodeInvocationValue(args);
+  if (encodedArgs === null) {
     return null;
   }
+  const scope: string = authorizationScope === null ? "cross" : String(authorizationScope);
+  return `args:${JSON.stringify([scope, name, encodedArgs])}`;
 }
 
 // ---------------------------------------------------------------------------

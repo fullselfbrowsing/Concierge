@@ -286,7 +286,7 @@ async function withFakeNow(initial, run) {
     });
   });
 
-  it("[R06] runs BigInt arguments without a synchronous throw or deduplication", async () => {
+  it("[R06] keys BigInt arguments without a synchronous throw", async () => {
     let calls = 0;
     let threw = false;
     let first;
@@ -307,10 +307,46 @@ async function withFakeNow(initial, run) {
     await Promise.all([first, second].filter(Boolean));
 
     expect({ calls, same: first === second, threw }, "[RED:R06:bigint-args]").toEqual({
-      calls: 2,
-      same: false,
+      calls: 1,
+      same: true,
       threw: false,
     });
+  });
+
+  it("[R06a] never aliases fallback keys across lossy JSON argument shapes", async () => {
+    const scenarios = [
+      [{}, { omitted: undefined }],
+      [{ value: NaN }, { value: Number.POSITIVE_INFINITY }, { value: Number.NEGATIVE_INFINITY }, { value: null }],
+      [{ value: -0 }, { value: 0 }],
+      [{ values: [, "kept"] }, { values: [undefined, "kept"] }, { values: [null, "kept"] }],
+    ];
+    const observations = [];
+
+    for (const [scenarioIndex, args] of scenarios.entries()) {
+      let calls = 0;
+      const concierge = conciergeFor([
+        action(`collision-${scenarioIndex}`, () => {
+          calls += 1;
+          return successful();
+        }),
+      ]);
+      const promises = args.map((value) =>
+        concierge.dispatch(ACTIVE_CONTEXT, `collision-${scenarioIndex}`, value),
+      );
+      await Promise.all(promises);
+      observations.push({
+        calls,
+        distinctPromises: new Set(promises).size,
+        variants: args.length,
+      });
+    }
+
+    expect(observations, "[RED:R06a:injective-fallback-keys]").toEqual([
+      { calls: 2, distinctPromises: 2, variants: 2 },
+      { calls: 4, distinctPromises: 4, variants: 4 },
+      { calls: 2, distinctPromises: 2, variants: 2 },
+      { calls: 3, distinctPromises: 3, variants: 3 },
+    ]);
   });
 
   it("[R07] keeps deduplication state isolated per Concierge instance", async () => {
