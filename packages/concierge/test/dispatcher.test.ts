@@ -1815,3 +1815,44 @@ async function withFakeNow(initial, run) {
       "[RED:R58:throwing-effects-configuration]",
     ).toThrow("Invalid Concierge configuration: an action's effects could not be read.");
   });
+
+  it("[R59] aborts after bridge resolution and before handler entry", async () => {
+    const controller = createAbortController();
+    let handlerCalls = 0;
+    const registry = {
+      id: "aborting-bridge",
+      read() {
+        controller.abort();
+        return { actions: {}, snapshot: {} };
+      },
+      register() {
+        return () => {};
+      },
+    };
+    const concierge = conciergeFor(
+      [
+        action("bridge-abort", () => {
+          handlerCalls += 1;
+          return successful();
+        }),
+      ],
+      { bridge: registry },
+    );
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "bridge-abort", {}, {
+      signal: controller.signal,
+    });
+
+    expect(
+      { handlerCalls, listenerCount: controller.listenerCount(), result },
+      "[RED:R59:abort-during-bridge-read]",
+    ).toEqual({
+      handlerCalls: 0,
+      listenerCount: 0,
+      result: {
+        ok: false,
+        reason: "aborted",
+        message: "The action was cancelled before it ran.",
+      },
+    });
+  });

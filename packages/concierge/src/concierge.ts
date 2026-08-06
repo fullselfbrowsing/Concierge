@@ -839,6 +839,13 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     const stage: ConciergeConfig["stages"][number] | undefined =
       index === null ? undefined : stages[index];
     const bridge: Bridge | null = stage === undefined ? null : resolveBridge(stage);
+    if (isAborted(signal)) {
+      return authoredResult(
+        false,
+        "The action was cancelled before it ran.",
+        "aborted",
+      );
+    }
     let handlerReturn: unknown;
     try {
       handlerReturn = handler({
