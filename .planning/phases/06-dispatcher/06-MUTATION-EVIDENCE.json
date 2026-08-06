@@ -1,0 +1,3076 @@
+{
+  "schemaVersion": 1,
+  "phase": "06-dispatcher",
+  "registerDigest": "01013d0fafab25c58a2a030f606ac4633a78c5b65b02393c69a42a2d54b2d1ba",
+  "expectedIds": [
+    "M-06-S01",
+    "M-06-S02",
+    "M-06-S03",
+    "M-06-S04",
+    "M-06-S05",
+    "M-06-S06",
+    "M-06-S07",
+    "M-06-S08",
+    "M-06-S09",
+    "M-06-S10",
+    "M-06-S11",
+    "M-06-S12",
+    "M-06-S13",
+    "M-06-S14",
+    "M-06-S15",
+    "M-06-S16",
+    "M-06-S17",
+    "M-06-S18",
+    "M-06-S19",
+    "M-06-S20",
+    "M-06-S21",
+    "M-06-S22",
+    "M-06-S23",
+    "M-06-S24",
+    "M-06-S25",
+    "M-06-S26",
+    "M-06-S27",
+    "M-06-S28",
+    "M-06-S29",
+    "M-06-S30",
+    "M-06-S31",
+    "M-06-S32",
+    "M-06-S33",
+    "M-06-S34",
+    "M-06-B01",
+    "M-06-B02",
+    "M-06-B03",
+    "M-06-B04",
+    "M-06-B05",
+    "M-06-B06",
+    "M-06-B07",
+    "M-06-B08",
+    "M-06-B09",
+    "M-06-B10",
+    "M-06-B11",
+    "M-06-B12",
+    "M-06-B13",
+    "M-06-B14",
+    "M-06-B15",
+    "M-06-B16",
+    "M-06-B17",
+    "M-06-B18",
+    "M-06-B19",
+    "M-06-B20"
+  ],
+  "updatedAt": "2026-08-06T04:45:23.053Z",
+  "rows": [
+    {
+      "id": "M-06-S01",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R01"
+      ],
+      "intendedFailingCaseIds": [
+        "R01"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 58ms\npackages/concierge build: ✔ [attw] No problems found (124ms)\npackages/concierge build: ✔ [publint] No issues found (131ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-1LodwI/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S01",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.29 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.22 kB\npackages/concierge build: ✔ Build complete in 60ms\npackages/concierge build: ✔ [attw] No problems found (125ms)\npackages/concierge build: ✔ [publint] No issues found (133ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R01",
+              "title": "[R01] returns the same Promise and invokes the handler once for one callId",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R01:promise-identity]: expected Promise{…} to be Promise{…} // Object.is equality\n\nIf it should pass with deep equality, replace \"toBe\" with \"toStrictEqual\"\n\nExpected: Promise{…}\nReceived: serializes to the same string\n\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:195:49\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-1LodwI/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:41:26.570Z"
+    },
+    {
+      "id": "M-06-S02",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R01"
+      ],
+      "intendedFailingCaseIds": [
+        "R01"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 60ms\npackages/concierge build: ✔ [attw] No problems found (124ms)\npackages/concierge build: ✔ [publint] No issues found (131ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-vGeZdE/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S02",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.31 kB │ gzip:  43.48 kB\npackages/concierge build: ℹ dist/index.js.map    341.23 kB │ gzip: 108.74 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.28 kB\npackages/concierge build: ✔ Build complete in 60ms\npackages/concierge build: ✔ [attw] No problems found (128ms)\npackages/concierge build: ✔ [publint] No issues found (135ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R01",
+              "title": "[R01] returns the same Promise and invokes the handler once for one callId",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R01:promise-identity]: expected Promise{…} to be Promise{…} // Object.is equality\n\nIf it should pass with deep equality, replace \"toBe\" with \"toStrictEqual\"\n\nExpected: Promise{…}\nReceived: serializes to the same string\n\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:195:49\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-vGeZdE/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:41:30.995Z"
+    },
+    {
+      "id": "M-06-S03",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R01"
+      ],
+      "intendedFailingCaseIds": [
+        "R01"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 64ms\npackages/concierge build: ✔ [attw] No problems found (122ms)\npackages/concierge build: ✔ [publint] No issues found (130ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-6RgHLJ/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S03",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.31 kB │ gzip:  43.48 kB\npackages/concierge build: ℹ dist/index.js.map    341.25 kB │ gzip: 108.75 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.30 kB\npackages/concierge build: ✔ Build complete in 64ms\npackages/concierge build: ✔ [attw] No problems found (124ms)\npackages/concierge build: ✔ [publint] No issues found (131ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R01",
+              "title": "[R01] returns the same Promise and invokes the handler once for one callId",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R01:promise-identity]: expected Promise{…} to be Promise{…} // Object.is equality\n\nIf it should pass with deep equality, replace \"toBe\" with \"toStrictEqual\"\n\nExpected: Promise{…}\nReceived: serializes to the same string\n\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:195:49\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-6RgHLJ/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:41:35.376Z"
+    },
+    {
+      "id": "M-06-S04",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R02"
+      ],
+      "intendedFailingCaseIds": [
+        "R02"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 60ms\npackages/concierge build: ✔ [attw] No problems found (126ms)\npackages/concierge build: ✔ [publint] No issues found (133ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-LQfq07/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S04",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.33 kB │ gzip:  43.48 kB\npackages/concierge build: ℹ dist/index.js.map    341.32 kB │ gzip: 108.76 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.40 kB\npackages/concierge build: ✔ Build complete in 59ms\npackages/concierge build: ✔ [attw] No problems found (124ms)\npackages/concierge build: ✔ [publint] No issues found (131ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R02",
+              "title": "[R02] caches a failed result with the same Promise identity",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R02:cached-failure]: expected Promise{…} to be Promise{…} // Object.is equality\n\nIf it should pass with deep equality, replace \"toBe\" with \"toStrictEqual\"\n\nExpected: Promise{…}\nReceived: serializes to the same string\n\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:212:47\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-LQfq07/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:41:39.758Z"
+    },
+    {
+      "id": "M-06-S05",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R04"
+      ],
+      "intendedFailingCaseIds": [
+        "R04"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetHashAfter": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 59ms\npackages/concierge build: ✔ [attw] No problems found (122ms)\npackages/concierge build: ✔ [publint] No issues found (129ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-JgSObQ/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S05",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.22 kB │ gzip:  43.45 kB\npackages/concierge build: ℹ dist/index.js.map    341.07 kB │ gzip: 108.70 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.03 kB\npackages/concierge build: ✔ Build complete in 58ms\npackages/concierge build: ✔ [attw] No problems found (128ms)\npackages/concierge build: ✔ [publint] No issues found (136ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R04",
+              "title": "[R04] namespaces callId keys separately from fallback keys",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R04:key-namespace-separation]: expected { calls: 1, same: true } to deeply equal { calls: 2, same: false }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:253:85\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-JgSObQ/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:41:44.105Z"
+    },
+    {
+      "id": "M-06-S06",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R04"
+      ],
+      "intendedFailingCaseIds": [
+        "R04"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetHashAfter": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 59ms\npackages/concierge build: ✔ [attw] No problems found (124ms)\npackages/concierge build: ✔ [publint] No issues found (131ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-asAtwy/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S06",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.72 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 61ms\npackages/concierge build: ✔ [attw] No problems found (126ms)\npackages/concierge build: ✔ [publint] No issues found (133ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R04",
+              "title": "[R04] namespaces callId keys separately from fallback keys",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R04:key-namespace-separation]: expected { calls: 1, same: true } to deeply equal { calls: 2, same: false }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:253:85\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-asAtwy/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:41:48.522Z"
+    },
+    {
+      "id": "M-06-S07",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R05"
+      ],
+      "intendedFailingCaseIds": [
+        "R05"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetHashAfter": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 58ms\npackages/concierge build: ✔ [attw] No problems found (124ms)\npackages/concierge build: ✔ [publint] No issues found (131ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-6fGYy1/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S07",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.24 kB │ gzip:  43.46 kB\npackages/concierge build: ℹ dist/index.js.map    341.10 kB │ gzip: 108.72 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.08 kB\npackages/concierge build: ✔ Build complete in 58ms\npackages/concierge build: ✔ [attw] No problems found (122ms)\npackages/concierge build: ✔ [publint] No issues found (129ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R05",
+              "title": "[R05] runs cyclic arguments without a synchronous throw or deduplication",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R05:cyclic-args]: expected { calls: +0, same: true, threw: true } to deeply equal { calls: 2, same: false, threw: false }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:281:79\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-6fGYy1/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:41:52.920Z"
+    },
+    {
+      "id": "M-06-S08",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R07"
+      ],
+      "intendedFailingCaseIds": [
+        "R07"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 57ms\npackages/concierge build: ✔ [attw] No problems found (124ms)\npackages/concierge build: ✔ [publint] No issues found (131ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-BqIJwj/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S08",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.43 kB │ gzip:  43.51 kB\npackages/concierge build: ℹ dist/index.js.map    341.55 kB │ gzip: 108.83 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.72 kB\npackages/concierge build: ✔ Build complete in 61ms\npackages/concierge build: ✔ [attw] No problems found (124ms)\npackages/concierge build: ✔ [publint] No issues found (132ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R07",
+              "title": "[R07] keeps deduplication state isolated per Concierge instance",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R07:instance-isolation]: expected { firstCalls: 1, same: true, …(1) } to deeply equal { firstCalls: 1, same: false, …(1) }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:338:7\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-BqIJwj/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:41:57.295Z"
+    },
+    {
+      "id": "M-06-S09",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R21"
+      ],
+      "intendedFailingCaseIds": [
+        "R21"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 66ms\npackages/concierge build: ✔ [attw] No problems found (125ms)\npackages/concierge build: ✔ [publint] No issues found (133ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-4r1f6J/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S09",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.26 kB │ gzip:  43.46 kB\npackages/concierge build: ℹ dist/index.js.map    341.15 kB │ gzip: 108.71 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.16 kB\npackages/concierge build: ✔ Build complete in 61ms\npackages/concierge build: ✔ [attw] No problems found (129ms)\npackages/concierge build: ✔ [publint] No issues found (136ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R21",
+              "title": "[R21] retains an in-flight Promise beyond the deduplication window",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R21:pending-beyond-window]: expected Promise{…} to be Promise{…} // Object.is equality\n\nIf it should pass with deep equality, replace \"toBe\" with \"toStrictEqual\"\n\nExpected: Promise{…}\nReceived: serializes to the same string\n\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:648:56\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at withFakeNow (/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:173:12)\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:636:5\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-4r1f6J/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:42:01.713Z"
+    },
+    {
+      "id": "M-06-S10",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R22"
+      ],
+      "intendedFailingCaseIds": [
+        "R22"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 59ms\npackages/concierge build: ✔ [attw] No problems found (124ms)\npackages/concierge build: ✔ [publint] No issues found (131ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-TGmBSk/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S10",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        130.95 kB │ gzip:  43.40 kB\npackages/concierge build: ℹ dist/index.js.map    341.03 kB │ gzip: 108.69 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 614.72 kB\npackages/concierge build: ✔ Build complete in 59ms\npackages/concierge build: ✔ [attw] No problems found (125ms)\npackages/concierge build: ✔ [publint] No issues found (132ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R22",
+              "title": "[R22] starts the full deduplication window when the Promise settles",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R22:settlement-window]: expected { inside: false, outside: true } to deeply equal { inside: true, outside: true }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:676:9\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at withFakeNow (/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:173:12)\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:655:5\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-TGmBSk/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:42:06.129Z"
+    },
+    {
+      "id": "M-06-S11",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R24"
+      ],
+      "intendedFailingCaseIds": [
+        "R24"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 64ms\npackages/concierge build: ✔ [attw] No problems found (132ms)\npackages/concierge build: ✔ [publint] No issues found (139ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-skQVUM/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S11",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        130.78 kB │ gzip:  43.33 kB\npackages/concierge build: ℹ dist/index.js.map    340.87 kB │ gzip: 108.66 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 614.38 kB\npackages/concierge build: ✔ Build complete in 58ms\npackages/concierge build: ✔ [attw] No problems found (124ms)\npackages/concierge build: ✔ [publint] No issues found (131ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R24",
+              "title": "[R24] sweeps every expired key instead of only the key being accessed",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R24:all-key-sweep]: expected { calls: 3, resurrected: true } to deeply equal { calls: 4, resurrected: false }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:729:85\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at withFakeNow (/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:173:12)\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:706:5\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-skQVUM/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:42:10.648Z"
+    },
+    {
+      "id": "M-06-S12",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R20"
+      ],
+      "intendedFailingCaseIds": [
+        "R20"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 64ms\npackages/concierge build: ✔ [attw] No problems found (131ms)\npackages/concierge build: ✔ [publint] No issues found (139ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-WFRugx/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S12",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 63ms\npackages/concierge build: ✔ [attw] No problems found (132ms)\npackages/concierge build: ✔ [publint] No issues found (141ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R20",
+              "title": "[R20] defaults both commit and settled deduplication windows to 600 ms",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R20:default-windows]: expected { delays: [ 500, 500 ], …(3) } to deeply equal { delays: [ 600, 600 ], …(3) }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:631:9\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at withFakeNow (/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:173:12)\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:604:5\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-WFRugx/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:42:15.262Z"
+    },
+    {
+      "id": "M-06-S13",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R20"
+      ],
+      "intendedFailingCaseIds": [
+        "R20"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 62ms\npackages/concierge build: ✔ [attw] No problems found (128ms)\npackages/concierge build: ✔ [publint] No issues found (136ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-OGPu21/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S13",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 66ms\npackages/concierge build: ✔ [attw] No problems found (145ms)\npackages/concierge build: ✔ [publint] No issues found (153ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R20",
+              "title": "[R20] defaults both commit and settled deduplication windows to 600 ms",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R20:default-windows]: expected { delays: [ 600, 600 ], …(3) } to deeply equal { delays: [ 600, 600 ], …(3) }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:631:9\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at withFakeNow (/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:173:12)\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:604:5\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-OGPu21/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:42:19.970Z"
+    },
+    {
+      "id": "M-06-S14",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R08"
+      ],
+      "intendedFailingCaseIds": [
+        "R08"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 63ms\npackages/concierge build: ✔ [attw] No problems found (128ms)\npackages/concierge build: ✔ [publint] No issues found (135ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-WNCd2P/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S14",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.25 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.14 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.12 kB\npackages/concierge build: ✔ Build complete in 59ms\npackages/concierge build: ✔ [attw] No problems found (126ms)\npackages/concierge build: ✔ [publint] No issues found (133ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R08",
+              "title": "[R08] refuses an action that is present globally but absent from the supplied stage",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R08:off-stage-refusal]: expected { calls: 1, reason: undefined } to deeply equal { calls: +0, reason: 'unknown_action' }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:357:77\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-WNCd2P/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:42:24.402Z"
+    },
+    {
+      "id": "M-06-S15",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R09"
+      ],
+      "intendedFailingCaseIds": [
+        "R09"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 59ms\npackages/concierge build: ✔ [attw] No problems found (125ms)\npackages/concierge build: ✔ [publint] No issues found (133ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-hBFvhM/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S15",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.33 kB │ gzip:  43.48 kB\npackages/concierge build: ℹ dist/index.js.map    341.10 kB │ gzip: 108.68 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.17 kB\npackages/concierge build: ✔ Build complete in 62ms\npackages/concierge build: ✔ [attw] No problems found (126ms)\npackages/concierge build: ✔ [publint] No issues found (133ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R09",
+              "title": "[R09] treats __proto__ as an unknown action without entering a handler",
+              "status": "failed",
+              "failureMessages": [
+                "TypeError: Cannot read properties of undefined (reading 'handler')\n    at runDispatchPipeline (/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/src/concierge.ts:714:43)\n    at Object.dispatch (/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/src/concierge.ts:867:44)\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:372:36\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-hBFvhM/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:42:28.819Z"
+    },
+    {
+      "id": "M-06-S16",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R13"
+      ],
+      "intendedFailingCaseIds": [
+        "R13"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 61ms\npackages/concierge build: ✔ [attw] No problems found (126ms)\npackages/concierge build: ✔ [publint] No issues found (133ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-znCqqE/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S16",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        130.60 kB │ gzip:  43.24 kB\npackages/concierge build: ℹ dist/index.js.map    340.93 kB │ gzip: 108.67 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 614.27 kB\npackages/concierge build: ✔ Build complete in 59ms\npackages/concierge build: ✔ [attw] No problems found (126ms)\npackages/concierge build: ✔ [publint] No issues found (134ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R13",
+              "title": "[R13] rejects synchronous validation issues before the handler",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R13:sync-validation]: expected { calls: 1, reason: undefined } to deeply equal { calls: +0, reason: 'invalid_args' }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:469:75\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-znCqqE/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:42:33.218Z"
+    },
+    {
+      "id": "M-06-S17",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R15"
+      ],
+      "intendedFailingCaseIds": [
+        "R15"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 58ms\npackages/concierge build: ✔ [attw] No problems found (124ms)\npackages/concierge build: ✔ [publint] No issues found (131ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-Upqx3e/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S17",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.23 kB │ gzip:  43.46 kB\npackages/concierge build: ℹ dist/index.js.map    341.15 kB │ gzip: 108.72 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.12 kB\npackages/concierge build: ✔ Build complete in 60ms\npackages/concierge build: ✔ [attw] No problems found (125ms)\npackages/concierge build: ✔ [publint] No issues found (132ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R15",
+              "title": "[R15] passes the validator's transformed value to the handler",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R15:transformed-value]: expected { ok: true, …(1) } to deeply equal { ok: true, …(1) }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:511:72\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-Upqx3e/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:42:37.632Z"
+    },
+    {
+      "id": "M-06-S18",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R25"
+      ],
+      "intendedFailingCaseIds": [
+        "R25"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 58ms\npackages/concierge build: ✔ [attw] No problems found (125ms)\npackages/concierge build: ✔ [publint] No issues found (132ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-rQwkFh/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S18",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        130.89 kB │ gzip:  43.36 kB\npackages/concierge build: ℹ dist/index.js.map    341.17 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 614.80 kB\npackages/concierge build: ✔ Build complete in 58ms\npackages/concierge build: ✔ [attw] No problems found (128ms)\npackages/concierge build: ✔ [publint] No issues found (135ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R25",
+              "title": "[R25] waits for the commit window before a non-read-only handler",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R25:non-readonly-wait]: expected { Object (calls, callsBeforeWindow, ...) } to deeply equal { calls: 1, …(3) }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:762:7\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-rQwkFh/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:42:42.046Z"
+    },
+    {
+      "id": "M-06-S19",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R26"
+      ],
+      "intendedFailingCaseIds": [
+        "R26"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 58ms\npackages/concierge build: ✔ [attw] No problems found (128ms)\npackages/concierge build: ✔ [publint] No issues found (136ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-Bq10MV/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S19",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 59ms\npackages/concierge build: ✔ [attw] No problems found (125ms)\npackages/concierge build: ✔ [publint] No issues found (133ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R26",
+              "title": "[R26] waits when an action omits effects",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R26:omitted-effects-wait]: expected { Object (calls, callsBeforeWindow, ...) } to deeply equal { calls: 1, …(3) }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:784:7\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-Bq10MV/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:42:46.454Z"
+    },
+    {
+      "id": "M-06-S20",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R28"
+      ],
+      "intendedFailingCaseIds": [
+        "R28"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 61ms\npackages/concierge build: ✔ [attw] No problems found (125ms)\npackages/concierge build: ✔ [publint] No issues found (132ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-5PzSf6/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S20",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.24 kB │ gzip:  43.48 kB\npackages/concierge build: ℹ dist/index.js.map    341.12 kB │ gzip: 108.75 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.10 kB\npackages/concierge build: ✔ Build complete in 62ms\npackages/concierge build: ✔ [attw] No problems found (126ms)\npackages/concierge build: ✔ [publint] No issues found (134ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R28",
+              "title": "[R28] refuses an already-aborted action before scheduling the wait",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R28:abort-before-wait]: expected { calls: 1, delays: [], …(2) } to deeply equal { calls: +0, delays: [], …(2) }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:833:7\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-5PzSf6/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:42:50.904Z"
+    },
+    {
+      "id": "M-06-S21",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R31"
+      ],
+      "intendedFailingCaseIds": [
+        "R31"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetHashAfter": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 58ms\npackages/concierge build: ✔ [attw] No problems found (125ms)\npackages/concierge build: ✔ [publint] No issues found (132ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-C3tjTJ/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S21",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.22 kB\npackages/concierge build: ✔ Build complete in 59ms\npackages/concierge build: ✔ [attw] No problems found (128ms)\npackages/concierge build: ✔ [publint] No issues found (136ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R31",
+              "title": "[R31] handles a scheduler that fires synchronously during registration",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R31:sync-registration-race]: expected { calls: +0, cancelCalls: +0, …(3) } to deeply equal { calls: 1, cancelCalls: +0, …(3) }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:955:7\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-C3tjTJ/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:42:55.368Z"
+    },
+    {
+      "id": "M-06-S22",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R30"
+      ],
+      "intendedFailingCaseIds": [
+        "R30"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetHashAfter": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 60ms\npackages/concierge build: ✔ [attw] No problems found (124ms)\npackages/concierge build: ✔ [publint] No issues found (132ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-TLzzV5/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S22",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.24 kB │ gzip:  43.46 kB\npackages/concierge build: ℹ dist/index.js.map    341.10 kB │ gzip: 108.71 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.08 kB\npackages/concierge build: ✔ Build complete in 58ms\npackages/concierge build: ✔ [attw] No problems found (126ms)\npackages/concierge build: ✔ [publint] No issues found (133ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R30",
+              "title": "[R30] cleans up the scheduler canceller and abort listener exactly once",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R30:cleanup]: expected { calls: +0, cancelCalls: +0, …(2) } to deeply equal { calls: +0, cancelCalls: 1, …(2) }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:919:7\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-TLzzV5/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:42:59.810Z"
+    },
+    {
+      "id": "M-06-S23",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R30"
+      ],
+      "intendedFailingCaseIds": [
+        "R30"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetHashAfter": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 59ms\npackages/concierge build: ✔ [attw] No problems found (130ms)\npackages/concierge build: ✔ [publint] No issues found (138ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-bVckeg/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S23",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.01 kB │ gzip:  43.41 kB\npackages/concierge build: ℹ dist/index.js.map    340.99 kB │ gzip: 108.68 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 614.74 kB\npackages/concierge build: ✔ Build complete in 60ms\npackages/concierge build: ✔ [attw] No problems found (126ms)\npackages/concierge build: ✔ [publint] No issues found (133ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R30",
+              "title": "[R30] cleans up the scheduler canceller and abort listener exactly once",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R30:cleanup]: expected { calls: +0, cancelCalls: 1, …(2) } to deeply equal { calls: +0, cancelCalls: 1, …(2) }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:919:7\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-bVckeg/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:43:04.259Z"
+    },
+    {
+      "id": "M-06-S24",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R52"
+      ],
+      "intendedFailingCaseIds": [
+        "R52"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 60ms\npackages/concierge build: ✔ [attw] No problems found (126ms)\npackages/concierge build: ✔ [publint] No issues found (133ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-bLvliq/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S24",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.22 kB │ gzip:  43.46 kB\npackages/concierge build: ℹ dist/index.js.map    341.09 kB │ gzip: 108.70 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.05 kB\npackages/concierge build: ✔ Build complete in 59ms\npackages/concierge build: ✔ [attw] No problems found (125ms)\npackages/concierge build: ✔ [publint] No issues found (132ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R52",
+              "title": "[R52] hands the handler the mounted live bridge object",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R52:live-bridge]: expected { …(2) } to deeply equal { message: 'latest', …(1) }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:1453:7\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-bLvliq/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:43:08.692Z"
+    },
+    {
+      "id": "M-06-S25",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R36"
+      ],
+      "intendedFailingCaseIds": [
+        "R36"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetHashAfter": "3e7f53e6a7848318d8b2ca95e5fc0c147707c76724502e219cd0b2626286c77d",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 61ms\npackages/concierge build: ✔ [attw] No problems found (129ms)\npackages/concierge build: ✔ [publint] No issues found (137ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-WsUqZc/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S25",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.48 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.74 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.22 kB\npackages/concierge build: ✔ Build complete in 61ms\npackages/concierge build: ✔ [attw] No problems found (126ms)\npackages/concierge build: ✔ [publint] No issues found (134ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R36",
+              "title": "[R36] keeps an exception marker out of results and diagnostic channels",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R36:exception-marker-absence]: expected { channelsContainSecret: false, …(3) } to deeply equal { channelsContainSecret: false, …(3) }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:1104:7\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-WsUqZc/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:43:13.154Z"
+    },
+    {
+      "id": "M-06-S26",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R42"
+      ],
+      "intendedFailingCaseIds": [
+        "R42"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetHashAfter": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 58ms\npackages/concierge build: ✔ [attw] No problems found (125ms)\npackages/concierge build: ✔ [publint] No issues found (132ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-v5A7Y6/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S26",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.26 kB │ gzip:  43.46 kB\npackages/concierge build: ℹ dist/index.js.map    341.16 kB │ gzip: 108.72 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.16 kB\npackages/concierge build: ✔ Build complete in 59ms\npackages/concierge build: ✔ [attw] No problems found (124ms)\npackages/concierge build: ✔ [publint] No issues found (132ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R42",
+              "title": "[R42] strips extra fields from a valid handler result",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R42:extra-field-stripping]: expected { …(2) } to deeply equal { keys: [ 'message', 'ok' ], …(1) }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:1214:7\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-v5A7Y6/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:43:17.589Z"
+    },
+    {
+      "id": "M-06-S27",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R39"
+      ],
+      "intendedFailingCaseIds": [
+        "R39"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetHashAfter": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 59ms\npackages/concierge build: ✔ [attw] No problems found (127ms)\npackages/concierge build: ✔ [publint] No issues found (135ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-cjhZzz/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S27",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.20 kB │ gzip:  43.45 kB\npackages/concierge build: ℹ dist/index.js.map    341.03 kB │ gzip: 108.69 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 614.97 kB\npackages/concierge build: ✔ Build complete in 60ms\npackages/concierge build: ✔ [attw] No problems found (128ms)\npackages/concierge build: ✔ [publint] No issues found (135ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R39",
+              "title": "[R39] normalizes a result whose message is not a string",
+              "status": "failed",
+              "failureMessages": [
+                "TypeError: message.replace is not a function\n    at sanitizeMessage (/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/src/message.ts:48:6)\n    at authoredResult (/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/src/dispatch.ts:256:29)\n    at normalizeActionResult (/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/src/dispatch.ts:318:12)\n    at runDispatchPipeline (/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/src/concierge.ts:828:12)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-cjhZzz/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:43:22.103Z"
+    },
+    {
+      "id": "M-06-S28",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R43"
+      ],
+      "intendedFailingCaseIds": [
+        "R43"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetHashAfter": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 58ms\npackages/concierge build: ✔ [attw] No problems found (125ms)\npackages/concierge build: ✔ [publint] No issues found (133ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-kW4iVm/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S28",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.22 kB\npackages/concierge build: ✔ Build complete in 59ms\npackages/concierge build: ✔ [attw] No problems found (126ms)\npackages/concierge build: ✔ [publint] No issues found (133ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R43",
+              "title": "[R43] strips a contradictory reason from success and warns once",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R43:success-contradiction]: expected { first: { ok: false, …(2) }, …(2) } to deeply equal { first: { ok: true, …(1) }, …(2) }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:1241:7\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-kW4iVm/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:43:26.537Z"
+    },
+    {
+      "id": "M-06-S29",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R44"
+      ],
+      "intendedFailingCaseIds": [
+        "R44"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetHashAfter": "c50a8e3ffa1ad75abc6bd89317c33a883ddb16282e2513fa038fa2fd6ae06f3f",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 64ms\npackages/concierge build: ✔ [attw] No problems found (126ms)\npackages/concierge build: ✔ [publint] No issues found (134ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-ZSqM50/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S29",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.72 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 64ms\npackages/concierge build: ✔ [attw] No problems found (127ms)\npackages/concierge build: ✔ [publint] No issues found (134ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R44",
+              "title": "[R44] preserves a reasonless failure and warns once",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R44:failure-contradiction]: expected { first: { ok: false, …(1) }, …(2) } to deeply equal { first: { ok: false, …(1) }, …(2) }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:1268:7\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-ZSqM50/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:43:31.040Z"
+    },
+    {
+      "id": "M-06-S30",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R47"
+      ],
+      "intendedFailingCaseIds": [
+        "R47"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "9abf95ec9bfaa05d7be2ed1c45a7b58adffb8ed415b0fe0407804406414a1b43",
+      "targetHashAfter": "9abf95ec9bfaa05d7be2ed1c45a7b58adffb8ed415b0fe0407804406414a1b43",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 58ms\npackages/concierge build: ✔ [attw] No problems found (125ms)\npackages/concierge build: ✔ [publint] No issues found (133ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-ZEcFzd/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S30",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.23 kB │ gzip:  43.44 kB\npackages/concierge build: ℹ dist/index.js.map    341.10 kB │ gzip: 108.69 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.07 kB\npackages/concierge build: ✔ Build complete in 60ms\npackages/concierge build: ✔ [attw] No problems found (126ms)\npackages/concierge build: ✔ [publint] No issues found (133ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R47",
+              "title": "[R47] replaces C0 and C1 controls in handler messages",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R47:control-stripping]: expected { ok: true, …(1) } to deeply equal { ok: true, …(1) }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:1345:51\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-ZEcFzd/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:43:35.493Z"
+    },
+    {
+      "id": "M-06-S31",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R48"
+      ],
+      "intendedFailingCaseIds": [
+        "R48"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "9abf95ec9bfaa05d7be2ed1c45a7b58adffb8ed415b0fe0407804406414a1b43",
+      "targetHashAfter": "9abf95ec9bfaa05d7be2ed1c45a7b58adffb8ed415b0fe0407804406414a1b43",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 60ms\npackages/concierge build: ✔ [attw] No problems found (127ms)\npackages/concierge build: ✔ [publint] No issues found (135ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-IAXXuR/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S31",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.26 kB │ gzip:  43.46 kB\npackages/concierge build: ℹ dist/index.js.map    341.13 kB │ gzip: 108.72 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.13 kB\npackages/concierge build: ✔ Build complete in 63ms\npackages/concierge build: ✔ [attw] No problems found (126ms)\npackages/concierge build: ✔ [publint] No issues found (134ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R48",
+              "title": "[R48] collapses and trims whitespace in handler messages",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R48:whitespace-collapse]: expected { ok: true, …(1) } to deeply equal { ok: true, message: 'one two three' }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:1358:53\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-IAXXuR/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:43:39.978Z"
+    },
+    {
+      "id": "M-06-S32",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R49"
+      ],
+      "intendedFailingCaseIds": [
+        "R49"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "9abf95ec9bfaa05d7be2ed1c45a7b58adffb8ed415b0fe0407804406414a1b43",
+      "targetHashAfter": "9abf95ec9bfaa05d7be2ed1c45a7b58adffb8ed415b0fe0407804406414a1b43",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 59ms\npackages/concierge build: ✔ [attw] No problems found (126ms)\npackages/concierge build: ✔ [publint] No issues found (134ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-qH1oMq/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S32",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.27 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.16 kB │ gzip: 108.72 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.16 kB\npackages/concierge build: ✔ Build complete in 59ms\npackages/concierge build: ✔ [attw] No problems found (127ms)\npackages/concierge build: ✔ [publint] No issues found (134ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R49",
+              "title": "[R49] applies the shared MESSAGE_MAX_CHARS bound",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R49:shared-bound]: expected { bound: 180, length: 230, …(1) } to deeply equal { bound: 180, length: 180, …(1) }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:1373:7\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-qH1oMq/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:43:44.456Z"
+    },
+    {
+      "id": "M-06-S33",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R50"
+      ],
+      "intendedFailingCaseIds": [
+        "R50"
+      ],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "9abf95ec9bfaa05d7be2ed1c45a7b58adffb8ed415b0fe0407804406414a1b43",
+      "targetHashAfter": "9abf95ec9bfaa05d7be2ed1c45a7b58adffb8ed415b0fe0407804406414a1b43",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 62ms\npackages/concierge build: ✔ [attw] No problems found (128ms)\npackages/concierge build: ✔ [publint] No issues found (136ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-sfaCcf/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S33",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.19 kB │ gzip:  43.43 kB\npackages/concierge build: ℹ dist/index.js.map    341.05 kB │ gzip: 108.67 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 614.98 kB\npackages/concierge build: ✔ Build complete in 59ms\npackages/concierge build: ✔ [attw] No problems found (125ms)\npackages/concierge build: ✔ [publint] No issues found (132ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 1,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 0,
+          "numFailedTests": 1,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R50",
+              "title": "[R50] cuts before a surrogate pair that crosses the message bound",
+              "status": "failed",
+              "failureMessages": [
+                "AssertionError: [RED:R50:surrogate-cut]: expected { length: 180, …(2) } to deeply equal { length: 179, …(2) }\n    at /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/dispatcher.test.ts:1396:7\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20"
+              ]
+            }
+          ]
+        },
+        "typecheckExit": null,
+        "typecheckOutput": "",
+        "observedTypeDiagnostics": [],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-sfaCcf/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:43:48.970Z"
+    },
+    {
+      "id": "M-06-S34",
+      "group": "single",
+      "status": "green",
+      "executed": true,
+      "compiled": true,
+      "buildMarker": true,
+      "testsRan": 1,
+      "intendedCaseIds": [
+        "R31"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [
+        "test-d/dispatcher.test-d.ts(16,35): error TS2344"
+      ],
+      "observedTypeDiagnostics": [
+        "test-d/dispatcher.test-d.ts(16,35): error TS2344"
+      ],
+      "detectorSatisfied": true,
+      "killed": true,
+      "targetTracked": true,
+      "literalOccurrenceCount": 1,
+      "targetHashBefore": "2ed1424eefab4dfd847c1b214ff6ccd1ab63e9154cd394f978593245390a7e15",
+      "targetHashAfter": "2ed1424eefab4dfd847c1b214ff6ccd1ab63e9154cd394f978593245390a7e15",
+      "targetRestored": true,
+      "restoredGreen": true,
+      "restored": {
+        "green": true,
+        "buildExit": 0,
+        "buildMarker": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.38 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.21 kB\npackages/concierge build: ✔ Build complete in 60ms\npackages/concierge build: ✔ [attw] No problems found (122ms)\npackages/concierge build: ✔ [publint] No issues found (129ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "vitestExit": 0,
+        "testsRan": 54,
+        "testsPassed": 54,
+        "testsFailed": 0,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-CPFoib/restored-vitest.json\n",
+        "typecheckExit": 0,
+        "typecheckOutput": "$ tsc -p tsconfig.test-d.json\n"
+      },
+      "scopedStatusBefore": "",
+      "scopedStatusAfter": "",
+      "scopedTreeClean": true,
+      "harnessExit": 0,
+      "harnessOutput": "PASS: gate fired (exit 1), tree clean\n",
+      "mutantGate": {
+        "id": "M-06-S34",
+        "buildExit": 0,
+        "buildMarker": true,
+        "compiled": true,
+        "buildOutput": "Scope: 3 of 4 workspace projects\npackages/concierge build$ tsdown\npackages/concierge build: ℹ tsdown v0.22.14 powered by rolldown v1.2.0\npackages/concierge build: ℹ config file: /Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/tsdown.config.ts \npackages/concierge build: ℹ entry: src/index.ts\npackages/concierge build: ℹ target: node22.12.0\npackages/concierge build: ℹ tsconfig: tsconfig.json\npackages/concierge build: ℹ Build start\npackages/concierge build: ℹ Cleaning 4 files\npackages/concierge build: ℹ dist/index.js        131.28 kB │ gzip:  43.47 kB\npackages/concierge build: ℹ dist/index.js.map    341.19 kB │ gzip: 108.73 kB\npackages/concierge build: ℹ dist/index.d.ts.map    5.36 kB │ gzip:   1.54 kB\npackages/concierge build: ℹ dist/index.d.ts      137.39 kB │ gzip:  47.22 kB\npackages/concierge build: ℹ 4 files, total: 615.23 kB\npackages/concierge build: ✔ Build complete in 60ms\npackages/concierge build: ✔ [attw] No problems found (123ms)\npackages/concierge build: ✔ [publint] No issues found (130ms)\npackages/concierge build: Done\n$ pnpm -r build\n",
+        "testsRan": 1,
+        "vitestExit": 0,
+        "testReport": {
+          "readable": true,
+          "numTotalTests": 1,
+          "numPassedTests": 1,
+          "numFailedTests": 0,
+          "numPendingTests": 0,
+          "assertions": [
+            {
+              "caseId": "R31",
+              "title": "[R31] handles a scheduler that fires synchronously during registration",
+              "status": "passed",
+              "failureMessages": []
+            }
+          ]
+        },
+        "typecheckExit": 1,
+        "typecheckOutput": "test-d/dispatcher.test-d.ts(16,35): error TS2344: Type 'false' does not satisfy the constraint 'true'.\n/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge:\n[ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL] @fullselfbrowsing/concierge@0.0.0 typecheck: `tsc -p tsconfig.test-d.json`\nExit status 1\n$ tsc -p tsconfig.test-d.json\n",
+        "observedTypeDiagnostics": [
+          "test-d/dispatcher.test-d.ts(16,35): error TS2344"
+        ],
+        "detectorSatisfied": true,
+        "vitestOutput": "JSON report written to /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/phase-06-mutation-CPFoib/mutant-vitest.json\n"
+      },
+      "executedAt": "2026-08-06T04:45:23.053Z"
+    },
+    {
+      "id": "M-06-B01",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q02"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B02",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q02"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B03",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q01"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B04",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q03"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B05",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q04"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B06",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q04"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B07",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q06"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B08",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q06"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B09",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q06"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B10",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q06"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B11",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q06"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B12",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q06"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B13",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q09"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B14",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q09"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B15",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q07"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B16",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q07"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B17",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q08"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B18",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q08"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B19",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q09"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B20",
+      "group": "batch",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q13"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "executedAt": null
+    }
+  ]
+}
