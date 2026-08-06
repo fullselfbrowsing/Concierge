@@ -118,10 +118,9 @@ import type { ActionResult, Bridge, BridgeRegistry, SnapshotNormalizer } from ".
  * the quoted subject, the problem, then `Fix: `, exactly as `./catalog.ts`'s
  * diagnostics are rendered with the bridge id substituted for the action name.
  *
- * **Behind a named function rather than written inline**, for the reason
- * `./concierge.ts` gives for its own duplicate-stage message: the call site
- * becomes one short statement a mutation battery can target as a single
- * literal, which is what lets the battery prove the test covering it fires.
+ * **Behind a named function rather than written inline** so subject encoding
+ * and fixed remediation prose stay at one boundary. The warning call site then
+ * receives an already-composed line and never needs access to a caught value.
  *
  * **What it claims, and what it deliberately does not.** It does not say the
  * registry is broken, because it is not: last registration wins, so the second
@@ -129,26 +128,17 @@ import type { ActionResult, Bridge, BridgeRegistry, SnapshotNormalizer } from ".
  * component's — its snapshot getters and actions are no longer reachable
  * through this registry, and nothing else in the package would ever mention it.
  *
- * It interpolates `id` and nothing else. Never a caught value, never a snapshot
- * value; everything around `id` is fixed prose.
+ * `id` is the only dynamic input. A caught value or snapshot value never enters
+ * the diagnostic; everything around the subject is fixed prose.
  *
- * **What that does and does not buy, stated once here for all four builders in
- * this file.** The claim it carries is about PROVENANCE, not about safety:
- * `id` and `key` originate in the consumer's own application rather than in a
- * caught exception or a snapshot value, so neither can carry the user input a
- * handler's `Error` message would. **Core does not validate or sanitize either
- * of them.** `id` is a free-form string a consumer passes to
- * {@link createBridge}, and `key` comes from `Object.keys(bridge.snapshot)`,
- * which an app may well build from data — `Object.fromEntries(fields.map(f => [f.name, …]))`
- * is an ordinary thing to write. So a newline or an ANSI sequence in either one
- * reaches `warnHost` unescaped and can forge a log line on an SSR host.
- *
- * That channel is developer-facing rather than model-facing, which is why it is
- * bounded rather than closed here: stripping C0/C1 is SEC-06, it lands at the
- * dispatcher boundary in Phase 6, and doing half of it here would put one policy
- * in two places. An earlier draft of these comments called both values
- * "developer-authored strings already in the app's own source", which is a
- * stronger claim than the code enforces and is not repeated.
+ * **The shared subject boundary for all four builders in this file.** `id` and
+ * `key` are consumer-controlled strings: an id is passed to
+ * {@link createBridge}, and a key can come from data used to construct
+ * `bridge.snapshot`. Every builder passes its complete subject through
+ * `encodeDiagnosticSubject`, which quotes it, escapes quotes, backslashes,
+ * controls, line separators, and format characters, and bounds it before the
+ * composed line reaches `warnHost`. This preserves terminal and log-line
+ * integrity without admitting any caught value into the message.
  */
 function bridgeOverwriteMessage(id: string): string {
   return (
@@ -766,16 +756,13 @@ function makeDefaultNormalizer(onExotic: () => void): SnapshotNormalizer {
  * House message shape, subject word `snapshot`, and the subject string is the
  * registry id and the key joined by a dot — so it renders as
  * `concierge: [snapshot_threw] snapshot "results.filters": …`. Behind a named
- * function for the same reason the overwrite message above is: the call site
- * becomes one short statement a mutation battery can target.
+ * function for the same reason the overwrite message above is: encoding and
+ * remediation prose stay centralized at the diagnostic boundary.
  *
- * Interpolates `id` and `key` and nothing else; the caught value is not in scope
- * at the call site and could not be interpolated even by accident. Both values
- * originate in the consumer's application rather than in core, and **core does
- * not validate or sanitize either** — `key` in particular comes from
- * `Object.keys(bridge.snapshot)`, which an app may build from data. See
- * {@link bridgeOverwriteMessage} for the full statement of what that claim does
- * and does not buy.
+ * Accepts `id` and `key` and nothing else; the caught value is not in scope at
+ * the call site and cannot be interpolated. The combined subject goes through
+ * the bounded encoder described by {@link bridgeOverwriteMessage} before it
+ * reaches the warning sink.
  */
 function snapshotThrewMessage(id: string, key: string): string {
   return (
@@ -802,13 +789,10 @@ function snapshotThrewMessage(id: string, key: string): string {
  * trap is the remedy `snapshotThrewMessage` already prints — make the accessor
  * total — so a third code would cost a developer the search and buy nothing.
  *
- * Interpolates `id` and nothing else; the caught value is not in scope at the
- * call site and could not be interpolated even by accident. `id` originates in
- * the consumer's application rather than in core, and **core does not validate
- * or sanitize it** — see {@link bridgeOverwriteMessage}. That statement is
- * repeated here rather than assumed because this builder was ADDED after the
- * others, and an addition that reuses a sibling's phrasing without its caveats
- * is how a claim quietly widens.
+ * Accepts `id` and nothing else; the caught value is not in scope at the call
+ * site and cannot be interpolated. The consumer-controlled id goes through the
+ * bounded encoder described by {@link bridgeOverwriteMessage} before it reaches
+ * the warning sink.
  */
 function snapshotHolderThrewMessage(id: string): string {
   return (
@@ -826,8 +810,9 @@ function snapshotHolderThrewMessage(id: string): string {
  * A **distinct code** from the throwing-getter warning, deliberately: the two
  * failures need different fixes, and one code covering both would send a
  * developer looking at a getter that is working perfectly. Same house shape,
- * same subject spelling, same interpolation rule — `id` and `key` only, both
- * unvalidated and unsanitized by core, per {@link bridgeOverwriteMessage}.
+ * same subject spelling, same boundary — `id` and `key` only, encoded and
+ * bounded as described by {@link bridgeOverwriteMessage}. No caught value is
+ * accepted by this builder.
  */
 function snapshotExoticMessage(id: string, key: string): string {
   return (
