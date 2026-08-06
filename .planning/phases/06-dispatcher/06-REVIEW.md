@@ -1,8 +1,8 @@
 ---
 phase: 06-dispatcher
-reviewed: 2026-08-06T16:19:53Z
+reviewed: 2026-08-06T17:24:41Z
 depth: standard
-files_reviewed: 15
+files_reviewed: 17
 files_reviewed_list:
   - packages/concierge/src/bridge.ts
   - packages/concierge/src/catalog.ts
@@ -12,7 +12,9 @@ files_reviewed_list:
   - packages/concierge/src/index.ts
   - packages/concierge/src/message.ts
   - packages/concierge/src/types.ts
+  - packages/concierge/test-d/actions.test-d.ts
   - packages/concierge/test-d/dispatcher.test-d.ts
+  - packages/concierge/test-d/results.test-d.ts
   - packages/concierge/test/concierge.test.ts
   - packages/concierge/test/diagnostic-safety.test.ts
   - packages/concierge/test/dispatcher-batch.test.ts
@@ -20,262 +22,211 @@ files_reviewed_list:
   - scripts/check-no-telemetry.mjs
   - scripts/phase-06-mutation-battery.mjs
 findings:
-  critical: 10
-  warning: 1
+  critical: 7
+  warning: 0
   info: 0
-  total: 11
+  total: 7
 status: issues_found
 ---
 
 # Phase 06: Code Review Report
 
-**Reviewed:** 2026-08-06T16:19:53Z
+**Reviewed:** 2026-08-06T17:24:41Z
 **Depth:** standard
-**Files Reviewed:** 15
+**Files Reviewed:** 17
 **Status:** issues_found
 
 ## Summary
 
-The dispatcher still has six directly reproducible runtime defects and both proof
-scripts retain false-certification paths. In a runtime probe against the built
-package, post-construction validator replacement bypassed argument validation, a
-synchronously reentrant validator executed a handler twice for one `callId`, a
-mutated result poisoned the retry cache, a declared `constructor` action was
-advertised but could not dispatch, a mutation permitted by the public handler
-type became `handler_error`, and a hostile catalog name forged a second line in
-`CatalogValidationError.message`.
+Ten of the eleven iteration-2 findings are fixed. The computed-channel audit
+fix is incomplete: two new forms still pass with zero findings. This review also
+reproduced six independent runtime defects at dispatcher, schema, and
+deduplication boundaries. The most consequential paths can suppress a distinct
+action call, execute a batch action from malformed JSON, or expose mutable
+agent-facing schema content after construction.
 
-The repository's advertised checks remain green: the no-telemetry audit and its
-self-test passed, and the mutation battery self-test plus `verify all` reported
-54 green mutants. Those results do not cover the proof gaps below.
+The normal gates remain green despite these defects. Independently rerun at this
+revision: `pnpm build`, `pnpm test` (235/235), `pnpm typecheck`, both
+no-telemetry audit modes, the mutation-battery self-test, and `verify all`
+(54 green, 0 pending). These are coverage gaps, not baseline gate regressions.
 
 ## Narrative Findings (AI reviewer)
 
-### Prior finding verification
+### Iteration-2 finding disposition
 
 | Prior finding | Current disposition |
 | --- | --- |
-| CR-01 | Fixed: construction snapshots the stage array and action records. |
-| CR-02 | Fixed for the reported authorization replay: authorization precedes cache lookup and fallback keys include stage scope. |
-| CR-03 | Fixed: batch envelopes and calls are detached and their public types are readonly. |
-| CR-04 | The reported caller/validator alias is detached; current CR-04 records the new public-type/runtime immutability mismatch. |
-| CR-05 | Fixed: effects and scheduler capabilities are captured at construction. |
-| CR-06 | Fixed: abort is checked after bridge resolution and before handler invocation. |
-| CR-07 | Fixed: cross-realm thenables are assimilated. |
-| CR-08 | Fixed: host warning lookup and invocation are guarded. |
-| CR-09 | Partially fixed: host warnings encode subjects, but build-failing catalog diagnostics remain injectable (current CR-06). |
-| CR-10 | Partially fixed: revisions hash the target and intended detector, but omit transitive production/test inputs (current CR-09). |
-| CR-11 | Partially fixed: assertion fingerprints are exact, but suite/hook errors can still be discarded (current CR-10). |
-| CR-12 | Partially fixed: several computed names are resolved, but unresolved computed reads and external callable assignments fail open (current CR-08). |
-| CR-13 | Partially fixed: named rejection parameters are rejected, but zero-parameter classic functions can read `arguments[0]` (current CR-07). |
-| WR-01 | Fixed: invalid timing windows are rejected at construction. |
+| CR-01: mutable validator capability | **Resolved.** `captureValidator()` stores a guarded, receiver-preserving capability in `validatorByEntry`; dispatch no longer reads the public validator method live. |
+| CR-02: validator reentrancy before cache publication | **Resolved.** The pipeline now starts in a microtask after the Promise is published at `concierge.ts:1018-1034`. |
+| CR-03: mutable cached `ActionResult` | **Resolved.** Core freezes normalized results and the exported fields are readonly. |
+| CR-04: writable handler input types | **Resolved.** `ActionHandler` now exposes deep-readonly arguments and readonly metadata. |
+| CR-05: advertised reserved names rejected by dispatch | **Resolved.** Authorization and null-prototype catalog lookup now treat `constructor` and `__proto__` as ordinary declared names. |
+| CR-06: catalog diagnostic line injection | **Resolved.** Display-only subject and line encoders bound and encode dynamic diagnostic text. |
+| CR-07: zero-parameter rejection callback reads `arguments[0]` | **Resolved.** Classic callbacks are traversed for callback-local `arguments`. |
+| CR-08: unresolved computed telemetry channels | **Not resolved.** The checker handles the fixtures added by the fix, but current CR-05 demonstrates two remaining zero-finding bypasses. |
+| CR-09: stale mutation evidence after transitive input changes | **Resolved.** The revision digest now hashes a sorted tracked-file manifest across production, tests, proof scripts, lockfile, manifests, and configs. |
+| CR-10: assertion failures hide suite/hook failures | **Resolved.** Suite-level messages are retained unless they exactly duplicate an assertion message, and the self-test covers an adjacent hook failure. |
+| WR-01: obsolete bridge security comments | **Resolved.** The comments now describe the implemented structural encoder. |
 
 ### Critical Issues
 
-#### CR-01: A post-construction schema mutation bypasses argument validation
+#### CR-01: Valid transformed schema outputs can never reach their typed handler
 
 **Classification:** BLOCKER
-**File:** `packages/concierge/src/dispatch.ts:155-164`
-**Related:** `packages/concierge/src/concierge.ts:149-163`,
-`packages/concierge/src/catalog.ts:671-693`,
-`packages/concierge/src/catalog.ts:973-985`
-**Issue:** Action records are shallow-copied, while each schema object is
-deliberately excluded from the catalog freeze. Dispatch then reads
-`entry.action.schema["~standard"].validate` live on every call. Replacing that
-method after `createConcierge()` therefore changes the security boundary. A
-direct probe first returned `invalid_args`, replaced the validator with an
-accept-all implementation, and then ran the handler successfully with the same
-invalid input.
-**Fix:** Capture a private validation capability during construction and store it
-on the internal catalog entry; do not re-read the public schema during dispatch.
-Read the Standard Schema member and `validate` once under a guarded boundary,
-bind the receiver when needed, and invoke only that captured closure. Add a
-regression that mutates both `schema["~standard"]` and its `validate` property
-after construction and verifies behavior cannot change.
+**File:** `packages/concierge/src/concierge.ts:799-808`
+**Related:** `packages/concierge/src/dispatch.ts:29-60`,
+`packages/concierge/src/types.ts:19-20`,
+`packages/concierge/src/types.ts:938-970`
+**Issue:** The public contract accepts every `StandardSchemaV1` output type and
+types the handler from `InferOutput<Schema>`. Standard Schema transformations
+can legitimately produce `Date`, class instances, or nested non-plain objects.
+After validation, however, `snapshotInvocationValue()` rejects every object
+whose prototype is not plain. A probe using a valid schema result
+`{ value: new Date(...) }` returned `invalid_args` and never entered the handler,
+even though a handler for that output is accepted by the published type. This
+also contradicts `validateArguments()`'s stated contract that transformed
+values reach the handler.
 
-#### CR-02: A reentrant validator escapes the deduplication cache and double-fires
+**Fix:** Make the type and runtime boundary identical. Either constrain schema
+outputs to an exported recursive invocation-data type in `ActionDefinition` and
+`defineAction`, with negative type tests for `Date`/class outputs, or support the
+full advertised output population with a clone/freeze strategy that preserves
+those values. Add a runtime case for a transformed non-plain output and a type
+test for the chosen policy.
+
+#### CR-02: Fallback deduplication aliases semantically different arguments
 
 **Classification:** BLOCKER
-**File:** `packages/concierge/src/concierge.ts:790`
-**Related:** `packages/concierge/src/concierge.ts:1013-1037`,
-`packages/concierge/src/dispatch.ts:155-164`
-**Issue:** `runDispatchPipeline()` is called before its Promise is inserted into
-`dispatchPromises`. An async function runs synchronously until its first
-suspension, and `validateArguments()` invokes the consumer validator before that
-suspension. A validator that synchronously calls `dispatch()` again with the same
-`callId` observes an empty cache. The probe produced two distinct Promises and
-two handler executions.
-**Fix:** Create a deferred pipeline Promise, publish it in all cache maps, and
-only then enter consumer code. For example:
+**File:** `packages/concierge/src/dispatch.ts:112-136`
+**Related:** `packages/concierge/src/concierge.ts:970-1015`,
+`packages/concierge/src/types.ts:693-702`
+**Issue:** With no `callId`, the cache key is raw `JSON.stringify(args)`, which
+is not injective over values accepted by `snapshotInvocationValue()`. For
+example, `{}` and `{ omitted: undefined }` serialize identically; so do `NaN`
+and `null`, and sparse/undefined array slots and `null`. A direct probe dispatched
+`{}` and `{ omitted: undefined }` concurrently and observed the same Promise,
+one handler call, and the first result for both requests. The second action is
+silently suppressed even though a validator or handler can distinguish the two
+inputs.
+
+**Fix:** Use a tagged canonical encoding that distinguishes every supported
+primitive, own key, and array slot. If a value cannot be encoded injectively,
+return `null` and disable fallback deduplication for that call. Add collision
+regressions for undefined properties, non-finite numbers, negative zero, and
+sparse arrays.
+
+#### CR-03: A zero or exactly elapsed deduplication window does not expire
+
+**Classification:** BLOCKER
+**File:** `packages/concierge/src/concierge.ts:734-751`
+**Related:** `packages/concierge/src/types.ts:1705-1713`,
+`packages/concierge/test/dispatcher.test.ts:604-633`
+**Issue:** Settled entries are evicted only when
+`now - settledAt > dedupeWindowMs`. At the documented boundary the window has
+already elapsed, so the comparison must include equality. With a fixed clock, a
+600 ms entry remained cached at exactly 600 ms. More seriously, the explicitly
+supported `dedupeWindowMs: 0` retained a settled Promise indefinitely until the
+clock advanced; an immediate retry returned the same Promise and the handler
+remained at one call. Existing tests skip from 599 to 601 and do not exercise
+the boundary.
+
+**Fix:** Change the eviction comparison to `>=` and add exact-boundary plus
+zero-window regressions. Pending Promises should remain protected by the
+separate `dispatchPending` check.
+
+#### CR-04: Explicit JSON Schema accessors remain a live agent-facing mutation channel
+
+**Classification:** BLOCKER
+**File:** `packages/concierge/src/catalog.ts:711-715`
+**Related:** `packages/concierge/src/catalog.ts:732-754`,
+`packages/concierge/test/concierge.test.ts:790-823`
+**Issue:** Explicit `jsonSchema` is retained by reference. `deepFreeze()` skips
+accessors, so freezing the catalog does not stabilize what an accessor returns.
+This is acknowledged in the test file but deliberately has no assertion. A
+probe supplied a getter-backed root `type`: construction accepted its first
+`"object"` value, while consecutive reads from the frozen emitted tool returned
+`"poisoned-2"` and `"poisoned-3"`; `parameters === explicit` was still true.
+The same channel can vary descriptions or other schema content shown to the
+agent after review/construction.
+
+**Fix:** Detach explicit and derived JSON Schema into a private data-only graph
+before root validation and publication. Inspect property descriptors without
+invoking accessors and reject accessor/function/symbol nodes with a structured
+catalog issue; then freeze the detached copy. Replace the prose-only test with
+malicious root and nested accessor regressions.
+
+#### CR-05: The no-telemetry gate still accepts dynamic callable channels
+
+**Classification:** BLOCKER
+**File:** `scripts/check-no-telemetry.mjs:514-635`
+**Related:** `scripts/check-no-telemetry.mjs:928-1009`
+**Issue:** The iteration-2 CR-08 fix only rejects an unresolved element read
+when the element's type itself may be callable. It therefore misses a callable
+member reached through a dynamically selected object. The current checker
+reported no finding for:
 
 ```ts
-const promise = Promise.resolve().then(() =>
-  runDispatchPipeline(index, entry, name, argsSnapshot.value, metaSnapshot.value),
-);
-dispatchPromises.set(key, promise);
+declare const channels: Record<string, { send: (input: unknown) => void }>;
+channels[runtimeName].send(secret);
 ```
 
-Install the pending/settlement bookkeeping before the microtask can run and add
-a validator-reentrancy regression asserting Promise identity and one handler
-call.
+The dynamic installer logic has a second hole: `objectLiteralMember()` ignores
+`ShorthandPropertyAssignment`, so this also produced no finding:
 
-#### CR-03: Mutable cached results let one consumer poison every retry
+```ts
+const value = externalForwarder;
+Object.defineProperty(channel, runtimeName, { value });
+```
 
-**Classification:** BLOCKER
-**File:** `packages/concierge/src/dispatch.ts:335-345`
-**Related:** `packages/concierge/src/concierge.ts:1017-1039`,
-`packages/concierge/src/dispatch.ts:473-504`,
-`packages/concierge/src/types.ts:98-130`
-**Issue:** Core-authored and normalized `ActionResult` objects are fresh but
-mutable. The deduplication cache returns the same Promise and therefore the same
-fulfillment object on every retry. Mutating the first result's `ok`, `reason`,
-or `message` changes all later results without passing through
-`sanitizeMessage()`. The probe changed a successful result into
-`handler_error` with an ANSI control sequence; the retry returned that poisoned
-object. Batch rows freeze only the outer row, not the nested result.
-**Fix:** Make `ActionResult` fields readonly and have `authoredResult()` freeze
-the complete result object after sanitization. Ensure every normalization path
-uses that constructor and add direct and batch regressions that attempt mutation
-before retrying.
+At runtime either `runtimeName` can select a forbidden telemetry/error channel,
+so the zero-finding audit can still certify prohibited forwarding.
 
-#### CR-04: The runtime freezes handler inputs that the public type says are writable
+**Fix:** Treat an unresolved element used as a property/call receiver as a
+channel-capable read unless checker-backed analysis proves it is inert data.
+Handle shorthand descriptor members, and audit `Reflect.defineProperty` beside
+`Object.defineProperty`/`Reflect.set`. Add both exact fixtures to the malicious
+self-test and assert the expected rule at their lines.
+
+#### CR-06: Malformed batch JSON can execute an action with defaulted arguments
 
 **Classification:** BLOCKER
-**File:** `packages/concierge/src/types.ts:294-330`
-**Related:** `packages/concierge/src/types.ts:406-418`,
-`packages/concierge/src/concierge.ts:125-143`,
-`packages/concierge/src/concierge.ts:799-802`,
-`packages/concierge/src/concierge.ts:871-884`
-**Issue:** `ActionHandler` exposes `args: Args` and `meta: InvocationMeta`, with
-writable properties. At runtime, the validated argument graph and metadata
-object are recursively/shallowly frozen before invocation. A handler that
-assigns to `args.amount` is valid TypeScript under the published API but throws
-in ESM strict mode and is converted to `handler_error`; the direct probe
-reproduced that result.
-**Fix:** Align the public contract and runtime. Either expose a documented
-deep-readonly argument type plus `Readonly<InvocationMeta>` in
-`ActionHandler`, or stop freezing the already-detached private copies. Add
-type-level mutation negatives and a runtime test for the selected contract.
+**File:** `packages/concierge/src/dispatch.ts:479-505`
+**Related:** `packages/concierge/src/types.ts:1158-1163`,
+`packages/concierge/test/dispatcher-batch.test.ts:296-355`
+**Issue:** A `JSON.parse()` failure is converted to `{}` and passed through the
+normal dispatcher. Any schema accepting an empty object or adding defaults can
+therefore run a handler even though the agent supplied malformed wire data. A
+probe dispatched the raw argument `"{"` to a validator defaulting
+`amount = 100`; the handler executed once and returned success
+`"charged:100"`. The existing batch test locks in the `{}` substitution but only
+uses a validator that happens to reject it. For a side effect, this is fail-open
+input handling.
 
-#### CR-05: Reserved actions are published in the tool catalog but can never run
+**Fix:** On parse failure, append a correlated frozen `invalid_args` row and
+continue to the next call without invoking `dispatch()` or the validator. Update
+the public `ToolCall.arguments` comment and add a permissive/defaulting schema
+regression proving the handler remains untouched.
 
-**Classification:** BLOCKER
-**File:** `packages/concierge/src/concierge.ts:946-961`
-**Related:** `packages/concierge/src/concierge.ts:470-480`,
-`packages/concierge/src/catalog.ts:1060-1069`
-**Issue:** Catalog construction accepts `constructor` and `__proto__`; the
-null-prototype map stores them safely and `catalogFor()` advertises them.
-Dispatch nevertheless rejects both names before reading the catalog. The probe
-showed `constructor` in the published tool list, followed by
-`unknown_action` and zero handler calls.
-**Fix:** Reject both reserved names during catalog validation with a structured
-`CatalogIssue` and never publish them. Alternatively, if null-prototype lookup
-is the intended complete defense, remove the contradictory dispatch refusal.
-Whichever policy is chosen must be identical at declaration, projection, and
-dispatch boundaries.
-
-#### CR-06: Catalog build errors still permit terminal and log-line injection
+#### CR-07: A malformed validator success shape is accepted as valid arguments
 
 **Classification:** BLOCKER
-**File:** `packages/concierge/src/catalog.ts:187-198`
-**Related:** `packages/concierge/src/catalog.ts:1033-1045`
-**Issue:** `formatIssues()` interpolates `issue.action` verbatim, and some
-`problem`/`fix` strings interpolate the raw consent target. Unlike host warning
-subjects, these values are not encoded or stripped of C0/C1 characters. A
-duplicate action named with a newline produced a
-`CatalogValidationError.message` containing a forged
-`concierge: [forged]` line. Applications conventionally log construction
-errors, making this an injection surface.
-**Fix:** Preserve raw values only in structured issue fields. Encode every
-dynamic subject used in display text and apply a final bounded control-character
-encoding pass to each formatted line. Add newline, carriage-return, ANSI, quote,
-and overlength cases for both action names and `consent.requires`.
+**File:** `packages/concierge/src/dispatch.ts:147-170`
+**Issue:** `validateArguments()` treats every result whose `issues` value is
+`undefined` as success, without requiring a `value` member. A malformed
+validator returning `{}` therefore enters the handler with `ctx.args ===
+undefined`; a direct probe observed a successful handler invocation. This
+violates the function's own fail-closed promise for malformed results and can
+activate handler defaults or side effects after validation failed to produce a
+Standard Schema success.
 
-#### CR-07: The no-telemetry audit allows rejected values through arguments[0]
-
-**Classification:** BLOCKER
-**File:** `scripts/check-no-telemetry.mjs:512-545`
-**Related:** `scripts/check-no-telemetry.mjs:680-692`
-**Issue:** The rejection-callback audit returns immediately whenever a callback
-declares zero parameters. A classic zero-parameter function still has its own
-`arguments` object, so
-`promise.catch(function () { return { message: String(arguments[0]) }; })`
-forwards the rejection while the audit reports zero findings. The self-test
-explicitly requires a locally resolved zero-parameter callback to be accepted,
-so it certifies this bypass.
-**Fix:** Permit zero-parameter arrows, which have no callback-local
-`arguments`, but audit or reject zero-parameter function expressions and
-declarations when they reference `arguments`. Add malicious self-test fixtures
-for `.catch()` and the rejection arm of `.then()`.
-
-#### CR-08: Unresolved computed channel access fails open in the no-telemetry audit
-
-**Classification:** BLOCKER
-**File:** `scripts/check-no-telemetry.mjs:339-371`
-**Issue:** A computed access whose property cannot be resolved is ignored unless
-it is the left side of a simple assignment and the right side resolves to a
-locally declared callback. Dynamic reads/calls such as `channel[runtimeName](x)`
-therefore pass, as do dynamic assignments of imported or otherwise external
-callables. At runtime `runtimeName` can be any forbidden telemetry channel, so
-the advertised zero-telemetry proof is not fail-closed.
-**Fix:** Use the TypeScript checker/dataflow to classify indexed data operations
-that are safe, and reject every unresolved property access that can call, read,
-or install a channel. At minimum, cover call targets, value reads, compound
-assignments, `Object.defineProperty`, `Reflect.set`, and non-local callable
-values. Add a self-test for each bypass form.
-
-#### CR-09: Mutation evidence does not track transitive production or test inputs
-
-**Classification:** BLOCKER
-**File:** `scripts/phase-06-mutation-battery.mjs:1333-1353`
-**Issue:** A mutant revision hashes only its target, its one intended detector,
-the optional type test, and shared config paths. Other production modules and
-test fixtures that the detector imports are omitted. Changing such a transitive
-input can make the recorded mutant survive while `verify all` still accepts the
-old evidence as current. The reported green register is therefore not tied to
-the implementation/test tree it purports to certify.
-**Fix:** Build each revision from a deterministic manifest of all tracked Phase
-6 production sources, runtime tests, type tests, proof scripts, manifests,
-lockfile, and relevant configs, or hash an equivalent scoped Git tree. Include
-both path and content in sorted order. Extend the self-test by changing a
-non-target transitive source and a non-intended test fixture and requiring
-verification to fail.
-
-#### CR-10: Mutation reports discard suite and hook failures when a file has assertions
-
-**Classification:** BLOCKER
-**File:** `scripts/phase-06-mutation-battery.mjs:1037-1043`
-**Issue:** `summarizeVitestReport()` records `suite.message` and
-`suite.failureMessage` only when `assertionResults.length === 0`. An expected
-mutation assertion can fail exactly as fingerprinted while `afterAll`,
-`afterEach`, or another suite-level path also fails; because the mutant already
-expects a nonzero test exit, the extra failure does not change the outcome and
-is silently credited as a clean kill.
-**Fix:** Parse suite/hook failures regardless of assertion count and distinguish
-them from the already-recorded assertion messages instead of gating on count.
-Reject every unrecognized suite/hook error. Add a synthetic reporter fixture
-containing the exact expected assertion failure plus an `afterAll` failure and
-require fingerprint verification to reject it.
-
-### Warnings
-
-#### WR-01: Bridge security comments contradict the implemented encoder
-
-**Classification:** WARNING
-**File:** `packages/concierge/src/bridge.ts:135-151`
-**Related:** `packages/concierge/src/bridge.ts:772-778`,
-`packages/concierge/src/bridge.ts:805-830`
-**Issue:** Multiple security-boundary comments state that bridge IDs and keys
-reach `warnHost` “unescaped” or are not sanitized. The builders now pass those
-values through `encodeDiagnosticSubject()` at lines 155, 782, 815, and 834.
-This is not cosmetic: the comments document the opposite terminal-injection
-guarantee from the code and can misdirect later security maintenance.
-**Fix:** Rewrite the shared provenance comment and its references to describe
-the current bounded encoder, then keep only the separate claim that caught
-values never enter the diagnostic.
+**Fix:** Guard that the awaited result is an object and validate the Standard
+Schema result discriminator structurally: any present `issues` branch is a
+failure, a success must contain a `value` key (including the valid explicit
+`value: undefined` case), and every other shape returns `ok: false`. Add cases
+for `{}`, `{ issues: undefined }`, `{ value: undefined }`, and throwing accessors.
 
 ---
 
-_Reviewed: 2026-08-06T16:19:53Z_
+_Reviewed: 2026-08-06T17:24:41Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: standard_
