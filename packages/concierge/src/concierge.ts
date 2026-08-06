@@ -745,7 +745,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       if (dispatchPending.has(key)) {
         continue;
       }
-      if (now - settledAt > dedupeWindowMs) {
+      if (now - settledAt >= dedupeWindowMs) {
         dispatchSettledAt.delete(key);
         dispatchPromises.delete(key);
       }

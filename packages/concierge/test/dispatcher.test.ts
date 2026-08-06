@@ -674,7 +674,7 @@ async function withFakeNow(initial, run) {
 
       setNow(599);
       const settledHit = concierge.dispatch(ACTIVE_CONTEXT, "window", {}, { callId: "window" });
-      setNow(601);
+      setNow(600);
       const expired = concierge.dispatch(ACTIVE_CONTEXT, "window", {}, { callId: "window" });
       await flushMicrotasks();
 
@@ -725,13 +725,37 @@ async function withFakeNow(initial, run) {
 
       setNow(1_599);
       const inside = concierge.dispatch(ACTIVE_CONTEXT, "settlement", {}, { callId: "settlement" });
-      setNow(1_601);
+      setNow(1_600);
       const outside = concierge.dispatch(ACTIVE_CONTEXT, "settlement", {}, { callId: "settlement" });
 
       expect(
         { inside: inside === first, outside: outside !== first },
         "[RED:R22:settlement-window]",
       ).toEqual({ inside: true, outside: true });
+    });
+  });
+
+  it("[R22a] expires a settled retry immediately when the deduplication window is zero", async () => {
+    await withFakeNow(0, async () => {
+      let calls = 0;
+      const concierge = conciergeFor(
+        [action("zero-window", () => {
+          calls += 1;
+          return successful();
+        })],
+        { dedupeWindowMs: 0 },
+      );
+
+      const first = concierge.dispatch(ACTIVE_CONTEXT, "zero-window", {}, { callId: "zero" });
+      const pendingHit = concierge.dispatch(ACTIVE_CONTEXT, "zero-window", {}, { callId: "zero" });
+      await first;
+      const settledRetry = concierge.dispatch(ACTIVE_CONTEXT, "zero-window", {}, { callId: "zero" });
+      await settledRetry;
+
+      expect(
+        { calls, pendingHit: pendingHit === first, settledRetry: settledRetry !== first },
+        "[RED:R22a:zero-window-expiry]",
+      ).toEqual({ calls: 2, pendingHit: true, settledRetry: true });
     });
   });
 
