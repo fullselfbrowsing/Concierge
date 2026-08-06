@@ -1,15 +1,18 @@
 // Phase 6's public dispatcher contract. These predicates intentionally land before the
 // implementation so the compiler records the exact three missing API seams and nothing else.
 
-import type { Equals, Expect } from "./_assert.js";
+import type { Assignable, Equals, Expect } from "./_assert.js";
 import type {
+  ActionDefinition,
   ActionHandler,
   ActionResult,
   Concierge,
   DeepReadonly,
+  InvocationData,
   InvocationMeta,
   Scheduler,
   StageContext,
+  StandardSchemaV1,
   ToolBatch,
   ToolCall,
 } from "../src/types.js";
@@ -24,6 +27,13 @@ type _deepReadonlyInvocationData = Expect<Equals<DeepReadonly<{ amount: number; 
 type _handlerContext = Parameters<ActionHandler<{ amount: number; nested: { currency: string } }, null>>[0];
 type _handlerArgsAreDeepReadonly = Expect<Equals<_handlerContext["args"], { readonly amount: number; readonly nested: { readonly currency: string } }>>;
 type _handlerMetaIsReadonly = Expect<Equals<_handlerContext["meta"], Readonly<InvocationMeta>>>;
+type PlainOutputSchema = StandardSchemaV1<unknown, { amount: number; nested: { currency: string }; optional?: undefined }>;
+type DateOutputSchema = StandardSchemaV1<unknown, { at: Date }>;
+type ClassOutputSchema = StandardSchemaV1<unknown, { value: string; mutate(): void }>;
+type _plainSchemaRetainsAHandler = Expect<Assignable<ActionDefinition<"plain", PlainOutputSchema>["handler"], ActionHandler<{ amount: number; nested: { currency: string }; optional?: undefined }, unknown>>>;
+type _dateSchemaCannotDeclareAHandler = Expect<Equals<ActionDefinition<"date", DateOutputSchema>["handler"], never>>;
+type _classSchemaCannotDeclareAHandler = Expect<Equals<ActionDefinition<"class", ClassOutputSchema>["handler"], never>>;
+type _invocationDataIncludesSupportedPrimitives = Expect<Assignable<{ values: readonly [number, undefined, bigint] }, InvocationData>>;
 
 const _metaAcceptsExplicitUndefined: InvocationMeta = {
   responseId: undefined,

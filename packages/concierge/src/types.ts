@@ -275,6 +275,31 @@ export const MESSAGE_MAX_CHARS = 180;
 // Invocation
 // ---------------------------------------------------------------------------
 
+/**
+ * The recursive data population the dispatcher can detach and freeze without
+ * changing application semantics.
+ *
+ * This source-module export is intentionally not re-exported by `index.ts`, so
+ * the package keeps its established 65-name public surface.
+ */
+export type InvocationData =
+  | null
+  | undefined
+  | string
+  | number
+  | boolean
+  | bigint
+  | ReadonlyArray<InvocationData>
+  | { readonly [key: string]: InvocationData };
+
+/** Keep erased schemas usable while closing concrete non-data outputs. */
+type InvocationOutputContract<Output, Accepted> =
+  unknown extends Output
+    ? Accepted
+    : [Output] extends [InvocationData]
+      ? Accepted
+      : never;
+
 /** Recursively expose invocation data exactly as the dispatcher freezes it. */
 export type DeepReadonly<T> = T extends (...args: never[]) => unknown
   ? T
@@ -967,7 +992,18 @@ export interface ActionDefinition<
    * Dropping either is invisible to every consent-shaped assertion — see
    * {@link ActionHandler}.
    */
-  handler: ActionHandler<InferOutput<Schema>, B, Snapshot, AckPayload>;
+  /**
+   * A concrete schema output must fit the runtime's invocation-data boundary.
+   * Standard Schema itself permits `Date`, class instances, and other values
+   * that cannot be cloned and frozen generically without changing semantics;
+   * those declarations resolve this member to `never` and cannot be authored.
+   * The erased `StandardSchemaV1` collection view remains usable through the
+   * explicit `unknown` branch in {@link InvocationOutputContract}.
+   */
+  handler: InvocationOutputContract<
+    InferOutput<Schema>,
+    ActionHandler<InferOutput<Schema>, B, Snapshot, AckPayload>
+  >;
   effects?: SideEffects;
   /**
    * This action reads attacker-controllable content — third-party pages, user

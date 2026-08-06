@@ -515,6 +515,27 @@ async function withFakeNow(initial, run) {
     });
   });
 
+  it("[R15a] rejects a transformed non-invocation-data value before the handler", async () => {
+    let calls = 0;
+    const concierge = conciergeFor([
+      action(
+        "transform-date",
+        () => {
+          calls += 1;
+          return successful();
+        },
+        { validate: () => ({ value: { at: new Date("2026-08-06T00:00:00.000Z") } }) },
+      ),
+    ]);
+
+    const result = await concierge.dispatch(ACTIVE_CONTEXT, "transform-date", {});
+
+    expect(
+      { calls, reason: result.reason },
+      "[RED:R15a:transformed-output-boundary]",
+    ).toEqual({ calls: 0, reason: "invalid_args" });
+  });
+
   it("[R16] contains validation issues and returns only invalid_args", async () => {
     let calls = 0;
     const issueMarker = "PRIVATE-VALIDATION-DETAIL";
