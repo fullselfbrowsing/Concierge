@@ -868,9 +868,9 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         "aborted",
       );
     }
-    let handlerResult: unknown;
+    let handlerReturn: unknown;
     try {
-      handlerResult = await handler({
+      handlerReturn = handler({
         args: validatedSnapshot.value,
         bridge,
         meta,
@@ -882,6 +882,35 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         "Something went wrong.",
         "handler_error",
       );
+    }
+
+    let handlerResult: unknown = handlerReturn;
+    if (
+      (typeof handlerReturn === "object" && handlerReturn !== null) ||
+      typeof handlerReturn === "function"
+    ) {
+      let then: unknown;
+      try {
+        then = (handlerReturn as { readonly then?: unknown }).then;
+      } catch {
+        // A hostile result object is normalized below; probing Promise
+        // compatibility must not reclassify it as a handler exception.
+        then = undefined;
+      }
+
+      if (typeof then === "function") {
+        try {
+          handlerResult = await new Promise<unknown>((resolve, reject) => {
+            then.call(handlerReturn, resolve, reject);
+          });
+        } catch {
+          return authoredResult(
+            false,
+            "Something went wrong.",
+            "handler_error",
+          );
+        }
+      }
     }
 
     return normalizeActionResult(handlerResult, {
