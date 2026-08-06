@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 
 import { beforeAll, beforeEach, expect, it as vitestIt } from "vitest";
 
@@ -1854,5 +1855,33 @@ async function withFakeNow(initial, run) {
         reason: "aborted",
         message: "The action was cancelled before it ran.",
       },
+    });
+  });
+
+  it("[R60] assimilates cross-realm Promises and interoperable thenables", async () => {
+    const crossRealmPromise = runInNewContext(
+      'Promise.resolve({ ok: true, message: "cross realm" })',
+    );
+    const thenable = {
+      then(resolve) {
+        resolve({ ok: true, message: "thenable" });
+      },
+    };
+    const concierge = conciergeFor([
+      action("cross-realm", () => crossRealmPromise),
+      action("thenable", () => thenable),
+    ]);
+
+    const [crossRealmResult, thenableResult] = await Promise.all([
+      concierge.dispatch(ACTIVE_CONTEXT, "cross-realm", {}),
+      concierge.dispatch(ACTIVE_CONTEXT, "thenable", {}),
+    ]);
+
+    expect(
+      { crossRealmResult, thenableResult },
+      "[RED:R60:promise-assimilation]",
+    ).toEqual({
+      crossRealmResult: { ok: true, message: "cross realm" },
+      thenableResult: { ok: true, message: "thenable" },
     });
   });

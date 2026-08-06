@@ -846,9 +846,9 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         "aborted",
       );
     }
-    let handlerReturn: unknown;
+    let handlerResult: unknown;
     try {
-      handlerReturn = handler({
+      handlerResult = await handler({
         args: validatedSnapshot.value,
         bridge,
         meta,
@@ -860,19 +860,6 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         "Something went wrong.",
         "handler_error",
       );
-    }
-
-    let handlerResult: unknown = handlerReturn;
-    if (handlerReturn instanceof Promise) {
-      try {
-        handlerResult = await handlerReturn;
-      } catch {
-        return authoredResult(
-          false,
-          "Something went wrong.",
-          "handler_error",
-        );
-      }
     }
 
     return normalizeActionResult(handlerResult, {
