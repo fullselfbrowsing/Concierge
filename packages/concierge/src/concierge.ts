@@ -943,15 +943,10 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     const allowedNames: readonly string[] =
       index === null ? crossNames : (namesByStage[index] ?? crossNames);
 
-    // The explicit prototype-name refusal stays ahead of the catalog read even
-    // though `byName` has a null prototype. It makes the security boundary
-    // independent of a future lookup refactor. Authorization also stays ahead
-    // of the cache: a key proves retry identity, never stage authority.
-    if (
-      name === "__proto__" ||
-      name === "constructor" ||
-      !allowedNames.includes(name)
-    ) {
+    // Reserved prototype spellings are ordinary keys in the catalog's frozen
+    // null-prototype lookup. Authorization still stays ahead of the cache: a
+    // key proves retry identity, never stage authority.
+    if (!allowedNames.includes(name)) {
       return Promise.resolve(
         authoredResult(
           false,

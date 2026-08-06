@@ -2231,3 +2231,43 @@ async function withFakeNow(initial, run) {
       result: { ok: true, message: "Done." },
     });
   });
+
+  it("[R67] advertises and dispatches declared prototype-spelled actions", async () => {
+    const handlerCalls = [];
+    const concierge = conciergeFor([
+      action("constructor", () => {
+        handlerCalls.push("constructor");
+        return successful("constructor ran");
+      }),
+      action("__proto__", () => {
+        handlerCalls.push("__proto__");
+        return successful("__proto__ ran");
+      }),
+    ]);
+
+    const publishedNames = concierge
+      .catalogFor(ACTIVE_CONTEXT)
+      .map((tool) => tool.name);
+    const constructorResult = await concierge.dispatch(
+      ACTIVE_CONTEXT,
+      "constructor",
+      {},
+      { callId: "reserved-constructor" },
+    );
+    const protoResult = await concierge.dispatch(
+      ACTIVE_CONTEXT,
+      "__proto__",
+      {},
+      { callId: "reserved-proto" },
+    );
+
+    expect(
+      { constructorResult, handlerCalls, protoResult, publishedNames },
+      "[RED:R67:reserved-name-consistency]",
+    ).toEqual({
+      constructorResult: { ok: true, message: "constructor ran" },
+      handlerCalls: ["constructor", "__proto__"],
+      protoResult: { ok: true, message: "__proto__ ran" },
+      publishedNames: ["constructor", "__proto__"],
+    });
+  });
