@@ -1508,3 +1508,77 @@ async function withFakeNow(initial, run) {
       result: offPageResult("The selected rows", "results page"),
     });
   });
+
+  it("[R55] snapshots stage routing, authorization, and bridge selection at construction", async () => {
+    const originalBridge = createBridge("original");
+    const replacementBridge = createBridge("replacement");
+    const mounted = { actions: {}, snapshot: {} };
+    originalBridge.register(mounted);
+
+    let receivedBridge;
+    let safeCalls = 0;
+    let otherCalls = 0;
+    const safe = action("safe-stage-action", ({ bridge }) => {
+      safeCalls += 1;
+      receivedBridge = bridge;
+      return successful();
+    });
+    const other = action("other-stage-action", () => {
+      otherCalls += 1;
+      return successful();
+    });
+    const firstStage = {
+      id: "first",
+      match: (ctx) => ctx.pathname === "/first",
+      actions: [safe],
+      bridge: originalBridge,
+    };
+    const secondStage = {
+      id: "second",
+      match: (ctx) => ctx.pathname === "/second",
+      actions: [other],
+    };
+    const sourceStages = [firstStage, secondStage];
+    const concierge = createConcierge({ stages: sourceStages });
+
+    sourceStages.reverse();
+    firstStage.id = "rewritten";
+    firstStage.match = () => false;
+    firstStage.actions = [other];
+    firstStage.bridge = replacementBridge;
+    secondStage.match = () => true;
+
+    const ctx = { pathname: "/first" };
+    const safeResult = await concierge.dispatch(ctx, "safe-stage-action", {});
+    const otherResult = await concierge.dispatch(ctx, "other-stage-action", {});
+
+    expect(
+      {
+        bridge: receivedBridge,
+        catalog: concierge.catalogFor(ctx).map((tool) => tool.name),
+        explanation: concierge.explain(ctx),
+        otherCalls,
+        otherReason: otherResult.reason,
+        safeCalls,
+        safeOk: safeResult.ok,
+        stage: concierge.stageFor(ctx),
+      },
+      "[RED:R55:stage-snapshot]",
+    ).toEqual({
+      bridge: mounted,
+      catalog: ["safe-stage-action"],
+      explanation: {
+        stage: "first",
+        stages: [
+          { id: "first", matched: true, bridge: { id: "original", registered: true } },
+          { id: "second", matched: false, bridge: null },
+        ],
+        catalog: ["safe-stage-action"],
+      },
+      otherCalls: 0,
+      otherReason: "unknown_action",
+      safeCalls: 1,
+      safeOk: true,
+      stage: "first",
+    });
+  });

@@ -329,8 +329,20 @@ function bridgeStatus(
  * none.
  */
 export function createConcierge(config: ConciergeConfig): Concierge {
-  const stages: ConciergeConfig["stages"] = config.stages;
-  const crossStage: NonNullable<ConciergeConfig["crossStage"]> = config.crossStage ?? [];
+  const stages: ConciergeConfig["stages"] = config.stages.map(
+    (stage): ConciergeConfig["stages"][number] => {
+      const actions: ConciergeConfig["stages"][number]["actions"] =
+        Object.freeze([...stage.actions]);
+      return Object.freeze(
+        stage.bridge === undefined
+          ? { id: stage.id, match: stage.match, actions }
+          : { id: stage.id, match: stage.match, actions, bridge: stage.bridge },
+      );
+    },
+  );
+  const crossStage: NonNullable<ConciergeConfig["crossStage"]> = Object.freeze([
+    ...(config.crossStage ?? []),
+  ]);
   const commitWindowMs: number = config.commitWindowMs ?? 600;
   const dedupeWindowMs: number = config.dedupeWindowMs ?? 600;
 
