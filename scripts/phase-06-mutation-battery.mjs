@@ -1007,69 +1007,76 @@ function casePattern(caseIds) {
   return `^(?:${caseIds.map((caseId) => `\\[${caseId}\\]`).join("|")})`;
 }
 
+function unreadableVitestReport(parseError = undefined) {
+  return {
+    readable: false,
+    ...(parseError === undefined ? {} : { parseError }),
+    numTotalTests: 0,
+    numPassedTests: 0,
+    numFailedTests: 0,
+    numPendingTests: 0,
+    assertions: [],
+    suiteErrors: [],
+    unhandledErrors: [],
+  };
+}
+
+function summarizeVitestPayload(report) {
+  const assertions = (report.testResults ?? []).flatMap((suite) =>
+    (suite.assertionResults ?? []).map((assertion) => {
+      const match = /^\[([RQ]\d{2})\]/u.exec(assertion.title ?? "");
+      return {
+        caseId: match?.[1] ?? null,
+        title: assertion.title ?? "",
+        status: assertion.status ?? "unknown",
+        failureMessages: assertion.failureMessages ?? [],
+      };
+    }),
+  );
+  const suiteErrors = (report.testResults ?? []).flatMap((suite) => {
+    const assertionMessages = new Set(
+      (suite.assertionResults ?? [])
+        .flatMap((assertion) => assertion.failureMessages ?? [])
+        .filter((message) => typeof message === "string")
+        .map((message) => message.trim()),
+    );
+    return [...new Set([suite.message, suite.failureMessage]
+      .filter((message) => typeof message === "string" && message.trim() !== "")
+      .map((message) => message.trim())
+      .filter((message) => !assertionMessages.has(message)))];
+  });
+  const unhandledErrors = [...(report.unhandledErrors ?? []), ...(report.errors ?? [])]
+    .map((error) =>
+      typeof error === "string"
+        ? error
+        : JSON.stringify(error),
+    )
+    .filter((error) => error !== "" && error !== undefined);
+  return {
+    readable: true,
+    numTotalTests: report.numTotalTests ?? 0,
+    numPassedTests: report.numPassedTests ?? 0,
+    numFailedTests: report.numFailedTests ?? 0,
+    numPendingTests: report.numPendingTests ?? 0,
+    assertions,
+    suiteErrors,
+    unhandledErrors,
+  };
+}
+
 function summarizeVitestReport(reportPath) {
   if (!existsSync(reportPath)) {
-    return {
-      readable: false,
-      numTotalTests: 0,
-      numPassedTests: 0,
-      numFailedTests: 0,
-      numPendingTests: 0,
-      assertions: [],
-      suiteErrors: [],
-      unhandledErrors: [],
-    };
+    return unreadableVitestReport();
   }
 
   try {
-    const report = JSON.parse(readFileSync(reportPath, "utf8"));
-    const assertions = (report.testResults ?? []).flatMap((suite) =>
-      (suite.assertionResults ?? []).map((assertion) => {
-        const match = /^\[([RQ]\d{2})\]/u.exec(assertion.title ?? "");
-        return {
-          caseId: match?.[1] ?? null,
-          title: assertion.title ?? "",
-          status: assertion.status ?? "unknown",
-          failureMessages: assertion.failureMessages ?? [],
-        };
-      }),
+    return summarizeVitestPayload(
+      JSON.parse(readFileSync(reportPath, "utf8")),
     );
-    const suiteErrors = (report.testResults ?? []).flatMap((suite) => {
-      const assertionCount = suite.assertionResults?.length ?? 0;
-      if (assertionCount > 0) return [];
-      return [suite.message, suite.failureMessage]
-        .filter((message) => typeof message === "string" && message.trim() !== "")
-        .map((message) => message.trim());
-    });
-    const unhandledErrors = [...(report.unhandledErrors ?? []), ...(report.errors ?? [])]
-      .map((error) =>
-        typeof error === "string"
-          ? error
-          : JSON.stringify(error),
-      )
-      .filter((error) => error !== "" && error !== undefined);
-    return {
-      readable: true,
-      numTotalTests: report.numTotalTests ?? 0,
-      numPassedTests: report.numPassedTests ?? 0,
-      numFailedTests: report.numFailedTests ?? 0,
-      numPendingTests: report.numPendingTests ?? 0,
-      assertions,
-      suiteErrors,
-      unhandledErrors,
-    };
   } catch (error) {
-    return {
-      readable: false,
-      parseError: error instanceof Error ? error.message : String(error),
-      numTotalTests: 0,
-      numPassedTests: 0,
-      numFailedTests: 0,
-      numPendingTests: 0,
-      assertions: [],
-      suiteErrors: [],
-      unhandledErrors: [],
-    };
+    return unreadableVitestReport(
+      error instanceof Error ? error.message : String(error),
+    );
   }
 }
 
@@ -1809,6 +1816,52 @@ function selfTest() {
   infrastructureFailure.unhandledErrors = ["unhandled rejection"];
   if (exactRuntimeFailureSet(infrastructureFailure, mutant).satisfied) {
     throw new Error("unhandled runtime error satisfied the detector");
+  }
+  const assertionMessage = `AssertionError: ${expected.marker}`;
+  const assertionOnlyPayload = summarizeVitestPayload({
+    numTotalTests: 1,
+    numPassedTests: 0,
+    numFailedTests: 1,
+    numPendingTests: 0,
+    testResults: [
+      {
+        assertionResults: [
+          {
+            title: `[${expected.caseId}] self-test`,
+            status: "failed",
+            failureMessages: [assertionMessage],
+          },
+        ],
+        message: assertionMessage,
+      },
+    ],
+  });
+  if (!exactRuntimeFailureSet(assertionOnlyPayload, mutant).satisfied) {
+    throw new Error("suite summary duplicated an assertion-level failure");
+  }
+  const hookFailurePayload = summarizeVitestPayload({
+    numTotalTests: 1,
+    numPassedTests: 0,
+    numFailedTests: 1,
+    numPendingTests: 0,
+    testResults: [
+      {
+        assertionResults: [
+          {
+            title: `[${expected.caseId}] self-test`,
+            status: "failed",
+            failureMessages: [assertionMessage],
+          },
+        ],
+        message: "Error: synthetic afterAll hook failure",
+      },
+    ],
+  });
+  if (
+    hookFailurePayload.suiteErrors.length !== 1 ||
+    exactRuntimeFailureSet(hookFailurePayload, mutant).satisfied
+  ) {
+    throw new Error("suite hook failure was discarded beside an assertion failure");
   }
 
   const expectedDiagnostic =
