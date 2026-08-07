@@ -294,6 +294,24 @@ export function isAborted(signal: AbortSignalLike | undefined): boolean {
   }
 }
 
+/** Validate the structural cancellation capability without invoking it. */
+export function isAbortSignalLike(value: unknown): value is AbortSignalLike {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  try {
+    const signal = value as Record<string, unknown>;
+    return (
+      typeof signal["aborted"] === "boolean" &&
+      typeof signal["addEventListener"] === "function" &&
+      typeof signal["removeEventListener"] === "function"
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Wait until a non-read-only handler may enter.
  *
@@ -521,6 +539,243 @@ export function normalizeActionResult(
 // Batch execution
 // ---------------------------------------------------------------------------
 
+const UNOBSERVABLE_CALL_ID_PREFIX =
+  "[concierge:unobservable-call-id:";
+
+type BatchMetadataSnapshot =
+  | Readonly<{
+      ok: true;
+      responseId: string;
+      userTurnId: string | undefined;
+      signal: AbortSignalLike | undefined;
+      deferUntilDelivered: InvocationMeta["deferUntilDelivered"];
+    }>
+  | Readonly<{ ok: false }>;
+
+type ToolCallSnapshot =
+  | Readonly<{
+      ok: true;
+      callId: string;
+      name: string;
+      arguments: string;
+      outputIndex: number;
+      sortIndex: number;
+      originalIndex: number;
+    }>
+  | Readonly<{
+      ok: false;
+      callId: unknown;
+      sortIndex: number | null;
+      originalIndex: number;
+    }>;
+
+type RuntimeBatchRow = Readonly<{
+  callId: unknown;
+  result: ActionResult;
+}>;
+
+type PropertyRead =
+  | Readonly<{ ok: true; value: unknown }>
+  | Readonly<{ ok: false }>;
+
+/** Read one untrusted public field without letting its getter escape. */
+function readProperty(value: object, key: string): PropertyRead {
+  try {
+    return { ok: true, value: (value as Record<string, unknown>)[key] };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
+ * Correlation fallback for a call whose callId getter cannot be observed.
+ *
+ * The original array position keeps multiple unreadable calls distinct and
+ * deterministic within the batch. Observable malformed values (for example a
+ * Symbol callId) are preserved verbatim instead of being replaced by this
+ * sentinel.
+ */
+function unobservableCallId(originalIndex: number): string {
+  return `${UNOBSERVABLE_CALL_ID_PREFIX}${originalIndex}]`;
+}
+
+/** Narrow the optional delivery capability after its guarded metadata read. */
+function isDeliveryHook(
+  value: unknown,
+): value is NonNullable<InvocationMeta["deferUntilDelivered"]> {
+  return typeof value === "function";
+}
+
+/** Snapshot batch metadata before any ordering or asynchronous work begins. */
+function snapshotBatchMetadata(batch: unknown): BatchMetadataSnapshot {
+  if (typeof batch !== "object" || batch === null) {
+    return Object.freeze({ ok: false });
+  }
+
+  const responseIdRead: PropertyRead = readProperty(batch, "responseId");
+  const userTurnIdRead: PropertyRead = readProperty(batch, "userTurnId");
+  const signalRead: PropertyRead = readProperty(batch, "signal");
+  const deliveryRead: PropertyRead = readProperty(
+    batch,
+    "deferUntilDelivered",
+  );
+  if (
+    !responseIdRead.ok ||
+    !userTurnIdRead.ok ||
+    !signalRead.ok ||
+    !deliveryRead.ok
+  ) {
+    return Object.freeze({ ok: false });
+  }
+
+  const responseId: unknown = responseIdRead.value;
+  const userTurnId: unknown = userTurnIdRead.value;
+  const signal: unknown = signalRead.value;
+  const deferUntilDelivered: unknown = deliveryRead.value;
+  if (
+    typeof responseId !== "string" ||
+    (userTurnId !== undefined && typeof userTurnId !== "string") ||
+    (signal !== undefined && !isAbortSignalLike(signal)) ||
+    (deferUntilDelivered !== undefined &&
+      !isDeliveryHook(deferUntilDelivered))
+  ) {
+    return Object.freeze({ ok: false });
+  }
+
+  return Object.freeze({
+    ok: true,
+    responseId,
+    userTurnId,
+    signal,
+    deferUntilDelivered,
+  });
+}
+
+/** Snapshot one call, preserving observable correlation even when invalid. */
+function snapshotToolCall(
+  raw: unknown,
+  originalIndex: number,
+): ToolCallSnapshot {
+  if (typeof raw !== "object" || raw === null) {
+    return Object.freeze({
+      ok: false,
+      callId: unobservableCallId(originalIndex),
+      sortIndex: null,
+      originalIndex,
+    });
+  }
+
+  const callIdRead: PropertyRead = readProperty(raw, "callId");
+  const nameRead: PropertyRead = readProperty(raw, "name");
+  const argumentsRead: PropertyRead = readProperty(raw, "arguments");
+  const outputIndexRead: PropertyRead = readProperty(raw, "outputIndex");
+  const callId: unknown = callIdRead.ok
+    ? callIdRead.value
+    : unobservableCallId(originalIndex);
+  const outputIndex: unknown = outputIndexRead.ok
+    ? outputIndexRead.value
+    : undefined;
+  const sortIndex: number | null =
+    typeof outputIndex === "number" && Number.isFinite(outputIndex)
+      ? outputIndex
+      : null;
+
+  if (
+    !callIdRead.ok ||
+    !nameRead.ok ||
+    !argumentsRead.ok ||
+    !outputIndexRead.ok ||
+    typeof callId !== "string" ||
+    typeof nameRead.value !== "string" ||
+    typeof argumentsRead.value !== "string" ||
+    sortIndex === null
+  ) {
+    return Object.freeze({
+      ok: false,
+      callId,
+      sortIndex,
+      originalIndex,
+    });
+  }
+
+  return Object.freeze({
+    ok: true,
+    callId,
+    name: nameRead.value,
+    arguments: argumentsRead.value,
+    outputIndex: sortIndex,
+    sortIndex,
+    originalIndex,
+  });
+}
+
+/** Snapshot the observable calls collection; an unreadable collection is empty. */
+function snapshotToolCalls(batch: unknown): ReadonlyArray<ToolCallSnapshot> {
+  if (typeof batch !== "object" || batch === null) {
+    return Object.freeze([]);
+  }
+
+  const callsRead: PropertyRead = readProperty(batch, "calls");
+  if (!callsRead.ok) {
+    return Object.freeze([]);
+  }
+
+  let isArray: boolean;
+  try {
+    isArray = Array.isArray(callsRead.value);
+  } catch {
+    return Object.freeze([]);
+  }
+  if (!isArray) {
+    return Object.freeze([]);
+  }
+
+  const rawCalls = callsRead.value as ReadonlyArray<unknown>;
+  let length: number;
+  try {
+    length = rawCalls.length;
+  } catch {
+    return Object.freeze([]);
+  }
+
+  const snapshots: ToolCallSnapshot[] = [];
+  for (let originalIndex: number = 0; originalIndex < length; originalIndex += 1) {
+    let raw: unknown;
+    try {
+      raw = rawCalls[originalIndex];
+    } catch {
+      snapshots.push(snapshotToolCall(undefined, originalIndex));
+      continue;
+    }
+    snapshots.push(snapshotToolCall(raw, originalIndex));
+  }
+  return Object.freeze(snapshots);
+}
+
+/** Sort finite indexes stably, then retain original order for invalid indexes. */
+function orderToolCallSnapshots(
+  snapshots: ReadonlyArray<ToolCallSnapshot>,
+): ReadonlyArray<ToolCallSnapshot> {
+  const indexed: ToolCallSnapshot[] = [];
+  const unindexed: ToolCallSnapshot[] = [];
+  for (const snapshot of snapshots) {
+    (snapshot.sortIndex === null ? unindexed : indexed).push(snapshot);
+  }
+  indexed.sort((left, right): number => {
+    const leftIndex: number = left.sortIndex ?? 0;
+    const rightIndex: number = right.sortIndex ?? 0;
+    if (leftIndex < rightIndex) return -1;
+    if (leftIndex > rightIndex) return 1;
+    return left.originalIndex - right.originalIndex;
+  });
+  return Object.freeze([...indexed, ...unindexed]);
+}
+
+/** Build one immutable runtime row without coercing its correlation value. */
+function batchRow(callId: unknown, result: ActionResult): RuntimeBatchRow {
+  return Object.freeze({ callId, result });
+}
+
 /**
  * Execute one transport-independent batch through an existing single-call
  * dispatcher.
@@ -540,44 +795,17 @@ export async function executeDispatchBatch(
     meta?: InvocationMeta,
   ) => Promise<ActionResult>,
 ): Promise<ReadonlyArray<Readonly<{ callId: string; result: ActionResult }>>> {
-  const batchSnapshot: Readonly<{
-    responseId: string;
-    userTurnId: string | undefined;
-    signal: AbortSignalLike | undefined;
-    deferUntilDelivered: InvocationMeta["deferUntilDelivered"];
-  }> = Object.freeze({
-    responseId: batch.responseId,
-    userTurnId: batch.userTurnId,
-    signal: batch.signal,
-    deferUntilDelivered: batch.deferUntilDelivered,
-  });
-  const ordered: Array<{
-    readonly call: Readonly<{
-      callId: string;
-      name: string;
-      arguments: string;
-      outputIndex: number;
-    }>;
-    readonly originalIndex: number;
-  }> = batch.calls.map((call, originalIndex) => ({
-    call: Object.freeze({
-      callId: call.callId,
-      name: call.name,
-      arguments: call.arguments,
-      outputIndex: call.outputIndex,
-    }),
-    originalIndex,
-  }));
-  ordered.sort(
-    (left, right): number =>
-      left.call.outputIndex - right.call.outputIndex ||
-      left.originalIndex - right.originalIndex,
+  const batchSnapshot: BatchMetadataSnapshot = snapshotBatchMetadata(batch);
+  const ordered: ReadonlyArray<ToolCallSnapshot> = orderToolCallSnapshots(
+    snapshotToolCalls(batch),
   );
 
-  const rows: Array<Readonly<{ callId: string; result: ActionResult }>> = [];
-  for (const { call } of ordered) {
+  const rows: RuntimeBatchRow[] = [];
+  for (const call of ordered) {
     let result: ActionResult;
-    if (isAborted(batchSnapshot.signal)) {
+    if (!batchSnapshot.ok || !call.ok) {
+      result = authoredResult(false, "The invocation metadata is invalid.");
+    } else if (isAborted(batchSnapshot.signal)) {
       result = authoredResult(
         false,
         "The action was cancelled before it ran.",
@@ -602,8 +830,13 @@ export async function executeDispatchBatch(
       result = await dispatch(ctx, call.name, args, meta);
     }
 
-    rows.push(Object.freeze({ callId: call.callId, result }));
+    rows.push(batchRow(call.callId, result));
   }
 
-  return Object.freeze(rows);
+  // Runtime-malformed callers may supply an observable non-string callId, or
+  // make it unreadable and receive the documented positional sentinel. The
+  // public string contract remains unchanged for every typed ToolBatch.
+  return Object.freeze(rows) as ReadonlyArray<
+    Readonly<{ callId: string; result: ActionResult }>
+  >;
 }

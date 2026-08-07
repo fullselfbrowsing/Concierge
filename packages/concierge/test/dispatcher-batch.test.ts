@@ -1062,3 +1062,171 @@ it("[Q17] preserves malformed callId correlation in one frozen result row", asyn
     rowFrozen: true,
   });
 });
+
+it("[Q18] contains malformed sortable metadata and still runs valid calls", async () => {
+  const scenarios = [
+    { callId: "symbol-index", outputIndex: Symbol("bad-index") },
+    { callId: "bigint-index", outputIndex: 1n },
+    { callId: "nan-index", outputIndex: Number.NaN },
+    { callId: "infinite-index", outputIndex: Number.POSITIVE_INFINITY },
+  ];
+  const observations = [];
+
+  for (const [scenarioIndex, scenario] of scenarios.entries()) {
+    const handled = [];
+    const concierge = conciergeFor([
+      action("mixed-metadata", ({ meta }) => {
+        handled.push(meta.callId);
+        return successful(meta.callId);
+      }),
+    ]);
+    const validId = `valid-${scenarioIndex}`;
+    const rows = await concierge.dispatchBatch(
+      ACTIVE_CONTEXT,
+      toolBatch([
+        toolCall(
+          scenario.callId,
+          "mixed-metadata",
+          "{}",
+          scenario.outputIndex,
+        ),
+        toolCall(validId, "mixed-metadata", "{}", 0),
+      ]),
+    );
+    observations.push({
+      handled,
+      rows: rows.map((row) => ({
+        callId: row.callId,
+        frozen: Object.isFrozen(row) && Object.isFrozen(row.result),
+        ok: row.result.ok,
+      })),
+    });
+  }
+
+  const throwingIndexCall = toolCall(
+    "throwing-index",
+    "mixed-metadata",
+    "{}",
+    1,
+  );
+  Object.defineProperty(throwingIndexCall, "outputIndex", {
+    enumerable: true,
+    get() {
+      throw new Error("PRIVATE-OUTPUT-INDEX-GETTER");
+    },
+  });
+  const unreadableCallId = toolCall(
+    "placeholder",
+    "mixed-metadata",
+    "{}",
+    1,
+  );
+  Object.defineProperty(unreadableCallId, "callId", {
+    enumerable: true,
+    get() {
+      throw new Error("PRIVATE-CALL-ID-GETTER");
+    },
+  });
+  const getterHandled = [];
+  const getterConcierge = conciergeFor([
+    action("mixed-metadata", ({ meta }) => {
+      getterHandled.push(meta.callId);
+      return successful(meta.callId);
+    }),
+  ]);
+  const getterRows = await getterConcierge.dispatchBatch(
+    ACTIVE_CONTEXT,
+    toolBatch([
+      throwingIndexCall,
+      unreadableCallId,
+      toolCall("getter-valid", "mixed-metadata", "{}", 0),
+    ]),
+  );
+
+  expect(
+    {
+      getterHandled,
+      getterRows: getterRows.map((row) => ({
+        callId: row.callId,
+        frozen: Object.isFrozen(row) && Object.isFrozen(row.result),
+        ok: row.result.ok,
+      })),
+      observations,
+    },
+    "[RED:Q18:malformed-sort-totality]",
+  ).toEqual({
+    getterHandled: ["getter-valid"],
+    getterRows: [
+      { callId: "getter-valid", frozen: true, ok: true },
+      {
+        callId: "[concierge:unobservable-call-id:1]",
+        frozen: true,
+        ok: false,
+      },
+      { callId: "throwing-index", frozen: true, ok: false },
+    ],
+    observations: scenarios.map((scenario, scenarioIndex) => ({
+      handled: [`valid-${scenarioIndex}`],
+      rows: [
+        { callId: `valid-${scenarioIndex}`, frozen: true, ok: true },
+        { callId: scenario.callId, frozen: true, ok: false },
+      ],
+    })),
+  });
+});
+
+it("[Q19] contains throwing batch metadata as one row per observable call", async () => {
+  let handlerCalls = 0;
+  const concierge = conciergeFor([
+    action("batch-metadata", () => {
+      handlerCalls += 1;
+      return successful();
+    }),
+  ]);
+  const batch = toolBatch([
+    toolCall("second", "batch-metadata", "{}", 1),
+    toolCall("first", "batch-metadata", "{}", 0),
+  ]);
+  Object.defineProperty(batch, "responseId", {
+    enumerable: true,
+    get() {
+      throw new Error("PRIVATE-BATCH-RESPONSE-ID-GETTER");
+    },
+  });
+
+  const rows = await concierge.dispatchBatch(ACTIVE_CONTEXT, batch);
+
+  expect(
+    {
+      containerFrozen: Object.isFrozen(rows),
+      handlerCalls,
+      rows: rows.map((row) => ({
+        callId: row.callId,
+        frozen: Object.isFrozen(row) && Object.isFrozen(row.result),
+        result: row.result,
+      })),
+    },
+    "[RED:Q19:throwing-batch-metadata-totality]",
+  ).toEqual({
+    containerFrozen: true,
+    handlerCalls: 0,
+    rows: [
+      {
+        callId: "first",
+        frozen: true,
+        result: {
+          ok: false,
+          message: "The invocation metadata is invalid.",
+        },
+      },
+      {
+        callId: "second",
+        frozen: true,
+        result: {
+          ok: false,
+          message: "The invocation metadata is invalid.",
+        },
+      },
+    ],
+  });
+});

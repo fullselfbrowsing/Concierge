@@ -1770,6 +1770,9 @@ export interface Concierge {
    * Calls are copied and stably ordered by `outputIndex`. The returned array
    * and every inline `{ callId, result }` correlation row are immutable, and
    * cancellation still returns an `aborted` row for every call that remains.
+   * Runtime-malformed calls with an unreadable `callId` getter receive the
+   * deterministic string `[concierge:unobservable-call-id:N]`, where `N` is
+   * their original position. Observable malformed ids are preserved verbatim.
    */
   dispatchBatch: (ctx: StageContext, batch: ToolBatch) => Promise<ReadonlyArray<Readonly<{ callId: string; result: ActionResult }>>>;
   /**
