@@ -406,6 +406,40 @@ async function withFakeNow(initial, run) {
     ]);
   });
 
+  it("[R06c] runs equal aliased graphs without throwing or deduplicating", async () => {
+    let calls = 0;
+    const concierge = conciergeFor([
+      action("aliased", () => {
+        calls += 1;
+        return successful();
+      }),
+    ]);
+    const firstShared = { value: 1 };
+    const secondShared = { value: 1 };
+    let first;
+    let second;
+    let threw = false;
+
+    try {
+      first = concierge.dispatch(ACTIVE_CONTEXT, "aliased", {
+        left: firstShared,
+        right: firstShared,
+      });
+      second = concierge.dispatch(ACTIVE_CONTEXT, "aliased", {
+        left: secondShared,
+        right: secondShared,
+      });
+    } catch {
+      threw = true;
+    }
+    await Promise.all([first, second].filter(Boolean));
+
+    expect(
+      { calls, same: first === second, threw },
+      "[RED:R06c:aliased-graph-no-dedup]",
+    ).toEqual({ calls: 2, same: false, threw: false });
+  });
+
   it("[R07] keeps deduplication state isolated per Concierge instance", async () => {
     let firstCalls = 0;
     let secondCalls = 0;
