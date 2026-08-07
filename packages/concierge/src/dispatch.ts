@@ -185,10 +185,60 @@ function canonicalInvocationValue(
   ];
 }
 
-/** Serialize a detached invocation tree without JSON's lossy coercions. */
+/** Frame one string without consulting any value or prototype serializer. */
+function encodeString(value: string): string {
+  return `${value.length}:${value}`;
+}
+
+/** Encode the tagged tree with fixed tags and length-prefixed payloads. */
+function encodeCanonicalValue(value: CanonicalValue): string {
+  switch (value[0]) {
+    case "undefined":
+      return "u";
+    case "null":
+      return "z";
+    case "boolean":
+      return value[1] ? "b1" : "b0";
+    case "string":
+      return `s${encodeString(value[1])}`;
+    case "number":
+      return `n${encodeString(value[1])}`;
+    case "array": {
+      let payload: string = "";
+      for (let index: number = 0; index < value[1].length; index += 1) {
+        const item: CanonicalValue | readonly ["hole"] | undefined =
+          value[1][index];
+        if (item === undefined) {
+          throw new TypeError("Canonical arrays must be dense.");
+        }
+        payload +=
+          item[0] === "hole"
+            ? "h"
+            : `v${encodeString(encodeCanonicalValue(item))}`;
+      }
+      return `a${encodeString(payload)}`;
+    }
+    case "object": {
+      let payload: string = value[1] === "plain" ? "p" : "n";
+      for (let index: number = 0; index < value[2].length; index += 1) {
+        const entry: readonly [string, CanonicalValue] | undefined =
+          value[2][index];
+        if (entry === undefined) {
+          throw new TypeError("Canonical object entries must be dense.");
+        }
+        payload += `k${encodeString(entry[0])}v${encodeString(
+          encodeCanonicalValue(entry[1]),
+        )}`;
+      }
+      return `o${encodeString(payload)}`;
+    }
+  }
+}
+
+/** Serialize a detached invocation tree without dynamic JSON/toJSON lookup. */
 function encodeInvocationValue(value: unknown): string | null {
   try {
-    return JSON.stringify(
+    return encodeCanonicalValue(
       canonicalInvocationValue(value, new WeakSet<object>()),
     );
   } catch {
@@ -228,7 +278,7 @@ export function deriveDispatchKey(
     return null;
   }
   const scope: string = authorizationScope === null ? "cross" : String(authorizationScope);
-  return `args:${JSON.stringify([scope, name, encodedArgs])}`;
+  return `args:${encodeString(scope)}${encodeString(name)}${encodeString(encodedArgs)}`;
 }
 
 // ---------------------------------------------------------------------------

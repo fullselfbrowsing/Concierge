@@ -349,6 +349,63 @@ async function withFakeNow(initial, run) {
     ]);
   });
 
+  it("[R06b] ignores inherited toJSON hooks when deriving fallback keys", async () => {
+    const observations = [];
+    const prototypes = [Array.prototype, Object.prototype];
+
+    for (const prototype of prototypes) {
+      const descriptor = Object.getOwnPropertyDescriptor(prototype, "toJSON");
+      let calls = 0;
+      try {
+        Object.defineProperty(prototype, "toJSON", {
+          configurable: true,
+          value() {
+            return "polluted";
+          },
+          writable: true,
+        });
+        const concierge = conciergeFor([
+          action("pollution-safe", () => {
+            calls += 1;
+            return successful();
+          }),
+        ]);
+        const first = concierge.dispatch(
+          ACTIVE_CONTEXT,
+          "pollution-safe",
+          { value: 1 },
+        );
+        const distinct = concierge.dispatch(
+          ACTIVE_CONTEXT,
+          "pollution-safe",
+          { value: 2 },
+        );
+        const equal = concierge.dispatch(
+          ACTIVE_CONTEXT,
+          "pollution-safe",
+          { value: 1 },
+        );
+        await Promise.all([first, distinct, equal]);
+        observations.push({
+          calls,
+          distinctSeparated: first !== distinct,
+          equalDeduplicated: first === equal,
+        });
+      } finally {
+        if (descriptor === undefined) {
+          delete prototype.toJSON;
+        } else {
+          Object.defineProperty(prototype, "toJSON", descriptor);
+        }
+      }
+    }
+
+    expect(observations, "[RED:R06b:prototype-safe-fallback-keys]").toEqual([
+      { calls: 2, distinctSeparated: true, equalDeduplicated: true },
+      { calls: 2, distinctSeparated: true, equalDeduplicated: true },
+    ]);
+  });
+
   it("[R07] keeps deduplication state isolated per Concierge instance", async () => {
     let firstCalls = 0;
     let secondCalls = 0;
