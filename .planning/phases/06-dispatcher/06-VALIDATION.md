@@ -56,10 +56,10 @@ Use `pnpm exec vitest run <file>` for filtering—`pnpm test -- <name>` does not
 | 06-06-T1 | 06-06 | 5 | SEC-06 | T-06-Injection | Every outbound message strips controls, collapses whitespace, caps length, and preserves surrogate pairs | security runtime + mutation | `node scripts/phase-06-mutation-battery.mjs verify single` | ✅ | ✅ green |
 | 06-06-T2 | 06-06 | 5 | TRN-04 | T-06-Coupling | Single and batch dispatch run without constructing a transport | integration + mutation | `node scripts/phase-06-mutation-battery.mjs verify all` | ✅ | ✅ green |
 | 06-07-T1 | 06-07 | 6 | DSP-01, DSP-07 | T-06-G01 | R68 + Q17 prove malformed-metadata totality and correlation | security runtime | dispatcher quick run | ✅ | ✅ green |
-| 06-07-T2 | 06-07 | 6 | DSP-02 | T-06-G02 | R06 proves BigInt no-dedup without a synchronous throw | security runtime | dispatcher quick run | ✅ | ✅ green |
+| 06-07-T2 | 06-07 | 6 | DSP-02 | T-06-G02 | R06 + R69 prove BigInt and aliased-graph no-dedup without a synchronous throw | security runtime | dispatcher quick run | ✅ | ✅ green |
 | 06-07-T3 | 06-07 | 6 | DSP-06 | T-06-G03 | Q04 proves empty-object validation before later calls continue | integration | dispatcher quick run | ✅ | ✅ green |
-| 06-08-T1 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07 | T-06-G05 | 57-row register with bounded range self-tests and ledger self-tests | mutation infrastructure | `node scripts/phase-06-mutation-battery.mjs self-test` | ✅ | ✅ green |
-| 06-08-T2 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07 | T-06-G05 | 57/57 compiled mutants killed by exact detectors and verify all | mutation | `node scripts/phase-06-mutation-battery.mjs verify all` | ✅ | ✅ green |
+| 06-08-T1 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07 | T-06-G05 | 61-row register with bounded range self-tests and ledger self-tests | mutation infrastructure | `node scripts/phase-06-mutation-battery.mjs self-test` | ✅ | ✅ green |
+| 06-08-T2 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07 | T-06-G05 | 61/61 compiled mutants killed by exact detectors and verify all | mutation | `node scripts/phase-06-mutation-battery.mjs verify all` | ✅ | ✅ green |
 | 06-08-T3 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07, SEC-02 | T-06-G06, T-06-G07, T-06-G08 | Final release gates plus verify ledgers against live totals | release + ledger audit | `node scripts/phase-06-mutation-battery.mjs verify ledgers` | ✅ | ✅ green |
 
 *Measured status: every row is green.*
@@ -78,15 +78,19 @@ Use `pnpm exec vitest run <file>` for filtering—`pnpm test -- <name>` does not
 
 | Register | Digest | Counts | Result |
 |----------|--------|--------|--------|
-| Current immutable register | `85d7ee73720ef63201744610af48d903b89ca5b1d849d5a1ca1d5c77250e55f5` | 36/36 single; 21/21 batch; 57/57 total; 0 pending | ✅ compiled, exact named detector fired, restored gates green, scoped tree clean |
+| Current immutable register | `af67056a6f683327a252986155c28be5a944d53e17866cc8d4e65ca3481152b3` | 37/37 single; 24/24 batch; 61/61 total; 0 pending | ✅ compiled, exact named detector fired, restored gates green, scoped tree clean |
 
 ### Gap-Closure Detector Evidence
 
 | Detector | Marker | Contract |
 |----------|--------|----------|
 | R68 | `[RED:R68:malformed-metadata-totality]` | Malformed metadata is total and returns one honest result without handler entry. |
+| R06b | `[RED:R06b:prototype-safe-fallback-keys]` | Inherited `toJSON` hooks cannot collapse distinct fallback keys. |
+| R69 | `[RED:R69:aliased-graph-no-dedup]` | Equal aliased graphs run independently without a synchronous throw or accidental deduplication. |
 | Q17 | `[RED:Q17:malformed-callid-correlation]` | Malformed callId retains one frozen correlated row instead of rejecting the batch. |
 | Q16 | `[RED:Q16:immutable-nested-result]` | Immutable nested result identity is preserved across cached retries. |
+| Q18 | `[RED:Q18:malformed-sort-totality]` | Non-finite and non-number sort metadata is contained while valid calls still run. |
+| Q19 | `[RED:Q19:throwing-batch-metadata-totality]` | Throwing batch and call metadata getters remain row-local and cannot reject the batch. |
 
 ---
 
@@ -103,17 +107,17 @@ Measured on 2026-08-07 with the exact chained phase command. Every command exite
 
 | Gate | Headline evidence | Result |
 |------|-------------------|--------|
-| Immutable mutation register | Digest `85d7ee73720ef63201744610af48d903b89ca5b1d849d5a1ca1d5c77250e55f5`; 57/57 compiled mutants killed; 57 named tests ran; 57 restored gates and scoped-tree checks green | ✅ |
+| Immutable mutation register | Digest `af67056a6f683327a252986155c28be5a944d53e17866cc8d4e65ca3481152b3`; 61/61 compiled mutants killed; 61 named tests ran; 61 restored gates and scoped-tree checks green | ✅ |
 | No-telemetry AST audit | TypeScript `createSourceFile` parsed 11/11 production files; required result-path files present; 0 executable channel, emission, or caught-value findings. Positive controls adding a `telemetry` identifier and a catch binding each fired, then restored clean | ✅ |
-| `pnpm build` | 4 artifacts, 663.61 kB total; Build complete; embedded ATTW and publint checks clean | ✅ |
+| `pnpm build` | 4 artifacts, 685.08 kB total; Build complete; embedded ATTW and publint checks clean | ✅ |
 | `pnpm typecheck` | `tsc -p tsconfig.test-d.json`; exit 0 | ✅ |
-| `pnpm test` | 12 test files passed; 244/244 tests passed; 0 pending; 0 todo | ✅ |
+| `pnpm test` | 12 test files passed; 248/248 tests passed; 0 pending; 0 todo | ✅ |
 | `pnpm check:artifact` | publint strict: All good; ATTW ESM and JSON profiles green | ✅ |
 | `pnpm check:deps` | 1 built chunk / 1 module; no vendored modules or external runtime imports; dependency ESM entries contribute 0 bytes | ✅ |
 | `pnpm check:pack` | Foreign scratch install, declaration typecheck with TypeScript 7.0.2, and runtime import passed | ✅ |
 | `pnpm check:node-floor` | Packed artifact installed and imported on pinned Node v22.12.0 | ✅ |
 | Test isolation audit | 0 Vitest/Jest mocking API findings in either dispatcher suite | ✅ |
-| Mutation restoration audit | Production source, dispatcher tests, type tests, manifests, and lockfile clean after all probes | ✅ |
+| Mutation restoration audit | All `packages/concierge` source, tests, fixtures, mutation scripts, workspace manifests, and lockfile clean after all probes | ✅ |
 
 ---
 

@@ -162,12 +162,12 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | CAT-06 | Phase 3 — Action declaration and build-time validation | Complete |
 | CAT-07 | Phase 3 — Action declaration and build-time validation | Complete |
 | DSP-01 | Phase 6 — Dispatcher | Complete — R01/R02 prove valid string callIds retain exact same-Promise identity and failure reuse; R68 proves malformed metadata is contained as one honest result rather than being deduplicated or escaping. M-06-S01…S04/S35 discriminate these boundaries. |
-| DSP-02 | Phase 6 — Dispatcher | Complete — R05/R06 prove equal cyclic, aliased, and BigInt arguments do not throw and do not deduplicate; R06a retains injective collision evidence for keyable values. M-06-S07/S36 discriminate the no-dedup boundary. |
+| DSP-02 | Phase 6 — Dispatcher | Complete — R05/R06/R69 prove cyclic, BigInt, and equal aliased arguments do not throw and do not deduplicate; R06a/R06b retain injective, prototype-safe collision evidence for keyable values. M-06-S07/S36/S37 discriminate the no-dedup boundary. |
 | DSP-03 | Phase 6 — Dispatcher | Complete — R34…R36 prove sync throws and rejections return only the generic authored result and leak no marker to result or console; M-06-S25 kills exception echo. |
 | DSP-04 | Phase 6 — Dispatcher | Complete — R09…R12 prove prototype names, absent handlers, and non-callable handlers settle honestly without entering application code. |
 | DSP-05 | Phase 6 — Dispatcher | Complete — R13…R18 prove sync/async validation, transformed arguments, and contained validator failures; M-06-S16/S17 kill bypass and original-argument regressions. |
-| DSP-06 | Phase 6 — Dispatcher | Complete — Q04 proves malformed JSON becomes an empty object, reaches action validation, is rejected by the schema, and later calls continue; Q05 keeps valid primitives intact. M-06-B05/B06 kill uncaught-parse and validation-bypass regressions. |
-| DSP-07 | Phase 6 — Dispatcher | Complete — Q01…Q03 and Q07…Q15 prove copied stable ordering, strict seriality, correlation, abort completeness, and dedup reuse; Q17 proves malformed call metadata still yields one correlated row, while Q16 proves immutable nested batch results across cached retries. M-06-B01…B04 and B13…B21 discriminate those boundaries. |
+| DSP-06 | Phase 6 — Dispatcher | Complete — Q04 proves malformed JSON becomes an empty object, reaches rejecting and defaulting validation, cannot enter the handler, and later calls continue; Q05 keeps valid primitives intact. M-06-B05/B06 kill uncaught-parse and provenance-bypass regressions. |
+| DSP-07 | Phase 6 — Dispatcher | Complete — Q01…Q03 and Q07…Q19 prove copied stable ordering, strict seriality, correlation, abort completeness, dedup reuse, and row-local containment of malformed metadata; Q17 proves malformed call metadata still yields one correlated row, while Q16 proves immutable nested batch results across cached retries. M-06-B01…B24 discriminate those boundaries, including exact B22→Q16 and B23/B24→Q17 mappings. |
 | DSP-08 | Phase 6 — Dispatcher | Complete — R20…R33 and Q10…Q12 prove both 600 ms defaults, settlement-based expiry, commit waits, abort cancellation, cleanup, and scheduler fallback; M-06-S12/S13/S18…S23 kill timing and cleanup regressions. |
 | DSP-09 | Phase 6 — Dispatcher | Complete — R37…R45 normalize scalars, null, bad fields/getters/proxies/reasons, strip extras, and preserve the closed reason vocabulary; M-06-S26…S29 kill pass-through and contradiction regressions. |
 | BRG-01 | Phase 5 — Bridge registry and the no-bridge path | Complete — all thirteen mount/unmount orderings asserted against `dist/index.js`; discrimination proven by M-05-1 and M-05-2. Evidence: 05-04 B1–B13, 05-07 mutation battery |
@@ -196,7 +196,7 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | TRN-01 | Phase 1 — Type surface completion | Complete |
 | TRN-02 | Phase 7 — Session and the transport seam | Pending |
 | TRN-03 | Phase 8 — Consent kernel | Pending |
-| TRN-04 | Phase 6 — Dispatcher | Complete — R19 drives one action and Q14 drives a batch directly from an application loop without constructing a Transport; the complete 57-row mutation register remains green. |
+| TRN-04 | Phase 6 — Dispatcher | Complete — R19 drives one action and Q14 drives a batch directly from an application loop without constructing a Transport; the complete 61-row mutation register remains green. |
 | TRN-05 | Phase 1 — Type surface completion | Complete |
 | ADP-01 | Phase 9 — React and Svelte adapters | Pending |
 | ADP-02 | Phase 9 — React and Svelte adapters | Pending |
