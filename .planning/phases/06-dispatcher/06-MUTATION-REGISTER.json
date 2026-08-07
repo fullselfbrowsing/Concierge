@@ -61,7 +61,10 @@
     "M-06-B18",
     "M-06-B19",
     "M-06-B20",
-    "M-06-B21"
+    "M-06-B21",
+    "M-06-B22",
+    "M-06-B23",
+    "M-06-B24"
   ],
   "expectedIds": [
     "M-06-S01",
@@ -121,9 +124,12 @@
     "M-06-B18",
     "M-06-B19",
     "M-06-B20",
-    "M-06-B21"
+    "M-06-B21",
+    "M-06-B22",
+    "M-06-B23",
+    "M-06-B24"
   ],
-  "registerDigest": "3604cf2184d8a8bdaef477d82a10836f9d84e80992ffb4318ad90fb57dae12c9",
+  "registerDigest": "2c71818bd1e8ffa0ed0c76e81c545d896a95f171a612f6f12969af86eac31c90",
   "mutants": [
     {
       "id": "M-06-S01",
@@ -1269,6 +1275,66 @@
       "target": "packages/concierge/src/concierge.ts",
       "literalPattern": "    if (\n      (responseId !== undefined && typeof responseId !== \"string\") ||\n      (userTurnId !== undefined && typeof userTurnId !== \"string\") ||\n      (callId !== undefined && typeof callId !== \"string\") ||\n      (outputIndex !== undefined &&\n        (typeof outputIndex !== \"number\" || !Number.isFinite(outputIndex))) ||\n      (signal !== undefined && !isAbortSignalLike(signal)) ||\n      (deferUntilDelivered !== undefined &&\n        typeof deferUntilDelivered !== \"function\")\n    ) {\n      return { ok: false };\n    }",
       "replacement": "    if (false) {\n      return { ok: false };\n    }",
+      "detectorKind": "vitest",
+      "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
+      "intendedCaseIds": [
+        "Q17"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q17",
+          "marker": "[RED:Q17:malformed-callid-correlation]"
+        }
+      ],
+      "expectedTypeDiagnostics": []
+    },
+    {
+      "id": "M-06-B22",
+      "group": "batch",
+      "name": "batch rows clone cached nested results",
+      "target": "packages/concierge/src/dispatch.ts",
+      "literalPattern": "  return Object.freeze({ callId, result });",
+      "replacement": "  return Object.freeze({\n    callId,\n    result: Object.freeze({ ...result }) as ActionResult,\n  });",
+      "detectorKind": "vitest",
+      "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
+      "intendedCaseIds": [
+        "Q16"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q16",
+          "marker": "[RED:Q16:immutable-nested-result]"
+        }
+      ],
+      "expectedTypeDiagnostics": []
+    },
+    {
+      "id": "M-06-B23",
+      "group": "batch",
+      "name": "batch rows coerce malformed correlation ids",
+      "target": "packages/concierge/src/dispatch.ts",
+      "literalPattern": "  return Object.freeze({ callId, result });",
+      "replacement": "  return Object.freeze({ callId: String(callId), result });",
+      "detectorKind": "vitest",
+      "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
+      "intendedCaseIds": [
+        "Q17"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q17",
+          "marker": "[RED:Q17:malformed-callid-correlation]"
+        }
+      ],
+      "expectedTypeDiagnostics": []
+    },
+    {
+      "id": "M-06-B24",
+      "group": "batch",
+      "name": "malformed batch calls are dropped instead of correlated",
+      "target": "packages/concierge/src/dispatch.ts",
+      "literalPattern": "    if (!batchSnapshot.ok || !call.ok) {\n      result = authoredResult(false, \"The invocation metadata is invalid.\");\n    } else if (isAborted(batchSnapshot.signal)) {",
+      "replacement": "    if (!batchSnapshot.ok || !call.ok) {\n      continue;\n    } else if (isAborted(batchSnapshot.signal)) {",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "phase": "06-dispatcher",
-  "registerDigest": "3604cf2184d8a8bdaef477d82a10836f9d84e80992ffb4318ad90fb57dae12c9",
+  "registerDigest": "2c71818bd1e8ffa0ed0c76e81c545d896a95f171a612f6f12969af86eac31c90",
   "expectedIds": [
     "M-06-S01",
     "M-06-S02",
@@ -60,9 +60,12 @@
     "M-06-B18",
     "M-06-B19",
     "M-06-B20",
-    "M-06-B21"
+    "M-06-B21",
+    "M-06-B22",
+    "M-06-B23",
+    "M-06-B24"
   ],
-  "updatedAt": "2026-08-07T18:59:51.316Z",
+  "updatedAt": "2026-08-07T19:01:05.998Z",
   "rows": [
     {
       "id": "M-06-S01",
@@ -2003,6 +2006,108 @@
       "id": "M-06-B21",
       "group": "batch",
       "target": "packages/concierge/src/concierge.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q17"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q17",
+          "marker": "[RED:Q17:malformed-callid-correlation]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B22",
+      "group": "batch",
+      "target": "packages/concierge/src/dispatch.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q16"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q16",
+          "marker": "[RED:Q16:immutable-nested-result]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B23",
+      "group": "batch",
+      "target": "packages/concierge/src/dispatch.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "Q17"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q17",
+          "marker": "[RED:Q17:malformed-callid-correlation]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "expectedTypeDiagnostics": [],
+      "observedTypeDiagnostics": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-06-B24",
+      "group": "batch",
+      "target": "packages/concierge/src/dispatch.ts",
       "detectorKind": "vitest",
       "status": "pending",
       "executed": false,

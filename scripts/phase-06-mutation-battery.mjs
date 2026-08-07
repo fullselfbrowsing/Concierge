@@ -84,7 +84,7 @@ export const EXPECTED_SINGLE_IDS = Object.freeze(
   ),
 );
 export const EXPECTED_BATCH_IDS = Object.freeze(
-  Array.from({ length: 21 }, (_, index) =>
+  Array.from({ length: 24 }, (_, index) =>
     `M-06-B${String(index + 1).padStart(2, "0")}`,
   ),
 );
@@ -236,6 +236,12 @@ const REQUIRED_TRACEABILITY = Object.freeze([
 const R68_MARKER = "[RED:R68:malformed-metadata-totality]";
 const Q17_MARKER = "[RED:Q17:malformed-callid-correlation]";
 const Q16_MARKER = "[RED:Q16:immutable-nested-result]";
+const REQUIRED_MUTANT_CASE_MAPPINGS = Object.freeze([
+  Object.freeze({ id: "M-06-S37", intendedCaseIds: Object.freeze(["R69"]) }),
+  Object.freeze({ id: "M-06-B22", intendedCaseIds: Object.freeze(["Q16"]) }),
+  Object.freeze({ id: "M-06-B23", intendedCaseIds: Object.freeze(["Q17"]) }),
+  Object.freeze({ id: "M-06-B24", intendedCaseIds: Object.freeze(["Q17"]) }),
+]);
 
 function failureMarkerForCase(testFile, caseId) {
   const source = readFileSync(join(ROOT, testFile), "utf8");
@@ -1217,6 +1223,46 @@ const MUTANTS = Object.freeze([
     ),
     intendedCaseIds: ["Q17"],
   }),
+  runtimeMutant({
+    id: "M-06-B22",
+    group: "batch",
+    name: "batch rows clone cached nested results",
+    target: "packages/concierge/src/dispatch.ts",
+    literalPattern: "  return Object.freeze({ callId, result });",
+    replacement: lines(
+      "  return Object.freeze({",
+      "    callId,",
+      "    result: Object.freeze({ ...result }) as ActionResult,",
+      "  });",
+    ),
+    intendedCaseIds: ["Q16"],
+  }),
+  runtimeMutant({
+    id: "M-06-B23",
+    group: "batch",
+    name: "batch rows coerce malformed correlation ids",
+    target: "packages/concierge/src/dispatch.ts",
+    literalPattern: "  return Object.freeze({ callId, result });",
+    replacement: "  return Object.freeze({ callId: String(callId), result });",
+    intendedCaseIds: ["Q17"],
+  }),
+  runtimeMutant({
+    id: "M-06-B24",
+    group: "batch",
+    name: "malformed batch calls are dropped instead of correlated",
+    target: "packages/concierge/src/dispatch.ts",
+    literalPattern: lines(
+      "    if (!batchSnapshot.ok || !call.ok) {",
+      "      result = authoredResult(false, \"The invocation metadata is invalid.\");",
+      "    } else if (isAborted(batchSnapshot.signal)) {",
+    ),
+    replacement: lines(
+      "    if (!batchSnapshot.ok || !call.ok) {",
+      "      continue;",
+      "    } else if (isAborted(batchSnapshot.signal)) {",
+    ),
+    intendedCaseIds: ["Q17"],
+  }),
 ]);
 
 const MUTANT_BY_ID = new Map(MUTANTS.map((mutant) => [mutant.id, mutant]));
@@ -1534,6 +1580,22 @@ function exactTypeDiagnosticSet(output, expectedDiagnostics) {
   };
 }
 
+function validateRequiredMutantCaseMappings(mutants) {
+  const byId = new Map(mutants.map((mutant) => [mutant.id, mutant]));
+  for (const expected of REQUIRED_MUTANT_CASE_MAPPINGS) {
+    const observed = byId.get(expected.id);
+    if (
+      observed === undefined ||
+      JSON.stringify(observed.intendedCaseIds) !==
+        JSON.stringify(expected.intendedCaseIds)
+    ) {
+      throw new Error(
+        `${expected.id}: intendedCaseIds must equal ${JSON.stringify(expected.intendedCaseIds)}`,
+      );
+    }
+  }
+}
+
 function validateDefinitions() {
   const ids = MUTANTS.map((mutant) => mutant.id);
   if (JSON.stringify(ids) !== JSON.stringify(EXPECTED_M06_IDS)) {
@@ -1575,6 +1637,7 @@ function validateDefinitions() {
       throw new Error(`${mutant.id}: type detector has no exact diagnostic`);
     }
   }
+  validateRequiredMutantCaseMappings(MUTANTS);
 }
 
 function makeRegister() {
@@ -3042,7 +3105,7 @@ function selfTest() {
     ["M-06-S01", "M-06-S01", 1],
     ["M-06-S01", "M-06-S04", 4],
     ["M-06-S34", "M-06-S37", 4],
-    ["M-06-B21", "M-06-B21", 1],
+    ["M-06-B21", "M-06-B24", 4],
   ]) {
     const selected = selectMutantRange(firstId, lastId);
     if (selected.length !== expectedLength) {
@@ -3067,6 +3130,21 @@ function selfTest() {
     if (!rejected) {
       throw new Error(`range selector accepted ${name} counterexample`);
     }
+  }
+
+  const malformedMapping = MUTANTS.map((candidate) =>
+    candidate.id === "M-06-B22"
+      ? { ...candidate, intendedCaseIds: Object.freeze(["Q17"]) }
+      : candidate,
+  );
+  let malformedMappingRejected = false;
+  try {
+    validateRequiredMutantCaseMappings(malformedMapping);
+  } catch {
+    malformedMappingRejected = true;
+  }
+  if (!malformedMappingRejected) {
+    throw new Error("required Q16/Q17 mutant mapping accepted a counterexample");
   }
 
   const ledger = selfTestLedgerSnapshot();
