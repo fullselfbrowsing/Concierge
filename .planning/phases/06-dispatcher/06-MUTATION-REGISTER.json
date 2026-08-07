@@ -38,7 +38,8 @@
     "M-06-S34",
     "M-06-S35",
     "M-06-S36",
-    "M-06-S37"
+    "M-06-S37",
+    "M-06-S38"
   ],
   "expectedBatchIds": [
     "M-06-B01",
@@ -104,6 +105,7 @@
     "M-06-S35",
     "M-06-S36",
     "M-06-S37",
+    "M-06-S38",
     "M-06-B01",
     "M-06-B02",
     "M-06-B03",
@@ -129,7 +131,7 @@
     "M-06-B23",
     "M-06-B24"
   ],
-  "registerDigest": "af67056a6f683327a252986155c28be5a944d53e17866cc8d4e65ca3481152b3",
+  "registerDigest": "ce136d9ef7cdefd7429b4ea8484e738e14e34cbc8bb7525476aa38d58e80be52",
   "mutants": [
     {
       "id": "M-06-S01",
@@ -864,6 +866,31 @@
         {
           "caseId": "R69",
           "marker": "[RED:R69:aliased-graph-no-dedup]"
+        }
+      ],
+      "expectedTypeDiagnostics": []
+    },
+    {
+      "id": "M-06-S38",
+      "group": "single",
+      "name": "synchronous scheduler callbacks settle before registration is validated",
+      "target": "packages/concierge/src/dispatch.ts",
+      "literalPattern": "        (): void => {\n          if (!registrationComplete) {\n            firedDuringRegistration = true;\n            return;\n          }\n          settle(\"ready\", false);\n        },",
+      "replacement": "        (): void => {\n          settle(\"ready\", false);\n        },",
+      "detectorKind": "vitest",
+      "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
+      "intendedCaseIds": [
+        "R71",
+        "R72"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R71",
+          "marker": "[RED:R71:malformed-sync-scheduler-return]"
+        },
+        {
+          "caseId": "R72",
+          "marker": "[RED:R72:throwing-sync-scheduler-registration]"
         }
       ],
       "expectedTypeDiagnostics": []

@@ -58,8 +58,8 @@ Use `pnpm exec vitest run <file>` for filtering—`pnpm test -- <name>` does not
 | 06-07-T1 | 06-07 | 6 | DSP-01, DSP-07 | T-06-G01 | R68 + Q17 prove malformed-metadata totality and correlation | security runtime | dispatcher quick run | ✅ | ✅ green |
 | 06-07-T2 | 06-07 | 6 | DSP-02 | T-06-G02 | R06 + R69 prove BigInt and aliased-graph no-dedup without a synchronous throw | security runtime | dispatcher quick run | ✅ | ✅ green |
 | 06-07-T3 | 06-07 | 6 | DSP-06 | T-06-G03 | Q04 proves empty-object validation before later calls continue | integration | dispatcher quick run | ✅ | ✅ green |
-| 06-08-T1 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07 | T-06-G05 | 61-row register with bounded range self-tests and ledger self-tests | mutation infrastructure | `node scripts/phase-06-mutation-battery.mjs self-test` | ✅ | ✅ green |
-| 06-08-T2 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07 | T-06-G05 | 61/61 compiled mutants killed by exact detectors and verify all | mutation | `node scripts/phase-06-mutation-battery.mjs verify all` | ✅ | ✅ green |
+| 06-08-T1 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07 | T-06-G05 | 62-row register with bounded range self-tests and ledger self-tests | mutation infrastructure | `node scripts/phase-06-mutation-battery.mjs self-test` | ✅ | ✅ green |
+| 06-08-T2 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07 | T-06-G05 | 62/62 compiled mutants killed by exact detectors and verify all | mutation | `node scripts/phase-06-mutation-battery.mjs verify all` | ✅ | ✅ green |
 | 06-08-T3 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07, SEC-02 | T-06-G06, T-06-G07, T-06-G08 | Final release gates plus verify ledgers against live totals | release + ledger audit | `node scripts/phase-06-mutation-battery.mjs verify ledgers` | ✅ | ✅ green |
 
 *Measured status: every row is green.*
@@ -78,7 +78,7 @@ Use `pnpm exec vitest run <file>` for filtering—`pnpm test -- <name>` does not
 
 | Register | Digest | Counts | Result |
 |----------|--------|--------|--------|
-| Current immutable register | `af67056a6f683327a252986155c28be5a944d53e17866cc8d4e65ca3481152b3` | 37/37 single; 24/24 batch; 61/61 total; 0 pending | ✅ compiled, exact named detector fired, restored gates green, scoped tree clean |
+| Current immutable register | `ce136d9ef7cdefd7429b4ea8484e738e14e34cbc8bb7525476aa38d58e80be52` | 38/38 single; 24/24 batch; 62/62 total; 0 pending | ✅ compiled, exact named detector fired, restored gates green, scoped tree clean |
 
 ### Gap-Closure Detector Evidence
 
@@ -91,6 +91,8 @@ Use `pnpm exec vitest run <file>` for filtering—`pnpm test -- <name>` does not
 | Q16 | `[RED:Q16:immutable-nested-result]` | Immutable nested result identity is preserved across cached retries. |
 | Q18 | `[RED:Q18:malformed-sort-totality]` | Non-finite and non-number sort metadata is contained while valid calls still run. |
 | Q19 | `[RED:Q19:throwing-batch-metadata-totality]` | Throwing batch and call metadata getters remain row-local and cannot reject the batch. |
+| R71 | `[RED:R71:malformed-sync-scheduler-return]` | A synchronous callback cannot hide a scheduler that returns no callable canceller. |
+| R72 | `[RED:R72:throwing-sync-scheduler-registration]` | A synchronous callback cannot hide a scheduler that throws during registration. |
 
 ---
 
@@ -107,11 +109,11 @@ Measured on 2026-08-07 with the exact chained phase command. Every command exite
 
 | Gate | Headline evidence | Result |
 |------|-------------------|--------|
-| Immutable mutation register | Digest `af67056a6f683327a252986155c28be5a944d53e17866cc8d4e65ca3481152b3`; 61/61 compiled mutants killed; 61 named tests ran; 61 restored gates and scoped-tree checks green | ✅ |
+| Immutable mutation register | Digest `ce136d9ef7cdefd7429b4ea8484e738e14e34cbc8bb7525476aa38d58e80be52`; 62/62 compiled mutants killed; 63 named tests ran; 62 restored gates and scoped-tree checks green | ✅ |
 | No-telemetry AST audit | TypeScript `createSourceFile` parsed 11/11 production files; required result-path files present; 0 executable channel, emission, or caught-value findings. Positive controls adding a `telemetry` identifier and a catch binding each fired, then restored clean | ✅ |
-| `pnpm build` | 4 artifacts, 692.66 kB total; Build complete; embedded ATTW and publint checks clean | ✅ |
+| `pnpm build` | 4 artifacts, 693.41 kB total; Build complete; embedded ATTW and publint checks clean | ✅ |
 | `pnpm typecheck` | `tsc -p tsconfig.test-d.json`; exit 0 | ✅ |
-| `pnpm test` | 12 test files passed; 250/250 tests passed; 0 pending; 0 todo | ✅ |
+| `pnpm test` | 12 test files passed; 252/252 tests passed; 0 pending; 0 todo | ✅ |
 | `pnpm check:artifact` | publint strict: All good; ATTW ESM and JSON profiles green | ✅ |
 | `pnpm check:deps` | 1 built chunk / 1 module; no vendored modules or external runtime imports; dependency ESM entries contribute 0 bytes | ✅ |
 | `pnpm check:pack` | Foreign scratch install, declaration typecheck with TypeScript 7.0.2, and runtime import passed | ✅ |
