@@ -85,7 +85,7 @@ const SCOPED_PATHS = Object.freeze([
 ]);
 
 export const EXPECTED_SINGLE_IDS = Object.freeze(
-  Array.from({ length: 37 }, (_, index) =>
+  Array.from({ length: 38 }, (_, index) =>
     `M-06-S${String(index + 1).padStart(2, "0")}`,
   ),
 );
@@ -246,6 +246,8 @@ const Q17_MARKER = "[RED:Q17:malformed-callid-correlation]";
 const Q16_MARKER = "[RED:Q16:immutable-nested-result]";
 const Q18_MARKER = "[RED:Q18:malformed-sort-totality]";
 const Q19_MARKER = "[RED:Q19:throwing-batch-metadata-totality]";
+const R71_MARKER = "[RED:R71:malformed-sync-scheduler-return]";
+const R72_MARKER = "[RED:R72:throwing-sync-scheduler-registration]";
 const REQUIRED_DETECTOR_ROWS = Object.freeze([
   Object.freeze({
     id: "R68",
@@ -295,9 +297,27 @@ const REQUIRED_DETECTOR_ROWS = Object.freeze([
       "Throwing batch and call metadata getters remain row-local and cannot reject the batch.",
     testFile: BATCH_TEST,
   }),
+  Object.freeze({
+    id: "R71",
+    marker: R71_MARKER,
+    contract:
+      "A synchronous callback cannot hide a scheduler that returns no callable canceller.",
+    testFile: SINGLE_TEST,
+  }),
+  Object.freeze({
+    id: "R72",
+    marker: R72_MARKER,
+    contract:
+      "A synchronous callback cannot hide a scheduler that throws during registration.",
+    testFile: SINGLE_TEST,
+  }),
 ]);
 const REQUIRED_MUTANT_CASE_MAPPINGS = Object.freeze([
   Object.freeze({ id: "M-06-S37", intendedCaseIds: Object.freeze(["R69"]) }),
+  Object.freeze({
+    id: "M-06-S38",
+    intendedCaseIds: Object.freeze(["R71", "R72"]),
+  }),
   Object.freeze({ id: "M-06-B22", intendedCaseIds: Object.freeze(["Q16"]) }),
   Object.freeze({ id: "M-06-B23", intendedCaseIds: Object.freeze(["Q17"]) }),
   Object.freeze({ id: "M-06-B24", intendedCaseIds: Object.freeze(["Q17"]) }),
@@ -976,6 +996,27 @@ const MUTANTS = Object.freeze([
       "  }",
     ),
     intendedCaseIds: ["R69"],
+  }),
+  runtimeMutant({
+    id: "M-06-S38",
+    group: "single",
+    name: "synchronous scheduler callbacks settle before registration is validated",
+    target: "packages/concierge/src/dispatch.ts",
+    literalPattern: lines(
+      "        (): void => {",
+      "          if (!registrationComplete) {",
+      "            firedDuringRegistration = true;",
+      "            return;",
+      "          }",
+      "          settle(\"ready\", false);",
+      "        },",
+    ),
+    replacement: lines(
+      "        (): void => {",
+      "          settle(\"ready\", false);",
+      "        },",
+    ),
+    intendedCaseIds: ["R71", "R72"],
   }),
   runtimeMutant({
     id: "M-06-B01",
@@ -3330,7 +3371,7 @@ function selfTest() {
   for (const [firstId, lastId, expectedLength] of [
     ["M-06-S01", "M-06-S01", 1],
     ["M-06-S01", "M-06-S04", 4],
-    ["M-06-S34", "M-06-S37", 4],
+    ["M-06-S35", "M-06-S38", 4],
     ["M-06-B21", "M-06-B24", 4],
   ]) {
     const selected = selectMutantRange(firstId, lastId);
@@ -3344,7 +3385,7 @@ function selfTest() {
     ["empty", "", "M-06-S01"],
     ["unknown", "M-06-S00", "M-06-S01"],
     ["reversed", "M-06-S04", "M-06-S01"],
-    ["cross-group", "M-06-S37", "M-06-B01"],
+    ["cross-group", "M-06-S38", "M-06-B01"],
     ["five-mutant", "M-06-S01", "M-06-S05"],
   ]) {
     let rejected = false;

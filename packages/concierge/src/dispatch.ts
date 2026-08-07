@@ -510,6 +510,8 @@ export function waitForCommit(
     let listenerAttached: boolean = false;
     let cancel: (() => void) | null = null;
     let cancelWhenAvailable: boolean = false;
+    let firedDuringRegistration: boolean = false;
+    let registrationComplete: boolean = false;
 
     function detachListener(): void {
       if (!listenerAttached || signal === undefined) {
@@ -572,6 +574,10 @@ export function waitForCommit(
     try {
       const scheduledCancel: unknown = scheduler(
         (): void => {
+          if (!registrationComplete) {
+            firedDuringRegistration = true;
+            return;
+          }
           settle("ready", false);
         },
         delayMs,
@@ -583,8 +589,12 @@ export function waitForCommit(
       }
 
       cancel = scheduledCancel as () => void;
+      registrationComplete = true;
       if (cancelWhenAvailable) {
         cancelScheduledWork();
+      }
+      if (firedDuringRegistration && !settled) {
+        settle("ready", false);
       }
     } catch {
       settle("unavailable", false);

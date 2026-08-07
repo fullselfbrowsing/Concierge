@@ -1212,6 +1212,102 @@ async function withFakeNow(initial, run) {
     ).toEqual({ calls: 1, cancelCalls: 0, delays: [600], listeners: 0, ok: true });
   });
 
+  it("[R71] warns once when a synchronous scheduler callback precedes a malformed return", async () => {
+    let calls = 0;
+    const warnings = [];
+    const realWarn = console.warn;
+    console.warn = (...args) => warnings.push(args.map(String).join(" "));
+    const scheduler = (fn) => {
+      fn();
+      return undefined;
+    };
+
+    let results;
+    try {
+      const concierge = conciergeFor(
+        [
+          action(
+            "malformed-sync-scheduler",
+            () => {
+              calls += 1;
+              return successful();
+            },
+            { effects: { readOnly: false } },
+          ),
+        ],
+        { scheduler },
+      );
+      results = await Promise.all([
+        concierge.dispatch(ACTIVE_CONTEXT, "malformed-sync-scheduler", { attempt: 1 }),
+        concierge.dispatch(ACTIVE_CONTEXT, "malformed-sync-scheduler", { attempt: 2 }),
+      ]);
+    } finally {
+      console.warn = realWarn;
+    }
+
+    expect(
+      { calls, results, warnings },
+      "[RED:R71:malformed-sync-scheduler-return]",
+    ).toEqual({
+      calls: 2,
+      results: [
+        { ok: true, message: "Done." },
+        { ok: true, message: "Done." },
+      ],
+      warnings: [
+        "concierge: [commit_window_unavailable] config \"scheduler\": no cancellable timer is available, so the commit window was skipped. Fix: provide `ConciergeConfig.scheduler` in this host.",
+      ],
+    });
+  });
+
+  it("[R72] warns once when a synchronous scheduler callback precedes a throw", async () => {
+    let calls = 0;
+    const warnings = [];
+    const realWarn = console.warn;
+    console.warn = (...args) => warnings.push(args.map(String).join(" "));
+    const scheduler = (fn) => {
+      fn();
+      throw new Error("PRIVATE-SCHEDULER-REGISTRATION-THROW");
+    };
+
+    let results;
+    try {
+      const concierge = conciergeFor(
+        [
+          action(
+            "throwing-sync-scheduler",
+            () => {
+              calls += 1;
+              return successful();
+            },
+            { effects: { readOnly: false } },
+          ),
+        ],
+        { scheduler },
+      );
+      results = await Promise.all([
+        concierge.dispatch(ACTIVE_CONTEXT, "throwing-sync-scheduler", { attempt: 1 }),
+        concierge.dispatch(ACTIVE_CONTEXT, "throwing-sync-scheduler", { attempt: 2 }),
+      ]);
+    } finally {
+      console.warn = realWarn;
+    }
+
+    expect(
+      { calls, results, warnings },
+      "[RED:R72:throwing-sync-scheduler-registration]",
+    ).toEqual({
+      calls: 2,
+      results: [
+        { ok: true, message: "Done." },
+        { ok: true, message: "Done." },
+      ],
+      warnings: [
+        "concierge: [commit_window_unavailable] config \"scheduler\": no cancellable timer is available, so the commit window was skipped. Fix: provide `ConciergeConfig.scheduler` in this host.",
+      ],
+    });
+  });
+
   it("[R32] gives an injected scheduler precedence over the host timer", async () => {
     let calls = 0;
     let hostSchedules = 0;
