@@ -115,7 +115,6 @@ type CanonicalValue =
   | readonly ["boolean", boolean]
   | readonly ["string", string]
   | readonly ["number", string]
-  | readonly ["bigint", string]
   | readonly ["array", ReadonlyArray<CanonicalValue | readonly ["hole"]>]
   | readonly [
       "object",
@@ -123,7 +122,7 @@ type CanonicalValue =
       ReadonlyArray<readonly [string, CanonicalValue]>,
     ];
 
-/** Build an injective tagged tree for every detached invocation-data value. */
+/** Build an injective tagged tree for every keyable invocation-data value. */
 function canonicalInvocationValue(
   value: unknown,
   seen: WeakSet<object>,
@@ -132,7 +131,9 @@ function canonicalInvocationValue(
   if (value === null) return ["null"];
   if (typeof value === "boolean") return ["boolean", value];
   if (typeof value === "string") return ["string", value];
-  if (typeof value === "bigint") return ["bigint", value.toString()];
+  if (typeof value === "bigint") {
+    throw new TypeError("BigInt invocation values are deliberately unkeyable.");
+  }
   if (typeof value === "number") {
     const encoded: string = Number.isNaN(value)
       ? "NaN"
@@ -201,8 +202,8 @@ function encodeInvocationValue(value: unknown): string | null {
  * `callId` is authoritative when present. Otherwise the action name and the
  * tagged argument tree form the retry key. The tags retain distinctions plain
  * JSON erases (`undefined`, holes, non-finite numbers, and negative zero).
- * Cyclic or aliased graphs cannot be flattened injectively, so they deliberately
- * run without fallback deduplication rather than sharing the wrong Promise.
+ * BigInt values and cyclic or aliased graphs deliberately run without fallback
+ * deduplication rather than sharing the wrong Promise.
  */
 export function deriveDispatchKey(
   name: string,
