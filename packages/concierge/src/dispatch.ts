@@ -793,6 +793,7 @@ export async function executeDispatchBatch(
     name: string,
     args: unknown,
     meta?: InvocationMeta,
+    argumentsMalformed?: boolean,
   ) => Promise<ActionResult>,
 ): Promise<ReadonlyArray<Readonly<{ callId: string; result: ActionResult }>>> {
   const batchSnapshot: BatchMetadataSnapshot = snapshotBatchMetadata(batch);
@@ -813,10 +814,12 @@ export async function executeDispatchBatch(
       );
     } else {
       let args: unknown;
+      let argumentsMalformed: boolean = false;
       try {
         args = JSON.parse(call.arguments);
       } catch {
         args = {};
+        argumentsMalformed = true;
       }
 
       const meta: InvocationMeta = {
@@ -827,7 +830,13 @@ export async function executeDispatchBatch(
         signal: batchSnapshot.signal,
         deferUntilDelivered: batchSnapshot.deferUntilDelivered,
       };
-      result = await dispatch(ctx, call.name, args, meta);
+      result = await dispatch(
+        ctx,
+        call.name,
+        args,
+        meta,
+        argumentsMalformed,
+      );
     }
 
     rows.push(batchRow(call.callId, result));

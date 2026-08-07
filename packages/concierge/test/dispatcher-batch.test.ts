@@ -295,7 +295,9 @@ it("[Q03] never has more than one handler active", async () => {
 
 it("[Q04] validates malformed JSON as an empty object and continues", async () => {
   const validated = [];
+  const defaultedValidated = [];
   const handled = [];
+  let defaultedHandlerEntries = 0;
   const concierge = conciergeFor([
     action(
       "parse",
@@ -317,10 +319,24 @@ it("[Q04] validates malformed JSON as an empty object and continues", async () =
         },
       },
     ),
+    action(
+      "parse-default",
+      () => {
+        defaultedHandlerEntries += 1;
+        return successful("defaulted handler entered");
+      },
+      {
+        validate: (value) => {
+          defaultedValidated.push(value);
+          return { value: { amount: 100 } };
+        },
+      },
+    ),
   ]);
   const calls = [
     toolCall("malformed", "parse", "{", 0),
-    toolCall("later", "parse", JSON.stringify({ value: "later" }), 1),
+    toolCall("malformed-default", "parse-default", "{", 1),
+    toolCall("later", "parse", JSON.stringify({ value: "later" }), 2),
   ];
   let observed = { available: false };
 
@@ -329,6 +345,8 @@ it("[Q04] validates malformed JSON as an empty object and continues", async () =
       const rows = await concierge.dispatchBatch(ACTIVE_CONTEXT, toolBatch(calls));
       observed = {
         available: true,
+        defaultedHandlerEntries,
+        defaultedValidated,
         frozen: rows.map((row) => [Object.isFrozen(row), Object.isFrozen(row.result)]),
         handled,
         rejected: false,
@@ -346,11 +364,14 @@ it("[Q04] validates malformed JSON as an empty object and continues", async () =
 
   expect(observed, "[RED:Q04:malformed-json-validation]").toEqual({
     available: true,
-    frozen: [[true, true], [true, true]],
+    defaultedHandlerEntries: 0,
+    defaultedValidated: [{}],
+    frozen: [[true, true], [true, true], [true, true]],
     handled: [{ args: { value: "later" }, callId: "later" }],
     rejected: false,
     rows: [
       { callId: "malformed", ok: false, reason: "invalid_args" },
+      { callId: "malformed-default", ok: false, reason: "invalid_args" },
       { callId: "later", ok: true, reason: undefined },
     ],
     validated: [{}, { value: "later" }],

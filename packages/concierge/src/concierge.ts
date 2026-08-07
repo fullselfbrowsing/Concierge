@@ -792,6 +792,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     name: string,
     args: unknown,
     meta: InvocationMeta,
+    argumentsMalformed: boolean,
   ): Promise<ActionResult> {
     const handler: unknown = entry.action.handler;
     if (typeof handler !== "function") {
@@ -806,7 +807,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     }
 
     const validation: ArgumentValidation = await validateArguments(entry, args);
-    if (!validation.ok) {
+    if (!validation.ok || argumentsMalformed) {
       return authoredResult(
         false,
         "The action arguments are invalid.",
@@ -956,6 +957,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     name: string,
     args: unknown,
     meta?: InvocationMeta,
+    argumentsMalformed: boolean = false,
   ): Promise<ActionResult> {
     const index: number | null = resolveIndex(ctx);
     const allowedNames: readonly string[] =
@@ -1006,12 +1008,18 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       );
     }
 
-    const key: string | null = deriveDispatchKey(
+    const derivedKey: string | null = deriveDispatchKey(
       name,
       argsSnapshot.value,
       metaSnapshot.value,
       index,
     );
+    const key: string | null =
+      derivedKey === null
+        ? null
+        : argumentsMalformed
+          ? `malformed:${derivedKey}`
+          : derivedKey;
     if (key === null) {
       return runDispatchPipeline(
         index,
@@ -1019,6 +1027,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         name,
         argsSnapshot.value,
         metaSnapshot.value,
+        argumentsMalformed,
       );
     }
 
@@ -1039,6 +1048,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         name,
         argsSnapshot.value,
         metaSnapshot.value,
+        argumentsMalformed,
       ),
     );
     dispatchPromises.set(key, promise);
