@@ -1200,16 +1200,12 @@ const MUTANTS = Object.freeze([
   runtimeMutant({
     id: "M-06-B21",
     group: "batch",
-    name: "malformed invocation metadata is accepted in a batch row",
+    name: "malformed invocation metadata is accepted as a successful row",
     target: "packages/concierge/src/dispatch.ts",
-    literalPattern: lines(
-      "    typeof callId !== \"string\" ||",
-      "    typeof nameRead.value !== \"string\" ||",
-    ),
-    replacement: lines(
-      "    false ||",
-      "    typeof nameRead.value !== \"string\" ||",
-    ),
+    literalPattern:
+      "      result = authoredResult(false, \"The invocation metadata is invalid.\");",
+    replacement:
+      "      result = authoredResult(true, \"accepted malformed invocation metadata\");",
     intendedCaseIds: ["Q17"],
   }),
   runtimeMutant({

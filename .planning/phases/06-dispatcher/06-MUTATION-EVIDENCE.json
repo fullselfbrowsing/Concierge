@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "phase": "06-dispatcher",
-  "registerDigest": "37ddb917444fe9e1454c54a85d692c1516ec79ab596aa9f1ca94e30ed1fa315a",
+  "registerDigest": "3ecce06554fb979af6d8221353b5b3bf2fe1540cb54f6a8a99c956537d4cdf87",
   "expectedIds": [
     "M-06-S01",
     "M-06-S02",
@@ -65,7 +65,7 @@
     "M-06-B23",
     "M-06-B24"
   ],
-  "updatedAt": "2026-08-07T19:02:02.510Z",
+  "updatedAt": "2026-08-07T19:02:46.002Z",
   "rows": [
     {
       "id": "M-06-S01",
