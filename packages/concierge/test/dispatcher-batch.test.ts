@@ -293,7 +293,7 @@ it("[Q03] never has more than one handler active", async () => {
   });
 });
 
-it("[Q04] rejects malformed JSON before a defaulting validator and continues", async () => {
+it("[Q04] validates malformed JSON as an empty object and continues", async () => {
   const validated = [];
   const handled = [];
   const concierge = conciergeFor([
@@ -311,7 +311,7 @@ it("[Q04] rejects malformed JSON before a defaulting validator and continues", a
             value === null ||
             !("value" in value)
           ) {
-            return { value: { value: "defaulted" } };
+            return { issues: [{ message: "value is required" }] };
           }
           return { value };
         },
@@ -353,7 +353,7 @@ it("[Q04] rejects malformed JSON before a defaulting validator and continues", a
       { callId: "malformed", ok: false, reason: "invalid_args" },
       { callId: "later", ok: true, reason: undefined },
     ],
-    validated: [{ value: "later" }],
+    validated: [{}, { value: "later" }],
   });
 });
 
