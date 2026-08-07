@@ -3,6 +3,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  appendFileSync,
   closeSync,
   existsSync,
   mkdtempSync,
@@ -10,14 +11,19 @@ import {
   readFileSync,
   renameSync,
   rmSync,
-  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { tryLock, unlock } from "fs-native-extensions";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const SCRIPT_PATH = fileURLToPath(import.meta.url);
+const ROOT = resolve(dirname(SCRIPT_PATH), "..");
+const ROOT_MANIFEST_PATH = join(ROOT, "package.json");
+const CORE_MANIFEST_PATH = join(ROOT, "packages/concierge/package.json");
+const LOCK_PACKAGE_NAME = "fs-native-extensions";
+const LOCK_PACKAGE_VERSION = "1.5.0";
 const REGISTER_PATH = join(
   ROOT,
   ".planning/phases/06-dispatcher/06-MUTATION-REGISTER.json",
@@ -1278,63 +1284,32 @@ function atomicWriteJson(path, value) {
   }
 }
 
-/** Serialize every repository-wide mutation/evidence operation across worktrees. */
-function withExclusiveRepositoryLock(operation, run) {
+/** Hold an OS-owned advisory lock for exactly as long as the descriptor is open. */
+function withExclusivePathLock(lockPath, operation, run) {
   let descriptor;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      descriptor = openSync(MUTATION_LOCK_PATH, "wx");
-      break;
-    } catch (error) {
-      if (error?.code !== "EEXIST") throw error;
-
-      let owner;
-      try {
-        owner = JSON.parse(readFileSync(MUTATION_LOCK_PATH, "utf8"));
-      } catch {
-        throw new Error(
-          `${operation}: mutation lock exists but its owner is unreadable: ${MUTATION_LOCK_PATH}`,
-        );
-      }
-      if (!Number.isSafeInteger(owner.pid) || owner.pid <= 0) {
-        throw new Error(
-          `${operation}: mutation lock has an invalid owner: ${MUTATION_LOCK_PATH}`,
-        );
-      }
-
-      let ownerAlive = true;
-      try {
-        process.kill(owner.pid, 0);
-      } catch (probeError) {
-        if (probeError?.code === "ESRCH") {
-          ownerAlive = false;
-        } else {
-          throw probeError;
-        }
-      }
-      if (ownerAlive) {
-        throw new Error(
-          `${operation}: mutation battery is already running as pid ${owner.pid}`,
-        );
-      }
-      unlinkSync(MUTATION_LOCK_PATH);
-    }
-  }
-  if (descriptor === undefined) {
-    throw new Error(`${operation}: could not acquire mutation repository lock`);
-  }
+  let locked = false;
 
   try {
-    writeFileSync(
-      descriptor,
-      JSON.stringify({ pid: process.pid, operation, startedAt: new Date().toISOString() }),
-      "utf8",
-    );
+    descriptor = openSync(lockPath, "a+");
+    locked = tryLock(descriptor);
+    if (!locked) {
+      throw new Error(`${operation}: mutation battery is already running`);
+    }
     return run();
   } finally {
-    closeSync(descriptor);
-    rmSync(MUTATION_LOCK_PATH, { force: true });
+    if (descriptor !== undefined) {
+      try {
+        if (locked) unlock(descriptor);
+      } finally {
+        closeSync(descriptor);
+      }
+    }
   }
+}
+
+/** Serialize every repository-wide mutation/evidence operation across worktrees. */
+function withExclusiveRepositoryLock(operation, run) {
+  return withExclusivePathLock(MUTATION_LOCK_PATH, operation, run);
 }
 
 function command(commandName, args, options = {}) {
@@ -1586,7 +1561,31 @@ function validateRequiredMutantCaseMappings(mutants) {
   }
 }
 
+function validateLockDependencyBoundary() {
+  const rootManifest = JSON.parse(readFileSync(ROOT_MANIFEST_PATH, "utf8"));
+  const coreManifest = JSON.parse(readFileSync(CORE_MANIFEST_PATH, "utf8"));
+  if (
+    rootManifest.devDependencies?.[LOCK_PACKAGE_NAME] !== LOCK_PACKAGE_VERSION
+  ) {
+    throw new Error(
+      `${LOCK_PACKAGE_NAME} must be pinned to ${LOCK_PACKAGE_VERSION} in root devDependencies`,
+    );
+  }
+  if (rootManifest.dependencies?.[LOCK_PACKAGE_NAME] !== undefined) {
+    throw new Error(`${LOCK_PACKAGE_NAME} must not be a root runtime dependency`);
+  }
+  if (
+    coreManifest.dependencies?.[LOCK_PACKAGE_NAME] !== undefined ||
+    coreManifest.devDependencies?.[LOCK_PACKAGE_NAME] !== undefined
+  ) {
+    throw new Error(
+      `${LOCK_PACKAGE_NAME} must remain outside the published concierge package`,
+    );
+  }
+}
+
 function validateDefinitions() {
+  validateLockDependencyBoundary();
   const ids = MUTANTS.map((mutant) => mutant.id);
   if (JSON.stringify(ids) !== JSON.stringify(EXPECTED_M06_IDS)) {
     throw new Error(
@@ -2888,7 +2887,189 @@ function assertEvidenceCounterexampleRejected(name, baseline, transform) {
   }
 }
 
+const LOCK_RACE_COORDINATOR_SOURCE = String.raw`
+const { spawn } = require("node:child_process");
+
+const [scriptPath, lockPath, entrantsPath] = process.argv.slice(1);
+const children = Array.from({ length: 2 }, () =>
+  spawn(
+    process.execPath,
+    [scriptPath, "lock-probe", lockPath, "contend", entrantsPath],
+    {
+      env: process.env,
+      stdio: ["pipe", "pipe", "pipe"],
+    },
+  ),
+);
+const ready = children.map(() => false);
+let released = false;
+const releaseContenders = () => {
+  if (released || !ready.every(Boolean)) return;
+  released = true;
+  for (const child of children) child.stdin.end("go\n");
+};
+const results = children.map(
+  (child, index) =>
+    new Promise((resolve, reject) => {
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (chunk) => {
+        stdout += chunk;
+        if (stdout.includes("READY")) {
+          ready[index] = true;
+          releaseContenders();
+        }
+      });
+      child.stderr.on("data", (chunk) => {
+        stderr += chunk;
+      });
+      child.on("error", reject);
+      child.on("close", (code, signal) => {
+        resolve({ code, signal, stdout, stderr });
+      });
+    }),
+);
+const timeout = setTimeout(() => {
+  for (const child of children) child.kill("SIGKILL");
+}, 10_000);
+Promise.all(results).then(
+  (settled) => {
+    clearTimeout(timeout);
+    process.stdout.write(JSON.stringify(settled));
+  },
+  (error) => {
+    clearTimeout(timeout);
+    process.stderr.write(String(error));
+    process.exitCode = 1;
+  },
+);
+`;
+
+function runLockProbe(lockPath, mode, entrantsPath) {
+  if (process.env.PHASE_06_LOCK_SELF_TEST !== "1") {
+    throw new Error("lock-probe is reserved for the mutation battery self-test");
+  }
+  if (!["contend", "crash", "enter"].includes(mode)) {
+    throw new Error(`unknown lock-probe mode: ${mode}`);
+  }
+  if (mode === "contend") {
+    process.stdout.write("READY\n");
+    readFileSync(0, "utf8");
+  }
+
+  withExclusivePathLock(lockPath, `lock self-test ${mode}`, () => {
+    appendFileSync(entrantsPath, `${mode}:${process.pid}\n`, "utf8");
+    if (mode === "contend") {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 750);
+    } else if (mode === "crash") {
+      process.kill(process.pid, "SIGKILL");
+      throw new Error("SIGKILL did not terminate the lock self-test owner");
+    }
+  });
+}
+
+function selfTestRepositoryLock() {
+  const directory = mkdtempSync(join(tmpdir(), "phase-06-lock-self-test-"));
+  const lockPath = join(directory, "mutation.lock");
+  const entrantsPath = join(directory, "entrants.log");
+  const stalePayload = "{partial-owner-metadata";
+  const environment = {
+    ...process.env,
+    PHASE_06_LOCK_SELF_TEST: "1",
+  };
+
+  try {
+    writeFileSync(lockPath, stalePayload, "utf8");
+    const race = command(
+      process.execPath,
+      [
+        "--input-type=commonjs",
+        "-e",
+        LOCK_RACE_COORDINATOR_SOURCE,
+        SCRIPT_PATH,
+        lockPath,
+        entrantsPath,
+      ],
+      { env: environment },
+    );
+    if (race.exitCode !== 0) {
+      throw new Error(`lock race coordinator failed:\n${race.output}`);
+    }
+
+    let contenders;
+    try {
+      contenders = JSON.parse(race.stdout);
+    } catch {
+      throw new Error(`lock race returned unreadable results: ${race.stdout}`);
+    }
+    const successfulContenders = contenders.filter(
+      (result) => result.code === 0 && result.signal === null,
+    );
+    const rejectedContenders = contenders.filter(
+      (result) =>
+        result.code === 1 &&
+        result.signal === null &&
+        result.stderr.includes("mutation battery is already running"),
+    );
+    const contenderEntrants = readFileSync(entrantsPath, "utf8")
+      .trim()
+      .split("\n")
+      .filter((line) => line.startsWith("contend:"));
+    if (
+      contenders.length !== 2 ||
+      successfulContenders.length !== 1 ||
+      rejectedContenders.length !== 1 ||
+      contenderEntrants.length !== 1
+    ) {
+      throw new Error(
+        `simultaneous stale-lock contenders were not exclusive: ${JSON.stringify(contenders)}`,
+      );
+    }
+    if (readFileSync(lockPath, "utf8") !== stalePayload) {
+      throw new Error("advisory lock changed or replaced the stale lock payload");
+    }
+
+    const crashOwner = command(
+      process.execPath,
+      [SCRIPT_PATH, "lock-probe", lockPath, "crash", entrantsPath],
+      { env: environment },
+    );
+    if (crashOwner.signal !== "SIGKILL") {
+      throw new Error(
+        `lock crash probe did not terminate under SIGKILL: ${crashOwner.output}`,
+      );
+    }
+    const successor = command(
+      process.execPath,
+      [SCRIPT_PATH, "lock-probe", lockPath, "enter", entrantsPath],
+      { env: environment },
+    );
+    if (successor.exitCode !== 0) {
+      throw new Error(
+        `lock successor could not acquire after owner crash: ${successor.output}`,
+      );
+    }
+    const entrantModes = readFileSync(entrantsPath, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => line.split(":", 1)[0]);
+    if (
+      entrantModes.filter((mode) => mode === "crash").length !== 1 ||
+      entrantModes.filter((mode) => mode === "enter").length !== 1 ||
+      !existsSync(lockPath) ||
+      readFileSync(lockPath, "utf8") !== stalePayload
+    ) {
+      throw new Error(
+        `lock ownership did not survive crash recovery safely: ${JSON.stringify(entrantModes)}`,
+      );
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function selfTest() {
+  selfTestRepositoryLock();
   const mutant = MUTANTS.find(
     (candidate) => candidate.detectorKind === "vitest",
   );
@@ -3334,7 +3515,7 @@ function selfTest() {
     );
   }
   console.log(
-    "Self-test passed: full-tree invalidation, exact detectors, bounded ranges, and ledger counterexamples are enforced",
+    "Self-test passed: OS-owned lock exclusion and crash release, full-tree invalidation, exact detectors, bounded ranges, and ledger counterexamples are enforced",
   );
 }
 
@@ -3346,7 +3527,14 @@ function usage() {
 
 const [operation, argument, thirdArgument, fourthArgument] = process.argv.slice(2);
 try {
-  if (operation === "init" && argument === undefined) {
+  if (
+    operation === "lock-probe" &&
+    argument !== undefined &&
+    thirdArgument !== undefined &&
+    fourthArgument !== undefined
+  ) {
+    runLockProbe(argument, thirdArgument, fourthArgument);
+  } else if (operation === "init" && argument === undefined) {
     withExclusiveRepositoryLock("init", init);
   } else if (operation === "refresh" && argument === undefined) {
     withExclusiveRepositoryLock("refresh", refresh);

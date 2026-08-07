@@ -29,6 +29,7 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.5",
     "@changesets/cli": "2.31.1",
+    "fs-native-extensions": "1.5.0",
     "publint": "0.3.22",
     "rolldown": "1.2.0",
     "tsdown": "0.22.14",
