@@ -55,12 +55,12 @@ Use `pnpm exec vitest run <file>` for filtering—`pnpm test -- <name>` does not
 | 06-06-T3 | 06-06 | 5 | SEC-02 | T-06-Info | No thrown message reaches results, console, or a new telemetry seam | AST source audit + security runtime | `node scripts/check-no-telemetry.mjs` | ✅ | ✅ green |
 | 06-06-T1 | 06-06 | 5 | SEC-06 | T-06-Injection | Every outbound message strips controls, collapses whitespace, caps length, and preserves surrogate pairs | security runtime + mutation | `node scripts/phase-06-mutation-battery.mjs verify single` | ✅ | ✅ green |
 | 06-06-T2 | 06-06 | 5 | TRN-04 | T-06-Coupling | Single and batch dispatch run without constructing a transport | integration + mutation | `node scripts/phase-06-mutation-battery.mjs verify all` | ✅ | ✅ green |
-| 06-07-T1 | 06-07 | 6 | DSP-01, DSP-07 | T-06-G05 | R68 + Q17 prove malformed-metadata totality and correlation | security runtime | dispatcher quick run | ✅ | ✅ green |
-| 06-07-T2 | 06-07 | 6 | DSP-02 | T-06-G06 | R06 proves BigInt no-dedup without a synchronous throw | security runtime | dispatcher quick run | ✅ | ✅ green |
-| 06-07-T3 | 06-07 | 6 | DSP-06 | T-06-G07 | Q04 proves empty-object validation before later calls continue | integration | dispatcher quick run | ✅ | ✅ green |
-| 06-08-T1 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07 | T-06-G08 | 57-row register with bounded range self-tests and ledger self-tests | mutation infrastructure | `node scripts/phase-06-mutation-battery.mjs self-test` | ✅ | ✅ green |
-| 06-08-T2 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07 | T-06-G08 | 57/57 compiled mutants killed by exact detectors and verify all | mutation | `node scripts/phase-06-mutation-battery.mjs verify all` | ✅ | ✅ green |
-| 06-08-T3 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07, SEC-02 | T-06-G08 | Final release gates plus verify ledgers against live totals | release + ledger audit | `node scripts/phase-06-mutation-battery.mjs verify ledgers` | ✅ | ✅ green |
+| 06-07-T1 | 06-07 | 6 | DSP-01, DSP-07 | T-06-G01 | R68 + Q17 prove malformed-metadata totality and correlation | security runtime | dispatcher quick run | ✅ | ✅ green |
+| 06-07-T2 | 06-07 | 6 | DSP-02 | T-06-G02 | R06 proves BigInt no-dedup without a synchronous throw | security runtime | dispatcher quick run | ✅ | ✅ green |
+| 06-07-T3 | 06-07 | 6 | DSP-06 | T-06-G03 | Q04 proves empty-object validation before later calls continue | integration | dispatcher quick run | ✅ | ✅ green |
+| 06-08-T1 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07 | T-06-G05 | 57-row register with bounded range self-tests and ledger self-tests | mutation infrastructure | `node scripts/phase-06-mutation-battery.mjs self-test` | ✅ | ✅ green |
+| 06-08-T2 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07 | T-06-G05 | 57/57 compiled mutants killed by exact detectors and verify all | mutation | `node scripts/phase-06-mutation-battery.mjs verify all` | ✅ | ✅ green |
+| 06-08-T3 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07, SEC-02 | T-06-G06, T-06-G07, T-06-G08 | Final release gates plus verify ledgers against live totals | release + ledger audit | `node scripts/phase-06-mutation-battery.mjs verify ledgers` | ✅ | ✅ green |
 
 *Measured status: every row is green.*
 

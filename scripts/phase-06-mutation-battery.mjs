@@ -96,38 +96,94 @@ export const EXPECTED_M06_IDS = Object.freeze([
 const REQUIRED_CLOSURE_TASKS = Object.freeze([
   Object.freeze({
     id: "06-07-T1",
-    tokens: Object.freeze([
+    plan: "06-07",
+    wave: "6",
+    requirement: "DSP-01, DSP-07",
+    threat: "T-06-G01",
+    secureBehaviorTokens: Object.freeze([
       "r68",
       "q17",
       "malformed-metadata totality",
       "correlation",
     ]),
+    testType: "security runtime",
+    command: "dispatcher quick run",
   }),
   Object.freeze({
     id: "06-07-T2",
-    tokens: Object.freeze(["r06", "bigint", "no-dedup"]),
+    plan: "06-07",
+    wave: "6",
+    requirement: "DSP-02",
+    threat: "T-06-G02",
+    secureBehaviorTokens: Object.freeze(["r06", "bigint", "no-dedup"]),
+    testType: "security runtime",
+    command: "dispatcher quick run",
   }),
   Object.freeze({
     id: "06-07-T3",
-    tokens: Object.freeze(["q04", "empty-object validation"]),
+    plan: "06-07",
+    wave: "6",
+    requirement: "DSP-06",
+    threat: "T-06-G03",
+    secureBehaviorTokens: Object.freeze(["q04", "empty-object validation"]),
+    testType: "integration",
+    command: "dispatcher quick run",
   }),
   Object.freeze({
     id: "06-08-T1",
-    tokens: Object.freeze([
+    plan: "06-08",
+    wave: "7",
+    requirement: "DSP-01, DSP-02, DSP-06, DSP-07",
+    threat: "T-06-G05",
+    secureBehaviorTokens: Object.freeze([
       "57-row register",
       "range self-tests",
       "ledger self-tests",
     ]),
+    testType: "mutation infrastructure",
+    command: "`node scripts/phase-06-mutation-battery.mjs self-test`",
   }),
   Object.freeze({
     id: "06-08-T2",
-    tokens: Object.freeze(["57/57", "verify all"]),
+    plan: "06-08",
+    wave: "7",
+    requirement: "DSP-01, DSP-02, DSP-06, DSP-07",
+    threat: "T-06-G05",
+    secureBehaviorTokens: Object.freeze(["57/57", "verify all"]),
+    testType: "mutation",
+    command: "`node scripts/phase-06-mutation-battery.mjs verify all`",
   }),
   Object.freeze({
     id: "06-08-T3",
-    tokens: Object.freeze(["final release gates", "verify ledgers"]),
+    plan: "06-08",
+    wave: "7",
+    requirement: "DSP-01, DSP-02, DSP-06, DSP-07, SEC-02",
+    threat: "T-06-G06, T-06-G07, T-06-G08",
+    secureBehaviorTokens: Object.freeze([
+      "final release gates",
+      "verify ledgers",
+    ]),
+    testType: "release + ledger audit",
+    command: "`node scripts/phase-06-mutation-battery.mjs verify ledgers`",
   }),
 ]);
+
+const REQUIRED_PHASE_GATE_ROWS = Object.freeze([
+  "Immutable mutation register",
+  "No-telemetry AST audit",
+  "`pnpm build`",
+  "`pnpm typecheck`",
+  "`pnpm test`",
+  "`pnpm check:artifact`",
+  "`pnpm check:deps`",
+  "`pnpm check:pack`",
+  "`pnpm check:node-floor`",
+  "Test isolation audit",
+  "Mutation restoration audit",
+]);
+
+const PHASE_GATE_COMMAND =
+  "`pnpm build && pnpm typecheck && pnpm test && pnpm check:artifact && pnpm check:deps && pnpm check:pack && pnpm check:node-floor`";
 
 const REQUIRED_TRACEABILITY = Object.freeze([
   Object.freeze({
@@ -1378,9 +1434,7 @@ function runVitest(testFile, reportPath, selectedCaseIds = null) {
 function runFullVitest(reportPath) {
   rmSync(reportPath, { force: true });
   const result = command("pnpm", [
-    "exec",
-    "vitest",
-    "run",
+    "test",
     "--reporter=json",
     `--outputFile=${reportPath}`,
   ]);
@@ -2269,9 +2323,55 @@ function requireTokens(row, id, tokens, errors) {
   }
 }
 
+function requireExactCellCount(cells, id, expected, errors) {
+  if (cells.length !== expected) {
+    errors.push(`${id}: expected ${expected} columns, found ${cells.length}`);
+    return false;
+  }
+  return true;
+}
+
+function requireFrontmatterValue(value, key, expected, errors) {
+  const frontmatter = /^---\n([\s\S]*?)\n---(?:\n|$)/u.exec(value)?.[1] ?? "";
+  const matches = [
+    ...frontmatter.matchAll(new RegExp(`^${escapeRegExp(key)}:\\s*(.+)$`, "gmu")),
+  ];
+  if (matches.length !== 1) {
+    errors.push(`frontmatter ${key}: expected one value, found ${matches.length}`);
+    return;
+  }
+  if (matches[0][1]?.trim() !== expected) {
+    errors.push(
+      `frontmatter ${key}: ${JSON.stringify(matches[0][1]?.trim())} != ${JSON.stringify(expected)}`,
+    );
+  }
+}
+
 /** Validate already-read ledgers without touching disk or running commands. */
 export function validateLedgerSnapshot(snapshot) {
   const errors = [];
+  requireFrontmatterValue(snapshot.validationText, "phase", "6", errors);
+  requireFrontmatterValue(snapshot.validationText, "status", "complete", errors);
+
+  const infrastructureSection = extractUniqueSection(
+    snapshot.validationText,
+    "## Test Infrastructure",
+    errors,
+  );
+  const declaredPhaseGate = requireUniqueRow(
+    infrastructureSection,
+    "**Phase gate**",
+    errors,
+  );
+  if (declaredPhaseGate !== null) {
+    const cells = tableCells(declaredPhaseGate);
+    if (requireExactCellCount(cells, "declared phase gate", 2, errors)) {
+      if (cells[1] !== PHASE_GATE_COMMAND) {
+        errors.push("declared phase gate command differs from the executed release gate");
+      }
+    }
+  }
+
   const mutationSection = extractUniqueSection(
     snapshot.validationText,
     "### Mutation Evidence",
@@ -2284,6 +2384,7 @@ export function validateLedgerSnapshot(snapshot) {
   );
   if (mutationRow !== null) {
     const cells = tableCells(mutationRow);
+    requireExactCellCount(cells, "mutation evidence row", 4, errors);
     const recordedDigest = cells[1]?.replaceAll("`", "") ?? "";
     if (recordedDigest !== snapshot.registerDigest) {
       errors.push(
@@ -2312,6 +2413,12 @@ export function validateLedgerSnapshot(snapshot) {
         );
       }
     }
+    if (
+      cells[3] !==
+      "✅ compiled, exact named detector fired, restored gates green, scoped tree clean"
+    ) {
+      errors.push("mutation evidence row is not explicitly green and complete");
+    }
   }
 
   const phaseGateSection = extractUniqueSection(
@@ -2319,9 +2426,21 @@ export function validateLedgerSnapshot(snapshot) {
     "## Phase Gate Evidence",
     errors,
   );
+  for (const gate of REQUIRED_PHASE_GATE_ROWS) {
+    const row = requireUniqueRow(phaseGateSection, gate, errors);
+    if (row === null) continue;
+    const cells = tableCells(row);
+    if (requireExactCellCount(cells, gate, 3, errors) && cells[2] !== "✅") {
+      errors.push(`${gate}: result is not explicitly green`);
+    }
+  }
   const testRow = requireUniqueRow(phaseGateSection, "`pnpm test`", errors);
   if (testRow !== null) {
     const cells = tableCells(testRow);
+    requireExactCellCount(cells, "pnpm test row", 3, errors);
+    if (cells[0] !== "`pnpm test`" || cells[2] !== "✅") {
+      errors.push("pnpm test row does not have the exact command and green result");
+    }
     const totals = /^(\d+) test files passed; (\d+)\/(\d+) tests passed; (\d+) pending; (\d+) todo$/u.exec(
       cells[1] ?? "",
     );
@@ -2361,10 +2480,14 @@ export function validateLedgerSnapshot(snapshot) {
   for (const detector of detectorRequirements) {
     const row = requireUniqueRow(detectorSection, detector.id, errors);
     if (row !== null) {
-      if (occurrences(row, detector.marker) !== 1) {
-        errors.push(`${detector.id}: exact marker is missing or duplicated`);
+      const cells = tableCells(row);
+      if (!requireExactCellCount(cells, detector.id, 3, errors)) {
+        continue;
       }
-      requireTokens(row, detector.id, detector.tokens, errors);
+      if (cells[1].replaceAll("`", "") !== detector.marker) {
+        errors.push(`${detector.id}: exact marker is not in the marker column`);
+      }
+      requireTokens(cells[2], detector.id, detector.tokens, errors);
     }
   }
 
@@ -2396,10 +2519,32 @@ export function validateLedgerSnapshot(snapshot) {
       continue;
     }
     const cells = tableCells(row);
-    if (cells.length !== 10 || cells[9] !== "✅ green") {
-      errors.push(`${task.id}: closure-task row is incomplete`);
+    if (!requireExactCellCount(cells, task.id, 10, errors)) {
+      continue;
     }
-    requireTokens(row, task.id, task.tokens, errors);
+    const exactColumns = [
+      [1, task.plan, "plan"],
+      [2, task.wave, "wave"],
+      [3, task.requirement, "requirement"],
+      [4, task.threat, "threat"],
+      [6, task.testType, "test type"],
+      [7, task.command, "command"],
+      [8, "✅", "file exists"],
+      [9, "✅ green", "status"],
+    ];
+    for (const [index, expected, label] of exactColumns) {
+      if (cells[index] !== expected) {
+        errors.push(
+          `${task.id}: ${label} column ${JSON.stringify(cells[index])} != ${JSON.stringify(expected)}`,
+        );
+      }
+    }
+    requireTokens(
+      cells[5],
+      `${task.id} secure behavior`,
+      task.secureBehaviorTokens,
+      errors,
+    );
   }
 
   for (const requirement of REQUIRED_TRACEABILITY) {
@@ -2409,10 +2554,20 @@ export function validateLedgerSnapshot(snapshot) {
       errors,
     );
     if (row !== null) {
-      requireTokens(row, requirement.id, requirement.tokens, errors);
+      const cells = tableCells(row);
+      if (!requireExactCellCount(cells, requirement.id, 3, errors)) {
+        continue;
+      }
+      if (cells[1] !== "Phase 6 — Dispatcher") {
+        errors.push(`${requirement.id}: phase column is not Phase 6 — Dispatcher`);
+      }
+      if (!cells[2].startsWith("Complete —")) {
+        errors.push(`${requirement.id}: status column is not complete`);
+      }
+      requireTokens(cells[2], requirement.id, requirement.tokens, errors);
       if (
         requirement.id === "DSP-01" &&
-        row.toLowerCase().includes("invalid callids are deduplicated")
+        cells[2].toLowerCase().includes("invalid callids are deduplicated")
       ) {
         errors.push("DSP-01 falsely claims invalid callIds are deduplicated");
       }
@@ -2422,15 +2577,33 @@ export function validateLedgerSnapshot(snapshot) {
   return errors;
 }
 
+function requireSuccessfulGate(label, result) {
+  if (result.exitCode !== 0 || result.signal !== null) {
+    throw new Error(
+      `${label} failed (exit ${result.exitCode}, signal ${result.signal ?? "none"}):\n${shortOutput(result.output)}`,
+    );
+  }
+}
+
 function verifyLedgers() {
   verify("all");
   const { register, evidence } = ensureArtifacts();
   const directory = mkdtempSync(join(tmpdir(), "phase-06-ledgers-"));
   try {
+    const telemetrySelfTest = command("node", [
+      "scripts/check-no-telemetry.mjs",
+      "--self-test",
+    ]);
+    requireSuccessfulGate("telemetry self-test", telemetrySelfTest);
+    const telemetry = command("node", ["scripts/check-no-telemetry.mjs"]);
+    requireSuccessfulGate("no-telemetry AST audit", telemetry);
+
     const build = runBuild();
     if (!build.succeeded) {
       throw new Error(`ledger verification build failed:\n${shortOutput(build.output)}`);
     }
+    const typecheck = command("pnpm", ["typecheck"]);
+    requireSuccessfulGate("pnpm typecheck", typecheck);
 
     const reportPath = join(directory, "full-vitest.json");
     const vitest = runFullVitest(reportPath);
@@ -2455,6 +2628,29 @@ function verifyLedgers() {
           signal: vitest.signal,
           report,
         }, null, 2)}`,
+      );
+    }
+
+    for (const [label, script] of [
+      ["pnpm check:artifact", "check:artifact"],
+      ["pnpm check:deps", "check:deps"],
+      ["pnpm check:pack", "check:pack"],
+      ["pnpm check:node-floor", "check:node-floor"],
+    ]) {
+      requireSuccessfulGate(label, command("pnpm", [script]));
+    }
+
+    const mockingApiPattern =
+      /\b(?:vi|vitest|jest)\.(?:mock|spyOn|fn|stubGlobal|useFakeTimers)\s*\(/u;
+    for (const testFile of [SINGLE_TEST, BATCH_TEST]) {
+      if (mockingApiPattern.test(readFileSync(join(ROOT, testFile), "utf8"))) {
+        throw new Error(`${testFile}: forbidden mocking API found`);
+      }
+    }
+    const restoredStatus = scopedStatus();
+    if (restoredStatus !== "") {
+      throw new Error(
+        `release gates left revision-scoped paths dirty:\n${restoredStatus}`,
       );
     }
 
@@ -2492,7 +2688,7 @@ function verifyLedgers() {
     }
 
     console.log(
-      `Verified ledgers: register ${register.registerDigest}, ${singleGreen}/${batchGreen}/${totalGreen} green, ${report.numTestFiles} files and ${report.numPassedTests}/${report.numTotalTests} tests`,
+      `Verified ledgers and release gates: register ${register.registerDigest}, ${singleGreen}/${batchGreen}/${totalGreen} green, ${report.numTestFiles} files and ${report.numPassedTests}/${report.numTotalTests} tests`,
     );
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -2524,6 +2720,18 @@ function removeTableRow(value, id) {
     .join("\n");
 }
 
+function replaceTableRow(value, id, transform) {
+  return value
+    .split("\n")
+    .map((line) => {
+      const cells = tableCells(line);
+      if (cells[0] !== id) return line;
+      const replaced = transform([...cells]);
+      return `| ${replaced.join(" | ")} |`;
+    })
+    .join("\n");
+}
+
 function selfTestLedgerSnapshot() {
   const digest = "a".repeat(64);
   const closureRows = REQUIRED_CLOSURE_TASKS.map((task) => {
@@ -2535,9 +2743,25 @@ function selfTestLedgerSnapshot() {
       "06-08-T2": "57/57 plus verify all",
       "06-08-T3": "final release gates plus verify ledgers",
     }[task.id];
-    return `| ${task.id} | plan | wave | requirement | threat | ${evidence} | test | command | ✅ | ✅ green |`;
+    return `| ${task.id} | ${task.plan} | ${task.wave} | ${task.requirement} | ${task.threat} | ${evidence} | ${task.testType} | ${task.command} | ✅ | ✅ green |`;
   }).join("\n");
-  const validationText = `
+  const phaseGateRows = REQUIRED_PHASE_GATE_ROWS.map((gate) => {
+    const headline = gate === "`pnpm test`"
+      ? "12 test files passed; 242/242 tests passed; 0 pending; 0 todo"
+      : "measured green evidence";
+    return `| ${gate} | ${headline} | ✅ |`;
+  }).join("\n");
+  const validationText = `---
+phase: 6
+status: complete
+---
+
+## Test Infrastructure
+
+| Property | Value |
+|---|---|
+| **Phase gate** | ${PHASE_GATE_COMMAND} |
+
 ## Per-Task Verification Map
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
@@ -2548,7 +2772,7 @@ ${closureRows}
 
 | Register | Digest | Counts | Result |
 |---|---|---|---|
-| Current immutable register | \`${digest}\` | 36/36 single; 21/21 batch; 57/57 total; 0 pending | ✅ |
+| Current immutable register | \`${digest}\` | ${EXPECTED_SINGLE_IDS.length}/${EXPECTED_SINGLE_IDS.length} single; ${EXPECTED_BATCH_IDS.length}/${EXPECTED_BATCH_IDS.length} batch; ${EXPECTED_M06_IDS.length}/${EXPECTED_M06_IDS.length} total; 0 pending | ✅ compiled, exact named detector fired, restored gates green, scoped tree clean |
 
 ### Gap-Closure Detector Evidence
 
@@ -2562,15 +2786,15 @@ ${closureRows}
 
 | Gate | Headline evidence | Result |
 |---|---|---|
-| \`pnpm test\` | 12 test files passed; 242/242 tests passed; 0 pending; 0 todo | ✅ |
+${phaseGateRows}
 `;
   const requirementsText = `
 | REQ-ID | Phase | Status |
 |---|---|---|
-| DSP-01 | Phase 6 | Complete — R01/R02 prove valid string callIds retain identity; R68 proves malformed metadata containment. |
-| DSP-02 | Phase 6 | Complete — R05/R06 prove BigInt, cyclic, and aliased inputs do not deduplicate; R06a proves keyable values remain injective. |
-| DSP-06 | Phase 6 | Complete — Q04 proves malformed JSON becomes an empty object, reaches validation, and later calls continue. |
-| DSP-07 | Phase 6 | Complete — Q17 proves one correlated row; Q16 proves immutable nested batch results across cached retries. |
+| DSP-01 | Phase 6 — Dispatcher | Complete — R01/R02 prove valid string callIds retain identity; R68 proves malformed metadata containment. |
+| DSP-02 | Phase 6 — Dispatcher | Complete — R05/R06 prove BigInt, cyclic, and aliased inputs do not deduplicate; R06a proves keyable values remain injective. |
+| DSP-06 | Phase 6 — Dispatcher | Complete — Q04 proves malformed JSON becomes an empty object, reaches validation, and later calls continue. |
+| DSP-07 | Phase 6 — Dispatcher | Complete — Q17 proves one correlated row; Q16 proves immutable nested batch results across cached retries. |
 `;
   return {
     validationText,
@@ -2874,6 +3098,118 @@ function selfTest() {
       );
       return value;
     }],
+    ["failed pnpm test result", (value) => {
+      value.validationText = replaceTableRow(
+        value.validationText,
+        "`pnpm test`",
+        (cells) => {
+          cells[2] = "❌";
+          return cells;
+        },
+      );
+      return value;
+    }],
+    ["pending closure status", (value) => {
+      value.validationText = replaceTableRow(
+        value.validationText,
+        "06-07-T1",
+        (cells) => {
+          cells[9] = "Pending —";
+          return cells;
+        },
+      );
+      return value;
+    }],
+    ["wrong closure phase", (value) => {
+      value.validationText = replaceTableRow(
+        value.validationText,
+        "06-07-T1",
+        (cells) => {
+          cells[1] = "06-08";
+          return cells;
+        },
+      );
+      return value;
+    }],
+    ["wrong closure threat", (value) => {
+      value.validationText = replaceTableRow(
+        value.validationText,
+        "06-07-T1",
+        (cells) => {
+          cells[4] = "T-06-G05";
+          return cells;
+        },
+      );
+      return value;
+    }],
+    ["wrong closure command", (value) => {
+      value.validationText = replaceTableRow(
+        value.validationText,
+        "06-08-T1",
+        (cells) => {
+          cells[7] = "`pnpm test`";
+          return cells;
+        },
+      );
+      return value;
+    }],
+    ["failed file-exists column", (value) => {
+      value.validationText = replaceTableRow(
+        value.validationText,
+        "06-08-T2",
+        (cells) => {
+          cells[8] = "❌";
+          return cells;
+        },
+      );
+      return value;
+    }],
+    ["secure-behavior token moved to wrong column", (value) => {
+      value.validationText = replaceTableRow(
+        value.validationText,
+        "06-07-T1",
+        (cells) => {
+          cells[5] = cells[5].replace("R68", "RXX");
+          cells[6] = `${cells[6]} R68`;
+          return cells;
+        },
+      );
+      return value;
+    }],
+    ["pending requirement status", (value) => {
+      value.requirementsText = replaceTableRow(
+        value.requirementsText,
+        "DSP-01",
+        (cells) => {
+          cells[2] = cells[2].replace("Complete —", "Pending —");
+          return cells;
+        },
+      );
+      return value;
+    }],
+    ["wrong requirement phase", (value) => {
+      value.requirementsText = replaceTableRow(
+        value.requirementsText,
+        "DSP-01",
+        (cells) => {
+          cells[1] = "Phase 9 — Wrong";
+          return cells;
+        },
+      );
+      return value;
+    }],
+    ["requirement token moved to phase column", (value) => {
+      value.requirementsText = replaceTableRow(
+        value.requirementsText,
+        "DSP-06",
+        (cells) => {
+          cells[1] = `${cells[1]} Q04`;
+          cells[2] = cells[2].replace("Q04", "QXX");
+          return cells;
+        },
+      );
+      return value;
+    }],
     ["missing R68 detector evidence", (value) => {
       value.validationText = removeTableRow(value.validationText, "R68");
       return value;
@@ -2915,6 +3251,16 @@ function selfTest() {
       ledger,
       (value) => {
         value.validationText = removeTableRow(value.validationText, task.id);
+        return value;
+      },
+    );
+  }
+  for (const gate of REQUIRED_PHASE_GATE_ROWS) {
+    assertLedgerCounterexampleRejected(
+      `missing ${gate} release row`,
+      ledger,
+      (value) => {
+        value.validationText = removeTableRow(value.validationText, gate);
         return value;
       },
     );
