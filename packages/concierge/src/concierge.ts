@@ -130,15 +130,33 @@ function snapshotInvocationMeta(
   }
 
   try {
+    const responseId: unknown = meta.responseId;
+    const userTurnId: unknown = meta.userTurnId;
+    const callId: unknown = meta.callId;
+    const outputIndex: unknown = meta.outputIndex;
+    const signal: InvocationMeta["signal"] = meta.signal;
+    const deferUntilDelivered: InvocationMeta["deferUntilDelivered"] =
+      meta.deferUntilDelivered;
+
+    if (
+      (responseId !== undefined && typeof responseId !== "string") ||
+      (userTurnId !== undefined && typeof userTurnId !== "string") ||
+      (callId !== undefined && typeof callId !== "string") ||
+      (outputIndex !== undefined &&
+        (typeof outputIndex !== "number" || !Number.isFinite(outputIndex)))
+    ) {
+      return { ok: false };
+    }
+
     return {
       ok: true,
       value: Object.freeze({
-        responseId: meta.responseId,
-        userTurnId: meta.userTurnId,
-        callId: meta.callId,
-        outputIndex: meta.outputIndex,
-        signal: meta.signal,
-        deferUntilDelivered: meta.deferUntilDelivered,
+        responseId,
+        userTurnId,
+        callId,
+        outputIndex,
+        signal,
+        deferUntilDelivered,
       }),
     };
   } catch {
@@ -983,8 +1001,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       return Promise.resolve(
         authoredResult(
           false,
-          "The action was cancelled before it ran.",
-          "aborted",
+          "The invocation metadata is invalid.",
         ),
       );
     }

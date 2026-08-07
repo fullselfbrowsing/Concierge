@@ -210,8 +210,16 @@ export function deriveDispatchKey(
   meta: InvocationMeta | undefined,
   authorizationScope: number | null,
 ): string | null {
-  const callId: string | undefined = meta?.callId;
+  let callId: unknown;
+  try {
+    callId = meta?.callId;
+  } catch {
+    return null;
+  }
   if (callId !== undefined) {
+    if (typeof callId !== "string") {
+      return null;
+    }
     return `id:${callId}`;
   }
   const encodedArgs: string | null = encodeInvocationValue(args);
