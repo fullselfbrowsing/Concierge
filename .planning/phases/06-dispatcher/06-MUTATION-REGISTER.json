@@ -123,7 +123,7 @@
     "M-06-B20",
     "M-06-B21"
   ],
-  "registerDigest": "6c7a21edcf3054c3ba70aaec3444475473075a374a51e23eb7ecd5ef323fae3d",
+  "registerDigest": "3604cf2184d8a8bdaef477d82a10836f9d84e80992ffb4318ad90fb57dae12c9",
   "mutants": [
     {
       "id": "M-06-S01",
@@ -852,12 +852,12 @@
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
       "intendedCaseIds": [
-        "R06c"
+        "R69"
       ],
       "expectedFailureFingerprint": [
         {
-          "caseId": "R06c",
-          "marker": "[RED:R06c:aliased-graph-no-dedup]"
+          "caseId": "R69",
+          "marker": "[RED:R69:aliased-graph-no-dedup]"
         }
       ],
       "expectedTypeDiagnostics": []

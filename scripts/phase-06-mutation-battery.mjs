@@ -904,7 +904,7 @@ const MUTANTS = Object.freeze([
       "    return [\"null\"];",
       "  }",
     ),
-    intendedCaseIds: ["R06c"],
+    intendedCaseIds: ["R69"],
   }),
   runtimeMutant({
     id: "M-06-B01",

@@ -406,7 +406,7 @@ async function withFakeNow(initial, run) {
     ]);
   });
 
-  it("[R06c] runs equal aliased graphs without throwing or deduplicating", async () => {
+  it("[R69] runs equal aliased graphs without throwing or deduplicating", async () => {
     let calls = 0;
     const concierge = conciergeFor([
       action("aliased", () => {
@@ -436,7 +436,7 @@ async function withFakeNow(initial, run) {
 
     expect(
       { calls, same: first === second, threw },
-      "[RED:R06c:aliased-graph-no-dedup]",
+      "[RED:R69:aliased-graph-no-dedup]",
     ).toEqual({ calls: 2, same: false, threw: false });
   });
 
