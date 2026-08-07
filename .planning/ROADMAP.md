@@ -278,7 +278,7 @@ Plans:
 
 **Gap closure — Wave 7** *(blocked on Wave 6 runtime repairs)*
 
-- [ ] 06-08-PLAN.md — Regenerate mutation proof and enforce live validation/requirements ledger consistency
+- [x] 06-08-PLAN.md — Regenerate mutation proof and enforce live validation/requirements ledger consistency
 
 **Research**: None — the source system solved this; the failure list is already enumerated.
 **Notes**: `dispatch` must not be `async`: an async wrapper allocates a fresh Promise per invocation and breaks dedup by identity, which is the mechanism criterion 1 tests. Handler lookup must not be a bare object literal — `dispatch("__proto__")` and `dispatch("constructor")` are test cases. **Amended after Phase 3:** a frozen `Map` still accepts `.set()`, so a `Map` cannot satisfy SEC-03. Phase 3 ships `catalog.byName` as a frozen `Object.create(null)` record, which removes the prototype chain *and* is freezable — it satisfies both constraints where a `Map` satisfies only the first. If Phase 6's handler lookup reads `catalog.byName`, it already has both properties and must **not** be converted to a `Map`. If Phase 6 keeps a separate, mutable lookup of its own, a `Map` is still correct there, because that structure is neither frozen nor part of the catalog. Phase 6's plan must state which of the two its lookup is. All mutable state (dedup map, timers, consent map) is allocated lazily on first dispatch and never during module evaluation, or a module-scoped instance bleeds across requests and tenants in production while looking fine in development.
@@ -374,7 +374,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 3. Action declaration and build-time validation | 8/8 | Complete   | 2026-07-30 |
 | 4. Stages, catalog assembly, and explain() | 8/8 | Complete   | 2026-07-30 |
 | 5. Bridge registry and the no-bridge path | 7/7 | Complete   | 2026-07-31 |
-| 6. Dispatcher | 7/8 | In Progress|  |
+| 6. Dispatcher | 8/8 | Complete   | 2026-08-07 |
 | 7. Session and the transport seam | 0/TBD | Not started | - |
 | 8. Consent kernel | 0/TBD | Not started | - |
 | 9. React and Svelte adapters | 0/TBD | Not started | - |
