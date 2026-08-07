@@ -1539,6 +1539,8 @@ function pendingEvidenceRow(mutant) {
   return {
     id: mutant.id,
     group: mutant.group,
+    target: mutant.target,
+    detectorKind: mutant.detectorKind,
     status: "pending",
     executed: false,
     compiled: false,
@@ -1585,6 +1587,17 @@ function validateRegister(register) {
 }
 
 function validateEvidenceShape(evidence) {
+  if (typeof evidence !== "object" || evidence === null) {
+    throw new Error("evidence must be an object");
+  }
+  if (evidence.schemaVersion !== SCHEMA_VERSION) {
+    throw new Error(
+      `evidence schemaVersion ${evidence.schemaVersion} does not match ${SCHEMA_VERSION}`,
+    );
+  }
+  if (evidence.phase !== "06-dispatcher") {
+    throw new Error(`evidence phase is invalid: ${evidence.phase}`);
+  }
   if (evidence.registerDigest !== registerDigest()) {
     throw new Error("evidence registerDigest does not match the immutable register");
   }
@@ -1596,6 +1609,25 @@ function validateEvidenceShape(evidence) {
   const rowIds = evidence.rows?.map((row) => row.id) ?? [];
   if (JSON.stringify(rowIds) !== JSON.stringify(EXPECTED_M06_IDS)) {
     throw new Error("evidence rows are missing, duplicated, reordered, or extra");
+  }
+  for (const [index, mutant] of MUTANTS.entries()) {
+    const row = evidence.rows[index];
+    if (
+      row.id !== mutant.id ||
+      row.group !== mutant.group ||
+      row.target !== mutant.target ||
+      row.detectorKind !== mutant.detectorKind ||
+      JSON.stringify(row.intendedCaseIds) !==
+        JSON.stringify(mutant.intendedCaseIds) ||
+      JSON.stringify(row.expectedFailureFingerprint) !==
+        JSON.stringify(mutant.expectedFailureFingerprint) ||
+      JSON.stringify(row.expectedTypeDiagnostics) !==
+        JSON.stringify(mutant.expectedTypeDiagnostics)
+    ) {
+      throw new Error(
+        `${mutant.id}: evidence immutable metadata differs from the register`,
+      );
+    }
   }
 }
 
@@ -1879,6 +1911,8 @@ function executeMutant(mutant) {
     const row = {
       id: mutant.id,
       group: mutant.group,
+      target: mutant.target,
+      detectorKind: mutant.detectorKind,
       status,
       executed: true,
       compiled: gate?.compiled === true,
@@ -2029,6 +2063,30 @@ function runRange(firstId, lastId) {
 
 function assertGreenEvidenceRow(row, mutant) {
   const errors = [];
+  if (row.id !== mutant.id) errors.push(`id=${row.id}`);
+  if (row.group !== mutant.group) errors.push(`group=${row.group}`);
+  if (row.target !== mutant.target) errors.push(`target=${row.target}`);
+  if (row.detectorKind !== mutant.detectorKind) {
+    errors.push(`detectorKind=${row.detectorKind}`);
+  }
+  if (
+    JSON.stringify(row.intendedCaseIds) !==
+    JSON.stringify(mutant.intendedCaseIds)
+  ) {
+    errors.push("intendedCaseIds differ from register");
+  }
+  if (
+    JSON.stringify(row.expectedFailureFingerprint) !==
+    JSON.stringify(mutant.expectedFailureFingerprint)
+  ) {
+    errors.push("expectedFailureFingerprint differs from register");
+  }
+  if (
+    JSON.stringify(row.expectedTypeDiagnostics) !==
+    JSON.stringify(mutant.expectedTypeDiagnostics)
+  ) {
+    errors.push("expectedTypeDiagnostics differ from register");
+  }
   if (row.status !== "green") errors.push(`status=${row.status}`);
   if (row.executed !== true) errors.push("executed is not true");
   if (row.compiled !== true) errors.push("compiled is not true");
@@ -2540,6 +2598,19 @@ function assertLedgerCounterexampleRejected(name, baseline, transform) {
   }
 }
 
+function assertEvidenceCounterexampleRejected(name, baseline, transform) {
+  const candidate = transform(structuredClone(baseline));
+  let rejected = false;
+  try {
+    validateEvidenceShape(candidate);
+  } catch {
+    rejected = true;
+  }
+  if (!rejected) {
+    throw new Error(`evidence counterexample was accepted: ${name}`);
+  }
+}
+
 function selfTest() {
   const mutant = MUTANTS.find(
     (candidate) => candidate.detectorKind === "vitest",
@@ -2644,6 +2715,45 @@ function selfTest() {
   const extraTypeOutput = `${exactTypeOutput}src/types.ts(1,1): error TS9999: extra\n`;
   if (exactTypeDiagnosticSet(extraTypeOutput, [expectedDiagnostic]).satisfied) {
     throw new Error("extra type diagnostic satisfied the detector");
+  }
+
+  const evidenceBaseline = makeInitialEvidence();
+  validateEvidenceShape(evidenceBaseline);
+  for (const [name, transform] of [
+    ["wrong schema version", (value) => {
+      value.schemaVersion += 1;
+      return value;
+    }],
+    ["wrong phase", (value) => {
+      value.phase = "07-session";
+      return value;
+    }],
+    ["wrong row group", (value) => {
+      value.rows[0].group = "batch";
+      return value;
+    }],
+    ["wrong row target", (value) => {
+      value.rows[0].target = "packages/concierge/src/types.ts";
+      return value;
+    }],
+    ["wrong detector kind", (value) => {
+      value.rows[0].detectorKind = "typecheck";
+      return value;
+    }],
+    ["wrong intended cases", (value) => {
+      value.rows[0].intendedCaseIds = ["R99"];
+      return value;
+    }],
+    ["wrong expected fingerprint", (value) => {
+      value.rows[0].expectedFailureFingerprint = [];
+      return value;
+    }],
+    ["wrong expected diagnostics", (value) => {
+      value.rows[0].expectedTypeDiagnostics = ["synthetic diagnostic"];
+      return value;
+    }],
+  ]) {
+    assertEvidenceCounterexampleRejected(name, evidenceBaseline, transform);
   }
 
   const currentDigest = revisionDigest(mutant);
