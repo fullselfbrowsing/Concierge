@@ -628,10 +628,25 @@ type PropertyRead =
   | Readonly<{ ok: true; value: unknown }>
   | Readonly<{ ok: false }>;
 
-/** Read one untrusted public field without letting its getter escape. */
-function readProperty(value: object, key: string): PropertyRead {
+type UntrustedBatch = Readonly<{
+  calls?: unknown;
+  responseId?: unknown;
+  userTurnId?: unknown;
+  signal?: unknown;
+  deferUntilDelivered?: unknown;
+}>;
+
+type UntrustedToolCall = Readonly<{
+  callId?: unknown;
+  name?: unknown;
+  arguments?: unknown;
+  outputIndex?: unknown;
+}>;
+
+/** Evaluate one statically named untrusted field without letting its getter escape. */
+function guardedRead(read: () => unknown): PropertyRead {
   try {
-    return { ok: true, value: (value as Record<string, unknown>)[key] };
+    return { ok: true, value: read() };
   } catch {
     return { ok: false };
   }
@@ -662,12 +677,18 @@ function snapshotBatchMetadata(batch: unknown): BatchMetadataSnapshot {
     return Object.freeze({ ok: false });
   }
 
-  const responseIdRead: PropertyRead = readProperty(batch, "responseId");
-  const userTurnIdRead: PropertyRead = readProperty(batch, "userTurnId");
-  const signalRead: PropertyRead = readProperty(batch, "signal");
-  const deliveryRead: PropertyRead = readProperty(
-    batch,
-    "deferUntilDelivered",
+  const candidate: UntrustedBatch = batch;
+  const responseIdRead: PropertyRead = guardedRead(
+    (): unknown => candidate.responseId,
+  );
+  const userTurnIdRead: PropertyRead = guardedRead(
+    (): unknown => candidate.userTurnId,
+  );
+  const signalRead: PropertyRead = guardedRead(
+    (): unknown => candidate.signal,
+  );
+  const deliveryRead: PropertyRead = guardedRead(
+    (): unknown => candidate.deferUntilDelivered,
   );
   if (
     !responseIdRead.ok ||
@@ -715,10 +736,17 @@ function snapshotToolCall(
     });
   }
 
-  const callIdRead: PropertyRead = readProperty(raw, "callId");
-  const nameRead: PropertyRead = readProperty(raw, "name");
-  const argumentsRead: PropertyRead = readProperty(raw, "arguments");
-  const outputIndexRead: PropertyRead = readProperty(raw, "outputIndex");
+  const candidate: UntrustedToolCall = raw;
+  const callIdRead: PropertyRead = guardedRead(
+    (): unknown => candidate.callId,
+  );
+  const nameRead: PropertyRead = guardedRead((): unknown => candidate.name);
+  const argumentsRead: PropertyRead = guardedRead(
+    (): unknown => candidate.arguments,
+  );
+  const outputIndexRead: PropertyRead = guardedRead(
+    (): unknown => candidate.outputIndex,
+  );
   const callId: unknown = callIdRead.ok
     ? callIdRead.value
     : unobservableCallId(originalIndex);
@@ -765,7 +793,10 @@ function snapshotToolCalls(batch: unknown): ReadonlyArray<ToolCallSnapshot> {
     return Object.freeze([]);
   }
 
-  const callsRead: PropertyRead = readProperty(batch, "calls");
+  const candidate: UntrustedBatch = batch;
+  const callsRead: PropertyRead = guardedRead(
+    (): unknown => candidate.calls,
+  );
   if (!callsRead.ok) {
     return Object.freeze([]);
   }
