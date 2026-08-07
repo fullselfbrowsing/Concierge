@@ -109,9 +109,9 @@ Measured on 2026-08-07 with the exact chained phase command. Every command exite
 |------|-------------------|--------|
 | Immutable mutation register | Digest `af67056a6f683327a252986155c28be5a944d53e17866cc8d4e65ca3481152b3`; 61/61 compiled mutants killed; 61 named tests ran; 61 restored gates and scoped-tree checks green | ✅ |
 | No-telemetry AST audit | TypeScript `createSourceFile` parsed 11/11 production files; required result-path files present; 0 executable channel, emission, or caught-value findings. Positive controls adding a `telemetry` identifier and a catch binding each fired, then restored clean | ✅ |
-| `pnpm build` | 4 artifacts, 685.08 kB total; Build complete; embedded ATTW and publint checks clean | ✅ |
+| `pnpm build` | 4 artifacts, 692.66 kB total; Build complete; embedded ATTW and publint checks clean | ✅ |
 | `pnpm typecheck` | `tsc -p tsconfig.test-d.json`; exit 0 | ✅ |
-| `pnpm test` | 12 test files passed; 248/248 tests passed; 0 pending; 0 todo | ✅ |
+| `pnpm test` | 12 test files passed; 250/250 tests passed; 0 pending; 0 todo | ✅ |
 | `pnpm check:artifact` | publint strict: All good; ATTW ESM and JSON profiles green | ✅ |
 | `pnpm check:deps` | 1 built chunk / 1 module; no vendored modules or external runtime imports; dependency ESM entries contribute 0 bytes | ✅ |
 | `pnpm check:pack` | Foreign scratch install, declaration typecheck with TypeScript 7.0.2, and runtime import passed | ✅ |
