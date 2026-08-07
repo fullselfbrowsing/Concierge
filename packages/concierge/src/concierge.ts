@@ -63,6 +63,7 @@ import {
   authoredResult,
   deriveDispatchKey,
   executeDispatchBatch,
+  isAbortSignalLike,
   isAborted,
   normalizeActionResult,
   snapshotInvocationValue,
@@ -128,6 +129,9 @@ function snapshotInvocationMeta(
   if (meta === undefined) {
     return { ok: true, value: Object.freeze({}) };
   }
+  if (typeof meta !== "object" || meta === null) {
+    return { ok: false };
+  }
 
   try {
     const responseId: unknown = meta.responseId;
@@ -143,7 +147,10 @@ function snapshotInvocationMeta(
       (userTurnId !== undefined && typeof userTurnId !== "string") ||
       (callId !== undefined && typeof callId !== "string") ||
       (outputIndex !== undefined &&
-        (typeof outputIndex !== "number" || !Number.isFinite(outputIndex)))
+        (typeof outputIndex !== "number" || !Number.isFinite(outputIndex))) ||
+      (signal !== undefined && !isAbortSignalLike(signal)) ||
+      (deferUntilDelivered !== undefined &&
+        typeof deferUntilDelivered !== "function")
     ) {
       return { ok: false };
     }

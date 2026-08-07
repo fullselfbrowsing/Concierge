@@ -2471,7 +2471,19 @@ async function withFakeNow(initial, run) {
         throw new Error("PRIVATE-METADATA-GETTER");
       },
     });
+    const throwingSignal = {};
+    Object.defineProperty(throwingSignal, "aborted", {
+      enumerable: true,
+      get() {
+        throw new Error("PRIVATE-SIGNAL-GETTER");
+      },
+    });
     const cases = [
+      { name: "null-container", meta: null },
+      { name: "number-container", meta: 42 },
+      { name: "string-container", meta: "metadata" },
+      { name: "boolean-container", meta: true },
+      { name: "symbol-container", meta: Symbol("metadata") },
       { name: "symbol-callId", meta: { callId: Symbol("malformed-call") } },
       { name: "number-callId", meta: { callId: 7 } },
       { name: "number-responseId", meta: { responseId: 7 } },
@@ -2480,6 +2492,20 @@ async function withFakeNow(initial, run) {
       { name: "nan-outputIndex", meta: { outputIndex: Number.NaN } },
       { name: "infinite-outputIndex", meta: { outputIndex: Number.POSITIVE_INFINITY } },
       { name: "negative-infinite-outputIndex", meta: { outputIndex: Number.NEGATIVE_INFINITY } },
+      { name: "numeric-signal", meta: { signal: 42 } },
+      { name: "incomplete-signal", meta: { signal: { aborted: false } } },
+      {
+        name: "nonboolean-signal-state",
+        meta: {
+          signal: {
+            aborted: "false",
+            addEventListener() {},
+            removeEventListener() {},
+          },
+        },
+      },
+      { name: "throwing-signal", meta: { signal: throwingSignal } },
+      { name: "noncallable-delivery-hook", meta: { deferUntilDelivered: "later" } },
       { name: "throwing-getter", meta: throwingMeta },
     ];
     const observations = [];
