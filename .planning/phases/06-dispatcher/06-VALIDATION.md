@@ -55,6 +55,12 @@ Use `pnpm exec vitest run <file>` for filtering—`pnpm test -- <name>` does not
 | 06-06-T3 | 06-06 | 5 | SEC-02 | T-06-Info | No thrown message reaches results, console, or a new telemetry seam | AST source audit + security runtime | `node scripts/check-no-telemetry.mjs` | ✅ | ✅ green |
 | 06-06-T1 | 06-06 | 5 | SEC-06 | T-06-Injection | Every outbound message strips controls, collapses whitespace, caps length, and preserves surrogate pairs | security runtime + mutation | `node scripts/phase-06-mutation-battery.mjs verify single` | ✅ | ✅ green |
 | 06-06-T2 | 06-06 | 5 | TRN-04 | T-06-Coupling | Single and batch dispatch run without constructing a transport | integration + mutation | `node scripts/phase-06-mutation-battery.mjs verify all` | ✅ | ✅ green |
+| 06-07-T1 | 06-07 | 6 | DSP-01, DSP-07 | T-06-G05 | R68 + Q17 prove malformed-metadata totality and correlation | security runtime | dispatcher quick run | ✅ | ✅ green |
+| 06-07-T2 | 06-07 | 6 | DSP-02 | T-06-G06 | R06 proves BigInt no-dedup without a synchronous throw | security runtime | dispatcher quick run | ✅ | ✅ green |
+| 06-07-T3 | 06-07 | 6 | DSP-06 | T-06-G07 | Q04 proves empty-object validation before later calls continue | integration | dispatcher quick run | ✅ | ✅ green |
+| 06-08-T1 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07 | T-06-G08 | 57-row register with bounded range self-tests and ledger self-tests | mutation infrastructure | `node scripts/phase-06-mutation-battery.mjs self-test` | ✅ | ✅ green |
+| 06-08-T2 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07 | T-06-G08 | 57/57 compiled mutants killed by exact detectors and verify all | mutation | `node scripts/phase-06-mutation-battery.mjs verify all` | ✅ | ✅ green |
+| 06-08-T3 | 06-08 | 7 | DSP-01, DSP-02, DSP-06, DSP-07, SEC-02 | T-06-G08 | Final release gates plus verify ledgers against live totals | release + ledger audit | `node scripts/phase-06-mutation-battery.mjs verify ledgers` | ✅ | ✅ green |
 
 *Measured status: every row is green.*
 
@@ -70,10 +76,17 @@ Use `pnpm exec vitest run <file>` for filtering—`pnpm test -- <name>` does not
 
 ### Mutation Evidence
 
-| Register | Digest | Executed | Result |
-|----------|--------|----------|--------|
-| M-06-S01…M-06-S34 | `01013d0fafab25c58a2a030f606ac4633a78c5b65b02393c69a42a2d54b2d1ba` | 34/34 | ✅ compiled, named detector fired, restored gates green, scoped tree clean |
-| M-06-B01…M-06-B20 | same immutable 54-row register | 20/20 | ✅ compiled, named detector fired, restored gates green, scoped tree clean |
+| Register | Digest | Counts | Result |
+|----------|--------|--------|--------|
+| Current immutable register | `85d7ee73720ef63201744610af48d903b89ca5b1d849d5a1ca1d5c77250e55f5` | 36/36 single; 21/21 batch; 57/57 total; 0 pending | ✅ compiled, exact named detector fired, restored gates green, scoped tree clean |
+
+### Gap-Closure Detector Evidence
+
+| Detector | Marker | Contract |
+|----------|--------|----------|
+| R68 | `[RED:R68:malformed-metadata-totality]` | Malformed metadata is total and returns one honest result without handler entry. |
+| Q17 | `[RED:Q17:malformed-callid-correlation]` | Malformed callId retains one frozen correlated row instead of rejecting the batch. |
+| Q16 | `[RED:Q16:immutable-nested-result]` | Immutable nested result identity is preserved across cached retries. |
 
 ---
 
@@ -86,15 +99,15 @@ or package-gate evidence.
 
 ## Phase Gate Evidence
 
-Measured on 2026-08-05 with the exact chained phase command. Every command exited 0.
+Measured on 2026-08-07 with the exact chained phase command. Every command exited 0.
 
 | Gate | Headline evidence | Result |
 |------|-------------------|--------|
-| Immutable mutation register | Digest `01013d0fafab25c58a2a030f606ac4633a78c5b65b02393c69a42a2d54b2d1ba`; 54/54 compiled mutants killed; 54 named tests ran; 54 restored gates and scoped-tree checks green | ✅ |
+| Immutable mutation register | Digest `85d7ee73720ef63201744610af48d903b89ca5b1d849d5a1ca1d5c77250e55f5`; 57/57 compiled mutants killed; 57 named tests ran; 57 restored gates and scoped-tree checks green | ✅ |
 | No-telemetry AST audit | TypeScript `createSourceFile` parsed 11/11 production files; required result-path files present; 0 executable channel, emission, or caught-value findings. Positive controls adding a `telemetry` identifier and a catch binding each fired, then restored clean | ✅ |
-| `pnpm build` | 4 artifacts, 615.21 kB total; Build complete; embedded ATTW and publint checks clean | ✅ |
+| `pnpm build` | 4 artifacts, 663.61 kB total; Build complete; embedded ATTW and publint checks clean | ✅ |
 | `pnpm typecheck` | `tsc -p tsconfig.test-d.json`; exit 0 | ✅ |
-| `pnpm test` | 11 test files passed; 211/211 tests passed | ✅ |
+| `pnpm test` | 12 test files passed; 244/244 tests passed; 0 pending; 0 todo | ✅ |
 | `pnpm check:artifact` | publint strict: All good; ATTW ESM and JSON profiles green | ✅ |
 | `pnpm check:deps` | 1 built chunk / 1 module; no vendored modules or external runtime imports; dependency ESM entries contribute 0 bytes | ✅ |
 | `pnpm check:pack` | Foreign scratch install, declaration typecheck with TypeScript 7.0.2, and runtime import passed | ✅ |
