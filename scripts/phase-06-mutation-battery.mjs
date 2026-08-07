@@ -401,8 +401,13 @@ const MUTANTS = Object.freeze([
     name: "callId and fallback key namespaces collide",
     target: "packages/concierge/src/dispatch.ts",
     literalPattern: "    return `id:${callId}`;",
-    replacement:
-      '    return `args:${JSON.stringify([authorizationScope === null ? "cross" : String(authorizationScope), name, encodeInvocationValue(args)])}`;',
+    replacement: lines(
+      "    const encodedCallArgs: string | null = encodeInvocationValue(args);",
+      "    if (encodedCallArgs === null) return null;",
+      "    const callScope: string =",
+      "      authorizationScope === null ? \"cross\" : String(authorizationScope);",
+      "    return `args:${encodeString(callScope)}${encodeString(name)}${encodeString(encodedCallArgs)}`;",
+    ),
     intendedCaseIds: ["R04"],
   }),
   runtimeMutant({
