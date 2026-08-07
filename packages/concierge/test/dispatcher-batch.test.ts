@@ -1005,3 +1005,60 @@ it("[Q16] keeps nested batch results immutable across cached retries", async () 
     retryResult: { ok: true, message: "batch original" },
   });
 });
+
+it("[Q17] preserves malformed callId correlation in one frozen result row", async () => {
+  const malformedCallId = Symbol("malformed-batch-call");
+  let handlerCalls = 0;
+  const concierge = conciergeFor([
+    action("malformed-call", () => {
+      handlerCalls += 1;
+      return successful();
+    }),
+  ]);
+  let observed = { available: false };
+
+  if (typeof concierge.dispatchBatch === "function") {
+    try {
+      const rows = await concierge.dispatchBatch(
+        ACTIVE_CONTEXT,
+        toolBatch([toolCall(malformedCallId, "malformed-call", "{}", 0)]),
+      );
+      const row = rows[0];
+      observed = {
+        available: true,
+        callIdSame: row?.callId === malformedCallId,
+        containerFrozen: Object.isFrozen(rows),
+        handlerCalls,
+        rejected: false,
+        result: row?.result,
+        resultFrozen: row === undefined ? false : Object.isFrozen(row.result),
+        resultKeys: row === undefined ? [] : Object.keys(row.result).sort(),
+        rowCount: rows.length,
+        rowFrozen: row === undefined ? false : Object.isFrozen(row),
+      };
+    } catch (error) {
+      observed = {
+        available: true,
+        errorName: error?.constructor?.name,
+        handlerCalls,
+        rejected: true,
+      };
+    }
+  }
+
+  expect(observed, "[RED:Q17:malformed-callid-correlation]").toEqual({
+    available: true,
+    callIdSame: true,
+    containerFrozen: true,
+    handlerCalls: 0,
+    rejected: false,
+    result: {
+      ok: false,
+      message: "The invocation metadata is invalid.",
+    },
+    resultFrozen: true,
+    resultKeys: ["message", "ok"],
+    rowCount: 1,
+    rowFrozen: true,
+  });
+});

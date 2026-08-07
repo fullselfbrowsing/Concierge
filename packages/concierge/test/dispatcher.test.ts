@@ -2398,3 +2398,86 @@ async function withFakeNow(initial, run) {
       publishedNames: ["constructor", "__proto__"],
     });
   });
+
+  it("[R68] contains malformed invocation metadata as one honest result", async () => {
+    let handlerCalls = 0;
+    const concierge = conciergeFor([
+      action("malformed-metadata", () => {
+        handlerCalls += 1;
+        return successful();
+      }),
+    ]);
+    const throwingMeta = {};
+    Object.defineProperty(throwingMeta, "responseId", {
+      enumerable: true,
+      get() {
+        throw new Error("PRIVATE-METADATA-GETTER");
+      },
+    });
+    const cases = [
+      { name: "symbol-callId", meta: { callId: Symbol("malformed-call") } },
+      { name: "number-callId", meta: { callId: 7 } },
+      { name: "number-responseId", meta: { responseId: 7 } },
+      { name: "boolean-userTurnId", meta: { userTurnId: false } },
+      { name: "string-outputIndex", meta: { outputIndex: "0" } },
+      { name: "nan-outputIndex", meta: { outputIndex: Number.NaN } },
+      { name: "infinite-outputIndex", meta: { outputIndex: Number.POSITIVE_INFINITY } },
+      { name: "negative-infinite-outputIndex", meta: { outputIndex: Number.NEGATIVE_INFINITY } },
+      { name: "throwing-getter", meta: throwingMeta },
+    ];
+    const observations = [];
+
+    for (const scenario of cases) {
+      let returned;
+      let result;
+      let rejected = false;
+      let threw = false;
+      try {
+        returned = concierge.dispatch(
+          ACTIVE_CONTEXT,
+          "malformed-metadata",
+          { scenario: scenario.name },
+          scenario.meta,
+        );
+      } catch {
+        threw = true;
+      }
+
+      if (returned !== undefined) {
+        try {
+          result = await returned;
+        } catch {
+          rejected = true;
+        }
+      }
+
+      observations.push({
+        frozen: result === undefined ? false : Object.isFrozen(result),
+        keys: result === undefined ? [] : Object.keys(result).sort(),
+        name: scenario.name,
+        promise: returned instanceof Promise,
+        rejected,
+        result,
+        threw,
+      });
+    }
+
+    expect(
+      { handlerCalls, observations },
+      "[RED:R68:malformed-metadata-totality]",
+    ).toEqual({
+      handlerCalls: 0,
+      observations: cases.map((scenario) => ({
+        frozen: true,
+        keys: ["message", "ok"],
+        name: scenario.name,
+        promise: true,
+        rejected: false,
+        result: {
+          ok: false,
+          message: "The invocation metadata is invalid.",
+        },
+        threw: false,
+      })),
+    });
+  });
