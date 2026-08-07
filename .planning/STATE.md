@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-06-PLAN.md
-last_updated: "2026-08-07T17:27:44.107Z"
-last_activity: 2026-08-07 -- Phase 06 planning complete
+stopped_at: Completed 06-07-PLAN.md
+last_updated: "2026-08-07T17:42:45.821Z"
+last_activity: 2026-08-07
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 58
-  completed_plans: 56
+  completed_plans: 57
   percent: 56
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-07-27)
 ## Current Position
 
 Phase: 06 (dispatcher) — EXECUTING
-Plan: 6 of 6
+Plan: 8 of 8
 Status: Ready to execute
-Last activity: 2026-08-07 -- Phase 06 planning complete
+Last activity: 2026-08-07
 
-Progress: [██████████] 100%
+Progress: [██████████] 98%
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Progress: [██████████] 100%
 | Phase 06 P04 | 24min | 2 tasks | 6 files |
 | Phase 06 P05 | 6min | 2 tasks | 4 files |
 | Phase 06 P06 | 35min | 3 tasks | 6 files |
+| Phase 06 P07 | 11m 23s | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,9 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 06-06]: Mutation evidence is credited only for a compiled build, non-zero exact named detector, harness kill, byte-restored target, restored green gates, and clean scoped source.
 - [Phase 06-06]: SEC-02 is structural in Phase 6: production defines no telemetry channel; runtime R34-R36 separately prove exception text reaches neither results nor console.
 - [Phase 06-06]: SEC-03 remains owned by Phase 4 and pending under its jsonSchema-getter carve-out; Phase 6 closes only the prototype-safe dispatch lookup evidence.
+- [Phase 06]: Validate invocation metadata primitives before retry-key derivation and return fixed reasonless authored failures for invalid metadata. — This preserves totality and prevents malformed values or throwing getters from escaping the dispatcher boundary.
+- [Phase 06]: Treat BigInt arguments as deliberately unkeyable while retaining tagged fallback-key encoding for supported values. — Unsupported arguments must execute independently without weakening collision resistance for supported inputs.
+- [Phase 06]: Route malformed batch JSON through ordinary action validation as an empty object. — A single validation path keeps public failure semantics consistent and preserves batch independence.
 
 ### Pending Todos
 
@@ -122,6 +126,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-06T05:01:10.120Z
-Stopped at: Completed 06-06-PLAN.md
+Last session: 2026-08-07T17:42:45.816Z
+Stopped at: Completed 06-07-PLAN.md
 Resume file: None
