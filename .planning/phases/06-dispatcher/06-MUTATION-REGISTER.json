@@ -35,7 +35,9 @@
     "M-06-S31",
     "M-06-S32",
     "M-06-S33",
-    "M-06-S34"
+    "M-06-S34",
+    "M-06-S35",
+    "M-06-S36"
   ],
   "expectedBatchIds": [
     "M-06-B01",
@@ -57,7 +59,8 @@
     "M-06-B17",
     "M-06-B18",
     "M-06-B19",
-    "M-06-B20"
+    "M-06-B20",
+    "M-06-B21"
   ],
   "expectedIds": [
     "M-06-S01",
@@ -94,6 +97,8 @@
     "M-06-S32",
     "M-06-S33",
     "M-06-S34",
+    "M-06-S35",
+    "M-06-S36",
     "M-06-B01",
     "M-06-B02",
     "M-06-B03",
@@ -113,9 +118,10 @@
     "M-06-B17",
     "M-06-B18",
     "M-06-B19",
-    "M-06-B20"
+    "M-06-B20",
+    "M-06-B21"
   ],
-  "registerDigest": "2fa78c31beaaacf85383e28832fca2a01e0526ed17169ad9ec1deb2d3fc58a2a",
+  "registerDigest": "85d7ee73720ef63201744610af48d903b89ca5b1d849d5a1ca1d5c77250e55f5",
   "mutants": [
     {
       "id": "M-06-S01",
@@ -202,7 +208,7 @@
       "group": "single",
       "name": "callId key selection is removed",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "  if (callId !== undefined) {\n    return `id:${callId}`;\n  }",
+      "literalPattern": "  if (callId !== undefined) {\n    if (typeof callId !== \"string\") {\n      return null;\n    }\n    return `id:${callId}`;\n  }",
       "replacement": "",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
@@ -795,6 +801,46 @@
       ]
     },
     {
+      "id": "M-06-S35",
+      "group": "single",
+      "name": "malformed invocation metadata is accepted",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "    if (\n      (responseId !== undefined && typeof responseId !== \"string\") ||\n      (userTurnId !== undefined && typeof userTurnId !== \"string\") ||\n      (callId !== undefined && typeof callId !== \"string\") ||\n      (outputIndex !== undefined &&\n        (typeof outputIndex !== \"number\" || !Number.isFinite(outputIndex)))\n    ) {\n      return { ok: false };\n    }",
+      "replacement": "    if (false) {\n      return { ok: false };\n    }",
+      "detectorKind": "vitest",
+      "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
+      "intendedCaseIds": [
+        "R68"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R68",
+          "marker": "[RED:R68:malformed-metadata-totality]"
+        }
+      ],
+      "expectedTypeDiagnostics": []
+    },
+    {
+      "id": "M-06-S36",
+      "group": "single",
+      "name": "BigInt arguments receive a fallback key",
+      "target": "packages/concierge/src/dispatch.ts",
+      "literalPattern": "  if (typeof value === \"bigint\") {\n    throw new TypeError(\"BigInt invocation values are deliberately unkeyable.\");\n  }",
+      "replacement": "  if (typeof value === \"bigint\") {\n    return [\"string\", `bigint:${String(value)}`];\n  }",
+      "detectorKind": "vitest",
+      "intendedTestFile": "packages/concierge/test/dispatcher.test.ts",
+      "intendedCaseIds": [
+        "R06"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "R06",
+          "marker": "[RED:R06:bigint-args]"
+        }
+      ],
+      "expectedTypeDiagnostics": []
+    },
+    {
       "id": "M-06-B01",
       "group": "batch",
       "name": "batch iterates caller input order",
@@ -879,7 +925,7 @@
       "group": "batch",
       "name": "JSON.parse is left uncaught",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "      let args: unknown;\n      try {\n        args = JSON.parse(call.arguments);\n      } catch {\n        result = authoredResult(\n          false,\n          \"The action arguments are invalid.\",\n          \"invalid_args\",\n        );\n        rows.push(Object.freeze({ callId: call.callId, result }));\n        continue;\n      }",
+      "literalPattern": "      let args: unknown;\n      try {\n        args = JSON.parse(call.arguments);\n      } catch {\n        args = {};\n      }",
       "replacement": "      const args: unknown = JSON.parse(call.arguments);",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
@@ -897,10 +943,10 @@
     {
       "id": "M-06-B06",
       "group": "batch",
-      "name": "malformed parse fallback reaches a defaulting validator",
+      "name": "malformed parse fallback bypasses action validation",
       "target": "packages/concierge/src/dispatch.ts",
-      "literalPattern": "      } catch {\n        result = authoredResult(\n          false,\n          \"The action arguments are invalid.\",\n          \"invalid_args\",\n        );\n        rows.push(Object.freeze({ callId: call.callId, result }));\n        continue;\n      }",
-      "replacement": "      } catch {\n        args = {};\n      }",
+      "literalPattern": "        args = {};",
+      "replacement": "        result = authoredResult(\n          false,\n          \"The action arguments are invalid.\",\n          \"invalid_args\",\n        );\n        rows.push(Object.freeze({ callId: call.callId, result }));\n        continue;",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
@@ -1190,6 +1236,26 @@
         {
           "caseId": "Q13",
           "marker": "[RED:Q13:repeated-callid-dedup]"
+        }
+      ],
+      "expectedTypeDiagnostics": []
+    },
+    {
+      "id": "M-06-B21",
+      "group": "batch",
+      "name": "malformed invocation metadata is accepted in a batch row",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "    if (\n      (responseId !== undefined && typeof responseId !== \"string\") ||\n      (userTurnId !== undefined && typeof userTurnId !== \"string\") ||\n      (callId !== undefined && typeof callId !== \"string\") ||\n      (outputIndex !== undefined &&\n        (typeof outputIndex !== \"number\" || !Number.isFinite(outputIndex)))\n    ) {\n      return { ok: false };\n    }",
+      "replacement": "    if (false) {\n      return { ok: false };\n    }",
+      "detectorKind": "vitest",
+      "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
+      "intendedCaseIds": [
+        "Q17"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "Q17",
+          "marker": "[RED:Q17:malformed-callid-correlation]"
         }
       ],
       "expectedTypeDiagnostics": []

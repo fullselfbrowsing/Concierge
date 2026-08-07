@@ -23,6 +23,11 @@ const EVIDENCE_PATH = join(
   ROOT,
   ".planning/phases/06-dispatcher/06-MUTATION-EVIDENCE.json",
 );
+const VALIDATION_PATH = join(
+  ROOT,
+  ".planning/phases/06-dispatcher/06-VALIDATION.md",
+);
+const REQUIREMENTS_PATH = join(ROOT, ".planning/REQUIREMENTS.md");
 const HARNESS_PATH = join(ROOT, "scripts/mutate-and-prove.sh");
 const SCOPED_PATHS = [
   "packages/concierge/src",
@@ -54,12 +59,12 @@ const REVISION_REQUIRED_PATHS = Object.freeze([
 ]);
 
 export const EXPECTED_SINGLE_IDS = Object.freeze(
-  Array.from({ length: 34 }, (_, index) =>
+  Array.from({ length: 36 }, (_, index) =>
     `M-06-S${String(index + 1).padStart(2, "0")}`,
   ),
 );
 export const EXPECTED_BATCH_IDS = Object.freeze(
-  Array.from({ length: 20 }, (_, index) =>
+  Array.from({ length: 21 }, (_, index) =>
     `M-06-B${String(index + 1).padStart(2, "0")}`,
   ),
 );
@@ -67,6 +72,91 @@ export const EXPECTED_M06_IDS = Object.freeze([
   ...EXPECTED_SINGLE_IDS,
   ...EXPECTED_BATCH_IDS,
 ]);
+
+const REQUIRED_CLOSURE_TASKS = Object.freeze([
+  Object.freeze({
+    id: "06-07-T1",
+    tokens: Object.freeze([
+      "r68",
+      "q17",
+      "malformed-metadata totality",
+      "correlation",
+    ]),
+  }),
+  Object.freeze({
+    id: "06-07-T2",
+    tokens: Object.freeze(["r06", "bigint", "no-dedup"]),
+  }),
+  Object.freeze({
+    id: "06-07-T3",
+    tokens: Object.freeze(["q04", "empty-object validation"]),
+  }),
+  Object.freeze({
+    id: "06-08-T1",
+    tokens: Object.freeze([
+      "57-row register",
+      "range self-tests",
+      "ledger self-tests",
+    ]),
+  }),
+  Object.freeze({
+    id: "06-08-T2",
+    tokens: Object.freeze(["57/57", "verify all"]),
+  }),
+  Object.freeze({
+    id: "06-08-T3",
+    tokens: Object.freeze(["final release gates", "verify ledgers"]),
+  }),
+]);
+
+const REQUIRED_TRACEABILITY = Object.freeze([
+  Object.freeze({
+    id: "DSP-01",
+    tokens: Object.freeze([
+      "r01",
+      "r02",
+      "r68",
+      "valid string callids",
+      "malformed metadata",
+      "contain",
+    ]),
+  }),
+  Object.freeze({
+    id: "DSP-02",
+    tokens: Object.freeze([
+      "r05",
+      "r06",
+      "r06a",
+      "bigint",
+      "cyclic",
+      "aliased",
+      "do not deduplicate",
+    ]),
+  }),
+  Object.freeze({
+    id: "DSP-06",
+    tokens: Object.freeze([
+      "q04",
+      "malformed json",
+      "empty object",
+      "validation",
+      "later calls continue",
+    ]),
+  }),
+  Object.freeze({
+    id: "DSP-07",
+    tokens: Object.freeze([
+      "q17",
+      "one correlated row",
+      "q16",
+      "immutable nested batch results",
+    ]),
+  }),
+]);
+
+const R68_MARKER = "[RED:R68:malformed-metadata-totality]";
+const Q17_MARKER = "[RED:Q17:malformed-callid-correlation]";
+const Q16_MARKER = "[RED:Q16:immutable-nested-result]";
 
 function failureMarkerForCase(testFile, caseId) {
   const source = readFileSync(join(ROOT, testFile), "utf8");
@@ -211,6 +301,9 @@ const MUTANTS = Object.freeze([
     target: "packages/concierge/src/dispatch.ts",
     literalPattern: lines(
       "  if (callId !== undefined) {",
+      "    if (typeof callId !== \"string\") {",
+      "      return null;",
+      "    }",
       "    return `id:${callId}`;",
       "  }",
     ),
@@ -673,6 +766,46 @@ const MUTANTS = Object.freeze([
     ],
   }),
   runtimeMutant({
+    id: "M-06-S35",
+    group: "single",
+    name: "malformed invocation metadata is accepted",
+    target: "packages/concierge/src/concierge.ts",
+    literalPattern: lines(
+      "    if (",
+      "      (responseId !== undefined && typeof responseId !== \"string\") ||",
+      "      (userTurnId !== undefined && typeof userTurnId !== \"string\") ||",
+      "      (callId !== undefined && typeof callId !== \"string\") ||",
+      "      (outputIndex !== undefined &&",
+      "        (typeof outputIndex !== \"number\" || !Number.isFinite(outputIndex)))",
+      "    ) {",
+      "      return { ok: false };",
+      "    }",
+    ),
+    replacement: lines(
+      "    if (false) {",
+      "      return { ok: false };",
+      "    }",
+    ),
+    intendedCaseIds: ["R68"],
+  }),
+  runtimeMutant({
+    id: "M-06-S36",
+    group: "single",
+    name: "BigInt arguments receive a fallback key",
+    target: "packages/concierge/src/dispatch.ts",
+    literalPattern: lines(
+      "  if (typeof value === \"bigint\") {",
+      "    throw new TypeError(\"BigInt invocation values are deliberately unkeyable.\");",
+      "  }",
+    ),
+    replacement: lines(
+      "  if (typeof value === \"bigint\") {",
+      "    return [\"string\", `bigint:${String(value)}`];",
+      "  }",
+    ),
+    intendedCaseIds: ["R06"],
+  }),
+  runtimeMutant({
     id: "M-06-B01",
     group: "batch",
     name: "batch iterates caller input order",
@@ -759,13 +892,7 @@ const MUTANTS = Object.freeze([
       "      try {",
       "        args = JSON.parse(call.arguments);",
       "      } catch {",
-      "        result = authoredResult(",
-      "          false,",
-      '          "The action arguments are invalid.",',
-      '          "invalid_args",',
-      "        );",
-      "        rows.push(Object.freeze({ callId: call.callId, result }));",
-      "        continue;",
+      "        args = {};",
       "      }",
     ),
     replacement: "      const args: unknown = JSON.parse(call.arguments);",
@@ -774,10 +901,10 @@ const MUTANTS = Object.freeze([
   runtimeMutant({
     id: "M-06-B06",
     group: "batch",
-    name: "malformed parse fallback reaches a defaulting validator",
+    name: "malformed parse fallback bypasses action validation",
     target: "packages/concierge/src/dispatch.ts",
-    literalPattern: lines(
-      "      } catch {",
+    literalPattern: "        args = {};",
+    replacement: lines(
       "        result = authoredResult(",
       "          false,",
       '          "The action arguments are invalid.",',
@@ -785,12 +912,6 @@ const MUTANTS = Object.freeze([
       "        );",
       "        rows.push(Object.freeze({ callId: call.callId, result }));",
       "        continue;",
-      "      }",
-    ),
-    replacement: lines(
-      "      } catch {",
-      "        args = {};",
-      "      }",
     ),
     intendedCaseIds: ["Q04"],
   }),
@@ -997,6 +1118,29 @@ const MUTANTS = Object.freeze([
       "      result = await dispatch(ctx, call.name, args, { ...meta, callId: `${meta.callId}:${meta.outputIndex}` });",
     intendedCaseIds: ["Q13"],
   }),
+  runtimeMutant({
+    id: "M-06-B21",
+    group: "batch",
+    name: "malformed invocation metadata is accepted in a batch row",
+    target: "packages/concierge/src/concierge.ts",
+    literalPattern: lines(
+      "    if (",
+      "      (responseId !== undefined && typeof responseId !== \"string\") ||",
+      "      (userTurnId !== undefined && typeof userTurnId !== \"string\") ||",
+      "      (callId !== undefined && typeof callId !== \"string\") ||",
+      "      (outputIndex !== undefined &&",
+      "        (typeof outputIndex !== \"number\" || !Number.isFinite(outputIndex)))",
+      "    ) {",
+      "      return { ok: false };",
+      "    }",
+    ),
+    replacement: lines(
+      "    if (false) {",
+      "      return { ok: false };",
+      "    }",
+    ),
+    intendedCaseIds: ["Q17"],
+  }),
 ]);
 
 const MUTANT_BY_ID = new Map(MUTANTS.map((mutant) => [mutant.id, mutant]));
@@ -1053,10 +1197,13 @@ function unreadableVitestReport(parseError = undefined) {
   return {
     readable: false,
     ...(parseError === undefined ? {} : { parseError }),
+    numTestFiles: 0,
+    numFailedTestSuites: 0,
     numTotalTests: 0,
     numPassedTests: 0,
     numFailedTests: 0,
     numPendingTests: 0,
+    numTodoTests: 0,
     assertions: [],
     suiteErrors: [],
     unhandledErrors: [],
@@ -1094,12 +1241,18 @@ function summarizeVitestPayload(report) {
         : JSON.stringify(error),
     )
     .filter((error) => error !== "" && error !== undefined);
+  const assertionTodos = assertions.filter(
+    (assertion) => assertion.status === "todo",
+  ).length;
   return {
     readable: true,
+    numTestFiles: (report.testResults ?? []).length,
+    numFailedTestSuites: report.numFailedTestSuites ?? 0,
     numTotalTests: report.numTotalTests ?? 0,
     numPassedTests: report.numPassedTests ?? 0,
     numFailedTests: report.numFailedTests ?? 0,
     numPendingTests: report.numPendingTests ?? 0,
+    numTodoTests: report.numTodoTests ?? assertionTodos,
     assertions,
     suiteErrors,
     unhandledErrors,
@@ -1130,6 +1283,21 @@ function runVitest(testFile, reportPath, selectedCaseIds = null) {
   }
   args.push("--reporter=json", `--outputFile=${reportPath}`);
   const result = command("pnpm", args);
+  return {
+    ...result,
+    report: summarizeVitestReport(reportPath),
+  };
+}
+
+function runFullVitest(reportPath) {
+  rmSync(reportPath, { force: true });
+  const result = command("pnpm", [
+    "exec",
+    "vitest",
+    "run",
+    "--reporter=json",
+    `--outputFile=${reportPath}`,
+  ]);
   return {
     ...result,
     report: summarizeVitestReport(reportPath),
@@ -1692,9 +1860,48 @@ function updateEvidenceRow(evidence, row) {
   atomicWriteJson(EVIDENCE_PATH, evidence);
 }
 
-function runGroup(group) {
+export function selectMutantRange(firstId, lastId) {
+  if (
+    typeof firstId !== "string" ||
+    firstId === "" ||
+    typeof lastId !== "string" ||
+    lastId === ""
+  ) {
+    throw new Error("mutation range requires two non-empty endpoint ids");
+  }
+
+  const firstIndex = EXPECTED_M06_IDS.indexOf(firstId);
+  const lastIndex = EXPECTED_M06_IDS.indexOf(lastId);
+  if (firstIndex === -1 || lastIndex === -1) {
+    throw new Error(`unknown mutation range endpoint: ${firstId}..${lastId}`);
+  }
+  if (firstIndex > lastIndex) {
+    throw new Error(`mutation range is reversed: ${firstId}..${lastId}`);
+  }
+
+  const selectedIds = EXPECTED_M06_IDS.slice(firstIndex, lastIndex + 1);
+  const selected = selectedIds.map((id) => MUTANT_BY_ID.get(id));
+  if (selected.some((mutant) => mutant === undefined)) {
+    throw new Error(`mutation range contains an unregistered id: ${firstId}..${lastId}`);
+  }
+  const defined = selected;
+  const group = defined[0]?.group;
+  if (
+    group === undefined ||
+    defined.some((mutant) => mutant.group !== group)
+  ) {
+    throw new Error(`mutation range crosses groups: ${firstId}..${lastId}`);
+  }
+  if (defined.length < 1 || defined.length > 4) {
+    throw new Error(
+      `mutation range must select one to four contiguous ids; got ${defined.length}`,
+    );
+  }
+  return defined;
+}
+
+function runSelected(selected) {
   const { evidence } = ensureArtifacts();
-  const selected = MUTANTS.filter((mutant) => mutant.group === group);
   for (const [index, mutant] of selected.entries()) {
     const existing = evidence.rows.find((row) => row.id === mutant.id);
     const currentRevisionDigest = revisionDigest(mutant);
@@ -1724,6 +1931,14 @@ function runGroup(group) {
       `PASS ${mutant.id}: compiled, ${outcome.row.testsRan} intended test(s) ran, detector fired, source restored green`,
     );
   }
+}
+
+function runGroup(group) {
+  runSelected(MUTANTS.filter((mutant) => mutant.group === group));
+}
+
+function runRange(firstId, lastId) {
+  runSelected(selectMutantRange(firstId, lastId));
 }
 
 function assertGreenEvidenceRow(row, mutant) {
@@ -1794,12 +2009,14 @@ function verify(mode) {
       throw new Error(`${mutant.id}: missing evidence row`);
     }
     if (mode === "single" && mutant.group === "batch") {
-      if (row.status === "pending") {
-        if (row.executed !== false || row.testsRan !== 0) {
-          throw new Error(`${row.id}: pending row is not explicitly unexecuted`);
-        }
-      } else {
-        assertGreenEvidenceRow(row, mutant);
+      if (
+        row.status !== "pending" ||
+        row.executed !== false ||
+        row.testsRan !== 0
+      ) {
+        throw new Error(
+          `${row.id}: verify single permits only explicitly unexecuted pending batch rows`,
+        );
       }
       continue;
     }
@@ -1808,20 +2025,334 @@ function verify(mode) {
 
   const green = evidence.rows.filter((row) => row.status === "green").length;
   const pending = evidence.rows.filter((row) => row.status === "pending").length;
-  if (mode === "all" && (green !== 54 || pending !== 0)) {
-    throw new Error(`verify all requires 54 green and 0 pending; got ${green}/${pending}`);
+  if (
+    mode === "all" &&
+    (green !== EXPECTED_M06_IDS.length || pending !== 0)
+  ) {
+    throw new Error(
+      `verify all requires ${EXPECTED_M06_IDS.length} green and 0 pending; got ${green}/${pending}`,
+    );
   }
   if (mode === "single") {
     const singleGreen = evidence.rows.filter(
       (row) => row.group === "single" && row.status === "green",
     ).length;
-    if (singleGreen !== 34) {
-      throw new Error(`verify single requires 34 green single rows; got ${singleGreen}`);
+    const batchPending = evidence.rows.filter(
+      (row) => row.group === "batch" && row.status === "pending",
+    ).length;
+    if (
+      singleGreen !== EXPECTED_SINGLE_IDS.length ||
+      batchPending !== EXPECTED_BATCH_IDS.length ||
+      green !== EXPECTED_SINGLE_IDS.length ||
+      pending !== EXPECTED_BATCH_IDS.length
+    ) {
+      throw new Error(
+        `verify single requires ${EXPECTED_SINGLE_IDS.length} green single rows and ${EXPECTED_BATCH_IDS.length} explicitly pending batch rows; got ${singleGreen} single green and ${batchPending} batch pending`,
+      );
     }
   }
   console.log(
     `Verified ${mode}: register ${registerDigest()}, ${green} green, ${pending} explicitly pending`,
   );
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function occurrences(value, needle) {
+  return value.split(needle).length - 1;
+}
+
+function tableCells(row) {
+  if (!row.trim().startsWith("|")) {
+    return [];
+  }
+  return row
+    .trim()
+    .slice(1, -1)
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function tableRowsById(value, id) {
+  return value
+    .split("\n")
+    .filter((line) => tableCells(line)[0] === id);
+}
+
+function extractUniqueSection(value, heading, errors) {
+  const pattern = new RegExp(`^${escapeRegExp(heading)}\\s*$`, "gmu");
+  const matches = [...value.matchAll(pattern)];
+  if (matches.length !== 1) {
+    errors.push(`${heading}: expected one section, found ${matches.length}`);
+    return "";
+  }
+
+  const match = matches[0];
+  const start = (match.index ?? 0) + match[0].length;
+  const level = /^#+/u.exec(heading)?.[0].length ?? 1;
+  const tail = value.slice(start);
+  const boundary = new RegExp(
+    `^#{1,${level}}\\s|^---\\s*$`,
+    "mu",
+  ).exec(tail);
+  return boundary === null ? tail : tail.slice(0, boundary.index);
+}
+
+function requireUniqueRow(section, id, errors) {
+  const rows = tableRowsById(section, id);
+  if (rows.length !== 1) {
+    errors.push(`${id}: expected one table row, found ${rows.length}`);
+    return null;
+  }
+  return rows[0];
+}
+
+function requireTokens(row, id, tokens, errors) {
+  const normalized = row.toLowerCase();
+  for (const token of tokens) {
+    const normalizedToken = token.toLowerCase();
+    const present = /^[rq]\d+[a-z]?$/u.test(normalizedToken)
+      ? new RegExp(
+          `(?:^|[^a-z0-9])${escapeRegExp(normalizedToken)}(?:$|[^a-z0-9])`,
+          "u",
+        ).test(normalized)
+      : normalized.includes(normalizedToken);
+    if (!present) {
+      errors.push(`${id}: row is missing ${JSON.stringify(token)}`);
+    }
+  }
+}
+
+/** Validate already-read ledgers without touching disk or running commands. */
+export function validateLedgerSnapshot(snapshot) {
+  const errors = [];
+  const mutationSection = extractUniqueSection(
+    snapshot.validationText,
+    "### Mutation Evidence",
+    errors,
+  );
+  const mutationRow = requireUniqueRow(
+    mutationSection,
+    "Current immutable register",
+    errors,
+  );
+  if (mutationRow !== null) {
+    const cells = tableCells(mutationRow);
+    const recordedDigest = cells[1]?.replaceAll("`", "") ?? "";
+    if (recordedDigest !== snapshot.registerDigest) {
+      errors.push(
+        `mutation digest mismatch: ${recordedDigest} != ${snapshot.registerDigest}`,
+      );
+    }
+    const counts = /^(\d+)\/(\d+) single; (\d+)\/(\d+) batch; (\d+)\/(\d+) total; (\d+) pending$/u.exec(
+      cells[2] ?? "",
+    );
+    if (counts === null) {
+      errors.push("mutation evidence row has an unreadable count summary");
+    } else {
+      const observed = counts.slice(1).map(Number);
+      const expected = [
+        snapshot.singleGreen,
+        EXPECTED_SINGLE_IDS.length,
+        snapshot.batchGreen,
+        EXPECTED_BATCH_IDS.length,
+        snapshot.totalGreen,
+        EXPECTED_M06_IDS.length,
+        snapshot.pendingRows,
+      ];
+      if (JSON.stringify(observed) !== JSON.stringify(expected)) {
+        errors.push(
+          `mutation counts mismatch: ${JSON.stringify(observed)} != ${JSON.stringify(expected)}`,
+        );
+      }
+    }
+  }
+
+  const phaseGateSection = extractUniqueSection(
+    snapshot.validationText,
+    "## Phase Gate Evidence",
+    errors,
+  );
+  const testRow = requireUniqueRow(phaseGateSection, "`pnpm test`", errors);
+  if (testRow !== null) {
+    const cells = tableCells(testRow);
+    const totals = /^(\d+) test files passed; (\d+)\/(\d+) tests passed; (\d+) pending; (\d+) todo$/u.exec(
+      cells[1] ?? "",
+    );
+    if (totals === null) {
+      errors.push("pnpm test row has an unreadable total summary");
+    } else {
+      const observed = totals.slice(1).map(Number);
+      const expected = [
+        snapshot.testFiles,
+        snapshot.passedTests,
+        snapshot.totalTests,
+        snapshot.pendingTests,
+        snapshot.todoTests,
+      ];
+      if (JSON.stringify(observed) !== JSON.stringify(expected)) {
+        errors.push(
+          `pnpm test totals mismatch: ${JSON.stringify(observed)} != ${JSON.stringify(expected)}`,
+        );
+      }
+    }
+  }
+
+  const detectorSection = extractUniqueSection(
+    snapshot.validationText,
+    "### Gap-Closure Detector Evidence",
+    errors,
+  );
+  const detectorRequirements = [
+    { id: "R68", marker: R68_MARKER, tokens: ["malformed metadata", "total"] },
+    { id: "Q17", marker: Q17_MARKER, tokens: ["malformed callid", "correlated row"] },
+    {
+      id: "Q16",
+      marker: Q16_MARKER,
+      tokens: ["immutable", "nested", "result", "cached retries"],
+    },
+  ];
+  for (const detector of detectorRequirements) {
+    const row = requireUniqueRow(detectorSection, detector.id, errors);
+    if (row !== null) {
+      if (occurrences(row, detector.marker) !== 1) {
+        errors.push(`${detector.id}: exact marker is missing or duplicated`);
+      }
+      requireTokens(row, detector.id, detector.tokens, errors);
+    }
+  }
+
+  if (occurrences(snapshot.singleTestText, R68_MARKER) !== 1) {
+    errors.push("R68 test marker is missing or duplicated");
+  }
+  if (occurrences(snapshot.batchTestText, Q17_MARKER) !== 1) {
+    errors.push("Q17 test marker is missing or duplicated");
+  }
+  if (occurrences(snapshot.batchTestText, Q16_MARKER) !== 1) {
+    errors.push("Q16 test marker is missing or duplicated");
+  }
+  if (
+    !snapshot.batchTestText.includes(
+      'it("[Q16] keeps nested batch results immutable across cached retries"',
+    )
+  ) {
+    errors.push("Q16 test title no longer names immutable nested cached results");
+  }
+
+  const taskSection = extractUniqueSection(
+    snapshot.validationText,
+    "## Per-Task Verification Map",
+    errors,
+  );
+  for (const task of REQUIRED_CLOSURE_TASKS) {
+    const row = requireUniqueRow(taskSection, task.id, errors);
+    if (row === null) {
+      continue;
+    }
+    const cells = tableCells(row);
+    if (cells.length !== 10 || cells[9] !== "✅ green") {
+      errors.push(`${task.id}: closure-task row is incomplete`);
+    }
+    requireTokens(row, task.id, task.tokens, errors);
+  }
+
+  for (const requirement of REQUIRED_TRACEABILITY) {
+    const row = requireUniqueRow(
+      snapshot.requirementsText,
+      requirement.id,
+      errors,
+    );
+    if (row !== null) {
+      requireTokens(row, requirement.id, requirement.tokens, errors);
+      if (
+        requirement.id === "DSP-01" &&
+        row.toLowerCase().includes("invalid callids are deduplicated")
+      ) {
+        errors.push("DSP-01 falsely claims invalid callIds are deduplicated");
+      }
+    }
+  }
+
+  return errors;
+}
+
+function verifyLedgers() {
+  verify("all");
+  const { register, evidence } = ensureArtifacts();
+  const directory = mkdtempSync(join(tmpdir(), "phase-06-ledgers-"));
+  try {
+    const build = runBuild();
+    if (!build.succeeded) {
+      throw new Error(`ledger verification build failed:\n${shortOutput(build.output)}`);
+    }
+
+    const reportPath = join(directory, "full-vitest.json");
+    const vitest = runFullVitest(reportPath);
+    const report = vitest.report;
+    if (
+      vitest.exitCode !== 0 ||
+      vitest.signal !== null ||
+      !report.readable ||
+      report.numTestFiles === 0 ||
+      report.numTotalTests === 0 ||
+      report.numPassedTests !== report.numTotalTests ||
+      report.numFailedTests !== 0 ||
+      report.numPendingTests !== 0 ||
+      report.numTodoTests !== 0 ||
+      report.numFailedTestSuites !== 0 ||
+      report.suiteErrors.length !== 0 ||
+      report.unhandledErrors.length !== 0
+    ) {
+      throw new Error(
+        `live Vitest report is not a complete successful run:\n${JSON.stringify({
+          exitCode: vitest.exitCode,
+          signal: vitest.signal,
+          report,
+        }, null, 2)}`,
+      );
+    }
+
+    const singleGreen = evidence.rows.filter(
+      (row) => row.group === "single" && row.status === "green",
+    ).length;
+    const batchGreen = evidence.rows.filter(
+      (row) => row.group === "batch" && row.status === "green",
+    ).length;
+    const totalGreen = evidence.rows.filter(
+      (row) => row.status === "green",
+    ).length;
+    const pendingRows = evidence.rows.filter(
+      (row) => row.status === "pending",
+    ).length;
+    const snapshot = {
+      validationText: readFileSync(VALIDATION_PATH, "utf8"),
+      requirementsText: readFileSync(REQUIREMENTS_PATH, "utf8"),
+      singleTestText: readFileSync(join(ROOT, SINGLE_TEST), "utf8"),
+      batchTestText: readFileSync(join(ROOT, BATCH_TEST), "utf8"),
+      registerDigest: register.registerDigest,
+      singleGreen,
+      batchGreen,
+      totalGreen,
+      pendingRows,
+      testFiles: report.numTestFiles,
+      passedTests: report.numPassedTests,
+      totalTests: report.numTotalTests,
+      pendingTests: report.numPendingTests,
+      todoTests: report.numTodoTests,
+    };
+    const errors = validateLedgerSnapshot(snapshot);
+    if (errors.length !== 0) {
+      throw new Error(`ledger snapshot is stale or incomplete:\n- ${errors.join("\n- ")}`);
+    }
+
+    console.log(
+      `Verified ledgers: register ${register.registerDigest}, ${singleGreen}/${batchGreen}/${totalGreen} green, ${report.numTestFiles} files and ${report.numPassedTests}/${report.numTotalTests} tests`,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 }
 
 function init() {
@@ -1840,6 +2371,87 @@ function refresh() {
   console.log(
     `Refreshed immutable ${register.mutants.length}-row register ${register.registerDigest}; all evidence rows reset to pending`,
   );
+}
+
+function removeTableRow(value, id) {
+  return value
+    .split("\n")
+    .filter((line) => tableCells(line)[0] !== id)
+    .join("\n");
+}
+
+function selfTestLedgerSnapshot() {
+  const digest = "a".repeat(64);
+  const closureRows = REQUIRED_CLOSURE_TASKS.map((task) => {
+    const evidence = {
+      "06-07-T1": "R68 + Q17 malformed-metadata totality and correlation",
+      "06-07-T2": "R06 BigInt no-dedup",
+      "06-07-T3": "Q04 empty-object validation",
+      "06-08-T1": "57-row register with range self-tests and ledger self-tests",
+      "06-08-T2": "57/57 plus verify all",
+      "06-08-T3": "final release gates plus verify ledgers",
+    }[task.id];
+    return `| ${task.id} | plan | wave | requirement | threat | ${evidence} | test | command | ✅ | ✅ green |`;
+  }).join("\n");
+  const validationText = `
+## Per-Task Verification Map
+
+| Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
+|---|---|---|---|---|---|---|---|---|---|
+${closureRows}
+
+### Mutation Evidence
+
+| Register | Digest | Counts | Result |
+|---|---|---|---|
+| Current immutable register | \`${digest}\` | 36/36 single; 21/21 batch; 57/57 total; 0 pending | ✅ |
+
+### Gap-Closure Detector Evidence
+
+| Detector | Marker | Contract |
+|---|---|---|
+| R68 | ${R68_MARKER} | malformed metadata is total |
+| Q17 | ${Q17_MARKER} | malformed callId retains one correlated row |
+| Q16 | ${Q16_MARKER} | immutable nested result across cached retries |
+
+## Phase Gate Evidence
+
+| Gate | Headline evidence | Result |
+|---|---|---|
+| \`pnpm test\` | 12 test files passed; 242/242 tests passed; 0 pending; 0 todo | ✅ |
+`;
+  const requirementsText = `
+| REQ-ID | Phase | Status |
+|---|---|---|
+| DSP-01 | Phase 6 | Complete — R01/R02 prove valid string callIds retain identity; R68 proves malformed metadata containment. |
+| DSP-02 | Phase 6 | Complete — R05/R06 prove BigInt, cyclic, and aliased inputs do not deduplicate; R06a proves keyable values remain injective. |
+| DSP-06 | Phase 6 | Complete — Q04 proves malformed JSON becomes an empty object, reaches validation, and later calls continue. |
+| DSP-07 | Phase 6 | Complete — Q17 proves one correlated row; Q16 proves immutable nested batch results across cached retries. |
+`;
+  return {
+    validationText,
+    requirementsText,
+    singleTestText: `expect(value, "${R68_MARKER}")`,
+    batchTestText: `it("[Q16] keeps nested batch results immutable across cached retries", () => {}); expect(value, "${Q16_MARKER}"); expect(value, "${Q17_MARKER}")`,
+    registerDigest: digest,
+    singleGreen: EXPECTED_SINGLE_IDS.length,
+    batchGreen: EXPECTED_BATCH_IDS.length,
+    totalGreen: EXPECTED_M06_IDS.length,
+    pendingRows: 0,
+    testFiles: 12,
+    passedTests: 242,
+    totalTests: 242,
+    pendingTests: 0,
+    todoTests: 0,
+  };
+}
+
+function assertLedgerCounterexampleRejected(name, baseline, transform) {
+  const candidate = transform(structuredClone(baseline));
+  const errors = validateLedgerSnapshot(candidate);
+  if (errors.length === 0) {
+    throw new Error(`ledger counterexample was accepted: ${name}`);
+  }
 }
 
 function selfTest() {
@@ -2005,18 +2617,124 @@ function selfTest() {
       "non-intended fixture changes do not invalidate the revision digest",
     );
   }
+
+  for (const [firstId, lastId, expectedLength] of [
+    ["M-06-S01", "M-06-S01", 1],
+    ["M-06-S01", "M-06-S04", 4],
+    ["M-06-S33", "M-06-S36", 4],
+    ["M-06-B21", "M-06-B21", 1],
+  ]) {
+    const selected = selectMutantRange(firstId, lastId);
+    if (selected.length !== expectedLength) {
+      throw new Error(
+        `range selector returned ${selected.length} rows for ${firstId}..${lastId}`,
+      );
+    }
+  }
+  for (const [name, firstId, lastId] of [
+    ["empty", "", "M-06-S01"],
+    ["unknown", "M-06-S00", "M-06-S01"],
+    ["reversed", "M-06-S04", "M-06-S01"],
+    ["cross-group", "M-06-S36", "M-06-B01"],
+    ["five-mutant", "M-06-S01", "M-06-S05"],
+  ]) {
+    let rejected = false;
+    try {
+      selectMutantRange(firstId, lastId);
+    } catch {
+      rejected = true;
+    }
+    if (!rejected) {
+      throw new Error(`range selector accepted ${name} counterexample`);
+    }
+  }
+
+  const ledger = selfTestLedgerSnapshot();
+  const baselineErrors = validateLedgerSnapshot(ledger);
+  if (baselineErrors.length !== 0) {
+    throw new Error(
+      `ledger validator rejected its valid baseline:\n- ${baselineErrors.join("\n- ")}`,
+    );
+  }
+  const ledgerCounterexamples = [
+    ["wrong mutation digest", (value) => {
+      value.validationText = value.validationText.replace(
+        value.registerDigest,
+        "b".repeat(64),
+      );
+      return value;
+    }],
+    ["off-by-one test total", (value) => {
+      value.validationText = value.validationText.replace(
+        "242/242 tests passed",
+        "242/243 tests passed",
+      );
+      return value;
+    }],
+    ["stale detector count", (value) => {
+      value.validationText = value.validationText.replace(
+        "36/36 single",
+        "35/36 single",
+      );
+      return value;
+    }],
+    ["missing R68 detector evidence", (value) => {
+      value.validationText = removeTableRow(value.validationText, "R68");
+      return value;
+    }],
+    ["missing Q17 detector evidence", (value) => {
+      value.validationText = removeTableRow(value.validationText, "Q17");
+      return value;
+    }],
+    ["Q17 replaced by colliding Q16 id", (value) => {
+      value.validationText = value.validationText.replace(
+        `| Q17 | ${Q17_MARKER}`,
+        `| Q16 | ${Q17_MARKER}`,
+      );
+      return value;
+    }],
+    ["missing DSP-01/R68 citation", (value) => {
+      value.requirementsText = value.requirementsText.replace("R68", "RXX");
+      return value;
+    }],
+    ["missing DSP-02/R06 citation", (value) => {
+      value.requirementsText = value.requirementsText.replace("R06 prove", "RXX prove");
+      return value;
+    }],
+    ["missing DSP-06/Q04 citation", (value) => {
+      value.requirementsText = value.requirementsText.replace("Q04 proves", "QXX proves");
+      return value;
+    }],
+    ["missing DSP-07/Q17 citation", (value) => {
+      value.requirementsText = value.requirementsText.replace("Q17 proves", "QXX proves");
+      return value;
+    }],
+  ];
+  for (const [name, transform] of ledgerCounterexamples) {
+    assertLedgerCounterexampleRejected(name, ledger, transform);
+  }
+  for (const task of REQUIRED_CLOSURE_TASKS) {
+    assertLedgerCounterexampleRejected(
+      `missing ${task.id} closure row`,
+      ledger,
+      (value) => {
+        value.validationText = removeTableRow(value.validationText, task.id);
+        return value;
+      },
+    );
+  }
   console.log(
-    "Self-test passed: full-tree revision invalidation and exact runtime/type fingerprints are enforced",
+    "Self-test passed: full-tree invalidation, exact detectors, bounded ranges, and ledger counterexamples are enforced",
   );
 }
 
 function usage() {
   console.error(
-    "Usage: node scripts/phase-06-mutation-battery.mjs init | refresh | self-test | run single|batch | verify single|all",
+    "Usage: node scripts/phase-06-mutation-battery.mjs init | refresh | self-test | run single|batch | run range <first-id> <last-id> | verify single|all|ledgers",
   );
 }
 
-const [operation, argument, gateDirectory] = process.argv.slice(2);
+const [operation, argument, thirdArgument, fourthArgument] = process.argv.slice(2);
 try {
   if (operation === "init" && argument === undefined) {
     init();
@@ -2027,12 +2745,21 @@ try {
   } else if (operation === "run" && (argument === "single" || argument === "batch")) {
     runGroup(argument);
   } else if (
+    operation === "run" &&
+    argument === "range" &&
+    thirdArgument !== undefined &&
+    fourthArgument !== undefined
+  ) {
+    runRange(thirdArgument, fourthArgument);
+  } else if (
     operation === "verify" &&
     (argument === "single" || argument === "all")
   ) {
     verify(argument);
-  } else if (operation === "gate" && argument !== undefined && gateDirectory !== undefined) {
-    runGate(argument, gateDirectory);
+  } else if (operation === "verify" && argument === "ledgers") {
+    verifyLedgers();
+  } else if (operation === "gate" && argument !== undefined && thirdArgument !== undefined) {
+    runGate(argument, thirdArgument);
   } else {
     usage();
     process.exitCode = 2;
