@@ -2598,3 +2598,116 @@ async function withFakeNow(initial, run) {
       })),
     });
   });
+
+  it("[R70] bounds invocation arrays and reads hostile length exactly once", async () => {
+    const observations = [];
+    let handlerCalls = 0;
+    const concierge = conciergeFor([
+      action("array-boundary", ({ args }) => {
+        handlerCalls += 1;
+        observations.push({
+          length: args.items.length,
+          ownZero: Object.prototype.hasOwnProperty.call(args.items, 0),
+          zero: args.items[0],
+        });
+        return successful();
+      }),
+    ]);
+
+    const symbolLength = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === "length") return Symbol("malformed-length");
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    let statefulLengthReads = 0;
+    const statefulLength = new Proxy([], {
+      get(target, property, receiver) {
+        if (property === "length") {
+          statefulLengthReads += 1;
+          return statefulLengthReads === 1
+            ? 0
+            : Symbol("length-was-read-again");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const oversizedLength = new Proxy([], {
+      get(target, property, receiver) {
+        // One above dispatch.ts's documented 10,000-entry resource bound.
+        if (property === "length") return 10_001;
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const inheritedEntry = new Array(1);
+    const inheritedPrototype = Object.create(Array.prototype);
+    Object.defineProperty(inheritedPrototype, "0", {
+      configurable: true,
+      value: "prototype-data",
+    });
+    Object.setPrototypeOf(inheritedEntry, inheritedPrototype);
+
+    let symbolPromise;
+    let symbolThrew = false;
+    try {
+      symbolPromise = concierge.dispatch(
+        ACTIVE_CONTEXT,
+        "array-boundary",
+        { items: symbolLength },
+        { callId: "symbol-array-length" },
+      );
+    } catch {
+      symbolThrew = true;
+    }
+
+    const [symbolResult, statefulResult, oversizedResult, inheritedResult] =
+      await Promise.all([
+        symbolPromise,
+        concierge.dispatch(
+          ACTIVE_CONTEXT,
+          "array-boundary",
+          { items: statefulLength },
+          { callId: "stateful-array-length" },
+        ),
+        concierge.dispatch(
+          ACTIVE_CONTEXT,
+          "array-boundary",
+          { items: oversizedLength },
+          { callId: "oversized-array-length" },
+        ),
+        concierge.dispatch(
+          ACTIVE_CONTEXT,
+          "array-boundary",
+          { items: inheritedEntry },
+          { callId: "inherited-array-entry" },
+        ),
+      ]);
+
+    expect(
+      {
+        handlerCalls,
+        inheritedResult,
+        observations,
+        oversizedReason: oversizedResult.reason,
+        statefulLengthReads,
+        statefulResult,
+        symbolPromise: symbolPromise instanceof Promise,
+        symbolReason: symbolResult.reason,
+        symbolThrew,
+      },
+      "[RED:R70:bounded-prototype-safe-invocation-arrays]",
+    ).toEqual({
+      handlerCalls: 2,
+      inheritedResult: { ok: true, message: "Done." },
+      observations: [
+        { length: 0, ownZero: false, zero: undefined },
+        { length: 1, ownZero: false, zero: undefined },
+      ],
+      oversizedReason: "invalid_args",
+      statefulLengthReads: 1,
+      statefulResult: { ok: true, message: "Done." },
+      symbolPromise: true,
+      symbolReason: "invalid_args",
+      symbolThrew: false,
+    });
+  });

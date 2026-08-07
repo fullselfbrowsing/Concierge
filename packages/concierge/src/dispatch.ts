@@ -26,6 +26,92 @@ export type InvocationValueSnapshot =
   | { readonly ok: true; readonly value: unknown }
   | { readonly ok: false };
 
+/**
+ * Resource bounds for arrays supplied across public invocation boundaries.
+ *
+ * Ten thousand entries is deliberately generous for tool arguments and tool
+ * batches while keeping one hostile `length` trap from allocating or looping
+ * without bound. These are entry-count limits, not byte limits; nested values
+ * still pass through the same bound independently.
+ */
+const MAX_INVOCATION_ARRAY_LENGTH = 10_000;
+const MAX_BATCH_CALLS = 10_000;
+
+type ArrayLengthSnapshot =
+  | Readonly<{ ok: true; value: number }>
+  | Readonly<{ ok: false }>;
+
+type OwnArraySlotSnapshot =
+  | Readonly<{ ok: true; present: false }>
+  | Readonly<{ ok: true; present: true; value: unknown }>
+  | Readonly<{ ok: false }>;
+
+/** Read one hostile array length exactly once and validate it before use. */
+function snapshotArrayLength(
+  value: ReadonlyArray<unknown>,
+  maximum: number,
+): ArrayLengthSnapshot {
+  let length: unknown;
+  try {
+    length = value.length;
+  } catch {
+    return { ok: false };
+  }
+
+  if (
+    typeof length !== "number" ||
+    !Number.isFinite(length) ||
+    !Number.isSafeInteger(length) ||
+    length < 0 ||
+    length > maximum
+  ) {
+    return { ok: false };
+  }
+  return { ok: true, value: length };
+}
+
+/**
+ * Read one numeric slot without ever traversing the array's prototype.
+ *
+ * The own-property probe is guarded because a Proxy may throw. The descriptor
+ * is then read separately so deletion between the probe and value read becomes
+ * a contained failure instead of an inherited lookup. Accessor slots retain
+ * ordinary array access semantics, including their receiver, inside the same
+ * closed boundary.
+ */
+function snapshotOwnArraySlot(
+  value: ReadonlyArray<unknown>,
+  index: number,
+): OwnArraySlotSnapshot {
+  let own: boolean;
+  try {
+    own = Object.prototype.hasOwnProperty.call(value, index);
+  } catch {
+    return { ok: false };
+  }
+  if (!own) {
+    return { ok: true, present: false };
+  }
+
+  try {
+    const descriptor: PropertyDescriptor | undefined =
+      Object.getOwnPropertyDescriptor(value, String(index));
+    if (descriptor === undefined) {
+      return { ok: false };
+    }
+    if ("value" in descriptor) {
+      return { ok: true, present: true, value: descriptor.value };
+    }
+    return {
+      ok: true,
+      present: true,
+      value: descriptor.get?.call(value),
+    };
+  } catch {
+    return { ok: false };
+  }
+}
+
 /** Clone the plain-data invocation boundary without retaining caller aliases. */
 function cloneInvocationValue(
   value: unknown,
@@ -44,11 +130,23 @@ function cloneInvocationValue(
   }
 
   if (Array.isArray(value)) {
-    const clone: unknown[] = new Array<unknown>(value.length);
+    const lengthSnapshot: ArrayLengthSnapshot = snapshotArrayLength(
+      value,
+      MAX_INVOCATION_ARRAY_LENGTH,
+    );
+    if (!lengthSnapshot.ok) {
+      throw new TypeError("Invocation arrays exceed the supported bound.");
+    }
+    const length: number = lengthSnapshot.value;
+    const clone: unknown[] = new Array<unknown>(length);
     seen.set(value, clone);
-    for (let index: number = 0; index < value.length; index += 1) {
-      if (Object.prototype.hasOwnProperty.call(value, index)) {
-        clone[index] = cloneInvocationValue(value[index], seen);
+    for (let index: number = 0; index < length; index += 1) {
+      const slot: OwnArraySlotSnapshot = snapshotOwnArraySlot(value, index);
+      if (!slot.ok) {
+        throw new TypeError("Invocation array slots must be readable.");
+      }
+      if (slot.present) {
+        clone[index] = cloneInvocationValue(slot.value, seen);
       }
     }
     return clone;
@@ -159,11 +257,26 @@ function canonicalInvocationValue(
   seen.add(value);
 
   if (Array.isArray(value)) {
+    const lengthSnapshot: ArrayLengthSnapshot = snapshotArrayLength(
+      value,
+      MAX_INVOCATION_ARRAY_LENGTH,
+    );
+    if (!lengthSnapshot.ok) {
+      throw new TypeError("Invocation arrays exceed the supported bound.");
+    }
     const slots: Array<CanonicalValue | readonly ["hole"]> = [];
-    for (let index: number = 0; index < value.length; index += 1) {
+    for (
+      let index: number = 0;
+      index < lengthSnapshot.value;
+      index += 1
+    ) {
+      const slot: OwnArraySlotSnapshot = snapshotOwnArraySlot(value, index);
+      if (!slot.ok) {
+        throw new TypeError("Invocation array slots must be readable.");
+      }
       slots.push(
-        Object.prototype.hasOwnProperty.call(value, index)
-          ? canonicalInvocationValue(value[index], seen)
+        slot.present
+          ? canonicalInvocationValue(slot.value, seen)
           : ["hole"],
       );
     }
@@ -812,23 +925,26 @@ function snapshotToolCalls(batch: unknown): ReadonlyArray<ToolCallSnapshot> {
   }
 
   const rawCalls = callsRead.value as ReadonlyArray<unknown>;
-  let length: number;
-  try {
-    length = rawCalls.length;
-  } catch {
+  const lengthSnapshot: ArrayLengthSnapshot = snapshotArrayLength(
+    rawCalls,
+    MAX_BATCH_CALLS,
+  );
+  if (!lengthSnapshot.ok) {
     return Object.freeze([]);
   }
+  const length: number = lengthSnapshot.value;
 
   const snapshots: ToolCallSnapshot[] = [];
   for (let originalIndex: number = 0; originalIndex < length; originalIndex += 1) {
-    let raw: unknown;
-    try {
-      raw = rawCalls[originalIndex];
-    } catch {
+    const slot: OwnArraySlotSnapshot = snapshotOwnArraySlot(
+      rawCalls,
+      originalIndex,
+    );
+    if (!slot.ok || !slot.present) {
       snapshots.push(snapshotToolCall(undefined, originalIndex));
       continue;
     }
-    snapshots.push(snapshotToolCall(raw, originalIndex));
+    snapshots.push(snapshotToolCall(slot.value, originalIndex));
   }
   return Object.freeze(snapshots);
 }

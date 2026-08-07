@@ -1251,3 +1251,95 @@ it("[Q19] contains throwing batch metadata as one row per observable call", asyn
     ],
   });
 });
+
+it("[Q20] bounds the calls array and never executes inherited numeric entries", async () => {
+  const handled = [];
+  const concierge = conciergeFor([
+    action("array-boundary", ({ meta }) => {
+      handled.push(meta.callId);
+      return successful(meta.callId);
+    }),
+  ]);
+
+  const symbolLengthCalls = new Proxy([], {
+    get(target, property, receiver) {
+      if (property === "length") return Symbol("malformed-length");
+      return Reflect.get(target, property, receiver);
+    },
+  });
+  const oversizedCalls = new Proxy([], {
+    get(target, property, receiver) {
+      // One above dispatch.ts's documented 10,000-entry resource bound.
+      if (property === "length") return 10_001;
+      return Reflect.get(target, property, receiver);
+    },
+  });
+  let statefulLengthReads = 0;
+  const statefulCalls = new Proxy(
+    [toolCall("stateful-own", "array-boundary", "{}", 0)],
+    {
+      get(target, property, receiver) {
+        if (property === "length") {
+          statefulLengthReads += 1;
+          return statefulLengthReads === 1
+            ? 1
+            : Symbol("length-was-read-again");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    },
+  );
+
+  const inheritedCalls = new Array(2);
+  const inheritedPrototype = Object.create(Array.prototype);
+  Object.defineProperty(inheritedPrototype, "0", {
+    configurable: true,
+    value: toolCall("inherited", "array-boundary", "{}", -1),
+  });
+  Object.setPrototypeOf(inheritedCalls, inheritedPrototype);
+  inheritedCalls[1] = toolCall("sparse-own", "array-boundary", "{}", 0);
+
+  const [symbolRows, oversizedRows, statefulRows, sparseRows] =
+    await Promise.all([
+      concierge.dispatchBatch(ACTIVE_CONTEXT, toolBatch(symbolLengthCalls)),
+      concierge.dispatchBatch(ACTIVE_CONTEXT, toolBatch(oversizedCalls)),
+      concierge.dispatchBatch(ACTIVE_CONTEXT, toolBatch(statefulCalls)),
+      concierge.dispatchBatch(ACTIVE_CONTEXT, toolBatch(inheritedCalls)),
+    ]);
+
+  expect(
+    {
+      handled,
+      oversizedRows,
+      sparseRows,
+      statefulLengthReads,
+      statefulRows,
+      symbolRows,
+    },
+    "[RED:Q20:bounded-prototype-safe-batch-array]",
+  ).toEqual({
+    handled: ["stateful-own", "sparse-own"],
+    oversizedRows: [],
+    sparseRows: [
+      {
+        callId: "sparse-own",
+        result: { ok: true, message: "sparse-own" },
+      },
+      {
+        callId: "[concierge:unobservable-call-id:0]",
+        result: {
+          ok: false,
+          message: "The invocation metadata is invalid.",
+        },
+      },
+    ],
+    statefulLengthReads: 1,
+    statefulRows: [
+      {
+        callId: "stateful-own",
+        result: { ok: true, message: "stateful-own" },
+      },
+    ],
+    symbolRows: [],
+  });
+});
