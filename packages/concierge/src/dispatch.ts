@@ -588,13 +588,7 @@ export async function executeDispatchBatch(
       try {
         args = JSON.parse(call.arguments);
       } catch {
-        result = authoredResult(
-          false,
-          "The action arguments are invalid.",
-          "invalid_args",
-        );
-        rows.push(Object.freeze({ callId: call.callId, result }));
-        continue;
+        args = {};
       }
 
       const meta: InvocationMeta = {

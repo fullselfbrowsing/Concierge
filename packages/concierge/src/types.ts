@@ -1194,7 +1194,7 @@ export interface StageDefinition<B extends Bridge = Bridge> {
 export interface ToolCall {
   readonly callId: string;
   readonly name: string;
-  /** Raw string as received. Malformed JSON yields `invalid_args` without dispatching. */
+  /** Raw string as received. Malformed JSON becomes `{}` and then reaches action validation. */
   readonly arguments: string;
   readonly outputIndex: number;
 }
