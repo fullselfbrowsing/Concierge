@@ -29,12 +29,6 @@ const VALIDATION_PATH = join(
 );
 const REQUIREMENTS_PATH = join(ROOT, ".planning/REQUIREMENTS.md");
 const HARNESS_PATH = join(ROOT, "scripts/mutate-and-prove.sh");
-const SCOPED_PATHS = [
-  "packages/concierge/src",
-  "packages/concierge/test",
-  "packages/concierge/test-d",
-  "pnpm-lock.yaml",
-];
 const SINGLE_TEST = "packages/concierge/test/dispatcher.test.ts";
 const BATCH_TEST = "packages/concierge/test/dispatcher-batch.test.ts";
 const BUILD_MARKER = "Build complete";
@@ -56,6 +50,14 @@ const REVISION_REQUIRED_PATHS = Object.freeze([
   "packages/concierge/tsconfig.json",
   "packages/concierge/tsconfig.test-d.json",
   "packages/concierge/tsdown.config.ts",
+]);
+const SCOPED_PATHS = Object.freeze([
+  ...new Set([
+    ...REVISION_DIRECTORY_SCOPES,
+    ...REVISION_REQUIRED_PATHS,
+    "scripts/phase-06-mutation-battery.mjs",
+    "scripts/mutate-and-prove.sh",
+  ]),
 ]);
 
 export const EXPECTED_SINGLE_IDS = Object.freeze(
