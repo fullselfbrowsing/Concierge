@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "phase": "06-dispatcher",
-  "registerDigest": "2c71818bd1e8ffa0ed0c76e81c545d896a95f171a612f6f12969af86eac31c90",
+  "registerDigest": "37ddb917444fe9e1454c54a85d692c1516ec79ab596aa9f1ca94e30ed1fa315a",
   "expectedIds": [
     "M-06-S01",
     "M-06-S02",
@@ -65,7 +65,7 @@
     "M-06-B23",
     "M-06-B24"
   ],
-  "updatedAt": "2026-08-07T19:01:05.998Z",
+  "updatedAt": "2026-08-07T19:02:02.510Z",
   "rows": [
     {
       "id": "M-06-S01",
@@ -2005,7 +2005,7 @@
     {
       "id": "M-06-B21",
       "group": "batch",
-      "target": "packages/concierge/src/concierge.ts",
+      "target": "packages/concierge/src/dispatch.ts",
       "detectorKind": "vitest",
       "status": "pending",
       "executed": false,

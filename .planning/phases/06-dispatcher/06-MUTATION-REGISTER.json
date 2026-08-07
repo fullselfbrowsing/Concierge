@@ -129,7 +129,7 @@
     "M-06-B23",
     "M-06-B24"
   ],
-  "registerDigest": "2c71818bd1e8ffa0ed0c76e81c545d896a95f171a612f6f12969af86eac31c90",
+  "registerDigest": "37ddb917444fe9e1454c54a85d692c1516ec79ab596aa9f1ca94e30ed1fa315a",
   "mutants": [
     {
       "id": "M-06-S01",
@@ -1272,9 +1272,9 @@
       "id": "M-06-B21",
       "group": "batch",
       "name": "malformed invocation metadata is accepted in a batch row",
-      "target": "packages/concierge/src/concierge.ts",
-      "literalPattern": "    if (\n      (responseId !== undefined && typeof responseId !== \"string\") ||\n      (userTurnId !== undefined && typeof userTurnId !== \"string\") ||\n      (callId !== undefined && typeof callId !== \"string\") ||\n      (outputIndex !== undefined &&\n        (typeof outputIndex !== \"number\" || !Number.isFinite(outputIndex))) ||\n      (signal !== undefined && !isAbortSignalLike(signal)) ||\n      (deferUntilDelivered !== undefined &&\n        typeof deferUntilDelivered !== \"function\")\n    ) {\n      return { ok: false };\n    }",
-      "replacement": "    if (false) {\n      return { ok: false };\n    }",
+      "target": "packages/concierge/src/dispatch.ts",
+      "literalPattern": "    typeof callId !== \"string\" ||\n    typeof nameRead.value !== \"string\" ||",
+      "replacement": "    false ||\n    typeof nameRead.value !== \"string\" ||",
       "detectorKind": "vitest",
       "intendedTestFile": "packages/concierge/test/dispatcher-batch.test.ts",
       "intendedCaseIds": [
