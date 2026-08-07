@@ -3,11 +3,14 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  closeSync,
   existsSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   renameSync,
   rmSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -29,6 +32,21 @@ const VALIDATION_PATH = join(
 );
 const REQUIREMENTS_PATH = join(ROOT, ".planning/REQUIREMENTS.md");
 const HARNESS_PATH = join(ROOT, "scripts/mutate-and-prove.sh");
+const gitCommonDirectoryResult = spawnSync(
+  "git",
+  ["rev-parse", "--git-common-dir"],
+  { cwd: ROOT, encoding: "utf8" },
+);
+if (gitCommonDirectoryResult.status !== 0) {
+  throw new Error(
+    `cannot resolve git common directory: ${gitCommonDirectoryResult.stderr ?? ""}`,
+  );
+}
+const MUTATION_LOCK_PATH = resolve(
+  ROOT,
+  (gitCommonDirectoryResult.stdout ?? "").trim(),
+  "phase-06-mutation-battery.lock",
+);
 const SINGLE_TEST = "packages/concierge/test/dispatcher.test.ts";
 const BATCH_TEST = "packages/concierge/test/dispatcher-batch.test.ts";
 const BUILD_MARKER = "Build complete";
@@ -1155,10 +1173,76 @@ function registerDigest(mutants = MUTANTS) {
   return sha256(JSON.stringify(mutants));
 }
 
+let atomicWriteSequence = 0;
+
 function atomicWriteJson(path, value) {
-  const temporaryPath = `${path}.tmp`;
-  writeFileSync(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-  renameSync(temporaryPath, path);
+  atomicWriteSequence += 1;
+  const temporaryPath = `${path}.tmp-${process.pid}-${atomicWriteSequence}`;
+  try {
+    writeFileSync(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+    renameSync(temporaryPath, path);
+  } finally {
+    rmSync(temporaryPath, { force: true });
+  }
+}
+
+/** Serialize every repository-wide mutation/evidence operation across worktrees. */
+function withExclusiveRepositoryLock(operation, run) {
+  let descriptor;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      descriptor = openSync(MUTATION_LOCK_PATH, "wx");
+      break;
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error;
+
+      let owner;
+      try {
+        owner = JSON.parse(readFileSync(MUTATION_LOCK_PATH, "utf8"));
+      } catch {
+        throw new Error(
+          `${operation}: mutation lock exists but its owner is unreadable: ${MUTATION_LOCK_PATH}`,
+        );
+      }
+      if (!Number.isSafeInteger(owner.pid) || owner.pid <= 0) {
+        throw new Error(
+          `${operation}: mutation lock has an invalid owner: ${MUTATION_LOCK_PATH}`,
+        );
+      }
+
+      let ownerAlive = true;
+      try {
+        process.kill(owner.pid, 0);
+      } catch (probeError) {
+        if (probeError?.code === "ESRCH") {
+          ownerAlive = false;
+        } else {
+          throw probeError;
+        }
+      }
+      if (ownerAlive) {
+        throw new Error(
+          `${operation}: mutation battery is already running as pid ${owner.pid}`,
+        );
+      }
+      unlinkSync(MUTATION_LOCK_PATH);
+    }
+  }
+  if (descriptor === undefined) {
+    throw new Error(`${operation}: could not acquire mutation repository lock`);
+  }
+
+  try {
+    writeFileSync(
+      descriptor,
+      JSON.stringify({ pid: process.pid, operation, startedAt: new Date().toISOString() }),
+      "utf8",
+    );
+    return run();
+  } finally {
+    closeSync(descriptor);
+    rmSync(MUTATION_LOCK_PATH, { force: true });
+  }
 }
 
 function command(commandName, args, options = {}) {
@@ -2739,27 +2823,30 @@ function usage() {
 const [operation, argument, thirdArgument, fourthArgument] = process.argv.slice(2);
 try {
   if (operation === "init" && argument === undefined) {
-    init();
+    withExclusiveRepositoryLock("init", init);
   } else if (operation === "refresh" && argument === undefined) {
-    refresh();
+    withExclusiveRepositoryLock("refresh", refresh);
   } else if (operation === "self-test" && argument === undefined) {
-    selfTest();
+    withExclusiveRepositoryLock("self-test", selfTest);
   } else if (operation === "run" && (argument === "single" || argument === "batch")) {
-    runGroup(argument);
+    withExclusiveRepositoryLock(`run ${argument}`, () => runGroup(argument));
   } else if (
     operation === "run" &&
     argument === "range" &&
     thirdArgument !== undefined &&
     fourthArgument !== undefined
   ) {
-    runRange(thirdArgument, fourthArgument);
+    withExclusiveRepositoryLock(
+      `run range ${thirdArgument} ${fourthArgument}`,
+      () => runRange(thirdArgument, fourthArgument),
+    );
   } else if (
     operation === "verify" &&
     (argument === "single" || argument === "all")
   ) {
-    verify(argument);
+    withExclusiveRepositoryLock(`verify ${argument}`, () => verify(argument));
   } else if (operation === "verify" && argument === "ledgers") {
-    verifyLedgers();
+    withExclusiveRepositoryLock("verify ledgers", verifyLedgers);
   } else if (operation === "gate" && argument !== undefined && thirdArgument !== undefined) {
     runGate(argument, thirdArgument);
   } else {
