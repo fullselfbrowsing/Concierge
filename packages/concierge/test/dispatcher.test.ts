@@ -732,8 +732,14 @@ async function withFakeNow(initial, run) {
   });
 
   it("[R18a] accepts only structurally valid Standard Schema result branches", async () => {
-    const calls = { empty: 0, issuesUndefined: 0, valueUndefined: 0, valueAccessor: 0 };
-    let received = "not-called";
+    const calls = {
+      empty: 0,
+      issuesUndefined: 0,
+      standardSuccess: 0,
+      valueUndefined: 0,
+      valueAccessor: 0,
+    };
+    const received = { standardSuccess: "not-called", valueUndefined: "not-called" };
     let valueAccessorReads = 0;
     const throwingValue = {};
     Object.defineProperty(throwingValue, "value", {
@@ -746,17 +752,28 @@ async function withFakeNow(initial, run) {
     const concierge = conciergeFor([
       action("empty-result", () => { calls.empty += 1; return successful(); }, { validate: () => ({}) }),
       action("issues-undefined", () => { calls.issuesUndefined += 1; return successful(); }, { validate: () => ({ issues: undefined }) }),
+      action("standard-success", ({ args }) => {
+        calls.standardSuccess += 1;
+        received.standardSuccess = args;
+        return successful();
+      }, {
+        validate: () => ({
+          value: { normalized: "from-standard-schema" },
+          issues: undefined,
+        }),
+      }),
       action("value-undefined", ({ args }) => {
         calls.valueUndefined += 1;
-        received = args;
+        received.valueUndefined = args;
         return successful();
       }, { validate: () => ({ value: undefined }) }),
       action("throwing-value", () => { calls.valueAccessor += 1; return successful(); }, { validate: () => throwingValue }),
     ]);
 
-    const [empty, issuesUndefined, valueUndefined, valueAccessor] = await Promise.all([
+    const [empty, issuesUndefined, standardSuccess, valueUndefined, valueAccessor] = await Promise.all([
       concierge.dispatch(ACTIVE_CONTEXT, "empty-result", {}),
       concierge.dispatch(ACTIVE_CONTEXT, "issues-undefined", {}),
+      concierge.dispatch(ACTIVE_CONTEXT, "standard-success", {}),
       concierge.dispatch(ACTIVE_CONTEXT, "value-undefined", {}),
       concierge.dispatch(ACTIVE_CONTEXT, "throwing-value", {}),
     ]);
@@ -764,15 +781,36 @@ async function withFakeNow(initial, run) {
     expect(
       {
         calls,
-        reasons: [empty.reason, issuesUndefined.reason, valueUndefined.reason, valueAccessor.reason],
+        reasons: [
+          empty.reason,
+          issuesUndefined.reason,
+          standardSuccess.reason,
+          valueUndefined.reason,
+          valueAccessor.reason,
+        ],
         received,
         valueAccessorReads,
       },
       "[RED:R18a:validator-result-discriminator]",
     ).toEqual({
-      calls: { empty: 0, issuesUndefined: 0, valueUndefined: 1, valueAccessor: 0 },
-      reasons: ["invalid_args", "invalid_args", undefined, "invalid_args"],
-      received: undefined,
+      calls: {
+        empty: 0,
+        issuesUndefined: 0,
+        standardSuccess: 1,
+        valueUndefined: 1,
+        valueAccessor: 0,
+      },
+      reasons: [
+        "invalid_args",
+        "invalid_args",
+        undefined,
+        undefined,
+        "invalid_args",
+      ],
+      received: {
+        standardSuccess: { normalized: "from-standard-schema" },
+        valueUndefined: undefined,
+      },
       valueAccessorReads: 1,
     });
   });

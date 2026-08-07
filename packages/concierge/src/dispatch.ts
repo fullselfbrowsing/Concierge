@@ -420,7 +420,15 @@ export async function validateArguments(
     if (typeof result !== "object" || result === null) {
       return { ok: false };
     }
-    if ("issues" in result || !("value" in result)) {
+
+    // Standard Schema success explicitly permits `issues: undefined`. Read the
+    // value rather than treating property presence as failure, then require the
+    // success branch's `value` member independently. Every proxy trap and
+    // accessor stays inside this boundary.
+    const issues: unknown = (
+      result as { readonly issues?: unknown }
+    ).issues;
+    if (issues !== undefined || !("value" in result)) {
       return { ok: false };
     }
     return {
