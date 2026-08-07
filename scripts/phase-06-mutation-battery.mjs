@@ -240,8 +240,62 @@ const REQUIRED_TRACEABILITY = Object.freeze([
 ]);
 
 const R68_MARKER = "[RED:R68:malformed-metadata-totality]";
+const R06B_MARKER = "[RED:R06b:prototype-safe-fallback-keys]";
+const R69_MARKER = "[RED:R69:aliased-graph-no-dedup]";
 const Q17_MARKER = "[RED:Q17:malformed-callid-correlation]";
 const Q16_MARKER = "[RED:Q16:immutable-nested-result]";
+const Q18_MARKER = "[RED:Q18:malformed-sort-totality]";
+const Q19_MARKER = "[RED:Q19:throwing-batch-metadata-totality]";
+const REQUIRED_DETECTOR_ROWS = Object.freeze([
+  Object.freeze({
+    id: "R68",
+    marker: R68_MARKER,
+    contract:
+      "Malformed metadata is total and returns one honest result without handler entry.",
+    testFile: SINGLE_TEST,
+  }),
+  Object.freeze({
+    id: "R06b",
+    marker: R06B_MARKER,
+    contract: "Inherited `toJSON` hooks cannot collapse distinct fallback keys.",
+    testFile: SINGLE_TEST,
+  }),
+  Object.freeze({
+    id: "R69",
+    marker: R69_MARKER,
+    contract:
+      "Equal aliased graphs run independently without a synchronous throw or accidental deduplication.",
+    testFile: SINGLE_TEST,
+  }),
+  Object.freeze({
+    id: "Q17",
+    marker: Q17_MARKER,
+    contract:
+      "Malformed callId retains one frozen correlated row instead of rejecting the batch.",
+    testFile: BATCH_TEST,
+  }),
+  Object.freeze({
+    id: "Q16",
+    marker: Q16_MARKER,
+    contract:
+      "Immutable nested result identity is preserved across cached retries.",
+    testFile: BATCH_TEST,
+  }),
+  Object.freeze({
+    id: "Q18",
+    marker: Q18_MARKER,
+    contract:
+      "Non-finite and non-number sort metadata is contained while valid calls still run.",
+    testFile: BATCH_TEST,
+  }),
+  Object.freeze({
+    id: "Q19",
+    marker: Q19_MARKER,
+    contract:
+      "Throwing batch and call metadata getters remain row-local and cannot reject the batch.",
+    testFile: BATCH_TEST,
+  }),
+]);
 const REQUIRED_MUTANT_CASE_MAPPINGS = Object.freeze([
   Object.freeze({ id: "M-06-S37", intendedCaseIds: Object.freeze(["R69"]) }),
   Object.freeze({ id: "M-06-B22", intendedCaseIds: Object.freeze(["Q16"]) }),
@@ -2520,16 +2574,7 @@ export function validateLedgerSnapshot(snapshot) {
     "### Gap-Closure Detector Evidence",
     errors,
   );
-  const detectorRequirements = [
-    { id: "R68", marker: R68_MARKER, tokens: ["malformed metadata", "total"] },
-    { id: "Q17", marker: Q17_MARKER, tokens: ["malformed callid", "correlated row"] },
-    {
-      id: "Q16",
-      marker: Q16_MARKER,
-      tokens: ["immutable", "nested", "result", "cached retries"],
-    },
-  ];
-  for (const detector of detectorRequirements) {
+  for (const detector of REQUIRED_DETECTOR_ROWS) {
     const row = requireUniqueRow(detectorSection, detector.id, errors);
     if (row !== null) {
       const cells = tableCells(row);
@@ -2539,18 +2584,18 @@ export function validateLedgerSnapshot(snapshot) {
       if (cells[1].replaceAll("`", "") !== detector.marker) {
         errors.push(`${detector.id}: exact marker is not in the marker column`);
       }
-      requireTokens(cells[2], detector.id, detector.tokens, errors);
+      if (cells[2] !== detector.contract) {
+        errors.push(`${detector.id}: contract does not match the locked text`);
+      }
     }
-  }
-
-  if (occurrences(snapshot.singleTestText, R68_MARKER) !== 1) {
-    errors.push("R68 test marker is missing or duplicated");
-  }
-  if (occurrences(snapshot.batchTestText, Q17_MARKER) !== 1) {
-    errors.push("Q17 test marker is missing or duplicated");
-  }
-  if (occurrences(snapshot.batchTestText, Q16_MARKER) !== 1) {
-    errors.push("Q16 test marker is missing or duplicated");
+    const testSource = detector.testFile === SINGLE_TEST
+      ? snapshot.singleTestText
+      : snapshot.batchTestText;
+    if (occurrences(testSource, detector.marker) !== 1) {
+      errors.push(
+        `${detector.id}: test marker is missing or duplicated in ${detector.testFile}`,
+      );
+    }
   }
   if (
     !snapshot.batchTestText.includes(
@@ -2803,6 +2848,10 @@ function selfTestLedgerSnapshot() {
       : "measured green evidence";
     return `| ${gate} | ${headline} | ✅ |`;
   }).join("\n");
+  const detectorRows = REQUIRED_DETECTOR_ROWS.map(
+    (detector) =>
+      `| ${detector.id} | ${detector.marker} | ${detector.contract} |`,
+  ).join("\n");
   const validationText = `---
 phase: 6
 status: complete
@@ -2830,9 +2879,7 @@ ${closureRows}
 
 | Detector | Marker | Contract |
 |---|---|---|
-| R68 | ${R68_MARKER} | malformed metadata is total |
-| Q17 | ${Q17_MARKER} | malformed callId retains one correlated row |
-| Q16 | ${Q16_MARKER} | immutable nested result across cached retries |
+${detectorRows}
 
 ## Phase Gate Evidence
 
@@ -2851,8 +2898,16 @@ ${phaseGateRows}
   return {
     validationText,
     requirementsText,
-    singleTestText: `expect(value, "${R68_MARKER}")`,
-    batchTestText: `it("[Q16] keeps nested batch results immutable across cached retries", () => {}); expect(value, "${Q16_MARKER}"); expect(value, "${Q17_MARKER}")`,
+    singleTestText: REQUIRED_DETECTOR_ROWS
+      .filter((detector) => detector.testFile === SINGLE_TEST)
+      .map((detector) => `expect(value, "${detector.marker}")`)
+      .join("; "),
+    batchTestText: [
+      'it("[Q16] keeps nested batch results immutable across cached retries", () => {})',
+      ...REQUIRED_DETECTOR_ROWS
+        .filter((detector) => detector.testFile === BATCH_TEST)
+        .map((detector) => `expect(value, "${detector.marker}")`),
+    ].join("; "),
     registerDigest: digest,
     singleGreen: EXPECTED_SINGLE_IDS.length,
     batchGreen: EXPECTED_BATCH_IDS.length,
@@ -3459,14 +3514,6 @@ function selfTest() {
       );
       return value;
     }],
-    ["missing R68 detector evidence", (value) => {
-      value.validationText = removeTableRow(value.validationText, "R68");
-      return value;
-    }],
-    ["missing Q17 detector evidence", (value) => {
-      value.validationText = removeTableRow(value.validationText, "Q17");
-      return value;
-    }],
     ["Q17 replaced by colliding Q16 id", (value) => {
       value.validationText = value.validationText.replace(
         `| Q17 | ${Q17_MARKER}`,
@@ -3493,6 +3540,30 @@ function selfTest() {
   ];
   for (const [name, transform] of ledgerCounterexamples) {
     assertLedgerCounterexampleRejected(name, ledger, transform);
+  }
+  for (const detector of REQUIRED_DETECTOR_ROWS) {
+    assertLedgerCounterexampleRejected(
+      `missing ${detector.id} detector evidence row`,
+      ledger,
+      (value) => {
+        value.validationText = removeTableRow(
+          value.validationText,
+          detector.id,
+        );
+        return value;
+      },
+    );
+    assertLedgerCounterexampleRejected(
+      `missing ${detector.id} marker from its named test source`,
+      ledger,
+      (value) => {
+        const sourceKey = detector.testFile === SINGLE_TEST
+          ? "singleTestText"
+          : "batchTestText";
+        value[sourceKey] = value[sourceKey].replace(detector.marker, "");
+        return value;
+      },
+    );
   }
   for (const task of REQUIRED_CLOSURE_TASKS) {
     assertLedgerCounterexampleRejected(
