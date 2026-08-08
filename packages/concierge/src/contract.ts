@@ -106,11 +106,12 @@ type Holder = Record<symbol, ContractRecord | undefined>;
  * Record this copy of core in the process-wide registry, and throw if a copy at
  * an incompatible contract version got there first.
  *
- * **Call this from the first reachable entry point** — `createConcierge`,
- * `createBridge`, and each adapter's registration hook — and never at module
- * scope. See constraint 1 in this file's header: module scope does not survive
- * `"sideEffects": false`, so a registration hoisted out of this body is deleted
- * from every bundled consumer.
+ * **Call this from the first reachable entry point** — `buildCatalog`,
+ * `createBridge`, `createSession`, and each adapter's registration hook — and
+ * never at module scope. `createConcierge` reaches it transitively through
+ * `buildCatalog`. See constraint 1 in this file's header: module scope does not
+ * survive `"sideEffects": false`, so a registration hoisted out of this body is
+ * deleted from every bundled consumer.
  *
  * **A same-version duplicate adopts rather than throws.** Two copies at the same
  * contract version share one record and therefore share state, which is exactly
@@ -164,6 +165,14 @@ type Holder = Record<symbol, ContractRecord | undefined>;
  * transitively through it. Registration is also where two copies of core
  * actually bite: a component registers into one instance, a handler reads the
  * other, and `bridge` stays `null` forever on a page that is definitely open.
+ *
+ * **`createSession` in `./session.ts` is the fourth guarded production entry
+ * point, and it is a direct call site.** Its factory body calls this function
+ * before reading context, subscribing to the transport, publishing a catalog,
+ * or invoking any other outside capability. That direct placement matters for
+ * applications which construct a Session from structural Concierge and
+ * Transport implementations: neither `buildCatalog` nor `createBridge` is
+ * necessarily on that path, so a transitive guard would leave it uncovered.
  *
  * **That narrows the reserved call site rather than closing it**, and the
  * distinction is why this paragraph is re-scoped instead of deleted. An app that

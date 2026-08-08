@@ -43,17 +43,19 @@
  * Direct dispatch now routes through that one live registry seam and passes
  * `null` honestly when nothing is mounted.
  *
- * Stated plainly so this is not oversold: there is still no Session ownership,
- * transport subscription/respond routing, telemetry channel, or consent gate
- * in this package today. Callers supply the current context and invoke direct
- * dispatch themselves; transport routing, catalog republishing, telemetry, and
- * human-confirmation enforcement remain later runtime layers.
+ * `createSession` now owns the hot transport loop. It publishes the initial
+ * catalog, reconciles catalog identity on context changes, replays the current
+ * catalog after a real reconnect, routes accepted batches through
+ * `dispatchBatch`, and returns each result through the transport. Its frozen
+ * handle also exposes current-stage observation and an awaitable stop drain.
  *
- * The runtime still to come is `createSession`. `defineStage`
- * is **not planned**: a stage needs no identity mechanism, a plain
- * `StageDefinition` object literal already typechecks, and the unforgeable
- * bridge identity that would have justified it belongs to `createBridge`. See
- * the roadmap in the repository README.
+ * Stated plainly so this is not oversold: Session does not implement consent,
+ * telemetry, or framework lifecycle adapters. Consent policy remains a later
+ * runtime layer, and React, Vue, and Svelte integrations remain separate
+ * adapter packages. `defineStage` is **not planned**: a stage needs no identity
+ * mechanism, a plain `StageDefinition` object literal already typechecks, and
+ * the unforgeable bridge identity that would have justified it belongs to
+ * `createBridge`. See the roadmap in the repository README.
  */
 
 export type {
@@ -97,6 +99,7 @@ export type {
   // Transport
   Transport,
   TransportCapabilities,
+  TransportStatus,
   TurnIdentityProvenance,
   ToolCall,
   ToolBatch,
@@ -109,6 +112,8 @@ export type {
   StageExplanation,
   Session,
   SessionConfig,
+  SessionDiagnosticCode,
+  SessionDiagnostic,
 } from "./types.js";
 
 export type {
