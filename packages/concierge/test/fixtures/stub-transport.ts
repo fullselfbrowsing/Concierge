@@ -58,27 +58,86 @@ export const COMMAND_PALETTE_CAPABILITIES: TransportCapabilities = Object.freeze
 type StatusSubscriber = (status: TransportStatus) => void;
 type BatchSubscriber = (batch: ToolBatch) => void;
 
+interface NormalizedStubTransportFailures {
+  readonly setToolsAt: ReadonlyArray<number>;
+  readonly respondAt: ReadonlyArray<number>;
+  readonly subscribeStatus: boolean;
+  readonly subscribeBatch: boolean;
+  readonly unsubscribeStatus: boolean;
+  readonly unsubscribeBatch: boolean;
+}
+
+const SET_TOOLS_FAILURE_MESSAGE: string =
+  "Stub transport injected setTools failure.";
+const RESPOND_FAILURE_MESSAGE: string =
+  "Stub transport injected respond failure.";
+const STATUS_SUBSCRIBE_FAILURE_MESSAGE: string =
+  "Stub transport injected status subscription failure.";
+const BATCH_SUBSCRIBE_FAILURE_MESSAGE: string =
+  "Stub transport injected batch subscription failure.";
+const STATUS_UNSUBSCRIBE_FAILURE_MESSAGE: string =
+  "Stub transport injected status unsubscription failure.";
+const BATCH_UNSUBSCRIBE_FAILURE_MESSAGE: string =
+  "Stub transport injected batch unsubscription failure.";
+
+function normalizeFailures(
+  failures: StubTransportFailures | undefined,
+): NormalizedStubTransportFailures {
+  return Object.freeze({
+    setToolsAt: Object.freeze([...(failures?.setToolsAt ?? [])]),
+    respondAt: Object.freeze([...(failures?.respondAt ?? [])]),
+    subscribeStatus: failures?.subscribeStatus === true,
+    subscribeBatch: failures?.subscribeBatch === true,
+    unsubscribeStatus: failures?.unsubscribeStatus === true,
+    unsubscribeBatch: failures?.unsubscribeBatch === true,
+  });
+}
+
+function failsAt(
+  occurrences: ReadonlyArray<number>,
+  occurrence: number,
+): boolean {
+  return occurrences.includes(occurrence);
+}
+
 export function createStubTransport(options: StubTransportOptions): StubTransportHarness {
   const capabilities: TransportCapabilities = Object.freeze(options.capabilities);
+  const failures: NormalizedStubTransportFailures = normalizeFailures(options.failures);
   let status: TransportStatus = options.initialStatus ?? "idle";
   let nextSubscriberToken: number = 0;
   const statusSubscribers: Map<number, StatusSubscriber> = new Map();
   const batchSubscribers: Map<number, BatchSubscriber> = new Map();
+  const catalogAttempts: Array<ReadonlyArray<EmittedTool>> = [];
+  const responseAttempts: Array<StubTransportResponseAttempt> = [];
 
   function subscribeStatus(callback: StatusSubscriber): () => void {
+    if (failures.subscribeStatus) {
+      throw new Error(STATUS_SUBSCRIBE_FAILURE_MESSAGE);
+    }
+
     const token: number = ++nextSubscriberToken;
     statusSubscribers.set(token, callback);
 
     return (): void => {
+      if (failures.unsubscribeStatus) {
+        throw new Error(STATUS_UNSUBSCRIBE_FAILURE_MESSAGE);
+      }
       statusSubscribers.delete(token);
     };
   }
 
   function subscribeBatch(callback: BatchSubscriber): () => void {
+    if (failures.subscribeBatch) {
+      throw new Error(BATCH_SUBSCRIBE_FAILURE_MESSAGE);
+    }
+
     const token: number = ++nextSubscriberToken;
     batchSubscribers.set(token, callback);
 
     return (): void => {
+      if (failures.unsubscribeBatch) {
+        throw new Error(BATCH_UNSUBSCRIBE_FAILURE_MESSAGE);
+      }
       batchSubscribers.delete(token);
     };
   }
@@ -88,10 +147,24 @@ export function createStubTransport(options: StubTransportOptions): StubTranspor
     get status(): TransportStatus {
       return status;
     },
-    setTools: (_tools: ReadonlyArray<EmittedTool>): void => {},
+    setTools: (tools: ReadonlyArray<EmittedTool>): void => {
+      catalogAttempts.push(tools);
+      if (failsAt(failures.setToolsAt, catalogAttempts.length)) {
+        throw new Error(SET_TOOLS_FAILURE_MESSAGE);
+      }
+    },
     onStatusChange: subscribeStatus,
     onToolBatch: subscribeBatch,
-    respond: (_callId: string, _result: ActionResult): void => {},
+    respond: (callId: string, result: ActionResult): void => {
+      const attempt: StubTransportResponseAttempt = Object.freeze({
+        callId,
+        result,
+      });
+      responseAttempts.push(attempt);
+      if (failsAt(failures.respondAt, responseAttempts.length)) {
+        throw new Error(RESPOND_FAILURE_MESSAGE);
+      }
+    },
   };
   Object.freeze(transport);
 
@@ -113,9 +186,9 @@ export function createStubTransport(options: StubTransportOptions): StubTranspor
       for (const callback of snapshot) callback(batch);
     },
     catalogHistory: (): ReadonlyArray<ReadonlyArray<EmittedTool>> =>
-      Object.freeze([]),
+      Object.freeze([...catalogAttempts]),
     responseHistory: (): ReadonlyArray<StubTransportResponseAttempt> =>
-      Object.freeze([]),
+      Object.freeze([...responseAttempts]),
     subscriberCounts: (): StubTransportSubscriberCounts =>
       Object.freeze({
         status: statusSubscribers.size,
