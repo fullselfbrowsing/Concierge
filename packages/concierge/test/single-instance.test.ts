@@ -53,15 +53,16 @@
 // `node dist/index.js`. A guard hoisted to module scope would make the second
 // half of F4 pass while doing nothing in every React or Svelte app.
 //
-// The guard now has THREE production call sites, not one. Phase 4 ships
+// The guard now has FOUR production entry points, not one. Phase 4 ships
 // `createConcierge`, which records this copy as well, and F5 is what makes ITS
 // removal fail something. F4 cannot: it drives `buildCatalog` directly, so a
 // `createConcierge` that stopped reaching the guard would leave F4 — and every
 // case above it — green. Phase 5 ships `createBridge`, and F6, the last case in
-// this file, is what makes ITS removal fail something. One case per production
-// call site is this file's convention, and the reason it has to be is that each
-// case drives exactly one entry point: nothing here observes a call site it
-// does not itself call.
+// the prior phase, is what makes ITS removal fail something. Phase 7 ships
+// `createSession`, and F7 proves its direct call without reaching any of the
+// other guarded factories. One case per production entry point is this file's
+// convention, and the reason it has to be is that each case drives exactly one
+// entry point: nothing here observes a call site it does not itself call.
 //
 // **That case does not claim the call is DIRECT, and must not be read as
 // claiming it.** It passes whether `createConcierge` invokes
@@ -327,5 +328,66 @@ describe("PKG-04 — one core instance across two independently-resolved copies"
     // and F5 assert on. No spy: the observable already exists and reports
     // exactly this.
     expect(registry[KEY]).toEqual({ version: CONTRACT_VERSION });
+  });
+
+  it("F7 — createSession records this copy through its own direct guard call", async () => {
+    // This specifier is unique to F7. Reusing any earlier query would turn the
+    // empty-after-import half into an assertion against Node's module cache.
+    const { assertSingleInstance, createSession, CONTRACT_VERSION } = await import(
+      `${DIST_HREF}?sc8=1`
+    );
+
+    // Importing the guard binding must not run it. F7 deliberately calls no
+    // other guarded factory, so only createSession can populate the record.
+    expect(typeof assertSingleInstance).toBe("function");
+    expect(typeof createSession).toBe("function");
+    expect(registry[KEY]).toBeUndefined();
+
+    let statusSubscribers = 0;
+    let batchSubscribers = 0;
+    const concierge = {
+      dispatch: () => Promise.resolve({ ok: false, message: "unused" }),
+      dispatchBatch: () => Promise.resolve(Object.freeze([])),
+      catalogFor: () => Object.freeze([]),
+      stageFor: () => null,
+      explain: () => Object.freeze({ stage: null, stages: [], catalog: [] }),
+    };
+    const transport = {
+      capabilities: Object.freeze({
+        consentGrade: "none",
+        userTurnIdentity: "none",
+        parallelCalls: false,
+        dynamicCatalog: true,
+      }),
+      status: "idle",
+      setTools: () => {},
+      onStatusChange: () => {
+        statusSubscribers += 1;
+        let live = true;
+        return () => {
+          if (!live) return;
+          live = false;
+          statusSubscribers -= 1;
+        };
+      },
+      onToolBatch: () => {
+        batchSubscribers += 1;
+        let live = true;
+        return () => {
+          if (!live) return;
+          live = false;
+          batchSubscribers -= 1;
+        };
+      },
+      respond: () => {},
+    };
+
+    const session = createSession({ concierge, transport });
+    expect(registry[KEY]).toEqual({ version: CONTRACT_VERSION });
+    await session.stop();
+    expect({ statusSubscribers, batchSubscribers }).toEqual({
+      statusSubscribers: 0,
+      batchSubscribers: 0,
+    });
   });
 });

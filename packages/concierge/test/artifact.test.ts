@@ -138,6 +138,14 @@ describe("the built artifact still carries every value export", () => {
     expect(typeof m.createConcierge).toBe("function");
   });
 
+  it("createSession reaches dist/index.js as a callable function", async () => {
+    const m = await import(DIST_URL.href);
+
+    // Session owns the public transport loop. A source-only implementation is
+    // unusable to every installed consumer even when its runtime suite passes.
+    expect(typeof m.createSession).toBe("function");
+  });
+
   it("createBridge reaches dist/index.js as a callable function", async () => {
     const m = await import(DIST_URL.href);
 
