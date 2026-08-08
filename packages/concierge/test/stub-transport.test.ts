@@ -1,4 +1,6 @@
-import { expect, it } from "vitest";
+import { readFileSync, readdirSync } from "node:fs";
+
+import { expect, it as vitestIt } from "vitest";
 
 import {
   COMMAND_PALETTE_CAPABILITIES,
@@ -6,8 +8,38 @@ import {
   createStubTransport,
 } from "./fixtures/stub-transport.js";
 
+function it(title, run) {
+  const pattern = globalThis.__vitest_worker__?.config?.testNamePattern;
+  if (pattern instanceof RegExp) {
+    pattern.lastIndex = 0;
+    const selected = pattern.test(title);
+    pattern.lastIndex = 0;
+    if (!selected) return;
+  }
+  vitestIt(title, run);
+}
+
 function batch(responseId) {
   return Object.freeze({ responseId, calls: Object.freeze([]) });
+}
+
+function emittedTool(name) {
+  return Object.freeze({
+    type: "function",
+    name,
+    description: `${name} fixture`,
+    parameters: Object.freeze({ type: "object" }),
+  });
+}
+
+function readSourceTree(directory) {
+  let source = "";
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const child = new URL(entry.name + (entry.isDirectory() ? "/" : ""), directory);
+    if (entry.isDirectory()) source += readSourceTree(child);
+    else if (entry.name.endsWith(".ts")) source += readFileSync(child, "utf8");
+  }
+  return source;
 }
 
 it("[U01] exposes exact deeply frozen capability profiles and a frozen six-key transport", () => {
@@ -174,4 +206,192 @@ it("[U04] reports immutable subscriber-count snapshots with identity-safe unsubs
   unsubscribeStatusTwo();
   unsubscribeBatch();
   expect(stub.subscriberCounts()).toEqual({ status: 0, batch: 0 });
+});
+
+it("[U05] records each setTools and respond attempt before deterministic occurrence failures", () => {
+  const setToolsAt = [1, 3];
+  const respondAt = [2];
+  const failures = { setToolsAt, respondAt };
+  const stub = createStubTransport({
+    capabilities: CONVERSATIONAL_CAPABILITIES,
+    initialStatus: "connected",
+    failures,
+  });
+  const catalogs = [
+    Object.freeze([emittedTool("one")]),
+    Object.freeze([emittedTool("two")]),
+    Object.freeze([emittedTool("three")]),
+    Object.freeze([emittedTool("four")]),
+  ];
+  const results = [
+    Object.freeze({ ok: true, message: "Result one." }),
+    Object.freeze({ ok: false, reason: "unavailable", message: "Result two." }),
+    Object.freeze({ ok: true, message: "Result three." }),
+  ];
+
+  setToolsAt.push(2);
+  respondAt.length = 0;
+  failures.subscribeStatus = true;
+
+  expect(
+    () => stub.transport.setTools(catalogs[0]),
+    "[RED:U05:attempt-before-throw]",
+  ).toThrowError("Stub transport injected setTools failure.");
+  expect(() => stub.transport.setTools(catalogs[1])).not.toThrow();
+  expect(() => stub.transport.setTools(catalogs[2])).toThrowError(
+    "Stub transport injected setTools failure.",
+  );
+  expect(() => stub.transport.setTools(catalogs[3])).not.toThrow();
+
+  expect(() => stub.transport.respond("call-one", results[0])).not.toThrow();
+  expect(() => stub.transport.respond("call-two", results[1])).toThrowError(
+    "Stub transport injected respond failure.",
+  );
+  expect(() => stub.transport.respond("call-three", results[2])).not.toThrow();
+
+  const catalogHistory = stub.catalogHistory();
+  expect(catalogHistory).toHaveLength(4);
+  for (const [index, catalog] of catalogs.entries()) {
+    expect(catalogHistory[index]).toBe(catalog);
+  }
+  expect(stub.responseHistory()).toEqual([
+    { callId: "call-one", result: results[0] },
+    { callId: "call-two", result: results[1] },
+    { callId: "call-three", result: results[2] },
+  ]);
+});
+
+it("[U06] injects each subscription failure independently without corrupting the other set", () => {
+  const statusSubscribeFailure = createStubTransport({
+    capabilities: CONVERSATIONAL_CAPABILITIES,
+    failures: { subscribeStatus: true },
+  });
+  expect(
+    () => statusSubscribeFailure.transport.onStatusChange(() => {}),
+    "[RED:U06:subscription-failures]",
+  ).toThrowError("Stub transport injected status subscription failure.");
+  const removeUnaffectedBatch = statusSubscribeFailure.transport.onToolBatch(() => {});
+  expect(statusSubscribeFailure.subscriberCounts()).toEqual({ status: 0, batch: 1 });
+  removeUnaffectedBatch();
+
+  const batchSubscribeFailure = createStubTransport({
+    capabilities: CONVERSATIONAL_CAPABILITIES,
+    failures: { subscribeBatch: true },
+  });
+  const removeUnaffectedStatus = batchSubscribeFailure.transport.onStatusChange(() => {});
+  expect(() => batchSubscribeFailure.transport.onToolBatch(() => {})).toThrowError(
+    "Stub transport injected batch subscription failure.",
+  );
+  expect(batchSubscribeFailure.subscriberCounts()).toEqual({ status: 1, batch: 0 });
+  removeUnaffectedStatus();
+
+  let retainedStatusCalls = 0;
+  const statusUnsubscribeFailure = createStubTransport({
+    capabilities: CONVERSATIONAL_CAPABILITIES,
+    failures: { unsubscribeStatus: true },
+  });
+  const failingStatusRemoval = statusUnsubscribeFailure.transport.onStatusChange(() => {
+    retainedStatusCalls += 1;
+  });
+  const workingBatchRemoval = statusUnsubscribeFailure.transport.onToolBatch(() => {});
+  expect(failingStatusRemoval).toThrowError(
+    "Stub transport injected status unsubscription failure.",
+  );
+  expect(statusUnsubscribeFailure.subscriberCounts()).toEqual({ status: 1, batch: 1 });
+  workingBatchRemoval();
+  statusUnsubscribeFailure.emitStatus("connected");
+  expect(retainedStatusCalls).toBe(1);
+  expect(statusUnsubscribeFailure.subscriberCounts()).toEqual({ status: 1, batch: 0 });
+
+  let retainedBatchCalls = 0;
+  const batchUnsubscribeFailure = createStubTransport({
+    capabilities: CONVERSATIONAL_CAPABILITIES,
+    failures: { unsubscribeBatch: true },
+  });
+  const workingStatusRemoval = batchUnsubscribeFailure.transport.onStatusChange(() => {});
+  const failingBatchRemoval = batchUnsubscribeFailure.transport.onToolBatch(() => {
+    retainedBatchCalls += 1;
+  });
+  expect(failingBatchRemoval).toThrowError(
+    "Stub transport injected batch unsubscription failure.",
+  );
+  expect(batchUnsubscribeFailure.subscriberCounts()).toEqual({ status: 1, batch: 1 });
+  workingStatusRemoval();
+  batchUnsubscribeFailure.emitBatch(batch("retained-batch"));
+  expect(retainedBatchCalls).toBe(1);
+  expect(batchUnsubscribeFailure.subscriberCounts()).toEqual({ status: 0, batch: 1 });
+});
+
+it("[U07] returns immutable history snapshots and rows while retaining catalog identity", () => {
+  const stub = createStubTransport({
+    capabilities: CONVERSATIONAL_CAPABILITIES,
+    initialStatus: "connected",
+  });
+  const catalog = Object.freeze([emittedTool("identity")]);
+  const result = Object.freeze({ ok: true, message: "Recorded once." });
+
+  stub.transport.setTools(catalog);
+  stub.transport.respond("immutable-call", result);
+
+  const catalogs = stub.catalogHistory();
+  const responses = stub.responseHistory();
+  expect(catalogs, "[RED:U07:immutable-histories]").toHaveLength(1);
+  expect(catalogs[0]).toBe(catalog);
+  expect(Object.isFrozen(catalogs)).toBe(true);
+  expect(() => catalogs.push(Object.freeze([]))).toThrow(TypeError);
+  expect(() => {
+    catalogs[0] = Object.freeze([]);
+  }).toThrow(TypeError);
+
+  expect(responses).toHaveLength(1);
+  expect(responses[0]).toEqual({ callId: "immutable-call", result });
+  expect(responses[0].result).toBe(result);
+  expect(Object.isFrozen(responses)).toBe(true);
+  expect(Object.isFrozen(responses[0])).toBe(true);
+  expect(() => {
+    responses[0].callId = "rewritten";
+  }).toThrow(TypeError);
+  expect(() => responses.pop()).toThrow(TypeError);
+
+  const removeStatus = stub.transport.onStatusChange(() => {});
+  const counts = stub.subscriberCounts();
+  expect(() => {
+    counts.status = 0;
+  }).toThrow(TypeError);
+  removeStatus();
+  expect(counts).toEqual({ status: 1, batch: 0 });
+  expect(stub.subscriberCounts()).toEqual({ status: 0, batch: 0 });
+});
+
+it("[U08] keeps the no-I/O fixture outside production source and package exports", () => {
+  const fixtureSource = readFileSync(
+    new URL("./fixtures/stub-transport.ts", import.meta.url),
+    "utf8",
+  );
+  const productionSource = readSourceTree(new URL("../src/", import.meta.url));
+  const packageSource = readFileSync(new URL("../package.json", import.meta.url), "utf8");
+
+  expect(
+    productionSource,
+    "[RED:U08:test-only-boundary]",
+  ).not.toContain("createStubTransport");
+  expect(productionSource).not.toContain("stub-transport");
+  expect(packageSource).not.toContain("createStubTransport");
+  expect(packageSource).not.toContain("stub-transport");
+  expect(JSON.parse(packageSource).files).not.toContain("test");
+
+  const forbiddenTokens = [
+    ["set", "Timeout"].join(""),
+    ["set", "Interval"].join(""),
+    ["Web", "Socket"].join(""),
+    ["RTC", "PeerConnection"].join(""),
+    ["Open", "AI"].join(""),
+    ["Anth", "ropic"].join(""),
+    ["Real", "time"].join(""),
+    ["navig", "ator"].join(""),
+    ["docu", "ment"].join(""),
+    ["win", "dow"].join(""),
+  ];
+  for (const token of forbiddenTokens) expect(fixtureSource).not.toContain(token);
+  expect(fixtureSource).not.toMatch(new RegExp("fetch\\s*\\("));
 });
