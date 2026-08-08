@@ -60,15 +60,15 @@
 
 ### Session
 
-- [ ] **SES-01**: A session pushes the current stage catalog to the transport on start, on stage change, and on reconnect
+- [x] **SES-01**: A session pushes the current stage catalog to the transport on start, on stage change, and on reconnect
 - [ ] **SES-02**: A session routes an incoming tool batch through dispatch and returns one result per call
-- [ ] **SES-03**: A session carries turn identity and the delivery hook from the transport envelope through to the handler, so consent has the data it needs
-- [ ] **SES-04**: Stopping a session unregisters cleanly and cancels in-flight work
+- [x] **SES-03**: A session carries turn identity and the delivery hook from the transport envelope through to the handler, so consent has the data it needs
+- [x] **SES-04**: Stopping a session unregisters cleanly and cancels in-flight work
 
 ### Transport
 
 - [x] **TRN-01**: A transport is defined entirely by an interface with no vendor event names in core
-- [ ] **TRN-02**: A stub transport with configurable capabilities exercises the full consent kernel without any network or WebRTC
+- [x] **TRN-02**: A stub transport with configurable capabilities exercises the full consent kernel without any network or WebRTC
 - [ ] **TRN-03**: A transport that cannot derive turn identity is prevented from being used with `bindTo: "userTurn"`
 - [x] **TRN-04**: Concierge is usable with no transport at all, driven directly from an application's own agent loop
 - [x] **TRN-05**: A transport declares the *provenance* of its turn identity, not merely whether it has one, and a transport whose turn identity can be minted by the agent's own output cannot satisfy the strongest user-turn binding
@@ -189,12 +189,12 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | CON-08 | Phase 8 — Consent kernel | Pending |
 | CON-09 | Phase 8 — Consent kernel | Pending |
 | CON-10 | Phase 8 — Consent kernel | Pending |
-| SES-01 | Phase 7 — Session and the transport seam | Pending |
+| SES-01 | Phase 7 — Session and the transport seam | Complete |
 | SES-02 | Phase 7 — Session and the transport seam | Pending |
-| SES-03 | Phase 7 — Session and the transport seam | Pending |
-| SES-04 | Phase 7 — Session and the transport seam | Pending |
+| SES-03 | Phase 7 — Session and the transport seam | Complete |
+| SES-04 | Phase 7 — Session and the transport seam | Complete |
 | TRN-01 | Phase 1 — Type surface completion | Complete |
-| TRN-02 | Phase 7 — Session and the transport seam | Pending |
+| TRN-02 | Phase 7 — Session and the transport seam | Complete |
 | TRN-03 | Phase 8 — Consent kernel | Pending |
 | TRN-04 | Phase 6 — Dispatcher | Complete — R19 drives one action and Q14 drives a batch directly from an application loop without constructing a Transport; the complete 62-row mutation register remains green. |
 | TRN-05 | Phase 1 — Type surface completion | Complete |

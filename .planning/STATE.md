@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Completed 06-08-PLAN.md
-last_updated: "2026-08-08T21:37:45.665Z"
-last_activity: 2026-08-08 -- Phase 07 planning complete
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-08-08T21:52:40.854Z"
+last_activity: 2026-08-08
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 64
-  completed_plans: 58
+  completed_plans: 59
   percent: 67
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-27)
 
 **Core value:** An agent can take a consequential action in a real app — and it is structurally guaranteed that a human, not the agent, confirmed this specific payload, or the action does not run.
-**Current focus:** Phase 7 — session and the transport seam
+**Current focus:** Phase 07 — session-and-the-transport-seam
 
 ## Current Position
 
-Phase: 7
-Plan: Not started
+Phase: 07 (session-and-the-transport-seam) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-08-08 -- Phase 07 planning complete
+Last activity: 2026-08-08
 
-Progress: [██████████] 100%
+Progress: [█████████░] 92%
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Progress: [██████████] 100%
 | Phase 06 P06 | 35min | 3 tasks | 6 files |
 | Phase 06 P07 | 11m 23s | 3 tasks | 5 files |
 | Phase 06 P08 | 26m 30s | 3 tasks | 5 files |
+| Phase 07 P01 | 9m 20s | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -102,6 +103,8 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 06]: All mutation and ledger certification counts derive from the immutable 57-row register; stale hard-coded totals are rejected.
 - [Phase 06]: Q16 remains the immutable nested-result proof; malformed batch metadata correlation uses Q17.
 - [Phase 06]: Planning-ledger sign-off requires a fresh successful full-suite JSON report with exact file, pass, total, pending, and todo counts.
+- [Phase 07-01]: Transport lifecycle stays vendor-neutral through one closed four-state union and a required status subscription. — This gives reconnect-capable runtime plans an exhaustive structural seam without vendor event vocabulary.
+- [Phase 07-01]: Session diagnostics expose only immutable code and message fields; optional config inputs explicitly admit undefined. — The narrow shape prevents raw-detail channels and supports computed optionals under exactOptionalPropertyTypes.
 
 ### Pending Todos
 
@@ -130,6 +133,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-07T18:13:13.616Z
-Stopped at: Completed 06-08-PLAN.md
+Last session: 2026-08-08T21:52:40.849Z
+Stopped at: Completed 07-01-PLAN.md
 Resume file: None

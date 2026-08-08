@@ -302,7 +302,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 07-01-PLAN.md — Exact neutral Transport lifecycle, awaitable Session, EOPT config, and safe diagnostic contracts
+- [x] 07-01-PLAN.md — Exact neutral Transport lifecycle, awaitable Session, EOPT config, and safe diagnostic contracts
 - [ ] 07-02-PLAN.md — Reusable deterministic no-I/O stub transport with frozen profiles, controls, failures, and histories
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -399,6 +399,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Stages, catalog assembly, and explain() | 8/8 | Complete   | 2026-07-30 |
 | 5. Bridge registry and the no-bridge path | 7/7 | Complete   | 2026-07-31 |
 | 6. Dispatcher | 8/8 | Complete   | 2026-08-07 |
-| 7. Session and the transport seam | 0/TBD | Not started | - |
+| 7. Session and the transport seam | 1/6 | In Progress|  |
 | 8. Consent kernel | 0/TBD | Not started | - |
 | 9. React and Svelte adapters | 0/TBD | Not started | - |
