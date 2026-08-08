@@ -13,6 +13,27 @@ const DIST_PATH = fileURLToPath(DIST_URL);
 const KEY = Symbol.for("@fullselfbrowsing/concierge.contract");
 const START_ERROR = "The session could not start.";
 const STOPPED_ERROR = "This session has stopped.";
+const PRIVATE_SENTINEL = "PRIVATE-SESSION-LIFECYCLE-SENTINEL";
+
+const DIAGNOSTIC_MESSAGES = Object.freeze({
+  catalog_publish_failed:
+    "The transport rejected a catalog publication, so the session was stopped.",
+  batch_dispatch_failed:
+    "The dispatcher could not complete an accepted batch; later batches will continue.",
+  response_failed: "The transport rejected a result; it was not retried.",
+  stage_listener_failed:
+    "A stage subscriber threw; remaining subscribers will continue.",
+  transport_subscribe_failed:
+    "The transport could not register a session subscription; construction was rolled back.",
+  transport_unsubscribe_failed:
+    "The transport could not remove a session subscription; remaining cleanup continued.",
+  catalog_clear_failed:
+    "The transport could not clear its catalog; remaining cleanup continued.",
+  abort_signal_failed:
+    "A batch cancellation signal failed; the batch was treated as cancelled.",
+  batch_without_context:
+    "A batch arrived before session context was set and was ignored.",
+});
 
 const CONTEXT_A = Object.freeze({ page: "alpha" });
 const CONTEXT_B = Object.freeze({ page: "beta" });
@@ -94,6 +115,19 @@ function thrownMessage(run) {
     return error instanceof Error ? error.message : String(error);
   }
   return null;
+}
+
+async function withCapturedWarnings(run) {
+  const realConsole = globalThis.console;
+  const captured = [];
+  const sink = (message) => captured.push(String(message));
+  globalThis.console = { ...realConsole, warn: sink, error: sink, log: sink };
+  try {
+    await run();
+  } finally {
+    globalThis.console = realConsole;
+  }
+  return captured;
 }
 
 function conciergeDouble({
@@ -824,5 +858,489 @@ it("[L08] keeps the last stage readable and makes every stale closure inert", as
     newSubscriptionError: STOPPED_ERROR,
     setContextError: STOPPED_ERROR,
     stage: "beta",
+  });
+});
+
+it("[L09] tokenizes duplicate stage listeners and keeps stale cleanup local", async () => {
+  const marker = "[RED:L09:listener-token]";
+  const transport = controlledTransport();
+  const session = createSession({
+    concierge: conciergeDouble(),
+    transport: transport.transport,
+    initialContext: CONTEXT_A,
+  });
+  const observed = [];
+  const callback = (stage) => observed.push(stage);
+
+  const removeFirst = session.onStageChange(callback);
+  const removeSecond = session.onStageChange(callback);
+  removeFirst();
+  removeFirst();
+  session.setContext(CONTEXT_B);
+
+  const removeReplacement = session.onStageChange(callback);
+  removeFirst();
+  session.setContext(CONTEXT_C);
+  removeSecond();
+  session.setContext(CONTEXT_A);
+  removeReplacement();
+  session.setContext(CONTEXT_B);
+  await session.stop();
+
+  expect(observed, marker).toEqual(["beta", "gamma", "gamma", "alpha"]);
+});
+
+it("[L10] snapshots stage listeners across add and remove reentrancy", async () => {
+  const marker = "[RED:L10:listener-snapshot]";
+  const transport = controlledTransport();
+  const session = createSession({
+    concierge: conciergeDouble(),
+    transport: transport.transport,
+    initialContext: CONTEXT_A,
+  });
+  const observed = [];
+  let removeSecond = () => {};
+  let added = false;
+
+  session.onStageChange((stage) => {
+    observed.push(`first:${stage}`);
+    if (stage === "beta" && !added) {
+      added = true;
+      removeSecond();
+      session.onStageChange((laterStage) => {
+        observed.push(`added:${laterStage}`);
+      });
+    }
+  });
+  removeSecond = session.onStageChange((stage) => {
+    observed.push(`second:${stage}`);
+  });
+
+  session.setContext(CONTEXT_B);
+  session.setContext(CONTEXT_C);
+  await session.stop();
+
+  expect(observed, marker).toEqual([
+    "first:beta",
+    "second:beta",
+    "first:gamma",
+    "added:gamma",
+  ]);
+});
+
+it("[L11] queues nested stage changes behind the current listener snapshot", async () => {
+  const marker = "[RED:L11:nested-stage-order]";
+  const transport = controlledTransport();
+  const session = createSession({
+    concierge: conciergeDouble(),
+    transport: transport.transport,
+    initialContext: CONTEXT_A,
+  });
+  const observed = [];
+
+  session.onStageChange((stage) => {
+    observed.push(`first:${stage}`);
+    if (stage === "beta") session.setContext(CONTEXT_C);
+  });
+  session.onStageChange((stage) => {
+    observed.push(`second:${stage}`);
+  });
+
+  session.setContext(CONTEXT_B);
+  await session.stop();
+
+  expect(observed, marker).toEqual([
+    "first:beta",
+    "second:beta",
+    "first:gamma",
+    "second:gamma",
+  ]);
+});
+
+it("[L12] contains a throwing stage listener and continues its snapshot", async () => {
+  const marker = "[RED:L12:listener-throw-continues]";
+  const diagnostics = [];
+  const observed = [];
+  const transport = controlledTransport();
+  const session = createSession({
+    concierge: conciergeDouble(),
+    transport: transport.transport,
+    initialContext: CONTEXT_A,
+    onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+  });
+
+  session.onStageChange(() => {
+    throw new Error(PRIVATE_SENTINEL);
+  });
+  session.onStageChange((stage) => {
+    observed.push(stage);
+  });
+  session.setContext(CONTEXT_B);
+  await session.stop();
+
+  expect(
+    {
+      diagnostic: diagnostics[0],
+      frozen: Object.isFrozen(diagnostics[0]),
+      observed,
+      secretPresent: JSON.stringify(diagnostics).includes(PRIVATE_SENTINEL),
+    },
+    marker,
+  ).toEqual({
+    diagnostic: {
+      code: "stage_listener_failed",
+      message: DIAGNOSTIC_MESSAGES.stage_listener_failed,
+    },
+    frozen: true,
+    observed: ["beta"],
+    secretPresent: false,
+  });
+});
+
+it("[L13] cuts off nested work when a stage listener stops the session", async () => {
+  const marker = "[RED:L13:listener-stop-cuts-off]";
+  const diagnostics = [];
+  const observed = [];
+  let dispatches = 0;
+  let drain;
+  let nestedError = null;
+  const transport = controlledTransport();
+  const session = createSession({
+    concierge: conciergeDouble({
+      dispatchBatch() {
+        dispatches += 1;
+        return Promise.resolve([row(PRIVATE_SENTINEL)]);
+      },
+    }),
+    transport: transport.transport,
+    initialContext: CONTEXT_A,
+    onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+  });
+
+  session.onStageChange((stage) => {
+    observed.push(`first:${stage}`);
+    drain = session.stop();
+    nestedError = thrownMessage(() => session.setContext(CONTEXT_C));
+    transport.invokeRetainedStatus("connected");
+    transport.invokeRetainedBatch(toolBatch(PRIVATE_SENTINEL));
+  });
+  session.onStageChange((stage) => {
+    observed.push(`second:${stage}`);
+  });
+
+  session.setContext(CONTEXT_B);
+  await drain;
+  await flushMicrotasks();
+
+  expect(
+    {
+      diagnostics: diagnostics.length,
+      dispatches,
+      nestedError,
+      observed,
+      publications: transport.publications.length,
+      responses: transport.responses.length,
+      stage: session.stage(),
+    },
+    marker,
+  ).toEqual({
+    diagnostics: 0,
+    dispatches: 0,
+    nestedError: STOPPED_ERROR,
+    observed: ["first:beta"],
+    publications: 3,
+    responses: 0,
+    stage: "beta",
+  });
+});
+
+it("[L14] emits only fresh frozen exact diagnostics with fixed safe messages", async () => {
+  const marker = "[RED:L14:immutable-safe-diagnostic]";
+  const diagnostics = [];
+  const collect = (diagnostic) => diagnostics.push(diagnostic);
+
+  const listenerTransport = controlledTransport();
+  const listenerSession = createSession({
+    concierge: conciergeDouble(),
+    transport: listenerTransport.transport,
+    initialContext: CONTEXT_A,
+    onDiagnostic: collect,
+  });
+  listenerSession.onStageChange(() => {
+    throw new Error(PRIVATE_SENTINEL);
+  });
+  listenerSession.setContext(CONTEXT_B);
+  await listenerSession.stop();
+
+  const secretContext = Object.freeze({ page: PRIVATE_SENTINEL });
+  const dispatchTransport = controlledTransport();
+  const dispatchSession = createSession({
+    concierge: conciergeDouble({
+      entries: [
+        {
+          context: secretContext,
+          catalog: CATALOG_A,
+          stage: PRIVATE_SENTINEL,
+        },
+      ],
+      dispatchBatch: () => Promise.reject(new Error(PRIVATE_SENTINEL)),
+    }),
+    transport: dispatchTransport.transport,
+    initialContext: secretContext,
+    onDiagnostic: collect,
+  });
+  dispatchTransport.emitBatch(
+    Object.freeze({
+      responseId: PRIVATE_SENTINEL,
+      calls: Object.freeze([
+        Object.freeze({
+          callId: PRIVATE_SENTINEL,
+          name: "run",
+          arguments: PRIVATE_SENTINEL,
+          outputIndex: 0,
+        }),
+      ]),
+      privateValue: PRIVATE_SENTINEL,
+    }),
+  );
+  await flushMicrotasks();
+  await dispatchSession.stop();
+
+  const responseTransport = controlledTransport({
+    respond() {
+      throw new Error(PRIVATE_SENTINEL);
+    },
+  });
+  const responseSession = createSession({
+    concierge: conciergeDouble(),
+    transport: responseTransport.transport,
+    initialContext: CONTEXT_A,
+    onDiagnostic: collect,
+  });
+  responseTransport.emitBatch(toolBatch(PRIVATE_SENTINEL));
+  await flushMicrotasks();
+  await responseSession.stop();
+
+  const abortTransport = controlledTransport();
+  const abortSession = createSession({
+    concierge: conciergeDouble(),
+    transport: abortTransport.transport,
+    initialContext: CONTEXT_A,
+    onDiagnostic: collect,
+  });
+  abortTransport.emitBatch(
+    Object.freeze({
+      responseId: PRIVATE_SENTINEL,
+      calls: Object.freeze([toolCall(PRIVATE_SENTINEL)]),
+      get signal() {
+        throw new Error(PRIVATE_SENTINEL);
+      },
+    }),
+  );
+  await flushMicrotasks();
+  await abortSession.stop();
+
+  const noContextTransport = controlledTransport();
+  const noContextSession = createSession({
+    concierge: conciergeDouble(),
+    transport: noContextTransport.transport,
+    onDiagnostic: collect,
+  });
+  noContextTransport.emitBatch(toolBatch(PRIVATE_SENTINEL));
+  await noContextSession.stop();
+
+  const cleanupTransport = controlledTransport({
+    onStatusUnsubscribe() {
+      throw new Error(PRIVATE_SENTINEL);
+    },
+    setTools(_tools, occurrence) {
+      if (occurrence === 2) throw new Error(PRIVATE_SENTINEL);
+    },
+  });
+  const cleanupSession = createSession({
+    concierge: conciergeDouble(),
+    transport: cleanupTransport.transport,
+    initialContext: CONTEXT_A,
+    onDiagnostic: collect,
+  });
+  await cleanupSession.stop();
+
+  const publishTransport = controlledTransport({
+    setTools(_tools, occurrence) {
+      if (occurrence === 2) throw new Error(PRIVATE_SENTINEL);
+    },
+  });
+  const publishSession = createSession({
+    concierge: conciergeDouble(),
+    transport: publishTransport.transport,
+    initialContext: CONTEXT_A,
+    onDiagnostic: collect,
+  });
+  thrownMessage(() => publishSession.setContext(CONTEXT_B));
+  await publishSession.stop();
+
+  const subscribeTransport = controlledTransport({
+    onStatusSubscribe() {
+      throw new Error(PRIVATE_SENTINEL);
+    },
+  });
+  thrownMessage(() =>
+    createSession({
+      concierge: conciergeDouble(),
+      transport: subscribeTransport.transport,
+      initialContext: CONTEXT_A,
+      onDiagnostic: collect,
+    }),
+  );
+
+  const codes = diagnostics.map((diagnostic) => diagnostic.code);
+  expect(
+    {
+      codes,
+      exactKeys: diagnostics.every(
+        (diagnostic) =>
+          JSON.stringify(Object.keys(diagnostic).sort()) ===
+          JSON.stringify(["code", "message"]),
+      ),
+      fixedMessages: diagnostics.every(
+        (diagnostic) =>
+          diagnostic.message === DIAGNOSTIC_MESSAGES[diagnostic.code],
+      ),
+      fresh: new Set(diagnostics).size === diagnostics.length,
+      frozen: diagnostics.every((diagnostic) => Object.isFrozen(diagnostic)),
+      secretPresent: JSON.stringify(diagnostics).includes(PRIVATE_SENTINEL),
+    },
+    marker,
+  ).toEqual({
+    codes: [
+      "stage_listener_failed",
+      "batch_dispatch_failed",
+      "response_failed",
+      "abort_signal_failed",
+      "batch_without_context",
+      "transport_unsubscribe_failed",
+      "catalog_clear_failed",
+      "catalog_publish_failed",
+      "transport_subscribe_failed",
+    ],
+    exactKeys: true,
+    fixedMessages: true,
+    fresh: true,
+    frozen: true,
+    secretPresent: false,
+  });
+});
+
+it("[L15] contains a throwing replacement diagnostic hook without console fallback", async () => {
+  const marker = "[RED:L15:replacement-hook]";
+  const diagnostics = [];
+  const observed = [];
+  let dispatches = 0;
+  let snapshot;
+
+  const warnings = await withCapturedWarnings(async () => {
+    const transport = controlledTransport({
+      respond() {
+        throw new Error(PRIVATE_SENTINEL);
+      },
+    });
+    const session = createSession({
+      concierge: conciergeDouble({
+        dispatchBatch(_context, batch) {
+          dispatches += 1;
+          return Promise.resolve([row(batch.responseId)]);
+        },
+      }),
+      transport: transport.transport,
+      initialContext: CONTEXT_A,
+      onDiagnostic(diagnostic) {
+        diagnostics.push(diagnostic.code);
+        throw new Error(PRIVATE_SENTINEL);
+      },
+    });
+    session.onStageChange(() => {
+      throw new Error(PRIVATE_SENTINEL);
+    });
+    session.onStageChange((stage) => observed.push(stage));
+    session.setContext(CONTEXT_B);
+    transport.emitBatch(toolBatch("after-diagnostic"));
+    await flushMicrotasks();
+    await session.stop();
+    snapshot = {
+      dispatches,
+      observed,
+      responses: transport.responses.length,
+    };
+  });
+
+  expect({ diagnostics, snapshot, warnings }, marker).toEqual({
+    diagnostics: ["stage_listener_failed", "response_failed"],
+    snapshot: { dispatches: 1, observed: ["beta"], responses: 1 },
+    warnings: [],
+  });
+});
+
+it("[L16] uses the exact default warning and survives missing or throwing consoles", async () => {
+  const marker = "[RED:L16:default-sink]";
+  const exactWarnings = await withCapturedWarnings(async () => {
+    const transport = controlledTransport();
+    const session = createSession({
+      concierge: conciergeDouble(),
+      transport: transport.transport,
+      initialContext: CONTEXT_A,
+    });
+    session.onStageChange(() => {
+      throw new Error(PRIVATE_SENTINEL);
+    });
+    session.setContext(CONTEXT_B);
+    await session.stop();
+  });
+
+  const realConsole = globalThis.console;
+  const continued = [];
+  try {
+    Reflect.deleteProperty(globalThis, "console");
+    const missingTransport = controlledTransport();
+    const missingSession = createSession({
+      concierge: conciergeDouble(),
+      transport: missingTransport.transport,
+      initialContext: CONTEXT_A,
+    });
+    missingSession.onStageChange(() => {
+      throw new Error(PRIVATE_SENTINEL);
+    });
+    missingSession.onStageChange((stage) => continued.push(`missing:${stage}`));
+    missingSession.setContext(CONTEXT_B);
+    await missingSession.stop();
+
+    globalThis.console = {
+      ...realConsole,
+      warn() {
+        throw new Error(PRIVATE_SENTINEL);
+      },
+    };
+    const throwingTransport = controlledTransport();
+    const throwingSession = createSession({
+      concierge: conciergeDouble(),
+      transport: throwingTransport.transport,
+      initialContext: CONTEXT_A,
+    });
+    throwingSession.onStageChange(() => {
+      throw new Error(PRIVATE_SENTINEL);
+    });
+    throwingSession.onStageChange((stage) =>
+      continued.push(`throwing:${stage}`),
+    );
+    throwingSession.setContext(CONTEXT_B);
+    await throwingSession.stop();
+  } finally {
+    globalThis.console = realConsole;
+  }
+
+  expect({ continued, exactWarnings }, marker).toEqual({
+    continued: ["missing:beta", "throwing:beta"],
+    exactWarnings: [
+      `concierge: [stage_listener_failed] ${DIAGNOSTIC_MESSAGES.stage_listener_failed}`,
+    ],
   });
 });

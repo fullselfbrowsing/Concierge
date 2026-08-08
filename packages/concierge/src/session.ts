@@ -103,7 +103,7 @@ interface WorkRecord {
  * Create one hot Session and synchronously publish its initial catalog.
  *
  * The direct guard call is intentionally the first statement. Moving it to
- * module scope would let a consumer bundler erase the registration because the
+ * module scope would let a consumer bundler erase the registration since the
  * package declares itself side-effect-free.
  */
 export function createSession(config: SessionConfig): Session {
