@@ -70,7 +70,7 @@
 // with export placement.
 
 import type { Assignable, Equals, Expect } from "./_assert.js";
-import { MESSAGE_MAX_CHARS, JSON_SCHEMA_TARGET, defineAction, buildCatalog, CatalogValidationError, createConcierge, createBridge, captureSnapshot, offPageResult } from "../src/index.js";   // ← index.js. NOT types.js. This is the whole point.
+import { MESSAGE_MAX_CHARS, JSON_SCHEMA_TARGET, defineAction, buildCatalog, CatalogValidationError, createConcierge, createBridge, captureSnapshot, offPageResult, createSession } from "../src/index.js";   // ← index.js. NOT types.js. This is the whole point.
 
 // --------------------------------------------------------------------------
 // SC-7d — the bound reaches the public entrypoint as a value, not just a type
@@ -114,3 +114,10 @@ type _captureSnapshotExportedAsValue = Expect<Assignable<typeof captureSnapshot,
 
 /** offPageResult reaches the public entrypoint as a callable VALUE, not only as a type. */
 type _offPageResultExportedAsValue = Expect<Assignable<typeof offPageResult, (...args: never[]) => unknown>>;
+
+// --------------------------------------------------------------------------
+// Phase 7 — the Session factory value this phase adds to the entrypoint
+// --------------------------------------------------------------------------
+
+/** createSession reaches the public entrypoint as a callable VALUE, not only as a type. */
+type _createSessionExportedAsValue = Expect<Assignable<typeof createSession, (...args: never[]) => unknown>>;

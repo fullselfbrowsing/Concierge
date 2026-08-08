@@ -3,8 +3,10 @@
 // exactOptionalPropertyTypes while diagnostics stay closed and immutable.
 
 import type { Assignable, Equals, Expect } from "./_assert.js";
-import type { Session, SessionConfig, SessionDiagnostic, SessionDiagnosticCode, StageContext } from "../src/types.js";
+import { createSession } from "../src/index.js";
+import type { Session, SessionConfig, SessionDiagnostic, SessionDiagnosticCode, StageContext, Transport, TransportStatus } from "../src/index.js";
 
+type _createSessionSignature = Expect<Equals<typeof createSession, (config: SessionConfig) => Session>>;
 type _sessionKeys = Expect<Equals<keyof Session, "setContext" | "stage" | "onStageChange" | "stop">>;
 type _sessionStop = Expect<Equals<Session["stop"], () => Promise<void>>>;
 type _sessionConfigKeys = Expect<Equals<keyof SessionConfig, "concierge" | "transport" | "initialContext" | "onDiagnostic">>;
@@ -16,6 +18,8 @@ type _sessionDiagnosticCodes = Expect<Equals<SessionDiagnosticCode, "catalog_pub
 type _sessionDiagnosticKeys = Expect<Equals<keyof SessionDiagnostic, "code" | "message">>;
 type _sessionDiagnosticIsReadonly = Expect<Equals<SessionDiagnostic, { readonly code: SessionDiagnosticCode; readonly message: string }>>;
 type _knownDiagnosticCodeIsUsable = Expect<Assignable<"response_failed", SessionDiagnosticCode>>;
+type _transportStatus = Expect<Equals<TransportStatus, "idle" | "connecting" | "connected" | "closed">>;
+type _transportStatusCallback = Expect<Equals<Transport["onStatusChange"], (cb: (status: TransportStatus) => void) => () => void>>;
 
 declare const concierge: SessionConfig["concierge"];
 declare const transport: SessionConfig["transport"];
