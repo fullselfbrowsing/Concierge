@@ -544,5 +544,5 @@ const _session: Session = {
     void cb;
     return () => {};
   },
-  stop: () => {},
+  stop: () => Promise.resolve(),
 };
