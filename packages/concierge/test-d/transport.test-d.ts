@@ -28,6 +28,7 @@ import type {
   ToolBatch,
   Transport,
   TransportCapabilities,
+  TransportStatus,
   TurnIdentityProvenance,
 } from "../src/types.js";
 
@@ -159,7 +160,7 @@ const streamingTransport: Transport = {
   },
   status: "connecting",
   setTools: () => {},
-  onStatusChange: (cb: (status: "idle" | "connecting" | "connected" | "closed") => void) => {
+  onStatusChange: (cb: (status: TransportStatus) => void) => {
     void cb;
     return unsubscribe;
   },
@@ -183,7 +184,7 @@ const commandPaletteTransport: Transport = {
   },
   status: "closed",
   setTools: () => {},
-  onStatusChange: (cb: (status: "idle" | "connecting" | "connected" | "closed") => void) => {
+  onStatusChange: (cb: (status: TransportStatus) => void) => {
     void cb;
     return unsubscribe;
   },
@@ -197,10 +198,10 @@ const commandPaletteTransport: Transport = {
  * added to `Transport` breaks this line. The other half of TRN-01 is the grep, which
  * covers the places a type-level assertion cannot reach.
  */
-type _transportStatus = Expect<Equals<Transport["status"], "idle" | "connecting" | "connected" | "closed">>;
-type _transportStatusCallback = Expect<Equals<Transport["onStatusChange"], (cb: (status: Transport["status"]) => void) => () => void>>;
+type _transportStatus = Expect<Equals<TransportStatus, "idle" | "connecting" | "connected" | "closed">>;
+type _transportStatusCallback = Expect<Equals<Transport["onStatusChange"], (cb: (status: TransportStatus) => void) => () => void>>;
 type _transportKeys = Expect<Equals<keyof Transport, "capabilities" | "status" | "setTools" | "onStatusChange" | "onToolBatch" | "respond">>;
-type _transportStatusIsReadonly = Expect<Equals<Pick<Transport, "status">, { readonly status: Transport["status"] }>>;
+type _transportStatusIsReadonly = Expect<Equals<Pick<Transport, "status">, { readonly status: TransportStatus }>>;
 
 // --------------------------------------------------------------------------
 // WR-02 — the computed idiom, on every optional member a transport builds

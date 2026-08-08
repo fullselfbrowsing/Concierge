@@ -1331,6 +1331,9 @@ export interface TransportCapabilities {
   readonly dynamicCatalog: boolean;
 }
 
+/** Neutral connection lifecycle reported by every transport. */
+export type TransportStatus = "idle" | "connecting" | "connected" | "closed";
+
 /**
  * The only vendor-shaped seam. Core has no opinion about whether the agent
  * arrives over WebRTC, SSE, MCP stdio, WebMCP, or a command palette.
@@ -1349,8 +1352,12 @@ export interface Transport {
    * loosening this one.
    */
   readonly capabilities: TransportCapabilities;
+  /** Current neutral connection lifecycle state. */
+  readonly status: TransportStatus;
   /** Publish the catalog for the current stage. */
   setTools: (tools: ReadonlyArray<EmittedTool>) => void;
+  /** Subscribe to neutral connection lifecycle changes. */
+  onStatusChange: (cb: (status: TransportStatus) => void) => () => void;
   /** Deliver a completed, ordered batch. */
   onToolBatch: (cb: (batch: ToolBatch) => void) => () => void;
   /**
