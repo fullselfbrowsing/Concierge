@@ -125,6 +125,7 @@ export function createSession(config: SessionConfig): Session {
   let currentStage: string | null = null;
 
   let publicationPending: boolean = false;
+  let publicationAttemptToken: number = 0;
   let publishingCatalog: ReadonlyArray<EmittedTool> | null = null;
   let publishingContext: StageContext | null = null;
   let publishingEpoch: CatalogEpoch | null = null;
@@ -361,12 +362,27 @@ export function createSession(config: SessionConfig): Session {
     }
   }
 
-  function clearPublication(epoch: CatalogEpoch | null): void {
-    if (publishingEpoch !== epoch) return;
+  function clearPublication(
+    epoch: CatalogEpoch | null,
+    attemptToken: number,
+  ): void {
+    if (
+      publishingEpoch !== epoch ||
+      publicationAttemptToken !== attemptToken
+    ) {
+      return;
+    }
     publicationPending = false;
     publishingCatalog = null;
     publishingContext = null;
     publishingEpoch = null;
+  }
+
+  function publicationIsCurrent(attemptToken: number): boolean {
+    return (
+      lifecycle !== "stopped" &&
+      publicationAttemptToken === attemptToken
+    );
   }
 
   /** Preserve every original envelope member and replace only its signal. */
@@ -567,6 +583,7 @@ export function createSession(config: SessionConfig): Session {
     resolveStopPromise = resolve;
     lifecycle = "stopped";
     requestedGeneration += 1;
+    publicationAttemptToken += 1;
     transitionQueue.splice(0);
     publicationPending = false;
     publishingCatalog = null;
@@ -701,6 +718,7 @@ export function createSession(config: SessionConfig): Session {
 
     const epoch: CatalogEpoch | null =
       record.context === null ? null : createEpoch(resolved.catalog);
+    const attemptToken: number = ++publicationAttemptToken;
     publicationPending = true;
     publishingCatalog = resolved.catalog;
     publishingContext = record.context;
@@ -709,27 +727,28 @@ export function createSession(config: SessionConfig): Session {
 
     if (!isCurrent(record)) {
       if (epoch !== null) abortEpoch(epoch);
-      clearPublication(epoch);
+      clearPublication(epoch, attemptToken);
       return;
     }
 
     try {
       transport.setTools(resolved.catalog);
     } catch {
+      if (!publicationIsCurrent(attemptToken)) return;
       if (lifecycle === "starting") throw new Error(START_ERROR);
       failPublication(resolved.stage);
     }
 
+    if (!publicationIsCurrent(attemptToken)) return;
     publishedCatalog = resolved.catalog;
     publishedEpoch = epoch;
-    if (lifecycle === "stopped") return;
 
     if (!isCurrent(record)) {
-      clearPublication(epoch);
+      clearPublication(epoch, attemptToken);
       return;
     }
 
-    clearPublication(epoch);
+    clearPublication(epoch, attemptToken);
     confirmContext(record, resolved, epoch);
   }
 
@@ -738,6 +757,7 @@ export function createSession(config: SessionConfig): Session {
     const catalog: ReadonlyArray<EmittedTool> = confirmedCatalog;
     const context: StageContext | null = confirmedContext;
     const epoch: CatalogEpoch | null = confirmedEpoch;
+    const attemptToken: number = ++publicationAttemptToken;
     publicationPending = true;
     publishingCatalog = catalog;
     publishingContext = context;
@@ -746,12 +766,14 @@ export function createSession(config: SessionConfig): Session {
     try {
       transport.setTools(catalog);
     } catch {
+      if (!publicationIsCurrent(attemptToken)) return;
       failPublication(currentStage);
     }
 
+    if (!publicationIsCurrent(attemptToken)) return;
     publishedCatalog = catalog;
     publishedEpoch = epoch;
-    clearPublication(epoch);
+    clearPublication(epoch, attemptToken);
   }
 
   /** Drain context and connected controls in one synchronous outermost loop. */
@@ -834,8 +856,12 @@ export function createSession(config: SessionConfig): Session {
 
     observedStatus = transport.status;
     constructionDiagnostic = "transport_subscribe_failed";
-    unsubscribeStatus = transport.onStatusChange(handleStatus);
-    unsubscribeBatch = transport.onToolBatch(acceptBatch);
+    const removeStatus: unknown = transport.onStatusChange(handleStatus);
+    if (typeof removeStatus !== "function") throw new Error(START_ERROR);
+    unsubscribeStatus = removeStatus as () => void;
+    const removeBatch: unknown = transport.onToolBatch(acceptBatch);
+    if (typeof removeBatch !== "function") throw new Error(START_ERROR);
+    unsubscribeBatch = removeBatch as () => void;
 
     constructionDiagnostic = "catalog_publish_failed";
     drainTransitions();
