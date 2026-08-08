@@ -1,7 +1,7 @@
 // SC-1 and SC-7c — *both* delivery hooks carry a `DeliveryReport`. SC-5 / TRN-05 —
 // a transport declares where its turn identity comes from, and a boolean no longer
 // satisfies the field. SC-4 / TRN-01 — two structurally unrelated transports satisfy
-// one four-member interface with no vendor vocabulary anywhere in core.
+// one six-member interface with no vendor vocabulary anywhere in core.
 //
 // This file declares nothing to the outside world. The imports below already give it
 // module status, which is what keeps `isolatedDeclarations` from treating every
@@ -157,7 +157,12 @@ const streamingTransport: Transport = {
     parallelCalls: true,
     dynamicCatalog: true,
   },
+  status: "connecting",
   setTools: () => {},
+  onStatusChange: (cb: (status: "idle" | "connecting" | "connected" | "closed") => void) => {
+    void cb;
+    return unsubscribe;
+  },
   onToolBatch: () => unsubscribe,
   respond: () => {},
 };
@@ -176,18 +181,26 @@ const commandPaletteTransport: Transport = {
     parallelCalls: false,
     dynamicCatalog: false,
   },
+  status: "closed",
   setTools: () => {},
+  onStatusChange: (cb: (status: "idle" | "connecting" | "connected" | "closed") => void) => {
+    void cb;
+    return unsubscribe;
+  },
   onToolBatch: () => unsubscribe,
   respond: () => {},
 };
 
 /**
  * The mechanical proof that no vendor event name has leaked into core: the interface
- * is exactly four members, so there is nowhere for one to sit. A vendor-shaped member
+ * is exactly six members, so there is nowhere for one to sit. A vendor-shaped member
  * added to `Transport` breaks this line. The other half of TRN-01 is the grep, which
  * covers the places a type-level assertion cannot reach.
  */
-type _transportKeys = Expect<Equals<keyof Transport, "capabilities" | "setTools" | "onToolBatch" | "respond">>;
+type _transportStatus = Expect<Equals<Transport["status"], "idle" | "connecting" | "connected" | "closed">>;
+type _transportStatusCallback = Expect<Equals<Transport["onStatusChange"], (cb: (status: Transport["status"]) => void) => () => void>>;
+type _transportKeys = Expect<Equals<keyof Transport, "capabilities" | "status" | "setTools" | "onStatusChange" | "onToolBatch" | "respond">>;
+type _transportStatusIsReadonly = Expect<Equals<Pick<Transport, "status">, { readonly status: Transport["status"] }>>;
 
 // --------------------------------------------------------------------------
 // WR-02 — the computed idiom, on every optional member a transport builds
