@@ -146,4 +146,6 @@ export { defineAction } from "./define-action.js";
 
 export { createConcierge } from "./concierge.js";
 
+export { createSession } from "./session.js";
+
 export { createBridge, captureSnapshot, offPageResult } from "./bridge.js";
