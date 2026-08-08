@@ -1811,6 +1811,24 @@ export interface Concierge {
   explain: (ctx: StageContext) => Explanation;
 }
 
+/** Closed operational diagnostic vocabulary for the Session runtime. */
+export type SessionDiagnosticCode =
+  | "catalog_publish_failed"
+  | "batch_dispatch_failed"
+  | "response_failed"
+  | "stage_listener_failed"
+  | "transport_subscribe_failed"
+  | "transport_unsubscribe_failed"
+  | "catalog_clear_failed"
+  | "abort_signal_failed"
+  | "batch_without_context";
+
+/** Fixed safe diagnostic shape exposed by Session. */
+export interface SessionDiagnostic {
+  readonly code: SessionDiagnosticCode;
+  readonly message: string;
+}
+
 /**
  * Owns the loop nothing else does: pushes the catalog on stage change and
  * reconnect, routes `onToolBatch → dispatch → respond`, and enforces the
@@ -1860,11 +1878,12 @@ export interface Session {
    * Phase 7 implements this.
    */
   onStageChange: (cb: (stage: string | null) => void) => () => void;
-  stop: () => void;
+  stop: () => Promise<void>;
 }
 
 export interface SessionConfig {
   concierge: Concierge;
   transport: Transport;
-  initialContext?: StageContext;
+  initialContext?: StageContext | undefined;
+  onDiagnostic?: ((diagnostic: SessionDiagnostic) => void) | undefined;
 }
