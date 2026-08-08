@@ -296,9 +296,33 @@ Plans:
   4. Stopping a session unregisters cleanly and cancels in-flight work, leaving no timer, listener, or pending promise behind. (SES-04)
   5. A stub transport with configurable capabilities drives all of the above with no network, no WebRTC, and no vendor SDK. (TRN-02)
 
-**Plans**: TBD
-**Research**: None.
-**Notes**: The stub transport built here is the instrument Phase 8 uses to prove the build-time grade gate. Criterion 3 is the seam that makes Phase 8 possible at all: an earlier draft of `Transport` delivered a bare `ToolCall[]`, and the gate the whole design rests on had no data to read.
+**Plans**: 6 plans across 5 waves. Plans 07-01 and 07-02 run in parallel on disjoint contract and fixture files; the four shared Session/evidence deliverables then run serially.
+
+Plans:
+
+**Wave 1**
+
+- [ ] 07-01-PLAN.md — Exact neutral Transport lifecycle, awaitable Session, EOPT config, and safe diagnostic contracts
+- [ ] 07-02-PLAN.md — Reusable deterministic no-I/O stub transport with frozen profiles, controls, failures, and histories
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 07-03-PLAN.md — Serialized latest-wins catalog/reconnect transitions, actual-published-reference reconciliation, publication-gated admission, public factory/export surface, and direct single-instance proof
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 07-04-PLAN.md — Cross-batch FIFO routing, one-attempt responses, arrival epochs, lazy hostile-envelope forwarding, and exact signal composition
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 07-05-PLAN.md — Cached stop drain, transactional cleanup, tokenized reentrant subscribers, and safe runtime diagnostics
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 07-06-PLAN.md — Mutation, foreign/tarball, release, lockfile, live-ledger, SES closure, and TRN-02 Phase 8 handoff
+
+**Research**: Completed 2026-08-08 — `07-RESEARCH.md`; closest implementation analogs and file ownership are mapped in `07-PATTERNS.md`.
+**Notes**: The catalog/status loop uses one serialized transition drain with latest-generation confirmation and keeps publication-in-progress, last-successfully-published transport catalog, and confirmed application authority separate. Reentrant queued contexts reconcile against what the transport actually holds: a context sharing published B promotes B's epoch without republishing, while a context returning to previously confirmed A republishes A after successful B. Transport callbacks may emit batches synchronously, so the batch pump remains paused until reconciliation confirms the newest authority. Session stores hostile ToolBatch envelopes by reference and forwards their evidence fields through lazy descriptors so Phase 6 retains ownership of guarded snapshot totality. The stub transport built here is the instrument Phase 8 uses to prove the build-time grade gate. Criterion 3 is the seam that makes Phase 8 possible at all: an earlier draft of `Transport` delivered a bare `ToolCall[]`, and the gate the whole design rests on had no data to read. Phase 7 delivers and validates only the reusable stub/session-seam portion of literal requirement TRN-02. Its REQUIREMENTS checkbox and traceability status remain unchecked/Partial after this phase; Phase 8 must reuse this exact fixture against the full consent kernel before TRN-02 can become Complete.
 
 ### Phase 8: Consent kernel
 
