@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-08-08T21:52:40.854Z"
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-08-08T22:09:34.913Z"
 last_activity: 2026-08-08
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 64
-  completed_plans: 59
+  completed_plans: 60
   percent: 67
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-07-27)
 ## Current Position
 
 Phase: 07 (session-and-the-transport-seam) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-08-08
 
-Progress: [█████████░] 92%
+Progress: [█████████░] 94%
 
 ## Performance Metrics
 
@@ -61,6 +61,7 @@ Progress: [█████████░] 92%
 | Phase 06 P07 | 11m 23s | 3 tasks | 5 files |
 | Phase 06 P08 | 26m 30s | 3 tasks | 5 files |
 | Phase 07 P01 | 9m 20s | 2 tasks | 4 files |
+| Phase 07 P02 | 11m 49s | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -105,6 +106,9 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 06]: Planning-ledger sign-off requires a fresh successful full-suite JSON report with exact file, pass, total, pending, and todo counts.
 - [Phase 07-01]: Transport lifecycle stays vendor-neutral through one closed four-state union and a required status subscription. — This gives reconnect-capable runtime plans an exhaustive structural seam without vendor event vocabulary.
 - [Phase 07-01]: Session diagnostics expose only immutable code and message fields; optional config inputs explicitly admit undefined. — The narrow shape prevents raw-detail channels and supports computed optionals under exactOptionalPropertyTypes.
+- [Phase 07-02]: Subscription registrations use monotonic tokens so duplicate callback identities retain independent cleanup authority. — Token ownership prevents stale cleanup from removing a newer registration of the same callback.
+- [Phase 07-02]: Catalog histories preserve the exact caller array reference while history containers and response rows are frozen snapshots. — Reconnect proofs need reference identity without exposing mutable history containers.
+- [Phase 07-02]: Failure options are copied and frozen at construction so later caller mutation cannot alter deterministic occurrences. — A reusable fixture must make injected failures repeatable and independent of caller-owned configuration.
 
 ### Pending Todos
 
@@ -133,6 +137,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-08T21:52:40.849Z
-Stopped at: Completed 07-01-PLAN.md
+Last session: 2026-08-08T22:09:34.909Z
+Stopped at: Completed 07-02-PLAN.md
 Resume file: None
