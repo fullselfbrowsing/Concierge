@@ -307,7 +307,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 07-03-PLAN.md — Serialized latest-wins catalog/reconnect transitions, actual-published-reference reconciliation, publication-gated admission, public factory/export surface, and direct single-instance proof
+- [x] 07-03-PLAN.md — Serialized latest-wins catalog/reconnect transitions, actual-published-reference reconciliation, publication-gated admission, public factory/export surface, and direct single-instance proof
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -399,6 +399,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Stages, catalog assembly, and explain() | 8/8 | Complete   | 2026-07-30 |
 | 5. Bridge registry and the no-bridge path | 7/7 | Complete   | 2026-07-31 |
 | 6. Dispatcher | 8/8 | Complete   | 2026-08-07 |
-| 7. Session and the transport seam | 2/6 | In Progress|  |
+| 7. Session and the transport seam | 3/6 | In Progress|  |
 | 8. Consent kernel | 0/TBD | Not started | - |
 | 9. React and Svelte adapters | 0/TBD | Not started | - |

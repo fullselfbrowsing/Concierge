@@ -61,7 +61,7 @@
 ### Session
 
 - [x] **SES-01**: A session pushes the current stage catalog to the transport on start, on stage change, and on reconnect
-- [ ] **SES-02**: A session routes an incoming tool batch through dispatch and returns one result per call
+- [x] **SES-02**: A session routes an incoming tool batch through dispatch and returns one result per call
 - [x] **SES-03**: A session carries turn identity and the delivery hook from the transport envelope through to the handler, so consent has the data it needs
 - [x] **SES-04**: Stopping a session unregisters cleanly and cancels in-flight work
 
@@ -190,7 +190,7 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | CON-09 | Phase 8 — Consent kernel | Pending |
 | CON-10 | Phase 8 — Consent kernel | Pending |
 | SES-01 | Phase 7 — Session and the transport seam | Complete |
-| SES-02 | Phase 7 — Session and the transport seam | Pending |
+| SES-02 | Phase 7 — Session and the transport seam | Complete |
 | SES-03 | Phase 7 — Session and the transport seam | Complete |
 | SES-04 | Phase 7 — Session and the transport seam | Complete |
 | TRN-01 | Phase 1 — Type surface completion | Complete |

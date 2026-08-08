@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Completed 07-02-PLAN.md
-last_updated: "2026-08-08T22:09:34.913Z"
+stopped_at: Completed 07-03-PLAN.md
+last_updated: "2026-08-08T22:45:33.318Z"
 last_activity: 2026-08-08
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 64
-  completed_plans: 60
+  completed_plans: 61
   percent: 67
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-07-27)
 ## Current Position
 
 Phase: 07 (session-and-the-transport-seam) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Status: Ready to execute
 Last activity: 2026-08-08
 
-Progress: [█████████░] 94%
+Progress: [██████████] 95%
 
 ## Performance Metrics
 
@@ -62,6 +62,7 @@ Progress: [█████████░] 94%
 | Phase 06 P08 | 26m 30s | 3 tasks | 5 files |
 | Phase 07 P01 | 9m 20s | 2 tasks | 4 files |
 | Phase 07 P02 | 11m 49s | 2 tasks | 3 files |
+| Phase 07 P03 | 31m 40s | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -109,6 +110,9 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 07-02]: Subscription registrations use monotonic tokens so duplicate callback identities retain independent cleanup authority. — Token ownership prevents stale cleanup from removing a newer registration of the same callback.
 - [Phase 07-02]: Catalog histories preserve the exact caller array reference while history containers and response rows are frozen snapshots. — Reconnect proofs need reference identity without exposing mutable history containers.
 - [Phase 07-02]: Failure options are copied and frozen at construction so later caller mutation cannot alter deterministic occurrences. — A reusable fixture must make injected failures repeatable and independent of caller-owned configuration.
+- [Phase 07-03]: A successfully published but superseded catalog retains its provisional epoch until the newest context either promotes that exact reference or aborts it before a different publication.
+- [Phase 07-03]: Publication failure establishes stopped state and detaches accepted work before diagnostics and cleanup, then drains every accepted occurrence exactly once without responses.
+- [Phase 07-03]: The package barrel exposes createSession as one callable value and keeps the reusable stub transport strictly test-only.
 
 ### Pending Todos
 
@@ -137,6 +141,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-08T22:09:34.909Z
-Stopped at: Completed 07-02-PLAN.md
+Last session: 2026-08-08T22:45:33.313Z
+Stopped at: Completed 07-03-PLAN.md
 Resume file: None
