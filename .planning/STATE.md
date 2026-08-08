@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Completed 07-03-PLAN.md
-last_updated: "2026-08-08T22:45:33.318Z"
+stopped_at: Completed 07-04-PLAN.md
+last_updated: "2026-08-08T23:14:11.711Z"
 last_activity: 2026-08-08
 progress:
   total_phases: 9
   completed_phases: 6
   total_plans: 64
-  completed_plans: 61
+  completed_plans: 62
   percent: 67
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-07-27)
 ## Current Position
 
 Phase: 07 (session-and-the-transport-seam) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
 Last activity: 2026-08-08
 
-Progress: [██████████] 95%
+Progress: [██████████] 97%
 
 ## Performance Metrics
 
@@ -63,6 +63,7 @@ Progress: [██████████] 95%
 | Phase 07 P01 | 9m 20s | 2 tasks | 4 files |
 | Phase 07 P02 | 11m 49s | 2 tasks | 3 files |
 | Phase 07 P03 | 31m 40s | 3 tasks | 9 files |
+| Phase 07 P04 | 22m 12s | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -113,6 +114,9 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 07-03]: A successfully published but superseded catalog retains its provisional epoch until the newest context either promotes that exact reference or aborts it before a different publication.
 - [Phase 07-03]: Publication failure establishes stopped state and detaches accepted work before diagnostics and cleanup, then drains every accepted occurrence exactly once without responses.
 - [Phase 07-03]: The package barrel exposes createSession as one callable value and keeps the reusable stub transport strictly test-only.
+- [Phase 07-04]: Session reads only sourceBatch.signal at admission; all four evidence fields remain lazy until Phase 6 reads the dispatch facade.
+- [Phase 07-04]: One structural signal composes transport, catalog-epoch, and stop cancellation with at-most-once upstream removal.
+- [Phase 07-04]: Direct Phase 6 dispatch is the oracle for hostile envelope row cardinality, order, and authorship.
 
 ### Pending Todos
 
@@ -141,6 +145,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-08T22:45:33.313Z
-Stopped at: Completed 07-03-PLAN.md
+Last session: 2026-08-08T23:14:11.706Z
+Stopped at: Completed 07-04-PLAN.md
 Resume file: None
