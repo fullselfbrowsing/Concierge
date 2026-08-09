@@ -104,8 +104,8 @@ interface WorkRecord {
 interface UnboundBatch {
   readonly sourceBatch: ToolBatch;
   readonly cancellation: CancellationScope;
-  readonly provisionalContext: StageContext | null;
-  readonly provisionalEpoch: CatalogEpoch | null;
+  provisionalContext: StageContext | null;
+  provisionalEpoch: CatalogEpoch | null;
 }
 
 /**
@@ -391,6 +391,14 @@ export function createSession(config: SessionConfig): Session {
       publicationAttemptToken !== attemptToken
     ) {
       return;
+    }
+    if (epoch !== null) {
+      for (const batch of [...epoch.unbound]) {
+        epoch.unbound.delete(batch);
+        batch.provisionalContext = null;
+        batch.provisionalEpoch = null;
+      }
+      if (epoch.aborted && epoch.work.size === 0) epochs.delete(epoch);
     }
     publicationPending = false;
     publishingCatalog = null;
