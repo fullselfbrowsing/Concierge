@@ -650,7 +650,7 @@ it("[C09] fails closed when a connected replay publication throws", async () => 
   });
 });
 
-function accessorTransport(base, onSetToolsRead) {
+function accessorTransport(base, onSetToolsRead, onRespond = () => {}) {
   return Object.freeze({
     capabilities: base.transport.capabilities,
     get status() {
@@ -667,6 +667,7 @@ function accessorTransport(base, onSetToolsRead) {
     },
     respond(callId, result) {
       base.transport.respond(callId, result);
+      onRespond(callId, result);
     },
   });
 }
@@ -1435,4 +1436,248 @@ it("[C16] republishes an older confirmed catalog after nested publication", asyn
     stageEvents: [],
   });
   await session.stop();
+});
+
+it("[C17] clears a publication abandoned by setTools accessor reentry", async () => {
+  const marker = "[RED:C17:abandoned-publication-cleanup]";
+  requireFactory(marker);
+
+  function exercise(accessorThrows) {
+    const a = { name: "a" };
+    const b = { name: "b" };
+    const c = { name: "c" };
+    const catalogA = Object.freeze([]);
+    const catalogB = Object.freeze([]);
+    const base = controlledTransport();
+    const dispatchContexts = [];
+    const stageEvents = [];
+    const returnedRow = resultRow("later-c");
+    let resolveResponse;
+    const responseCompleted = new Promise((resolve) => {
+      resolveResponse = resolve;
+    });
+    const concierge = conciergeDouble(
+      [
+        { context: a, catalog: catalogA, stage: "a" },
+        { context: b, catalog: catalogB, stage: "b" },
+        { context: c, catalog: catalogA, stage: "c" },
+      ],
+      async (context) => {
+        dispatchContexts.push(context);
+        return Object.freeze([returnedRow]);
+      },
+    );
+    let accessorReads = 0;
+    let bSetToolsInvocations = 0;
+    let session;
+    const transport = accessorTransport(
+      base,
+      () => {
+        accessorReads += 1;
+        if (accessorReads === 2) {
+          session.setContext(c);
+          if (accessorThrows) throw new Error("PRIVATE-C17-STALE-GETTER");
+          return () => {
+            bSetToolsInvocations += 1;
+          };
+        }
+        return (tools) => {
+          base.transport.setTools(tools);
+        };
+      },
+      () => {
+        resolveResponse();
+      },
+    );
+    session = createSession({ concierge, transport, initialContext: a });
+    session.onStageChange((stage) => stageEvents.push(stage));
+
+    let errorMessage;
+    try {
+      session.setContext(b);
+    } catch (error) {
+      errorMessage = error.message;
+    }
+    const beforeBatch = {
+      dispatches: dispatchContexts.length,
+      responses: base.responses.length,
+    };
+    base.emitBatch(toolBatch(["later-c"]));
+
+    return {
+      observation: {
+        accessorReads,
+        bSetToolsInvocations,
+        beforeBatch,
+        dispatchContexts: [...dispatchContexts],
+        errorMessage,
+        publications: [...base.publications],
+        responses: [...base.responses],
+        stage: session.stage(),
+        stageEvents: [...stageEvents],
+      },
+      catalogA,
+      responseCompleted,
+      returnedRow,
+      session,
+      contextC: c,
+      dispatchContexts,
+      responses: base.responses,
+    };
+  }
+
+  const returned = exercise(false);
+  const thrown = exercise(true);
+
+  const expectedObservation = (contextC, catalogA) => ({
+    accessorReads: 2,
+    bSetToolsInvocations: 0,
+    beforeBatch: { dispatches: 0, responses: 0 },
+    dispatchContexts: [contextC],
+    errorMessage: undefined,
+    publications: [catalogA],
+    responses: [],
+    stage: "c",
+    stageEvents: ["c"],
+  });
+  expect(
+    {
+      returned: returned.observation,
+      thrown: thrown.observation,
+    },
+    marker,
+  ).toEqual({
+    returned: expectedObservation(
+      returned.contextC,
+      returned.catalogA,
+    ),
+    thrown: expectedObservation(
+      thrown.contextC,
+      thrown.catalogA,
+    ),
+  });
+
+  await Promise.all([returned.responseCompleted, thrown.responseCompleted]);
+  for (const observed of [returned, thrown]) {
+    expect(observed.dispatchContexts).toHaveLength(1);
+    expect(observed.dispatchContexts[0]).toBe(observed.contextC);
+    expect(observed.responses).toHaveLength(1);
+    expect(observed.responses[0]?.callId).toBe(observed.returnedRow.callId);
+    expect(observed.responses[0]?.result).toBe(observed.returnedRow.result);
+    await observed.session.stop();
+  }
+});
+
+it("preserves current and stopped setTools getter failure semantics", async () => {
+  const marker = "[REGRESSION:settools-getter-failure-semantics]";
+  const observations = [];
+
+  for (const mode of ["starting", "active", "stopped"]) {
+    const sentinel = `PRIVATE-SETTOOLS-GETTER-${mode}`;
+    const a = { name: "a" };
+    const b = { name: "b" };
+    const catalogA = Object.freeze([]);
+    const catalogB = Object.freeze([]);
+    const base = controlledTransport();
+    const diagnostics = [];
+    let accessorReads = 0;
+    let drain;
+    let session;
+    const concierge = conciergeDouble(
+      [
+        { context: a, catalog: catalogA, stage: "a" },
+        { context: b, catalog: catalogB, stage: "b" },
+      ],
+      async () => Object.freeze([]),
+    );
+    const transport = accessorTransport(base, () => {
+      accessorReads += 1;
+      if (mode === "starting" && accessorReads === 1) {
+        throw new Error(sentinel);
+      }
+      if (accessorReads === 2 && mode === "active") {
+        throw new Error(sentinel);
+      }
+      if (accessorReads === 2 && mode === "stopped") {
+        drain = session.stop();
+        throw new Error(sentinel);
+      }
+      return (tools) => {
+        base.transport.setTools(tools);
+      };
+    });
+
+    let errorMessage;
+    try {
+      session = createSession({
+        concierge,
+        transport,
+        initialContext: a,
+        onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+      });
+      session.setContext(b);
+    } catch (error) {
+      errorMessage = error.message;
+    }
+    if (drain !== undefined) await drain;
+    if (session !== undefined) await session.stop();
+    await flushMicrotasks();
+
+    observations.push({
+      accessorReads,
+      catalogBPublished: base.publications.includes(catalogB),
+      diagnosticCodes: diagnostics.map((diagnostic) => diagnostic.code),
+      errorMessage,
+      finalCatalogFrozen: Object.isFrozen(base.publications.at(-1)),
+      finalCatalogSize: base.publications.at(-1)?.length,
+      firstCatalogIsA: base.publications[0] === catalogA,
+      historyLength: base.publications.length,
+      mode,
+      stage: session?.stage(),
+      subscribers: base.subscriberCounts(),
+    });
+    expect(JSON.stringify({ diagnostics, errorMessage })).not.toContain(sentinel);
+  }
+
+  expect(observations, marker).toEqual([
+    {
+      accessorReads: 2,
+      catalogBPublished: false,
+      diagnosticCodes: ["catalog_publish_failed"],
+      errorMessage: "The session could not start.",
+      finalCatalogFrozen: true,
+      finalCatalogSize: 0,
+      firstCatalogIsA: false,
+      historyLength: 1,
+      mode: "starting",
+      stage: undefined,
+      subscribers: { status: 0, batch: 0 },
+    },
+    {
+      accessorReads: 3,
+      catalogBPublished: false,
+      diagnosticCodes: ["catalog_publish_failed"],
+      errorMessage: "The session could not publish the current catalog.",
+      finalCatalogFrozen: true,
+      finalCatalogSize: 0,
+      firstCatalogIsA: true,
+      historyLength: 2,
+      mode: "active",
+      stage: "b",
+      subscribers: { status: 0, batch: 0 },
+    },
+    {
+      accessorReads: 3,
+      catalogBPublished: false,
+      diagnosticCodes: [],
+      errorMessage: undefined,
+      finalCatalogFrozen: true,
+      finalCatalogSize: 0,
+      firstCatalogIsA: true,
+      historyLength: 2,
+      mode: "stopped",
+      stage: "a",
+      subscribers: { status: 0, batch: 0 },
+    },
+  ]);
 });

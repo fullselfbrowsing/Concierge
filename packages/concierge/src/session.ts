@@ -702,6 +702,18 @@ export function createSession(config: SessionConfig): Session {
     }
   }
 
+  function abandonSupersededPublication(
+    record: ContextTransition,
+    epoch: CatalogEpoch | null,
+    attemptToken: number,
+  ): boolean {
+    if (!publicationIsCurrent(attemptToken)) return true;
+    if (isCurrent(record)) return false;
+    if (epoch !== null) abortEpoch(epoch);
+    clearPublication(epoch, attemptToken);
+    return true;
+  }
+
   function processContext(record: ContextTransition): void {
     if (!isCurrent(record)) return;
 
@@ -751,21 +763,17 @@ export function createSession(config: SessionConfig): Session {
     publishingEpoch = epoch;
     abortEpochsExcept(epoch);
 
-    if (!isCurrent(record)) {
-      if (epoch !== null) abortEpoch(epoch);
-      clearPublication(epoch, attemptToken);
-      return;
-    }
+    if (abandonSupersededPublication(record, epoch, attemptToken)) return;
 
     let setTools: typeof transport.setTools;
     try {
       setTools = transport.setTools;
     } catch {
-      if (!isCurrent(record) || !publicationIsCurrent(attemptToken)) return;
+      if (abandonSupersededPublication(record, epoch, attemptToken)) return;
       if (lifecycle === "starting") throw new Error(START_ERROR);
       failPublication(resolved.stage);
     }
-    if (!isCurrent(record) || !publicationIsCurrent(attemptToken)) return;
+    if (abandonSupersededPublication(record, epoch, attemptToken)) return;
 
     try {
       Reflect.apply(setTools, transport, [resolved.catalog]);
