@@ -23,7 +23,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Stages, catalog assembly, and explain()** - The agent sees only the actions valid for where the user is, and a developer can find out why one wasn't offered (completed 2026-07-30)
 - [x] **Phase 5: Bridge registry and the no-bridge path** - Handlers read live app state through getters, and behave honestly when no component is mounted (completed 2026-07-31)
 - [x] **Phase 6: Dispatcher** - A retried, malformed, aborted, or crashing call produces exactly one honest result and never fires an effect twice (completed 2026-08-06; **verification gap closure planned — plans 06-07–06-08**)
-- [ ] **Phase 7: Session and the transport seam** - Something owns the loop between catalog and transport, driven by a stub with no network
+- [x] **Phase 7: Session and the transport seam** - Something owns the loop between catalog and transport, driven by a stub with no network (completed 2026-08-09)
 - [ ] **Phase 8: Consent kernel** - A consequential action runs only when a human, not the agent, confirmed this exact payload
 - [ ] **Phase 9: React and Svelte adapters** - Two opposite reactivity models drive the same core through adapters small enough to prove no logic leaked out
 
@@ -319,7 +319,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 07-06-PLAN.md — Mutation, foreign/tarball, release, lockfile, live-ledger, SES closure, and TRN-02 Phase 8 handoff
+- [x] 07-06-PLAN.md — Mutation, foreign/tarball, release, lockfile, live-ledger, SES closure, and TRN-02 Phase 8 handoff
 
 **Research**: Completed 2026-08-08 — `07-RESEARCH.md`; closest implementation analogs and file ownership are mapped in `07-PATTERNS.md`.
 **Notes**: The catalog/status loop uses one serialized transition drain with latest-generation confirmation and keeps publication-in-progress, last-successfully-published transport catalog, and confirmed application authority separate. Reentrant queued contexts reconcile against what the transport actually holds: a context sharing published B promotes B's epoch without republishing, while a context returning to previously confirmed A republishes A after successful B. Transport callbacks may emit batches synchronously, so the batch pump remains paused until reconciliation confirms the newest authority. Session stores hostile ToolBatch envelopes by reference and forwards their evidence fields through lazy descriptors so Phase 6 retains ownership of guarded snapshot totality. The stub transport built here is the instrument Phase 8 uses to prove the build-time grade gate. Criterion 3 is the seam that makes Phase 8 possible at all: an earlier draft of `Transport` delivered a bare `ToolCall[]`, and the gate the whole design rests on had no data to read. Phase 7 delivers and validates only the reusable stub/session-seam portion of literal requirement TRN-02. Its REQUIREMENTS checkbox and traceability status remain unchecked/Partial after this phase; Phase 8 must reuse this exact fixture against the full consent kernel before TRN-02 can become Complete.
@@ -399,6 +399,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Stages, catalog assembly, and explain() | 8/8 | Complete   | 2026-07-30 |
 | 5. Bridge registry and the no-bridge path | 7/7 | Complete   | 2026-07-31 |
 | 6. Dispatcher | 8/8 | Complete   | 2026-08-07 |
-| 7. Session and the transport seam | 5/6 | In Progress|  |
+| 7. Session and the transport seam | 6/6 | Complete   | 2026-08-09 |
 | 8. Consent kernel | 0/TBD | Not started | - |
 | 9. React and Svelte adapters | 0/TBD | Not started | - |
