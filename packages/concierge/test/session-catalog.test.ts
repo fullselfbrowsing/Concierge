@@ -650,6 +650,139 @@ it("[C09] fails closed when a connected replay publication throws", async () => 
   });
 });
 
+function accessorTransport(base, onSetToolsRead) {
+  return Object.freeze({
+    capabilities: base.transport.capabilities,
+    get status() {
+      return base.transport.status;
+    },
+    get setTools() {
+      return onSetToolsRead();
+    },
+    onStatusChange(callback) {
+      return base.transport.onStatusChange(callback);
+    },
+    onToolBatch(callback) {
+      return base.transport.onToolBatch(callback);
+    },
+    respond(callId, result) {
+      base.transport.respond(callId, result);
+    },
+  });
+}
+
+it("keeps the empty catalog authoritative when the setContext setTools getter stops", async () => {
+  const marker = "[REGRESSION:setcontext-settools-getter-stop-cutoff]";
+  const a = { name: "a" };
+  const b = { name: "b" };
+  const catalogA = Object.freeze([]);
+  const catalogB = Object.freeze([]);
+  const concierge = conciergeDouble(
+    [
+      { context: a, catalog: catalogA, stage: "a" },
+      { context: b, catalog: catalogB, stage: "b" },
+    ],
+    async () => Object.freeze([]),
+  );
+  const base = controlledTransport();
+  const publications = [];
+  let accessorReads = 0;
+  let drain;
+  let session;
+  let staleInvocations = 0;
+  const transport = accessorTransport(base, () => {
+    accessorReads += 1;
+    if (accessorReads === 2) {
+      drain = session.stop();
+      return () => {
+        staleInvocations += 1;
+      };
+    }
+    return (tools) => {
+      publications.push(tools);
+    };
+  });
+  session = createSession({ concierge, transport, initialContext: a });
+
+  session.setContext(b);
+  if (drain === undefined) throw new Error("setTools getter did not stop the session");
+  await drain;
+
+  expect(
+    {
+      accessorReads,
+      finalCatalogFrozen: Object.isFrozen(publications.at(-1)),
+      finalCatalogSize: publications.at(-1)?.length,
+      history: publications,
+      sameDrain: session.stop() === drain,
+      staleInvocations,
+    },
+    marker,
+  ).toEqual({
+    accessorReads: 3,
+    finalCatalogFrozen: true,
+    finalCatalogSize: 0,
+    history: [catalogA, publications.at(-1)],
+    sameDrain: true,
+    staleInvocations: 0,
+  });
+  expect(publications.at(-1)).not.toBe(catalogA);
+  expect(publications.at(-1)).not.toBe(catalogB);
+});
+
+it("keeps the empty catalog authoritative when the replay setTools getter stops", async () => {
+  const marker = "[REGRESSION:replay-settools-getter-stop-cutoff]";
+  const a = { name: "a" };
+  const catalogA = Object.freeze([]);
+  const concierge = conciergeDouble(
+    [{ context: a, catalog: catalogA, stage: "a" }],
+    async () => Object.freeze([]),
+  );
+  const base = controlledTransport({ initialStatus: "idle" });
+  const publications = [];
+  let accessorReads = 0;
+  let drain;
+  let session;
+  let staleInvocations = 0;
+  const transport = accessorTransport(base, () => {
+    accessorReads += 1;
+    if (accessorReads === 2) {
+      drain = session.stop();
+      return () => {
+        staleInvocations += 1;
+      };
+    }
+    return (tools) => {
+      publications.push(tools);
+    };
+  });
+  session = createSession({ concierge, transport, initialContext: a });
+
+  base.emitStatus("connected");
+  if (drain === undefined) throw new Error("setTools getter did not stop the session");
+  await drain;
+
+  expect(
+    {
+      accessorReads,
+      finalCatalogFrozen: Object.isFrozen(publications.at(-1)),
+      finalCatalogSize: publications.at(-1)?.length,
+      history: publications,
+      sameDrain: session.stop() === drain,
+      staleInvocations,
+    },
+    marker,
+  ).toEqual({
+    accessorReads: 3,
+    finalCatalogFrozen: true,
+    finalCatalogSize: 0,
+    history: [catalogA, publications.at(-1)],
+    sameDrain: true,
+    staleInvocations: 0,
+  });
+  expect(publications.at(-1)).not.toBe(catalogA);
+});
+
 it("[C10] serializes abort-listener context reentry with latest-wins publication", async () => {
   const marker = "[RED:C10:abort-reentry-latest-wins]";
   requireFactory(marker);

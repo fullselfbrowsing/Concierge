@@ -747,8 +747,18 @@ export function createSession(config: SessionConfig): Session {
       return;
     }
 
+    let setTools: typeof transport.setTools;
     try {
-      transport.setTools(resolved.catalog);
+      setTools = transport.setTools;
+    } catch {
+      if (!isCurrent(record) || !publicationIsCurrent(attemptToken)) return;
+      if (lifecycle === "starting") throw new Error(START_ERROR);
+      failPublication(resolved.stage);
+    }
+    if (!isCurrent(record) || !publicationIsCurrent(attemptToken)) return;
+
+    try {
+      Reflect.apply(setTools, transport, [resolved.catalog]);
     } catch {
       if (lifecycle === "starting") throw new Error(START_ERROR);
       failPublication(resolved.stage);
@@ -778,8 +788,17 @@ export function createSession(config: SessionConfig): Session {
     publishingContext = context;
     publishingEpoch = epoch;
 
+    let setTools: typeof transport.setTools;
     try {
-      transport.setTools(catalog);
+      setTools = transport.setTools;
+    } catch {
+      if (!publicationIsCurrent(attemptToken)) return;
+      failPublication(currentStage);
+    }
+    if (!publicationIsCurrent(attemptToken)) return;
+
+    try {
+      Reflect.apply(setTools, transport, [catalog]);
     } catch {
       failPublication(currentStage);
     }
