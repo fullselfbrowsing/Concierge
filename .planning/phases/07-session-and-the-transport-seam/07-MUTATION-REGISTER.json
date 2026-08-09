@@ -12,7 +12,8 @@
     "M-07-C08",
     "M-07-C09",
     "M-07-C10",
-    "M-07-C11"
+    "M-07-C11",
+    "M-07-C12"
   ],
   "expectedRoutingIds": [
     "M-07-R01",
@@ -55,6 +56,7 @@
     "M-07-C09",
     "M-07-C10",
     "M-07-C11",
+    "M-07-C12",
     "M-07-R01",
     "M-07-R02",
     "M-07-R03",
@@ -77,7 +79,7 @@
     "M-07-P01",
     "M-07-P02"
   ],
-  "registerDigest": "5cccf0824bec93c2702d1ab712797dc23b477d3209db943c4d0f22846e177182",
+  "registerDigest": "b57d8a91933bf0884dd821047e6304def8138dd7a58d6759b38b1aadef813088",
   "mutants": [
     {
       "id": "M-07-C01",
@@ -362,6 +364,27 @@
         {
           "caseId": "C17",
           "marker": "[RED:C17:abandoned-publication-cleanup]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-C12",
+      "group": "catalog",
+      "name": "stale resolver and capability freshness guard is removed",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "      if (!isCurrent(record)) return null;",
+      "replacement": "      void record;",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C18"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C18",
+          "marker": "[RED:C18:stale-boundary-progress]"
         }
       ]
     },
