@@ -437,7 +437,11 @@ export function createSession(config: SessionConfig): Session {
       for (const row of rows) {
         if (!allowResponses || lifecycle !== "active") break;
         try {
-          transport.respond(row.callId, row.result);
+          const respond: typeof transport.respond = transport.respond;
+          const callId: string = row.callId;
+          const result = row.result;
+          if (!allowResponses || lifecycle !== "active") break;
+          Reflect.apply(respond, transport, [callId, result]);
         } catch {
           diagnose("response_failed");
         }

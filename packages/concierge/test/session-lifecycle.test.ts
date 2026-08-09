@@ -764,6 +764,95 @@ it("preserves FIFO through stop drain when normalization delivers nested work", 
   });
 });
 
+it("does not begin a response after a row getter stops the session", async () => {
+  let drain;
+  let session;
+  const transport = controlledTransport();
+  const stoppingRow = Object.freeze({
+    get callId() {
+      drain = session.stop();
+      return "late-row";
+    },
+    result: result("late-row"),
+  });
+  session = createSession({
+    concierge: conciergeDouble({
+      dispatchBatch: () => Promise.resolve([stoppingRow]),
+    }),
+    transport: transport.transport,
+    initialContext: CONTEXT_A,
+  });
+
+  transport.emitBatch(toolBatch("row-getter"));
+  await flushMicrotasks();
+  if (drain === undefined) throw new Error("row getter did not stop the session");
+  await drain;
+
+  expect(
+    {
+      responses: transport.responses,
+      sameDrain: session.stop() === drain,
+      subscribers: transport.subscriberCounts(),
+    },
+    "[REGRESSION:row-getter-stop-response-cutoff]",
+  ).toEqual({
+    responses: [],
+    sameDrain: true,
+    subscribers: { status: 0, batch: 0 },
+  });
+});
+
+it("does not begin a response after the respond getter stops the session", async () => {
+  let drain;
+  let session;
+  let responseInvocations = 0;
+  const base = controlledTransport();
+  const transport = Object.freeze({
+    capabilities: base.transport.capabilities,
+    get status() {
+      return base.transport.status;
+    },
+    setTools(tools) {
+      base.transport.setTools(tools);
+    },
+    onStatusChange(callback) {
+      return base.transport.onStatusChange(callback);
+    },
+    onToolBatch(callback) {
+      return base.transport.onToolBatch(callback);
+    },
+    get respond() {
+      drain = session.stop();
+      return () => {
+        responseInvocations += 1;
+      };
+    },
+  });
+  session = createSession({
+    concierge: conciergeDouble(),
+    transport,
+    initialContext: CONTEXT_A,
+  });
+
+  base.emitBatch(toolBatch("respond-getter"));
+  await flushMicrotasks();
+  if (drain === undefined) throw new Error("respond getter did not stop the session");
+  await drain;
+
+  expect(
+    {
+      responseInvocations,
+      sameDrain: session.stop() === drain,
+      subscribers: base.subscriberCounts(),
+    },
+    "[REGRESSION:respond-getter-stop-response-cutoff]",
+  ).toEqual({
+    responseInvocations: 0,
+    sameDrain: true,
+    subscribers: { status: 0, batch: 0 },
+  });
+});
+
 it("[L05] cuts off output when stop occurs at dispatch, response, and stage boundaries", async () => {
   const marker = "[RED:L05:stop-at-every-boundary]";
   let responseSession;
