@@ -327,18 +327,21 @@ it("[J02] treats repeated delivery of one batch object as distinct accepted occu
   const marker = "[RED:J02:accepted-occurrence-once]";
   const finished = deferred();
   let dispatchEntries = 0;
+  let finalizerEntries = 0;
   const observed = [];
-  const shared = toolBatch("shared", ["same-call"]);
+  const accepted = trackedSignal(() => {
+    finalizerEntries += 1;
+    if (finalizerEntries === 2) finished.resolve();
+  });
+  const shared = toolBatch("shared", ["same-call"], {
+    signal: accepted.signal,
+  });
   const concierge = conciergeDouble(async (_context, batch) => {
     dispatchEntries += 1;
     observed.push(batch);
     return Object.freeze([row("same-call")]);
   });
-  const harness = controlledTransport({
-    respond: (_attempt, occurrence) => {
-      if (occurrence === 2) finished.resolve();
-    },
-  });
+  const harness = controlledTransport();
   const session = createSession({
     concierge,
     transport: harness.transport,
@@ -354,6 +357,9 @@ it("[J02] treats repeated delivery of one batch object as distinct accepted occu
       dispatchEntries,
       facadeCount: observed.length,
       facadeDistinct: observed[0] !== observed[1],
+      occurrenceSignalsDistinct: observed[0].signal !== observed[1].signal,
+      finalizerEntries,
+      sourceSignalListeners: accepted.listenerCount(),
       responses: harness.responses.map(({ callId }) => callId),
     },
     marker,
@@ -361,6 +367,9 @@ it("[J02] treats repeated delivery of one batch object as distinct accepted occu
     dispatchEntries: 2,
     facadeCount: 2,
     facadeDistinct: true,
+    occurrenceSignalsDistinct: true,
+    finalizerEntries: 2,
+    sourceSignalListeners: 0,
     responses: ["same-call", "same-call"],
   });
   await session.stop();
