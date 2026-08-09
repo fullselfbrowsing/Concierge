@@ -783,6 +783,134 @@ it("keeps the empty catalog authoritative when the replay setTools getter stops"
   expect(publications.at(-1)).not.toBe(catalogA);
 });
 
+it("skips a stale stage resolver after catalog resolution enqueues newer context", async () => {
+  const marker = "[REGRESSION:catalog-resolver-reentry-latest-wins]";
+  const a = { name: "a" };
+  const b = { name: "b" };
+  const c = { name: "c" };
+  const catalogA = Object.freeze([]);
+  const catalogB = Object.freeze([]);
+  const events = [];
+  let session;
+  const concierge = {
+    catalogFor(context) {
+      events.push(`catalog:${context.name}`);
+      if (context === b) {
+        session.setContext(c);
+        return catalogB;
+      }
+      return catalogA;
+    },
+    stageFor(context) {
+      events.push(`stage:${context.name}`);
+      if (context === b) throw new Error("STALE-B-STAGE");
+      return context.name;
+    },
+    dispatchBatch: async () => Object.freeze([]),
+    dispatch: () => Promise.resolve({ ok: false, message: "unused" }),
+    explain: () => ({ stage: null, stages: [], catalog: [] }),
+  };
+  const harness = controlledTransport();
+  session = createSession({ concierge, transport: harness.transport, initialContext: a });
+
+  let errorMessage;
+  try {
+    session.setContext(b);
+  } catch (error) {
+    errorMessage = error.message;
+  }
+
+  expect(
+    {
+      errorMessage,
+      events,
+      history: harness.publications,
+      stage: session.stage(),
+      subscribers: harness.subscriberCounts(),
+    },
+    marker,
+  ).toEqual({
+    errorMessage: undefined,
+    events: ["catalog:a", "stage:a", "catalog:b", "catalog:c", "stage:c"],
+    history: [catalogA],
+    stage: "c",
+    subscribers: { status: 1, batch: 1 },
+  });
+  await session.stop();
+});
+
+it("skips a stale fixed-capability branch after its getter enqueues newer context", async () => {
+  const marker = "[REGRESSION:capability-getter-reentry-latest-wins]";
+  const a = { name: "a" };
+  const b = { name: "b" };
+  const c = { name: "c" };
+  const catalogA = Object.freeze([]);
+  const catalogB = Object.freeze([]);
+  const concierge = conciergeDouble(
+    [
+      { context: a, catalog: catalogA, stage: "a" },
+      { context: b, catalog: catalogB, stage: "b" },
+      { context: c, catalog: catalogA, stage: "c" },
+    ],
+    async () => Object.freeze([]),
+  );
+  const base = controlledTransport();
+  let capabilityReads = 0;
+  let session;
+  const capabilities = Object.freeze({
+    ...CONVERSATIONAL_CAPABILITIES,
+    get dynamicCatalog() {
+      capabilityReads += 1;
+      session.setContext(c);
+      return false;
+    },
+  });
+  const transport = Object.freeze({
+    capabilities,
+    get status() {
+      return base.transport.status;
+    },
+    setTools(tools) {
+      base.transport.setTools(tools);
+    },
+    onStatusChange(callback) {
+      return base.transport.onStatusChange(callback);
+    },
+    onToolBatch(callback) {
+      return base.transport.onToolBatch(callback);
+    },
+    respond(callId, result) {
+      base.transport.respond(callId, result);
+    },
+  });
+  session = createSession({ concierge, transport, initialContext: a });
+
+  let errorMessage;
+  try {
+    session.setContext(b);
+  } catch (error) {
+    errorMessage = error.message;
+  }
+
+  expect(
+    {
+      capabilityReads,
+      errorMessage,
+      history: base.publications,
+      stage: session.stage(),
+      subscribers: base.subscriberCounts(),
+    },
+    marker,
+  ).toEqual({
+    capabilityReads: 1,
+    errorMessage: undefined,
+    history: [catalogA],
+    stage: "c",
+    subscribers: { status: 1, batch: 1 },
+  });
+  await session.stop();
+});
+
 it("[C10] serializes abort-listener context reentry with latest-wins publication", async () => {
   const marker = "[RED:C10:abort-reentry-latest-wins]";
   requireFactory(marker);

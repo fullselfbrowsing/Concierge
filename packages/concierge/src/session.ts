@@ -705,12 +705,18 @@ export function createSession(config: SessionConfig): Session {
   function processContext(record: ContextTransition): void {
     if (!isCurrent(record)) return;
 
-    const resolved: ResolvedContext =
-      record.resolved ?? {
-        catalog: concierge.catalogFor(record.context as StageContext),
-        stage: concierge.stageFor(record.context as StageContext),
-      };
-    if (!isCurrent(record)) return;
+    let resolved: ResolvedContext | null = record.resolved;
+    if (resolved === null) {
+      const catalog: ReadonlyArray<EmittedTool> = concierge.catalogFor(
+        record.context as StageContext,
+      );
+      if (!isCurrent(record)) return;
+      const stage: string | null = concierge.stageFor(
+        record.context as StageContext,
+      );
+      if (!isCurrent(record)) return;
+      resolved = { catalog, stage };
+    }
 
     if (resolved.catalog === publishedCatalog) {
       let epoch: CatalogEpoch | null = publishedEpoch;
@@ -723,13 +729,17 @@ export function createSession(config: SessionConfig): Session {
       return;
     }
 
-    if (
-      publishedCatalog !== null &&
-      transport.capabilities.dynamicCatalog === false
-    ) {
-      currentStage = resolved.stage;
-      stopNow();
-      throw new Error(FIXED_CATALOG_ERROR);
+    if (publishedCatalog !== null) {
+      const capabilities: typeof transport.capabilities =
+        transport.capabilities;
+      if (!isCurrent(record)) return;
+      const dynamicCatalog: boolean = capabilities.dynamicCatalog;
+      if (!isCurrent(record)) return;
+      if (dynamicCatalog === false) {
+        currentStage = resolved.stage;
+        stopNow();
+        throw new Error(FIXED_CATALOG_ERROR);
+      }
     }
 
     const epoch: CatalogEpoch | null =
