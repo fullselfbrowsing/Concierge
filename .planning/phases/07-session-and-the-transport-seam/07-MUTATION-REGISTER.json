@@ -13,7 +13,9 @@
     "M-07-C09",
     "M-07-C10",
     "M-07-C11",
-    "M-07-C12"
+    "M-07-C12",
+    "M-07-C13",
+    "M-07-C14"
   ],
   "expectedRoutingIds": [
     "M-07-R01",
@@ -57,6 +59,8 @@
     "M-07-C10",
     "M-07-C11",
     "M-07-C12",
+    "M-07-C13",
+    "M-07-C14",
     "M-07-R01",
     "M-07-R02",
     "M-07-R03",
@@ -79,7 +83,7 @@
     "M-07-P01",
     "M-07-P02"
   ],
-  "registerDigest": "b57d8a91933bf0884dd821047e6304def8138dd7a58d6759b38b1aadef813088",
+  "registerDigest": "dbf851cb1e0c0cbfcf9de2502be6b156df42d78d9666cd95db075a85a21563ca",
   "mutants": [
     {
       "id": "M-07-C01",
@@ -257,8 +261,8 @@
       "intendedCaseIds": [
         "C10",
         "C11",
-        "C15",
-        "C16"
+        "C16",
+        "C20"
       ],
       "expectedFailureFingerprint": [
         {
@@ -270,12 +274,12 @@
           "marker": "[RED:C11:settools-reentry-latest-wins]"
         },
         {
-          "caseId": "C15",
-          "marker": "[RED:C15:reentrant-same-published-catalog]"
-        },
-        {
           "caseId": "C16",
           "marker": "[RED:C16:reentrant-return-to-confirmed-catalog]"
+        },
+        {
+          "caseId": "C20",
+          "marker": "[RED:C20:post-request-admission-authority]"
         }
       ]
     },
@@ -385,6 +389,48 @@
         {
           "caseId": "C18",
           "marker": "[RED:C18:stale-boundary-progress]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-C13",
+      "group": "catalog",
+      "name": "current boundary failure stops before queued connected replay",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "        } catch (failure) {\n          if (firstFailure === null) firstFailure = { value: failure };\n        }",
+      "replacement": "        } catch (failure) {\n          if (firstFailure === null) firstFailure = { value: failure };\n          break;\n        }",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C19"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C19",
+          "marker": "[RED:C19:current-exception-drain-progress]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-C14",
+      "group": "catalog",
+      "name": "boundary-time requested authority is replaced by confirmed authority",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "      if (transitionQueue.length !== 0) {\n        arrivalAuthority = \"requested-transition\";\n        arrivalContext = requestedContext;\n        arrivalGeneration = requestedGeneration;\n      } else {",
+      "replacement": "      if (false && transitionQueue.length !== 0) {\n        arrivalAuthority = \"requested-transition\";\n        arrivalContext = requestedContext;\n        arrivalGeneration = requestedGeneration;\n      } else {",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C20"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C20",
+          "marker": "[RED:C20:post-request-admission-authority]"
         }
       ]
     },
