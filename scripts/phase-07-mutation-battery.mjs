@@ -358,6 +358,7 @@ const MUTANTS = Object.freeze([
       "      transitionDraining ||",
       "      transitionQueue.length !== 0 ||",
       "      workPumpRunning ||",
+      "      acceptingBatchCount !== 0 ||",
       "      workQueue.length === 0",
     ),
     replacement: lines(
@@ -585,9 +586,16 @@ const MUTANTS = Object.freeze([
     id: "M-07-L03",
     group: "lifecycle",
     name: "response rows continue after stop",
-    literalPattern:
-      "        if (!allowResponses || lifecycle !== \"active\") break;",
-    replacement: "        if (!allowResponses) break;",
+    literalPattern: lines(
+      "          const result = row.result;",
+      "          if (!allowResponses || lifecycle !== \"active\") break;",
+      "          Reflect.apply(respond, transport, [callId, result]);",
+    ),
+    replacement: lines(
+      "          const result = row.result;",
+      "          if (!allowResponses) break;",
+      "          Reflect.apply(respond, transport, [callId, result]);",
+    ),
     intendedCaseIds: ["L03", "L05"],
   }),
   runtimeMutant({
@@ -1729,10 +1737,14 @@ function targetHash(mutant) {
   return sha256(readFileSync(join(ROOT, mutant.target)));
 }
 
-let revisionInputPathCache;
+function assertNoUntrackedRevisionInputs(paths) {
+  if (paths.length === 0) return;
+  throw new Error(
+    `release manifest contains untracked scoped inputs:\n${paths.join("\n")}`,
+  );
+}
 
 function revisionInputPaths() {
-  if (revisionInputPathCache !== undefined) return revisionInputPathCache;
   const tracked = command("git", [
     "ls-files",
     "-z",
@@ -1743,6 +1755,20 @@ function revisionInputPaths() {
   if (tracked.exitCode !== 0) {
     throw new Error(`revision manifest lookup failed: ${tracked.output}`);
   }
+  const untracked = command("git", [
+    "ls-files",
+    "--others",
+    "-z",
+    "--",
+    ...REVISION_DIRECTORY_SCOPES,
+    ...REVISION_REQUIRED_PATHS,
+  ]);
+  if (untracked.exitCode !== 0) {
+    throw new Error(`untracked revision manifest lookup failed: ${untracked.output}`);
+  }
+  assertNoUntrackedRevisionInputs(
+    [...new Set(untracked.stdout.split("\0").filter(Boolean))].sort(),
+  );
   const paths = [...new Set(tracked.stdout.split("\0").filter(Boolean))].sort();
   for (const path of REVISION_REQUIRED_PATHS) {
     if (!paths.includes(path)) {
@@ -1754,19 +1780,27 @@ function revisionInputPaths() {
       throw new Error(`revision manifest scope is empty: ${scope}`);
     }
   }
-  revisionInputPathCache = Object.freeze(paths);
-  return revisionInputPathCache;
+  return Object.freeze(paths);
 }
 
-function releaseRevisionDigest() {
+function releaseRevisionDigest(paths = revisionInputPaths()) {
   const digest = createHash("sha256");
   digest.update("phase-07-release\0");
-  for (const path of revisionInputPaths()) {
+  for (const path of paths) {
     digest.update(`path\0${path}\0`);
     digest.update(readFileSync(join(ROOT, path)));
     digest.update("\0");
   }
   return digest.digest("hex");
+}
+
+function assertStableReleaseRevision(before, after) {
+  if (
+    JSON.stringify(before.paths) !== JSON.stringify(after.paths) ||
+    before.digest !== after.digest
+  ) {
+    throw new Error("release inputs changed while gates were running");
+  }
 }
 
 function revisionDigest(mutant) {
@@ -2366,6 +2400,11 @@ function verifyNamedCasesAndWaveFiles() {
 
 function runReleaseGates(directory) {
   const commandExits = {};
+  const preGatePaths = revisionInputPaths();
+  const preGateRevision = Object.freeze({
+    paths: preGatePaths,
+    digest: releaseRevisionDigest(preGatePaths),
+  });
 
   const build = runBuild();
   commandExits.build = build.exitCode;
@@ -2411,8 +2450,14 @@ function runReleaseGates(directory) {
     }
   }
 
+  const postGatePaths = revisionInputPaths();
+  assertStableReleaseRevision(preGateRevision, {
+    paths: postGatePaths,
+    digest: releaseRevisionDigest(postGatePaths),
+  });
+
   const release = {
-    revisionDigest: releaseRevisionDigest(),
+    revisionDigest: preGateRevision.digest,
     executedAt: new Date().toISOString(),
     commandExits,
     tests: {
@@ -2660,6 +2705,25 @@ function selfTest() {
       `altered release test count ${countName}`,
     );
   }
+  assertNoUntrackedRevisionInputs([]);
+  assertThrows(
+    () =>
+      assertNoUntrackedRevisionInputs([
+        "packages/concierge/src/untracked-release-input.ts",
+        "packages/concierge/test/untracked-release-input.test.ts",
+      ]),
+    /untracked scoped inputs/u,
+    "untracked source and test inside release scopes",
+  );
+  assertThrows(
+    () =>
+      assertStableReleaseRevision(
+        { paths: ["packages/concierge/src/session.ts"], digest: "0".repeat(64) },
+        { paths: ["packages/concierge/src/session.ts"], digest: "1".repeat(64) },
+      ),
+    /changed while gates were running/u,
+    "pre/post release digest mismatch",
+  );
 
   assertThrows(
     () => validateRegister({ ...makeRegister(), registerDigest: "0".repeat(64) }),
@@ -3076,7 +3140,7 @@ function main(args) {
     return 0;
   }
   if (invocation.kind === "verify-ledgers") {
-    verifyLedgers();
+    withExclusiveRepositoryLock("verify ledgers", verifyLedgers);
     return 0;
   }
   throw new UsageError();
