@@ -1,6 +1,6 @@
 ---
 phase: 07-session-and-the-transport-seam
-reviewed: 2026-08-09T01:27:08Z
+reviewed: 2026-08-09T02:26:57Z
 depth: standard
 files_reviewed: 20
 files_reviewed_list:
@@ -26,112 +26,88 @@ files_reviewed_list:
   - scripts/phase-07-mutation-battery.mjs
 findings:
   critical: 3
-  warning: 2
+  warning: 1
   info: 0
-  total: 5
+  total: 4
 status: issues_found
 ---
 
 # Phase 7: Code Review Report
 
-**Reviewed:** 2026-08-09T01:27:08Z  
-**Depth:** standard  
-**Files Reviewed:** 20  
+**Reviewed:** 2026-08-09T02:26:57Z
+**Depth:** standard
+**Files Reviewed:** 20
 **Status:** issues_found
 
 ## Summary
 
-The public contracts, package boundary, test fixture, built-artifact suites, and mutation/release harness were reviewed. The build, typecheck, 50 focused Session tests, mutation self-test, input verifier, and ledger verifier all pass. Those green gates do not establish correctness: two reentrant runtime boundaries violate the locked Session behavior, and the ledger verifier reports release-evidence agreement even though generated evidence contains no release facts. Two additional detector paths can fail open.
+All 20 scoped files were re-reviewed after the three iteration-two fixes. Those fixes close the previously reported FIFO reservation, response-getter cutoff, and untracked-manifest cases, and the build, typecheck, 55 focused runtime tests, and mutation-battery self-test pass. The implementation is still not shippable: a `setTools` accessor can republish privileged tools after synchronous stop cleanup, reentrant resolver/capability reads can let a superseded context stop or strand the winning transition, and the release record still does not bind all shipped bytes or ensure that one immutable tree was exercised. The updated response-cutoff mutant is also mapped only to tests that cannot detect it.
 
 ## Narrative Findings (AI reviewer)
 
 ## Critical Issues
 
-### CR-01: Stop during cancellation normalization drops an accepted batch
+### CR-01: A `setTools` accessor can republish tools after stop cleanup
 
-**Classification:** BLOCKER  
-**File:** `packages/concierge/src/session.ts:497-532`  
-**Issue:** `acceptBatch` establishes that the callback arrived while the Session has live context and epoch authority, but it calls `createCancellationScope(batch)` before registering a `WorkRecord`. That call executes transport-controlled property getters, signal methods, and potentially the diagnostic hook. If any of those callbacks calls `session.stop()`, `startStopDrain()` snapshots the queue before this occurrence exists; lines 518-521 then dispose the scope and return without ever invoking `dispatchBatch`. This violates the once-per-accepted-occurrence and complete-stop-drain contracts. A built-artifact reproduction with a `batch.signal` getter that calls `session.stop()` observed zero dispatches.
+**Classification:** BLOCKER
+**File:** `packages/concierge/src/session.ts:750-755, 781-785`
+**Issue:** Both active publication paths evaluate and invoke `transport.setTools(...)` as one member-call expression. A structural transport may implement `setTools` as an accessor. If that accessor synchronously calls `session.stop()`, cleanup first publishes the frozen empty catalog, but JavaScript then continues the original expression and invokes the function returned by the accessor with the stale non-empty catalog. The publication token check happens only after that invocation. A built-artifact reproduction observed catalog history `['a', 'EMPTY', 'b']`: the Session was stopped and its cleanup completed, yet catalog B was the transport's final authority. The reconnect path has the same ordering defect. This violates the locked no-post-stop-output and stale-authority guarantees.
 
-**Fix:** Track acceptance before invoking any batch-controlled code and keep the stop drain from taking its one-time snapshot until all in-progress acceptance frames finish. If stop wins during normalization, add the newly built record to the detached FIFO, abort it, and dispatch it once with responses disabled. For example, pair an `acceptingBatchCount` guard with logic equivalent to:
+**Fix:** Resolve the callable separately, revalidate lifecycle/publication authority after the getter returns, and only then invoke it with the transport receiver. Handle a getter that throws after reentrant stop as an invalidated attempt rather than calling `failPublication` again. Apply the same boundary to context publication and connected replay, for example:
 
 ```ts
-acceptingBatchCount += 1;
+let setTools: typeof transport.setTools;
 try {
-  const cancellation = createCancellationScope(batch);
-  const work = { context, sourceBatch: batch, epoch, cancellation };
-  epoch.work.add(work);
-  if (hasStopped()) {
-    cancellation.abort();
-    detachedWork.push(work);
-  } else {
-    workQueue.push(work);
-    maybeStartPump();
-  }
-} finally {
-  acceptingBatchCount -= 1;
-  if (hasStopped() && acceptingBatchCount === 0) startStopDrain();
-}
-```
-
-Add a regression in which both a signal accessor and a diagnostic hook stop reentrantly, then assert one aborted dispatch, zero responses, and stop resolution only after that dispatch settles.
-
-### CR-02: Reentrant stop suppresses a synchronous catalog-publication failure
-
-**Classification:** BLOCKER  
-**File:** `packages/concierge/src/session.ts:734-740, 766-771`  
-**Issue:** Both publication catch blocks return when `publicationIsCurrent(attemptToken)` is false. `enterStopped()` invalidates that token, so a transport implementation that calls `session.stop()` from inside `setTools()` and then throws has its throw silently discarded. The triggering `setContext`/status callback returns normally and no `catalog_publish_failed` diagnostic is emitted. This contradicts the explicit “on any `setTools` throw” contract and hides a failed catalog publication from the caller. A built-artifact reproduction observed `{ outcome: "returned", diagnostics: [] }` after the second `setTools` stopped and threw.
-
-**Fix:** Token invalidation may prevent stale publication state from committing, but it must not erase the fact that the invoked `setTools` threw. In each catch, preserve construction handling, then emit the fixed diagnostic and throw `PUBLICATION_ERROR` even if stop is already established; `enterStopped`, cleanup, and drain are already idempotent:
-
-```ts
+  setTools = transport.setTools;
 } catch {
-  if (lifecycle === "starting") throw new Error(START_ERROR);
+  if (!isCurrent(record)) return;
   failPublication(resolved.stage);
 }
+if (!isCurrent(record) || !publicationIsCurrent(attemptToken)) return;
+Reflect.apply(setTools, transport, [resolved.catalog]);
 ```
 
-Apply the equivalent correction to connected replay and add context-change and replay tests where `setTools` stops first and throws second.
+Add set-context and reconnect regressions whose `setTools` getter calls `stop()`; the only final publication must be the frozen empty catalog and the stale returned function must never run.
 
-### CR-03: The verifier certifies release evidence that the evidence artifact never records
+### CR-02: Reentrant resolver and capability reads can apply a superseded transition
 
-**Classification:** BLOCKER  
-**File:** `scripts/phase-07-mutation-battery.mjs:1088-1097, 1986-2059, 2107-2156`  
-**Issue:** `makeInitialEvidence` defines only mutation rows and input hashes, and no later path adds a release record. `runReleaseGates` discards every successful command result, while `validateFinalLedgers` searches human-authored Markdown for loose text tokens instead of comparing it with generated release facts. The current `07-MUTATION-EVIDENCE.json` consequently has no `release` key, no Vitest file/pass/total/pending/todo counts, and no seven-command exit map. Nevertheless, `node scripts/phase-07-mutation-battery.mjs verify ledgers` exits 0 and prints that release and ledgers agree. This makes the signed validation claim non-reproducible and permits stale or fabricated release facts to be certified.
+**Classification:** BLOCKER
+**File:** `packages/concierge/src/session.ts:705-713, 726-733`
+**Issue:** `processContext` calls `catalogFor` and `stageFor` back-to-back and later reads `transport.capabilities.dynamicCatalog` without rechecking the record between these outside boundaries. A `dynamicCatalog` getter can synchronously enqueue newer context C and return `false`; the code then executes the fixed-transport branch for stale context B, records B's stage, stops the Session, and throws instead of processing winning C. A built-artifact reproduction with `catalog(C) === catalog(A)` returned `This transport does not support catalog changes.`, stopped with stage B, and cleared the transport even though the latest request required no catalog change. Separately, if `catalogFor(B)` enqueues C, stale `stageFor(B)` is still invoked; if it throws, C remains queued with the transition drain unwound and is not processed until some unrelated future event. This contradicts the serialized latest-generation-wins contract.
 
-**Fix:** Extend the evidence schema with a revision-bound, atomically written release object containing the fresh full-test exit/counts and exact exits for `build`, `typecheck`, `test`, `check:artifact`, `check:deps`, `check:pack`, and `check:node-floor`. Make `validateEvidenceShape` require its exact keys and value types after release execution, and make `verify ledgers` compare each ledger fact to those generated values rather than accepting tokens found anywhere in the document. Add self-test negatives for a missing release object, each missing/nonzero command exit, and altered test counts.
+**Fix:** Split every reentrant outside read/call and check `isCurrent(record)` immediately afterward, before starting the next read or taking any state-changing branch:
+
+```ts
+const catalog = concierge.catalogFor(record.context as StageContext);
+if (!isCurrent(record)) return;
+const stage = concierge.stageFor(record.context as StageContext);
+if (!isCurrent(record)) return;
+const dynamicCatalog = transport.capabilities.dynamicCatalog;
+if (!isCurrent(record)) return;
+```
+
+Then branch only on captured values. Add regressions where `catalogFor` and the capability getter each enqueue a newer context, including a stale resolver that would throw and a fixed-capability value that would otherwise stop the Session.
+
+### CR-03: Release evidence still does not bind the bytes exercised by every gate
+
+**Classification:** BLOCKER
+**File:** `scripts/phase-07-mutation-battery.mjs:92-108, 843-866, 1747-1803, 2401-2457`
+**Issue:** The new digest manifest omits `packages/concierge/README.md` and `packages/concierge/LICENSE`, although both are tracked and explicitly shipped by the package `files` allow-list. Changing either shipped file leaves `releaseRevisionDigest()` unchanged, so previously recorded green release evidence remains valid for a different tarball. The pre/post source hashes also do not prove that the commands ran against one tree: `withExclusiveRepositoryLock` only locks a private `phase-07-mutation-battery.lock` file, and Git, editors, builds, and other agents do not acquire it. A scoped file can therefore change and be restored between the endpoint hashes, causing different gates to exercise different bytes while the recorded pre/post digest remains equal. The self-test checks only unequal endpoint digests and cannot detect an A-to-B-to-A change.
+
+**Fix:** Include every non-derived packed input, including the package README and license, in the release manifest. Materialize the complete manifest into an immutable temporary snapshot and run all seven release commands from that snapshot; record the snapshot digest. Do not describe the battery-only advisory lock as repository-exclusive. Add negative controls proving that a packaged-document change invalidates evidence and that a mutate-then-restore operation cannot mix inputs across simulated gates.
 
 ## Warnings
 
-### WR-01: The production-source package scan treats scanner failure as “no matches”
+### WR-01: The updated response-cutoff mutant is wired to tests that cannot kill it
 
-**Classification:** WARNING  
-**File:** `scripts/phase-07-mutation-battery.mjs:1932-1951`  
-**Issue:** `rg` exit 1 means no match, while exit 2 or the wrapper's 255 means the scan failed. The current check rejects only exit 0 with nonempty output, so a missing executable, I/O error, or invalid invocation is accepted as proof that no stub reached production source. The self-test exercises exit 1 but has no scanner-error negative control.
+**Classification:** WARNING
+**File:** `scripts/phase-07-mutation-battery.mjs:585-599`; `packages/concierge/test/session-lifecycle.test.ts:389-436, 767-854, 856-929`
+**Issue:** Embedded M-07-L03 now removes the final lifecycle check after the `respond`, `callId`, and `result` getters, but its selected cases remain L03 and L05. L03 stops before row iteration and is caught by the earlier loop check; L05 stops inside the first response invocation and is caught by that same earlier check before row two. Neither test observes the removed final check, so the mutant escapes. The two tests that do exercise row/respond getter stop are unlabelled and therefore excluded by `casePattern`. The on-disk register/evidence still contain the old M-07-L03 literal, which is why `verify lifecycle` currently fails closed with `on-disk register differs from the embedded immutable register`; refreshing the artifacts will expose the detector escape rather than fix it.
 
-**Fix:** Accept only exit 1 as the clean no-match result, reject nonempty exit-0 results as leakage, and fail on every other exit:
-
-```js
-if (sourceFiles.exitCode === 0 && sourceFiles.output.trim() !== "") {
-  throw new Error("stub transport reached production source");
-}
-if (sourceFiles.exitCode !== 1) {
-  throw new Error(`production source scan failed with exit ${sourceFiles.exitCode}`);
-}
-```
-
-Add explicit exit-2 and exit-255 self-test cases.
-
-### WR-02: Any F7 assertion failure is credited as the direct-guard detector
-
-**Classification:** WARNING  
-**Files:** `scripts/phase-07-mutation-battery.mjs:1386-1399`; `packages/concierge/test/single-instance.test.ts:353-411`  
-**Issue:** The special F7 branch requires only that the test failed and had at least one failure message, then synthesizes the expected direct-guard fingerprint from the test title. F7 also asserts imports, construction, and teardown, so an unrelated failure in any of those steps can kill M-07-P02 and be recorded as proof that removal of `assertSingleInstance()` was detected. This is weaker than the exact RED-marker rule enforced for every C/J/L detector.
-
-**Fix:** Give the registry assertion at line 406 a unique marker such as `[RED:F7:direct-create-session-guard]`, extract that marker from the actual failure message, and require exactly one matching message/marker. Do not synthesize a marker from the case title. Add a negative control whose F7 failure comes from a neighboring assertion and require the detector to reject it.
+**Fix:** Give the getter-stop regressions stable case IDs/RED markers (or fold them into an existing selected case), point M-07-L03 only at cases that fail when the final check is removed, refresh the immutable register, and rerun the mutant before recording green evidence. Add a self-test assertion that each mutant's selected cases are behaviorally sensitive to its current replacement, not merely syntactically present.
 
 ---
 
-_Reviewed: 2026-08-09T01:27:08Z_  
-_Reviewer: Codex (gsd-code-reviewer)_  
+_Reviewed: 2026-08-09T02:26:57Z_
+_Reviewer: Codex (gsd-code-reviewer)_
 _Depth: standard_

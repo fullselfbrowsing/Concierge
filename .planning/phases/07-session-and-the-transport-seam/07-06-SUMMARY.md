@@ -72,7 +72,7 @@ completed: 2026-08-08
 - Built an immutable 30-row mutation system with bounded shards, exact named fingerprints, non-vacuous selection, restoration/scoped-clean proof, self-tests, raw-byte input verification, release capture, and strict ledger verification.
 - Killed all 30 mutants with final group counts 9 catalog / 9 routing / 8 lifecycle / 2 diagnostics / 2 package-guard and zero pending, escaped, failed, or infrastructure rows.
 - Extended the installed-tarball probe to compile the public Session seam under TypeScript 7 strict/EOPT, assert callable runtime createSession, and reject every stub/test-fixture tar entry.
-- Passed all seven release commands with 16/16 runtime files, 312/312 tests, exact 69/54/15 exports, F7, zero dependency bytes, foreign install/import, and Node 22.12.0 floor execution.
+- Passed all seven release commands with 16/16 runtime files, 321/321 tests, exact 69/54/15 exports, F7, zero dependency bytes, foreign install/import, and Node 22.12.0 floor execution.
 - Signed validation complete from live evidence, closed SES-01 through SES-04, and retained the literal TRN-02 requirement as unchecked/Partial for Phase 8 consent-kernel proof.
 
 ## Task Commits
@@ -93,7 +93,7 @@ Task work was committed atomically as the evidence system exposed and closed pro
 ## Files Created/Modified
 
 - `scripts/phase-07-mutation-battery.mjs` - Owns immutable definitions, bounded execution, detector parsing, restoration, input/release facts, self-tests, and ledger verification.
-- `.planning/phases/07-session-and-the-transport-seam/07-MUTATION-REGISTER.json` - Stores the exact ordered 30-row register and digest `85e4a253b9a2487bd692c08e3b751a8a66eceb91871f79e8878110ea7bebbb47`.
+- `.planning/phases/07-session-and-the-transport-seam/07-MUTATION-REGISTER.json` - Stores the exact ordered 30-row register and digest `c2fc5caca8b0657bf3436e66227761d6c29ba64e945ac8e0ff622939a4180484`.
 - `.planning/phases/07-session-and-the-transport-seam/07-MUTATION-EVIDENCE.json` - Stores 30 generated green rows, revision hashes, input hashes, and release facts.
 - `packages/concierge/test/fixtures/probe.ts` - Compiles the installed public Session/Transport seam under foreign strict/EOPT settings.
 - `scripts/pack-install-check.sh` - Rejects stub/fixture tar entries and asserts callable createSession at runtime.
@@ -184,9 +184,9 @@ None - no external service configuration required.
 ## Self-Check: PASSED
 
 - All listed created/modified files exist and the worktree was clean before summary creation.
-- Register/evidence digest agrees at `85e4a253b9a2487bd692c08e3b751a8a66eceb91871f79e8878110ea7bebbb47`.
+- Register/evidence digest agrees at `c2fc5caca8b0657bf3436e66227761d6c29ba64e945ac8e0ff622939a4180484`.
 - `verify all`, `verify inputs`, and `verify ledgers` pass.
-- All seven release commands pass with 16/16 files and 312/312 tests.
+- All seven release commands pass with 16/16 files and 321/321 tests.
 - SES-01 through SES-04 are Complete; TRN-02 is unchecked/Partial with its exact Phase 8 consent-kernel handoff.
 
 ---
