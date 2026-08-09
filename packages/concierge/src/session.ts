@@ -90,6 +90,7 @@ interface CancellationScope {
   readonly signal: AbortSignalLike;
   readonly abort: () => void;
   readonly dispose: () => void;
+  readonly connect: (sourceBatch: ToolBatch) => void;
 }
 
 interface WorkRecord {
@@ -179,9 +180,10 @@ export function createSession(config: SessionConfig): Session {
   }
 
   /** Create one structural cancellation scope without importing DOM types. */
-  function createCancellationScope(sourceBatch: ToolBatch): CancellationScope {
+  function createCancellationScope(): CancellationScope {
     let aborted: boolean = false;
     let disposed: boolean = false;
+    let connectionAttempted: boolean = false;
     let nextListenerToken: number = 0;
     const listeners: Map<number, () => void> = new Map();
     let upstreamSignal: AbortSignalLike | null = null;
@@ -245,98 +247,102 @@ export function createSession(config: SessionConfig): Session {
       }
     }
 
-    const scope: CancellationScope = Object.freeze({ signal, abort, dispose });
+    function connect(sourceBatch: ToolBatch): void {
+      if (connectionAttempted || disposed) return;
+      connectionAttempted = true;
 
-    let candidateValue: unknown;
-    try {
-      candidateValue = sourceBatch.signal;
-    } catch {
-      diagnose("abort_signal_failed");
-      abort();
-      return scope;
-    }
-    if (candidateValue === undefined) return scope;
-    if (typeof candidateValue !== "object" || candidateValue === null) {
-      diagnose("abort_signal_failed");
-      abort();
-      return scope;
+      let candidateValue: unknown;
+      try {
+        candidateValue = sourceBatch.signal;
+      } catch {
+        diagnose("abort_signal_failed");
+        abort();
+        return;
+      }
+      if (aborted || disposed || candidateValue === undefined) return;
+      if (typeof candidateValue !== "object" || candidateValue === null) {
+        diagnose("abort_signal_failed");
+        abort();
+        return;
+      }
+
+      const candidate: AbortSignalLike = candidateValue as AbortSignalLike;
+      let candidateAborted: unknown;
+      try {
+        candidateAborted = candidate.aborted;
+      } catch {
+        diagnose("abort_signal_failed");
+        abort();
+        return;
+      }
+
+      let addValue: unknown;
+      try {
+        addValue = candidate.addEventListener;
+      } catch {
+        diagnose("abort_signal_failed");
+        abort();
+        return;
+      }
+
+      let removeValue: unknown;
+      try {
+        removeValue = candidate.removeEventListener;
+      } catch {
+        diagnose("abort_signal_failed");
+        abort();
+        return;
+      }
+
+      if (
+        typeof candidateAborted !== "boolean" ||
+        typeof addValue !== "function" ||
+        typeof removeValue !== "function"
+      ) {
+        diagnose("abort_signal_failed");
+        abort();
+        return;
+      }
+      if (candidateAborted) {
+        abort();
+        return;
+      }
+
+      const add: AbortSignalLike["addEventListener"] =
+        addValue as AbortSignalLike["addEventListener"];
+      const remove: AbortSignalLike["removeEventListener"] =
+        removeValue as AbortSignalLike["removeEventListener"];
+      const listener = (): void => {
+        abort();
+      };
+      upstreamSignal = candidate;
+      upstreamListener = listener;
+      upstreamRemove = remove;
+      try {
+        add.call(candidate, "abort", listener);
+      } catch {
+        diagnose("abort_signal_failed");
+        abort();
+        return;
+      }
+
+      let raceClosedAborted: unknown;
+      try {
+        raceClosedAborted = candidate.aborted;
+      } catch {
+        diagnose("abort_signal_failed");
+        abort();
+        return;
+      }
+      if (typeof raceClosedAborted !== "boolean") {
+        diagnose("abort_signal_failed");
+        abort();
+        return;
+      }
+      if (raceClosedAborted) abort();
     }
 
-    const candidate: AbortSignalLike = candidateValue as AbortSignalLike;
-    let candidateAborted: unknown;
-    try {
-      candidateAborted = candidate.aborted;
-    } catch {
-      diagnose("abort_signal_failed");
-      abort();
-      return scope;
-    }
-
-    let addValue: unknown;
-    try {
-      addValue = candidate.addEventListener;
-    } catch {
-      diagnose("abort_signal_failed");
-      abort();
-      return scope;
-    }
-
-    let removeValue: unknown;
-    try {
-      removeValue = candidate.removeEventListener;
-    } catch {
-      diagnose("abort_signal_failed");
-      abort();
-      return scope;
-    }
-
-    if (
-      typeof candidateAborted !== "boolean" ||
-      typeof addValue !== "function" ||
-      typeof removeValue !== "function"
-    ) {
-      diagnose("abort_signal_failed");
-      abort();
-      return scope;
-    }
-    if (candidateAborted) {
-      abort();
-      return scope;
-    }
-
-    const add: AbortSignalLike["addEventListener"] =
-      addValue as AbortSignalLike["addEventListener"];
-    const remove: AbortSignalLike["removeEventListener"] =
-      removeValue as AbortSignalLike["removeEventListener"];
-    const listener = (): void => {
-      abort();
-    };
-    upstreamSignal = candidate;
-    upstreamListener = listener;
-    upstreamRemove = remove;
-    try {
-      add.call(candidate, "abort", listener);
-    } catch {
-      diagnose("abort_signal_failed");
-      abort();
-      return scope;
-    }
-
-    let raceClosedAborted: unknown;
-    try {
-      raceClosedAborted = candidate.aborted;
-    } catch {
-      diagnose("abort_signal_failed");
-      abort();
-      return scope;
-    }
-    if (typeof raceClosedAborted !== "boolean") {
-      diagnose("abort_signal_failed");
-      abort();
-      return scope;
-    }
-    if (raceClosedAborted) abort();
-    return scope;
+    return Object.freeze({ signal, abort, dispose, connect });
   }
 
   function createEpoch(catalog: ReadonlyArray<EmittedTool>): CatalogEpoch {
@@ -470,6 +476,7 @@ export function createSession(config: SessionConfig): Session {
       transitionDraining ||
       transitionQueue.length !== 0 ||
       workPumpRunning ||
+      acceptingBatchCount !== 0 ||
       workQueue.length === 0
     ) {
       return;
@@ -517,7 +524,7 @@ export function createSession(config: SessionConfig): Session {
 
     acceptingBatchCount += 1;
     try {
-      const cancellation: CancellationScope = createCancellationScope(batch);
+      const cancellation: CancellationScope = createCancellationScope();
       const work: WorkRecord = {
         context,
         sourceBatch: batch,
@@ -526,16 +533,14 @@ export function createSession(config: SessionConfig): Session {
       };
       epoch.work.add(work);
       if (epoch.aborted) cancellation.abort();
-      if (hasStopped()) {
-        cancellation.abort();
-        detachedWork.push(work);
-      } else {
-        workQueue.push(work);
-        maybeStartPump();
-      }
+      workQueue.push(work);
+      cancellation.connect(batch);
     } finally {
       acceptingBatchCount -= 1;
-      if (hasStopped() && acceptingBatchCount === 0) startStopDrain();
+      if (acceptingBatchCount === 0) {
+        if (hasStopped()) startStopDrain();
+        else maybeStartPump();
+      }
     }
   }
 

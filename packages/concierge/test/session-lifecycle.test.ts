@@ -648,6 +648,122 @@ it("drains accepted work when cancellation normalization stops reentrantly", asy
   ]);
 });
 
+it("preserves FIFO when cancellation normalization delivers a nested batch", async () => {
+  const dispatches = [];
+  const responses = [];
+  const finalizations = [];
+  const transport = controlledTransport({
+    respond(attempt) {
+      responses.push(attempt.callId);
+    },
+  });
+  const session = createSession({
+    concierge: conciergeDouble({
+      dispatchBatch(_context, batch) {
+        dispatches.push(batch.responseId);
+        return Promise.resolve([row(batch.responseId)]);
+      },
+    }),
+    transport: transport.transport,
+    initialContext: CONTEXT_A,
+  });
+
+  const signalFor = (responseId) =>
+    Object.freeze({
+      aborted: false,
+      addEventListener() {},
+      removeEventListener() {
+        finalizations.push(responseId);
+      },
+    });
+  const innerBatch = Object.freeze({
+    ...toolBatch("inner"),
+    signal: signalFor("inner"),
+  });
+  const outerSignal = signalFor("outer");
+  transport.emitBatch(
+    Object.freeze({
+      ...toolBatch("outer"),
+      get signal() {
+        transport.emitBatch(innerBatch);
+        return outerSignal;
+      },
+    }),
+  );
+
+  await flushMicrotasks();
+  expect(
+    { dispatches, responses, finalizations },
+    "[REGRESSION:nested-normalization-live-fifo]",
+  ).toEqual({
+    dispatches: ["outer", "inner"],
+    responses: ["outer", "inner"],
+    finalizations: ["outer", "inner"],
+  });
+  await session.stop();
+});
+
+it("preserves FIFO through stop drain when normalization delivers nested work", async () => {
+  const dispatches = [];
+  const responses = [];
+  const finalizations = [];
+  let drain;
+  let session;
+  const transport = controlledTransport({
+    respond(attempt) {
+      responses.push(attempt.callId);
+    },
+  });
+  session = createSession({
+    concierge: conciergeDouble({
+      dispatchBatch(_context, batch) {
+        dispatches.push(batch.responseId);
+        return Promise.resolve([row(batch.responseId)]);
+      },
+    }),
+    transport: transport.transport,
+    initialContext: CONTEXT_A,
+  });
+
+  const signalFor = (responseId, onAdd = () => {}) =>
+    Object.freeze({
+      aborted: false,
+      addEventListener() {
+        onAdd();
+      },
+      removeEventListener() {
+        finalizations.push(responseId);
+      },
+    });
+  const innerBatch = Object.freeze({
+    ...toolBatch("inner"),
+    signal: signalFor("inner"),
+  });
+  const outerSignal = signalFor("outer", () => {
+    drain = session.stop();
+  });
+  transport.emitBatch(
+    Object.freeze({
+      ...toolBatch("outer"),
+      get signal() {
+        transport.emitBatch(innerBatch);
+        return outerSignal;
+      },
+    }),
+  );
+
+  if (drain === undefined) throw new Error("reentrant stop was not observed");
+  await drain;
+  expect(
+    { dispatches, responses, finalizations },
+    "[REGRESSION:nested-normalization-stop-drain-fifo]",
+  ).toEqual({
+    dispatches: ["outer", "inner"],
+    responses: [],
+    finalizations: ["outer", "inner"],
+  });
+});
+
 it("[L05] cuts off output when stop occurs at dispatch, response, and stage boundaries", async () => {
   const marker = "[RED:L05:stop-at-every-boundary]";
   let responseSession;
