@@ -764,7 +764,8 @@ it("preserves FIFO through stop drain when normalization delivers nested work", 
   });
 });
 
-it("does not begin a response after a row getter stops the session", async () => {
+it("[L17] does not begin a response after a row getter stops the session", async () => {
+  const marker = "[RED:L17:row-getter-stop-response-cutoff]";
   let drain;
   let session;
   const transport = controlledTransport();
@@ -794,7 +795,7 @@ it("does not begin a response after a row getter stops the session", async () =>
       sameDrain: session.stop() === drain,
       subscribers: transport.subscriberCounts(),
     },
-    "[REGRESSION:row-getter-stop-response-cutoff]",
+    marker,
   ).toEqual({
     responses: [],
     sameDrain: true,
@@ -802,7 +803,8 @@ it("does not begin a response after a row getter stops the session", async () =>
   });
 });
 
-it("does not begin a response after the respond getter stops the session", async () => {
+it("[L18] does not begin a response after the respond getter stops the session", async () => {
+  const marker = "[RED:L18:respond-getter-stop-response-cutoff]";
   let drain;
   let session;
   let responseInvocations = 0;
@@ -845,7 +847,7 @@ it("does not begin a response after the respond getter stops the session", async
       sameDrain: session.stop() === drain,
       subscribers: base.subscriberCounts(),
     },
-    "[REGRESSION:respond-getter-stop-response-cutoff]",
+    marker,
   ).toEqual({
     responseInvocations: 0,
     sameDrain: true,

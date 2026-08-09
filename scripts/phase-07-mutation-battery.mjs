@@ -595,7 +595,7 @@ const MUTANTS = Object.freeze([
       "          if (!allowResponses) break;",
       "          Reflect.apply(respond, transport, [callId, result]);",
     ),
-    intendedCaseIds: ["L03", "L05"],
+    intendedCaseIds: ["L17", "L18"],
   }),
   runtimeMutant({
     id: "M-07-L04",
@@ -939,7 +939,7 @@ function validateRequiredMappings(mutants) {
     "M-07-R09": ["J15", "J16", "J17", "J18"],
     "M-07-L01": ["L01"],
     "M-07-L02": ["L01", "L05", "C08", "C09", "C13", "C14"],
-    "M-07-L03": ["L03", "L05"],
+    "M-07-L03": ["L17", "L18"],
     "M-07-L04": ["L05", "L08", "L13"],
     "M-07-L05": ["L11"],
     "M-07-L06": ["L09"],
@@ -2430,7 +2430,7 @@ function verifyNamedCasesAndWaveFiles() {
   const markerFiles = [
     [TEST_FILES.catalog, Array.from({ length: 16 }, (_, index) => `C${String(index + 1).padStart(2, "0")}`)],
     [TEST_FILES.routing, Array.from({ length: 18 }, (_, index) => `J${String(index + 1).padStart(2, "0")}`)],
-    [TEST_FILES.lifecycle, Array.from({ length: 16 }, (_, index) => `L${String(index + 1).padStart(2, "0")}`)],
+    [TEST_FILES.lifecycle, Array.from({ length: 18 }, (_, index) => `L${String(index + 1).padStart(2, "0")}`)],
     ["packages/concierge/test/stub-transport.test.ts", Array.from({ length: 8 }, (_, index) => `U${String(index + 1).padStart(2, "0")}`)],
   ];
   for (const [path, ids] of markerFiles) {
@@ -2767,6 +2767,54 @@ function selfTestReleaseSnapshot() {
     assertReleaseSnapshotStable(snapshot);
   } finally {
     rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+function simulateResponseCutoff(caseId, enforceLifecycleCheck) {
+  let lifecycle = "active";
+  let responseInvocations = 0;
+  const transport = {
+    get respond() {
+      if (caseId === "L18") lifecycle = "stopped";
+      return () => {
+        responseInvocations += 1;
+      };
+    },
+  };
+  const row = {
+    get callId() {
+      if (caseId === "L17") lifecycle = "stopped";
+      return "late";
+    },
+    result: Object.freeze({ ok: true, message: "late" }),
+  };
+
+  const respond = transport.respond;
+  const callId = row.callId;
+  const result = row.result;
+  if (enforceLifecycleCheck && lifecycle !== "active") return responseInvocations;
+  Reflect.apply(respond, transport, [callId, result]);
+  return responseInvocations;
+}
+
+function selfTestResponseCutoffSensitivity() {
+  const mutant = MUTANT_BY_ID.get("M-07-L03");
+  assert(mutant !== undefined, "M-07-L03 must exist");
+  assert(
+    JSON.stringify(mutant.intendedCaseIds) === JSON.stringify(["L17", "L18"]),
+    "M-07-L03 must select only the getter-stop response cases",
+  );
+  assert(
+    mutant.literalPattern.includes('lifecycle !== "active"') &&
+      !mutant.replacement.includes('lifecycle !== "active"'),
+    "M-07-L03 must remove the final lifecycle check exercised by its cases",
+  );
+  for (const caseId of mutant.intendedCaseIds) {
+    assert(
+      simulateResponseCutoff(caseId, true) === 0 &&
+        simulateResponseCutoff(caseId, false) === 1,
+      `M-07-L03 selected case ${caseId} is not behaviorally sensitive to its current replacement`,
+    );
   }
 }
 
@@ -3191,6 +3239,7 @@ function selfTest() {
 
   selfTestInputVerifier();
   selfTestReleaseSnapshot();
+  selfTestResponseCutoffSensitivity();
   assertThrows(
     () => parseInvocation(["verify", "unknown"]),
     /usage/u,
