@@ -2409,7 +2409,7 @@ function expectedMutationLedgerRows(registerDigestValue) {
     ],
     [
       "Restoration",
-      "Each target was restored, the restored gate passed, the scoped worktree was clean, and no infrastructure error was recorded",
+      "Each target was mutated and restored only inside its disposable snapshot, the restored snapshot gate passed, the live scoped worktree remained untouched and stable, and no infrastructure error was recorded",
     ],
     ["Bounded execution", MUTATION_SHARDS_LEDGER],
   ]);
