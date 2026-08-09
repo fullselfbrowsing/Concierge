@@ -172,7 +172,7 @@ Final gap-closure mapping, with a 32-row total and 11/9/8/2/2 distribution:
 | Outcome | 32/32 green; zero pending, zero escaped, zero failed |
 | Non-vacuity | Every row compiled successfully, ran a nonzero named detector set, satisfied its detector, was killed, and matched its one exact source literal before mutation |
 | Revision binding | Every row records a unique revision digest; all compiled-target hashes changed under mutation and returned to their recorded original values afterward |
-| Restoration | Each target was mutated and restored only inside its disposable snapshot, the restored snapshot gate passed, the live scoped worktree remained untouched and stable, and no infrastructure error was recorded |
+| Restoration | Each target was mutated and restored only inside its disposable snapshot; the snapshot revision stayed stable and its restored gate passed, while live scoped endpoints matched before and after. This endpoint check does not prove uninterrupted live-history stability; no infrastructure error was recorded |
 | Bounded execution | Exactly ten contiguous shards: C01-C03, C04-C07, C08-C11, R01-R04, R05-R08, R09-R09, L01-L04, L05-L08, D01-D02, P01-P02 |
 
 The protected inputs were verified byte-identical before and after the battery:

@@ -332,8 +332,9 @@ const MUTANTS = Object.freeze([
       "      !transitionDraining &&",
       "      transitionQueue.length === 0",
       "    ) {",
-      "      const work: WorkRecord | undefined = workQueue.shift();",
-      "      if (work === undefined) return;",
+      "      const head: QueuedOccurrence | undefined = occurrenceQueue[0];",
+      "      if (head === undefined || head.binding === null) return;",
+      "      const work: QueuedOccurrence = occurrenceQueue.shift() as QueuedOccurrence;",
       "      activeWork = work;",
       "      await runWork(work, true);",
       "      activeWork = null;",
@@ -349,13 +350,15 @@ const MUTANTS = Object.freeze([
       "      transitionQueue.length !== 0 ||",
       "      workPumpRunning ||",
       "      acceptingBatchCount !== 0 ||",
-      "      workQueue.length === 0",
+      "      occurrenceQueue.length === 0 ||",
+      "      occurrenceQueue[0]?.binding === null",
     ),
     replacement: lines(
       "  async function runLivePump(): Promise<void> {",
       "    while (lifecycle === \"active\") {",
-      "      const work: WorkRecord | undefined = workQueue.shift();",
-      "      if (work === undefined) return;",
+      "      const head: QueuedOccurrence | undefined = occurrenceQueue[0];",
+      "      if (head === undefined || head.binding === null) return;",
+      "      const work: QueuedOccurrence = occurrenceQueue.shift() as QueuedOccurrence;",
       "      activeWork = work;",
       "      await runWork(work, true);",
       "      activeWork = null;",
@@ -367,7 +370,8 @@ const MUTANTS = Object.freeze([
       "    if (",
       "      lifecycle !== \"active\" ||",
       "      workPumpRunning ||",
-      "      workQueue.length === 0",
+      "      occurrenceQueue.length === 0 ||",
+      "      occurrenceQueue[0]?.binding === null",
     ),
     intendedCaseIds: ["C11", "C12", "C13", "C14", "C15", "C16"],
   }),
@@ -424,10 +428,18 @@ const MUTANTS = Object.freeze([
     id: "M-07-R02",
     group: "routing",
     name: "dispatch reads context at execution rather than arrival",
-    literalPattern:
-      "      const rows = await concierge.dispatchBatch(work.context, envelopeFor(work));",
-    replacement:
-      "      const rows = await concierge.dispatchBatch(confirmedContext as StageContext, envelopeFor(work));",
+    literalPattern: lines(
+      "      const rows = await concierge.dispatchBatch(",
+      "        binding.context,",
+      "        envelopeFor(work),",
+      "      );",
+    ),
+    replacement: lines(
+      "      const rows = await concierge.dispatchBatch(",
+      "        confirmedContext as StageContext,",
+      "        envelopeFor(work),",
+      "      );",
+    ),
     intendedCaseIds: ["J07"],
   }),
   runtimeMutant({
@@ -483,15 +495,38 @@ const MUTANTS = Object.freeze([
     group: "routing",
     name: "one accepted aborted queued occurrence bypasses dispatch",
     literalPattern: lines(
-      "  async function runWork(work: WorkRecord, allowResponses: boolean): Promise<void> {",
+      "  async function runWork(",
+      "    work: QueuedOccurrence,",
+      "    allowResponses: boolean,",
+      "  ): Promise<void> {",
+      "    const binding: OccurrenceBinding | null = work.binding;",
+      "    if (binding === null) {",
+      "      diagnose(\"batch_without_context\");",
+      "      work.cancellation.dispose();",
+      "      linkOccurrenceToEpoch(work, null);",
+      "      return;",
+      "    }",
       "    try {",
-      "      const rows = await concierge.dispatchBatch(work.context, envelopeFor(work));",
+      "      const rows = await concierge.dispatchBatch(",
+      "        binding.context,",
+      "        envelopeFor(work),",
+      "      );",
     ),
     replacement: lines(
-      "  async function runWork(work: WorkRecord, allowResponses: boolean): Promise<void> {",
+      "  async function runWork(",
+      "    work: QueuedOccurrence,",
+      "    allowResponses: boolean,",
+      "  ): Promise<void> {",
+      "    const binding: OccurrenceBinding | null = work.binding;",
+      "    if (binding === null) {",
+      "      diagnose(\"batch_without_context\");",
+      "      work.cancellation.dispose();",
+      "      linkOccurrenceToEpoch(work, null);",
+      "      return;",
+      "    }",
       "    try {",
       "      const firstCall = work.sourceBatch.calls[0];",
-      "      if (work.epoch.aborted && firstCall !== undefined) {",
+      "      if (work.cancellation.signal.aborted && firstCall !== undefined) {",
       "        transport.respond(firstCall.callId, Object.freeze({",
       "          ok: false,",
       "          reason: \"aborted\",",
@@ -499,7 +534,10 @@ const MUTANTS = Object.freeze([
       "        }));",
       "        return;",
       "      }",
-      "      const rows = await concierge.dispatchBatch(work.context, envelopeFor(work));",
+      "      const rows = await concierge.dispatchBatch(",
+      "        binding.context,",
+      "        envelopeFor(work),",
+      "      );",
     ),
     intendedCaseIds: ["J10"],
   }),
@@ -537,7 +575,7 @@ const MUTANTS = Object.freeze([
     name: "descriptor-backed envelope is replaced by an eager spread",
     literalPattern: lines(
       "  /** Preserve every original envelope member and replace only its signal. */",
-      "  function envelopeFor(work: WorkRecord): ToolBatch {",
+      "  function envelopeFor(work: QueuedOccurrence): ToolBatch {",
       "    const envelope: ToolBatch = Object.create(null) as ToolBatch;",
       "    Object.defineProperties(envelope, {",
       "      responseId: {",
@@ -576,7 +614,7 @@ const MUTANTS = Object.freeze([
     ),
     replacement: lines(
       "  /** Preserve every original envelope member and replace only its signal. */",
-      "  function envelopeFor(work: WorkRecord): ToolBatch {",
+      "  function envelopeFor(work: QueuedOccurrence): ToolBatch {",
       "    return Object.freeze({",
       "      ...work.sourceBatch,",
       "      signal: work.cancellation.signal,",
@@ -703,8 +741,8 @@ const MUTANTS = Object.freeze([
     id: "M-07-L07",
     group: "lifecycle",
     name: "accepted detached work is discarded instead of drained",
-    literalPattern: "    detachedWork.push(...workQueue.splice(0));",
-    replacement: "    workQueue.splice(0);",
+    literalPattern: "    detachQueuedOccurrences();",
+    replacement: "    occurrenceQueue.splice(0);",
     intendedCaseIds: ["L04", "C13", "C14"],
   }),
   runtimeMutant({
@@ -1202,7 +1240,7 @@ function pendingEvidenceRow(mutant) {
     restoredGreen: false,
     scopedStatusBefore: null,
     scopedStatusAfter: null,
-    scopedTreeClean: false,
+    liveScopeEndpointsMatch: false,
     revisionDigest: null,
     harnessExit: null,
     harnessOutput: "",
@@ -2050,11 +2088,13 @@ function executeMutant(mutant) {
     assertStableMutationRevision(mutant, snapshot);
     const afterStatus = scopedStatus();
     const afterPaths = revisionInputPaths();
-    const liveRevisionStable =
+    const liveRevisionEndpointsMatch =
       JSON.stringify(afterPaths) === JSON.stringify(paths) &&
       revisionDigest(mutant, ROOT, afterPaths) === measuredRevisionDigest;
-    const scopedTreeClean =
-      beforeStatus === "" && afterStatus === "" && liveRevisionStable;
+    const liveScopeEndpointsMatch =
+      beforeStatus === "" &&
+      afterStatus === "" &&
+      liveRevisionEndpointsMatch;
     const harnessExit = gateProcess.exitCode === 0 ? 1 : 0;
     const harnessOutput =
       gateProcess.exitCode === 0
@@ -2070,7 +2110,7 @@ function executeMutant(mutant) {
       (mutant.detectorKind !== "package" ||
         gate.packagePreconditionSatisfied === true);
     const status =
-      killed && targetRestored && restored.green && scopedTreeClean
+      killed && targetRestored && restored.green && liveScopeEndpointsMatch
         ? "green"
         : harnessExit === 1
           ? "escaped"
@@ -2102,7 +2142,7 @@ function executeMutant(mutant) {
       restored,
       scopedStatusBefore: beforeStatus,
       scopedStatusAfter: afterStatus,
-      scopedTreeClean,
+      liveScopeEndpointsMatch,
       revisionDigest: snapshot.revision.digest,
       harnessExit,
       harnessOutput,
@@ -2122,7 +2162,7 @@ function executeMutant(mutant) {
             gate,
             targetRestored,
             restoredGreen: restored.green,
-            scopedTreeClean,
+            liveScopeEndpointsMatch,
           },
           null,
           2,
@@ -2213,7 +2253,7 @@ function validateGreenRow(
     "targetTracked",
     "targetRestored",
     "restoredGreen",
-    "scopedTreeClean",
+    "liveScopeEndpointsMatch",
   ];
   if (row.status !== "green") throw new Error(`${mutant.id}: status is not green`);
   for (const key of requiredTrue) {
@@ -2409,7 +2449,7 @@ function expectedMutationLedgerRows(registerDigestValue) {
     ],
     [
       "Restoration",
-      "Each target was mutated and restored only inside its disposable snapshot, the restored snapshot gate passed, the live scoped worktree remained untouched and stable, and no infrastructure error was recorded",
+      "Each target was mutated and restored only inside its disposable snapshot; the snapshot revision stayed stable and its restored gate passed, while live scoped endpoints matched before and after. This endpoint check does not prove uninterrupted live-history stability; no infrastructure error was recorded",
     ],
     ["Bounded execution", MUTATION_SHARDS_LEDGER],
   ]);
@@ -2762,7 +2802,7 @@ function syntheticGreenRow(mutant, index = 0) {
     restoredGreen: true,
     scopedStatusBefore: "",
     scopedStatusAfter: "",
-    scopedTreeClean: true,
+    liveScopeEndpointsMatch: true,
     revisionDigest: digest,
     harnessExit: 0,
     harnessOutput: "PASS: gate fired (exit 1), tree clean",
@@ -2988,8 +3028,11 @@ function selfTestMutationSnapshot() {
 
     writeFileSync(join(sourceRoot, targetPath), originalTarget, "utf8");
     directReads.push(readFileSync(join(sourceRoot, targetPath), "utf8"));
+    const liveHistoryChanged = new Set(directReads).size === 2;
+    const liveScopeEndpointsMatch =
+      revisionDigest(mutant, sourceRoot, paths) === baselineDigest;
     assert(
-      new Set(directReads).size === 2,
+      liveHistoryChanged,
       "A-to-B-to-A control must expose mixed live target bytes",
     );
     assert(
@@ -2998,8 +3041,12 @@ function selfTestMutationSnapshot() {
       "mutation gate reads must remain pinned to one isolated mutant revision",
     );
     assert(
-      revisionDigest(mutant, sourceRoot, paths) === baselineDigest,
-      "restored live bytes may match only their own measured revision",
+      liveScopeEndpointsMatch,
+      "live scoped endpoints must match after the A-to-B-to-A control",
+    );
+    assert(
+      liveHistoryChanged && liveScopeEndpointsMatch,
+      "endpoint equality must coexist with detected live-history drift and cannot prove uninterrupted live-history stability",
     );
   } finally {
     rmSync(directory, { recursive: true, force: true });
