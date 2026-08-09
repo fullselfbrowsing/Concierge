@@ -10,7 +10,8 @@
     "M-07-C06",
     "M-07-C07",
     "M-07-C08",
-    "M-07-C09"
+    "M-07-C09",
+    "M-07-C10"
   ],
   "expectedRoutingIds": [
     "M-07-R01",
@@ -51,6 +52,7 @@
     "M-07-C07",
     "M-07-C08",
     "M-07-C09",
+    "M-07-C10",
     "M-07-R01",
     "M-07-R02",
     "M-07-R03",
@@ -73,7 +75,7 @@
     "M-07-P01",
     "M-07-P02"
   ],
-  "registerDigest": "c2fc5caca8b0657bf3436e66227761d6c29ba64e945ac8e0ff622939a4180484",
+  "registerDigest": "a55444ba593e9d4f80dfb3664267d015dbb5740a8c6fe1c2f08ccf0585945492",
   "mutants": [
     {
       "id": "M-07-C01",
@@ -316,6 +318,27 @@
         {
           "caseId": "C16",
           "marker": "[RED:C16:reentrant-return-to-confirmed-catalog]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-C10",
+      "group": "catalog",
+      "name": "superseded unpublished accessor attempt is not aborted or cleared",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    if (!publicationIsCurrent(attemptToken)) return true;\n    if (isCurrent(record)) return false;\n    if (epoch !== null) abortEpoch(epoch);\n    clearPublication(epoch, attemptToken);\n    return true;",
+      "replacement": "    if (!publicationIsCurrent(attemptToken)) return true;\n    if (isCurrent(record)) return false;\n    void epoch;\n    return true;",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C17"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C17",
+          "marker": "[RED:C17:abandoned-publication-cleanup]"
         }
       ]
     },

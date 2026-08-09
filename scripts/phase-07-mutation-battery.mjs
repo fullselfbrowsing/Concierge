@@ -134,6 +134,9 @@ const REQUIRED_TASK_IDS = Object.freeze([
   "07-06-01",
   "07-06-02",
   "07-06-03",
+  "07-07-01",
+  "07-07-02",
+  "07-07-03",
 ]);
 const REQUIRED_REQUIREMENT_IDS = Object.freeze([
   "SES-01",
@@ -144,6 +147,12 @@ const REQUIRED_REQUIREMENT_IDS = Object.freeze([
 ]);
 const PHASE_8_HANDOFF =
   "Partial — Phase 7 delivers U01-U08 reusable no-network fixture and Session seam/package proof; Phase 8 must reuse this exact fixture to exercise the consent kernel before TRN-02 can be Complete.";
+const MUTATION_DISTRIBUTION_LEDGER =
+  "10 catalog / 9 routing / 8 lifecycle / 2 diagnostics / 2 package-guard (`10/9/8/2/2`)";
+const MUTATION_OUTCOME_LEDGER =
+  "31/31 green; zero pending, zero escaped, zero failed";
+const MUTATION_SHARDS_LEDGER =
+  "Exactly ten contiguous shards: C01-C03, C04-C06, C07-C10, R01-R04, R05-R08, R09-R09, L01-L04, L05-L08, D01-D02, P01-P02";
 
 const gitCommonDirectoryResult = spawnSync(
   "git",
@@ -378,6 +387,25 @@ const MUTANTS = Object.freeze([
       "      workQueue.length === 0",
     ),
     intendedCaseIds: ["C11", "C12", "C13", "C14", "C15", "C16"],
+  }),
+  runtimeMutant({
+    id: "M-07-C10",
+    group: "catalog",
+    name: "superseded unpublished accessor attempt is not aborted or cleared",
+    literalPattern: lines(
+      "    if (!publicationIsCurrent(attemptToken)) return true;",
+      "    if (isCurrent(record)) return false;",
+      "    if (epoch !== null) abortEpoch(epoch);",
+      "    clearPublication(epoch, attemptToken);",
+      "    return true;",
+    ),
+    replacement: lines(
+      "    if (!publicationIsCurrent(attemptToken)) return true;",
+      "    if (isCurrent(record)) return false;",
+      "    void epoch;",
+      "    return true;",
+    ),
+    intendedCaseIds: ["C17"],
   }),
 
   runtimeMutant({
@@ -776,7 +804,7 @@ const MUTANTS = Object.freeze([
 ]);
 
 export const EXPECTED_CATALOG_IDS = Object.freeze(
-  Array.from({ length: 9 }, (_, index) =>
+  Array.from({ length: 10 }, (_, index) =>
     `M-07-C${String(index + 1).padStart(2, "0")}`,
   ),
 );
@@ -927,6 +955,7 @@ function validateRequiredMappings(mutants) {
     "M-07-C07": ["C10", "C11", "C15", "C16"],
     "M-07-C08": ["C10", "C11", "C15", "C16"],
     "M-07-C09": ["C11", "C12", "C13", "C14", "C15", "C16"],
+    "M-07-C10": ["C17"],
     "M-07-R01": ["J01"],
     "M-07-R02": ["J07"],
     "M-07-R03": ["J09"],
@@ -964,6 +993,7 @@ function validateRequiredMappings(mutants) {
 
   const c05 = byId.get("M-07-C05");
   const c06 = byId.get("M-07-C06");
+  const c10 = byId.get("M-07-C10");
   const l02 = byId.get("M-07-L02");
   const l05 = byId.get("M-07-L05");
   if (
@@ -977,6 +1007,16 @@ function validateRequiredMappings(mutants) {
     !c06?.replacement.includes("false && resolved.catalog === publishedCatalog")
   ) {
     throw new Error("M-07-C06 must force republish of the already-published catalog");
+  }
+  if (
+    !c10?.literalPattern.includes("if (epoch !== null) abortEpoch(epoch);") ||
+    !c10.literalPattern.includes("clearPublication(epoch, attemptToken);") ||
+    c10.replacement.includes("abortEpoch(epoch)") ||
+    c10.replacement.includes("clearPublication(epoch, attemptToken)")
+  ) {
+    throw new Error(
+      "M-07-C10 must omit only the superseded unpublished attempt cleanup",
+    );
   }
   for (const displacedCase of ["C08", "C09", "C13", "C14"]) {
     if (!l02?.intendedCaseIds.includes(displacedCase)) {
@@ -1008,6 +1048,7 @@ function validateRequiredMappings(mutants) {
     "M-07-C07",
     "M-07-C08",
     "M-07-C09",
+    "M-07-C10",
     "M-07-R09",
   ];
   const identities = independentIds.map((id) => {
@@ -1037,7 +1078,7 @@ function validateMutantList(
     throw new Error("mutant ids contain a duplicate");
   }
 
-  const expectedCounts = { catalog: 9, routing: 9, lifecycle: 8, diagnostics: 2, package: 2 };
+  const expectedCounts = { catalog: 10, routing: 9, lifecycle: 8, diagnostics: 2, package: 2 };
   for (const [group, count] of Object.entries(expectedCounts)) {
     if (mutants.filter((mutant) => mutant.group === group).length !== count) {
       throw new Error(`${group}: mutant count must equal ${count}`);
@@ -2228,6 +2269,40 @@ function runtimeLedgerValue(release) {
   return `${tests.numTestFiles} runtime files / ${tests.numPassedTests} passed / ${tests.numTotalTests} total / ${tests.numPendingTests} pending / ${tests.numTodoTests} todo (\`pnpm test\`, exit ${tests.exitCode})`;
 }
 
+function validateApproval(validationText, registerDigestValue) {
+  if (/\*\*Approval:\*\* pending/u.test(validationText)) {
+    throw new Error("validation approval is still pending");
+  }
+  const approvalPattern = new RegExp(
+    `\\*\\*Approval:\\*\\* approved \\d{4}-\\d{2}-\\d{2} — register ${registerDigestValue}; 31/31 green; release gate green`,
+    "u",
+  );
+  if (!approvalPattern.test(validationText)) {
+    throw new Error("validation approval date/digest is missing or invalid");
+  }
+}
+
+function expectedMutationLedgerRows(registerDigestValue) {
+  return new Map([
+    ["Immutable register", `Digest \`${registerDigestValue}\``],
+    ["Distribution", MUTATION_DISTRIBUTION_LEDGER],
+    ["Outcome", MUTATION_OUTCOME_LEDGER],
+    [
+      "Non-vacuity",
+      "Every row compiled successfully, ran a nonzero named detector set, satisfied its detector, was killed, and matched its one exact source literal before mutation",
+    ],
+    [
+      "Revision binding",
+      "Every row records a unique revision digest; all compiled-target hashes changed under mutation and returned to their recorded original values afterward",
+    ],
+    [
+      "Restoration",
+      "Each target was restored, the restored gate passed, the scoped worktree was clean, and no infrastructure error was recorded",
+    ],
+    ["Bounded execution", MUTATION_SHARDS_LEDGER],
+  ]);
+}
+
 function validateLedgerSkeleton(validationText, release = undefined) {
   for (const taskId of REQUIRED_TASK_IDS) {
     if (!validationText.includes(`| ${taskId} |`)) {
@@ -2264,16 +2339,7 @@ function validateFinalLedgers(validationText, requirementsText, evidence) {
   if (!/^wave_0_complete: true$/mu.test(validationText)) {
     throw new Error("validation frontmatter wave_0_complete must be true");
   }
-  if (/\*\*Approval:\*\* pending/u.test(validationText)) {
-    throw new Error("validation approval is still pending");
-  }
-  const approvalPattern = new RegExp(
-    `\\*\\*Approval:\\*\\* approved \\d{4}-\\d{2}-\\d{2} — register ${evidence.registerDigest}; 30/30 green; release gate green`,
-    "u",
-  );
-  if (!approvalPattern.test(validationText)) {
-    throw new Error("validation approval date/digest is missing or invalid");
-  }
+  validateApproval(validationText, evidence.registerDigest);
   for (const taskId of REQUIRED_TASK_IDS) {
     const row = validationText
       .split(/\r?\n/u)
@@ -2328,30 +2394,7 @@ function validateFinalLedgers(validationText, requirementsText, evidence) {
   );
   requireExactRows(
     mutationRows,
-    new Map([
-      ["Immutable register", `Digest \`${evidence.registerDigest}\``],
-      [
-        "Distribution",
-        "9 catalog / 9 routing / 8 lifecycle / 2 diagnostics / 2 package-guard (`9/9/8/2/2`)",
-      ],
-      ["Outcome", "30/30 green; zero pending, zero escaped, zero failed"],
-      [
-        "Non-vacuity",
-        "Every row compiled successfully, ran a nonzero named detector set, satisfied its detector, was killed, and matched its one exact source literal before mutation",
-      ],
-      [
-        "Revision binding",
-        "Every row records a unique revision digest; all compiled-target hashes changed under mutation and returned to their recorded original values afterward",
-      ],
-      [
-        "Restoration",
-        "Each target was restored, the restored gate passed, the scoped worktree was clean, and no infrastructure error was recorded",
-      ],
-      [
-        "Bounded execution",
-        "Exactly ten contiguous shards: C01-C03, C04-C06, C07-C09, R01-R04, R05-R08, R09-R09, L01-L04, L05-L08, D01-D02, P01-P02",
-      ],
-    ]),
+    expectedMutationLedgerRows(evidence.registerDigest),
     "Measured Mutation Evidence",
   );
 
@@ -2407,7 +2450,10 @@ function validateFinalLedgers(validationText, requirementsText, evidence) {
   );
 }
 
-function verifyNamedCasesAndWaveFiles() {
+function verifyNamedCasesAndWaveFiles({
+  pathExists = (path) => existsSync(join(ROOT, path)),
+  readSource = (path) => readFileSync(join(ROOT, path), "utf8"),
+} = {}) {
   const expectedFiles = [
     "packages/concierge/test-d/session.test-d.ts",
     "packages/concierge/test-d/transport.test-d.ts",
@@ -2425,16 +2471,16 @@ function verifyNamedCasesAndWaveFiles() {
     "scripts/phase-07-mutation-battery.mjs",
   ];
   for (const path of expectedFiles) {
-    if (!existsSync(join(ROOT, path))) throw new Error(`Wave 0 file is missing: ${path}`);
+    if (!pathExists(path)) throw new Error(`Wave 0 file is missing: ${path}`);
   }
   const markerFiles = [
-    [TEST_FILES.catalog, Array.from({ length: 16 }, (_, index) => `C${String(index + 1).padStart(2, "0")}`)],
+    [TEST_FILES.catalog, Array.from({ length: 17 }, (_, index) => `C${String(index + 1).padStart(2, "0")}`)],
     [TEST_FILES.routing, Array.from({ length: 18 }, (_, index) => `J${String(index + 1).padStart(2, "0")}`)],
     [TEST_FILES.lifecycle, Array.from({ length: 18 }, (_, index) => `L${String(index + 1).padStart(2, "0")}`)],
     ["packages/concierge/test/stub-transport.test.ts", Array.from({ length: 8 }, (_, index) => `U${String(index + 1).padStart(2, "0")}`)],
   ];
   for (const [path, ids] of markerFiles) {
-    const source = readFileSync(join(ROOT, path), "utf8");
+    const source = readSource(path);
     for (const id of ids) {
       const generatedRoutingCase = /^J(15|16|17|18)$/u.exec(id);
       const present =
@@ -2446,7 +2492,7 @@ function verifyNamedCasesAndWaveFiles() {
       }
     }
   }
-  const singleInstance = readFileSync(join(ROOT, TEST_FILES.package), "utf8");
+  const singleInstance = readSource(TEST_FILES.package);
   if (!singleInstance.includes("F7 — createSession records this copy through its own direct guard call")) {
     throw new Error("single-instance suite is missing F7");
   }
@@ -2844,9 +2890,53 @@ function selfTest() {
   const initialEvidence = makeInitialEvidence();
   validateEvidenceShape(initialEvidence);
   assert(
-    initialEvidence.rows.length === 30 &&
+    initialEvidence.rows.length === 31 &&
       initialEvidence.rows.every((row) => row.status === "pending"),
-    "refresh fixture must contain exactly 30 pending rows",
+    "refresh fixture must contain exactly 31 pending rows",
+  );
+  const expectedMutationRows = expectedMutationLedgerRows(
+    initialEvidence.registerDigest,
+  );
+  for (const [key, staleValue, label] of [
+    [
+      "Distribution",
+      "9 catalog / 9 routing / 8 lifecycle / 2 diagnostics / 2 package-guard (`9/9/8/2/2`)",
+      "stale 30-row mutation distribution",
+    ],
+    [
+      "Outcome",
+      "30/30 green; zero pending, zero escaped, zero failed",
+      "stale 30-row mutation outcome",
+    ],
+    [
+      "Bounded execution",
+      "Exactly ten contiguous shards: C01-C03, C04-C06, C07-C09, R01-R04, R05-R08, R09-R09, L01-L04, L05-L08, D01-D02, P01-P02",
+      "stale 30-row catalog shard",
+    ],
+  ]) {
+    const staleRows = new Map(expectedMutationRows);
+    staleRows.set(key, staleValue);
+    assertThrows(
+      () =>
+        requireExactRows(
+          staleRows,
+          expectedMutationRows,
+          "Measured Mutation Evidence",
+        ),
+      new RegExp(`row ${key} differs`, "u"),
+      label,
+    );
+  }
+  const approvalFixture = `**Approval:** approved 2026-08-09 — register ${initialEvidence.registerDigest}; 31/31 green; release gate green`;
+  validateApproval(approvalFixture, initialEvidence.registerDigest);
+  assertThrows(
+    () =>
+      validateApproval(
+        approvalFixture.replace("31/31 green", "30/30 green"),
+        initialEvidence.registerDigest,
+      ),
+    /approval date\/digest is missing or invalid/u,
+    "stale 30-row approval",
   );
 
   const syntheticRelease = syntheticReleaseEvidence();
@@ -2950,6 +3040,7 @@ function selfTest() {
     "M-07-C07",
     "M-07-C08",
     "M-07-C09",
+    "M-07-C10",
     "M-07-R09",
     "M-07-L05",
   ]) {
@@ -2985,6 +3076,15 @@ function selfTest() {
     /missing|duplicated|reordered/u,
     "duplicate mutant id",
   );
+  const duplicatedC10 = clone(MUTANTS);
+  const c10Index = duplicatedC10.findIndex((mutant) => mutant.id === "M-07-C10");
+  assert(c10Index > 0, "M-07-C10 must have a preceding catalog mutant");
+  duplicatedC10[c10Index - 1].id = "M-07-C10";
+  assertThrows(
+    () => validateMutantList(duplicatedC10),
+    /missing|duplicated|reordered/u,
+    "duplicate M-07-C10 id",
+  );
   assertThrows(
     () => validateMutantList(clone(MUTANTS).slice(0, -1)),
     /missing|reordered/u,
@@ -2999,14 +3099,17 @@ function selfTest() {
   );
 
   const noOp = clone(MUTANTS);
-  noOp[0].replacement = noOp[0].literalPattern;
+  const noOpC10 = noOp.find((mutant) => mutant.id === "M-07-C10");
+  assert(noOpC10 !== undefined, "M-07-C10 must exist for no-op self-test");
+  noOpC10.replacement = noOpC10.literalPattern;
   assertThrows(
     () => validateMutantList(noOp),
     /no-op/u,
-    "no-op mutant",
+    "no-op M-07-C10 cleanup mutant",
   );
   const multiOccurrence = clone(MUTANTS);
-  const doubled = multiOccurrence[0];
+  const doubled = multiOccurrence.find((mutant) => mutant.id === "M-07-C10");
+  assert(doubled !== undefined, "M-07-C10 must exist for occurrence self-test");
   assertThrows(
     () =>
       validateMutantList(multiOccurrence, {
@@ -3018,7 +3121,7 @@ function selfTest() {
         },
       }),
     /occurrence count is 2/u,
-    "multi-occurrence mutant",
+    "multi-occurrence M-07-C10 cleanup mutant",
   );
 
   const greenRows = MUTANTS.map(syntheticGreenRow);
@@ -3083,6 +3186,7 @@ function selfTest() {
     "C14",
     "C15",
     "C16",
+    "C17",
     "J15",
     "J16",
     "J17",
@@ -3095,7 +3199,14 @@ function selfTest() {
     );
     wrongMarkerRows[index].observedFailureFingerprint[fingerprintIndex].marker =
       caseId.startsWith("C")
-        ? failureMarkerForCase(TEST_FILES.catalog, caseId === "C16" ? "C15" : `C${String(Number(caseId.slice(1)) + 1).padStart(2, "0")}`)
+        ? failureMarkerForCase(
+            TEST_FILES.catalog,
+            caseId === "C17"
+              ? "C16"
+              : caseId === "C16"
+                ? "C15"
+                : `C${String(Number(caseId.slice(1)) + 1).padStart(2, "0")}`,
+          )
         : failureMarkerForCase(TEST_FILES.routing, caseId === "J18" ? "J17" : `J${String(Number(caseId.slice(1)) + 1).padStart(2, "0")}`);
     assertThrows(
       () => validateSyntheticGreenRows(wrongMarkerRows),
@@ -3103,6 +3214,23 @@ function selfTest() {
       `neighboring detector substitution ${caseId}`,
     );
   }
+  verifyNamedCasesAndWaveFiles();
+  assertThrows(
+    () =>
+      verifyNamedCasesAndWaveFiles({
+        readSource: (path) => {
+          const source = readFileSync(join(ROOT, path), "utf8");
+          return path === TEST_FILES.catalog
+            ? source.replace(
+                "[RED:C17:abandoned-publication-cleanup]",
+                "[REMOVED:C17:abandoned-publication-cleanup]",
+              )
+            : source;
+        },
+      }),
+    /missing named RED marker C17/u,
+    "missing C17 marker",
+  );
 
   assertThrows(
     () => selectMutantRange("M-07-C01", "M-07-C05"),
@@ -3115,7 +3243,7 @@ function selfTest() {
     "reversed range",
   );
   assertThrows(
-    () => selectMutantRange("M-07-C09", "M-07-R01"),
+    () => selectMutantRange("M-07-C10", "M-07-R01"),
     /crosses groups/u,
     "cross-group range",
   );
@@ -3185,11 +3313,11 @@ function selfTest() {
   assertThrows(
     () =>
       validateLedgerSkeleton(
-        ledgerFixture.replace("| 07-03-02 | fixture |", ""),
+        ledgerFixture.replace("| 07-07-02 | fixture |", ""),
         syntheticRelease,
       ),
-    /07-03-02/u,
-    "missing task row",
+    /07-07-02/u,
+    "missing Phase 07-07 task row",
   );
   assertThrows(
     () =>
