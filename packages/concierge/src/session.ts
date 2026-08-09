@@ -82,8 +82,7 @@ type Transition = ContextTransition | ConnectedTransition;
 
 interface CatalogEpoch {
   readonly catalog: ReadonlyArray<EmittedTool>;
-  readonly work: Set<WorkRecord>;
-  readonly unbound: Set<UnboundBatch>;
+  readonly work: Set<QueuedOccurrence>;
   aborted: boolean;
 }
 
@@ -94,18 +93,26 @@ interface CancellationScope {
   readonly connect: (sourceBatch: ToolBatch) => void;
 }
 
-interface WorkRecord {
+interface OccurrenceBinding {
   readonly context: StageContext;
-  readonly sourceBatch: ToolBatch;
-  readonly epoch: CatalogEpoch;
-  readonly cancellation: CancellationScope;
+  readonly epoch: CatalogEpoch | null;
 }
 
-interface UnboundBatch {
+type ArrivalAuthority =
+  | "confirmed"
+  | "confirmed-replay"
+  | "unpublished-attempt";
+
+interface QueuedOccurrence {
+  readonly sequence: number;
   readonly sourceBatch: ToolBatch;
   readonly cancellation: CancellationScope;
-  provisionalContext: StageContext | null;
-  provisionalEpoch: CatalogEpoch | null;
+  readonly arrivalAuthority: ArrivalAuthority;
+  readonly arrivalContext: StageContext;
+  readonly arrivalGeneration: number;
+  binding: OccurrenceBinding | null;
+  linkedEpoch: CatalogEpoch | null;
+  pendingAttemptToken: number | null;
 }
 
 /**
@@ -140,14 +147,16 @@ export function createSession(config: SessionConfig): Session {
   let publishingContext: StageContext | null = null;
   let publishingEpoch: CatalogEpoch | null = null;
   let publicationCallableCaptured: boolean = false;
+  let publishingAuthority: "context-attempt" | "confirmed-replay" | null =
+    null;
 
   let publishedCatalog: ReadonlyArray<EmittedTool> | null = null;
   let publishedEpoch: CatalogEpoch | null = null;
   const epochs: Set<CatalogEpoch> = new Set();
 
-  const workQueue: WorkRecord[] = [];
-  const unboundBatches: UnboundBatch[] = [];
-  let activeWork: WorkRecord | null = null;
+  const occurrenceQueue: QueuedOccurrence[] = [];
+  let nextOccurrenceSequence: number = 0;
+  let activeWork: QueuedOccurrence | null = null;
   let workPumpRunning: boolean = false;
   let workPumpPromise: Promise<void> | null = null;
   let acceptingBatchCount: number = 0;
@@ -165,7 +174,7 @@ export function createSession(config: SessionConfig): Session {
   let stopPromise: Promise<void> | null = null;
   let resolveStopPromise: (() => void) | null = null;
   let stopDrainStarted: boolean = false;
-  const detachedWork: WorkRecord[] = [];
+  const detachedWork: QueuedOccurrence[] = [];
 
   /** Emit one fresh, frozen, fixed diagnostic through the replacement sink. */
   function diagnose(code: SessionDiagnosticCode): void {
@@ -359,8 +368,7 @@ export function createSession(config: SessionConfig): Session {
   function createEpoch(catalog: ReadonlyArray<EmittedTool>): CatalogEpoch {
     const epoch: CatalogEpoch = {
       catalog,
-      work: new Set<WorkRecord>(),
-      unbound: new Set<UnboundBatch>(),
+      work: new Set<QueuedOccurrence>(),
       aborted: false,
     };
     epochs.add(epoch);
@@ -372,8 +380,7 @@ export function createSession(config: SessionConfig): Session {
     if (epoch.aborted) return;
     epoch.aborted = true;
     for (const work of [...epoch.work]) work.cancellation.abort();
-    for (const batch of [...epoch.unbound]) batch.cancellation.abort();
-    if (epoch.work.size === 0 && epoch.unbound.size === 0) epochs.delete(epoch);
+    if (epoch.work.size === 0) epochs.delete(epoch);
   }
 
   function abortEpochsExcept(kept: CatalogEpoch | null): void {
@@ -392,13 +399,13 @@ export function createSession(config: SessionConfig): Session {
     ) {
       return;
     }
-    if (epoch !== null) {
-      for (const batch of [...epoch.unbound]) {
-        epoch.unbound.delete(batch);
-        batch.provisionalContext = null;
-        batch.provisionalEpoch = null;
+    for (const occurrence of occurrenceQueue) {
+      if (occurrence.pendingAttemptToken === attemptToken) {
+        occurrence.pendingAttemptToken = null;
       }
-      if (epoch.aborted && epoch.work.size === 0) epochs.delete(epoch);
+    }
+    if (epoch !== null && epoch.aborted && epoch.work.size === 0) {
+      epochs.delete(epoch);
     }
     publicationPending = false;
     publishingCatalog = null;
@@ -406,6 +413,7 @@ export function createSession(config: SessionConfig): Session {
     publishingContext = null;
     publishingEpoch = null;
     publicationCallableCaptured = false;
+    publishingAuthority = null;
   }
 
   function publicationIsCurrent(attemptToken: number): boolean {
@@ -416,7 +424,7 @@ export function createSession(config: SessionConfig): Session {
   }
 
   /** Preserve every original envelope member and replace only its signal. */
-  function envelopeFor(work: WorkRecord): ToolBatch {
+  function envelopeFor(work: QueuedOccurrence): ToolBatch {
     const envelope: ToolBatch = Object.create(null) as ToolBatch;
     Object.defineProperties(envelope, {
       responseId: {
@@ -453,10 +461,48 @@ export function createSession(config: SessionConfig): Session {
     return Object.freeze(envelope);
   }
 
+  function linkOccurrenceToEpoch(
+    occurrence: QueuedOccurrence,
+    epoch: CatalogEpoch | null,
+  ): void {
+    const prior: CatalogEpoch | null = occurrence.linkedEpoch;
+    if (prior === epoch) return;
+    if (prior !== null) {
+      prior.work.delete(occurrence);
+      if (prior.aborted && prior.work.size === 0) epochs.delete(prior);
+    }
+    occurrence.linkedEpoch = epoch;
+    if (epoch === null) return;
+    epoch.work.add(occurrence);
+    if (epoch.aborted) occurrence.cancellation.abort();
+  }
+
+  function bindOccurrence(
+    occurrence: QueuedOccurrence,
+    context: StageContext,
+    epoch: CatalogEpoch | null,
+  ): void {
+    occurrence.binding = { context, epoch };
+    linkOccurrenceToEpoch(occurrence, epoch);
+  }
+
   /** Dispatch one accepted occurrence exactly once and finalize its link. */
-  async function runWork(work: WorkRecord, allowResponses: boolean): Promise<void> {
+  async function runWork(
+    work: QueuedOccurrence,
+    allowResponses: boolean,
+  ): Promise<void> {
+    const binding: OccurrenceBinding | null = work.binding;
+    if (binding === null) {
+      diagnose("batch_without_context");
+      work.cancellation.dispose();
+      linkOccurrenceToEpoch(work, null);
+      return;
+    }
     try {
-      const rows = await concierge.dispatchBatch(work.context, envelopeFor(work));
+      const rows = await concierge.dispatchBatch(
+        binding.context,
+        envelopeFor(work),
+      );
       for (const row of rows) {
         if (!allowResponses || lifecycle !== "active") break;
         try {
@@ -473,14 +519,7 @@ export function createSession(config: SessionConfig): Session {
       diagnose("batch_dispatch_failed");
     } finally {
       work.cancellation.dispose();
-      work.epoch.work.delete(work);
-      if (
-        work.epoch.aborted &&
-        work.epoch.work.size === 0 &&
-        work.epoch.unbound.size === 0
-      ) {
-        epochs.delete(work.epoch);
-      }
+      linkOccurrenceToEpoch(work, null);
     }
   }
 
@@ -491,8 +530,9 @@ export function createSession(config: SessionConfig): Session {
       !transitionDraining &&
       transitionQueue.length === 0
     ) {
-      const work: WorkRecord | undefined = workQueue.shift();
-      if (work === undefined) return;
+      const head: QueuedOccurrence | undefined = occurrenceQueue[0];
+      if (head === undefined || head.binding === null) return;
+      const work: QueuedOccurrence = occurrenceQueue.shift() as QueuedOccurrence;
       activeWork = work;
       await runWork(work, true);
       activeWork = null;
@@ -508,7 +548,8 @@ export function createSession(config: SessionConfig): Session {
       transitionQueue.length !== 0 ||
       workPumpRunning ||
       acceptingBatchCount !== 0 ||
-      workQueue.length === 0
+      occurrenceQueue.length === 0 ||
+      occurrenceQueue[0]?.binding === null
     ) {
       return;
     }
@@ -532,126 +573,122 @@ export function createSession(config: SessionConfig): Session {
     void runner.then(finish, finish);
   }
 
-  function releaseUnboundEpoch(batch: UnboundBatch): void {
-    const epoch: CatalogEpoch | null = batch.provisionalEpoch;
-    if (epoch === null) return;
-    epoch.unbound.delete(batch);
-    if (epoch.aborted && epoch.work.size === 0 && epoch.unbound.size === 0) {
-      epochs.delete(epoch);
-    }
-  }
-
-  /** Bind accessor-time occurrences only after the transition drain chooses authority. */
-  function bindUnboundBatches(): void {
+  /** Bind unresolved occurrences in place after the drain chooses authority. */
+  function bindQueuedOccurrences(): void {
     if (publicationPending || transitionQueue.length !== 0) return;
-    const batches: ReadonlyArray<UnboundBatch> = unboundBatches.splice(0);
-    for (const batch of batches) {
-      releaseUnboundEpoch(batch);
+    for (let index = 0; index < occurrenceQueue.length; index += 1) {
+      const occurrence: QueuedOccurrence = occurrenceQueue[index] as QueuedOccurrence;
+      if (occurrence.binding !== null || occurrence.pendingAttemptToken !== null) {
+        continue;
+      }
       if (
         lifecycle === "stopped" ||
         confirmedContext === null ||
         confirmedEpoch === null
       ) {
         if (lifecycle === "active") diagnose("batch_without_context");
-        batch.cancellation.dispose();
+        occurrence.cancellation.dispose();
+        linkOccurrenceToEpoch(occurrence, null);
+        occurrenceQueue.splice(index, 1);
+        index -= 1;
         continue;
       }
-
-      const work: WorkRecord = {
-        context: confirmedContext,
-        sourceBatch: batch.sourceBatch,
-        epoch: confirmedEpoch,
-        cancellation: batch.cancellation,
-      };
-      confirmedEpoch.work.add(work);
-      if (confirmedEpoch.aborted) batch.cancellation.abort();
-      workQueue.push(work);
+      bindOccurrence(occurrence, confirmedContext, confirmedEpoch);
     }
   }
 
-  /** Preserve accepted failure-stop occurrences under their provisional scope. */
-  function detachUnboundBatches(): void {
-    const batches: ReadonlyArray<UnboundBatch> = unboundBatches.splice(0);
-    for (const batch of batches) {
-      releaseUnboundEpoch(batch);
+  /** Detach every queued occurrence in global arrival order for stop drain. */
+  function detachQueuedOccurrences(): void {
+    const occurrences: ReadonlyArray<QueuedOccurrence> =
+      occurrenceQueue.splice(0);
+    for (const occurrence of occurrences) {
+      if (occurrence.binding === null) {
+        occurrence.pendingAttemptToken = null;
+        bindOccurrence(
+          occurrence,
+          occurrence.arrivalContext,
+          occurrence.linkedEpoch,
+        );
+      }
+      occurrence.cancellation.abort();
+      detachedWork.push(occurrence);
+    }
+  }
+
+  function abortSupersededUnlinkedAdmissions(generation: number): void {
+    for (const occurrence of occurrenceQueue) {
       if (
-        batch.provisionalContext === null ||
-        batch.provisionalEpoch === null
+        occurrence.binding === null &&
+        occurrence.linkedEpoch === null &&
+        occurrence.arrivalAuthority === "unpublished-attempt" &&
+        occurrence.arrivalGeneration !== generation
       ) {
-        batch.cancellation.abort();
-        batch.cancellation.dispose();
-        continue;
+        occurrence.cancellation.abort();
       }
-      const work: WorkRecord = {
-        context: batch.provisionalContext,
-        sourceBatch: batch.sourceBatch,
-        epoch: batch.provisionalEpoch,
-        cancellation: batch.cancellation,
-      };
-      batch.provisionalEpoch.work.add(work);
-      detachedWork.push(work);
     }
-  }
-
-  function acceptUnboundBatch(batch: ToolBatch): void {
-    const authorityCurrent: boolean =
-      publishingGeneration === requestedGeneration &&
-      publishingContext === requestedContext;
-    const provisionalContext: StageContext | null = authorityCurrent
-      ? publishingContext
-      : null;
-    const provisionalEpoch: CatalogEpoch | null = authorityCurrent
-      ? publishingEpoch
-      : null;
-    const cancellation: CancellationScope = createCancellationScope();
-    const unbound: UnboundBatch = {
-      sourceBatch: batch,
-      cancellation,
-      provisionalContext,
-      provisionalEpoch,
-    };
-    unboundBatches.push(unbound);
-    if (provisionalEpoch !== null) {
-      provisionalEpoch.unbound.add(unbound);
-      if (provisionalEpoch.aborted) cancellation.abort();
-    }
-    cancellation.connect(batch);
   }
 
   /** Record a transport occurrence without inspecting its envelope fields. */
   function acceptBatch(batch: ToolBatch): void {
     if (lifecycle === "stopped") return;
 
-    let context: StageContext | null;
-    let epoch: CatalogEpoch | null;
-    if (
-      publicationPending &&
-      publicationCallableCaptured &&
-      publishingGeneration === requestedGeneration &&
-      publishingContext === requestedContext
-    ) {
-      context = publishingContext;
-      epoch = publishingEpoch;
-    } else if (publicationPending) {
-      acceptingBatchCount += 1;
-      try {
-        acceptUnboundBatch(batch);
-      } finally {
-        acceptingBatchCount -= 1;
-        if (acceptingBatchCount === 0) {
-          if (hasStopped()) startStopDrain();
-          else maybeStartPump();
+    let arrivalAuthority: ArrivalAuthority = "confirmed";
+    let arrivalContext: StageContext | null = null;
+    let arrivalGeneration: number = requestedGeneration;
+    let arrivalEpoch: CatalogEpoch | null = null;
+    let binding: OccurrenceBinding | null = null;
+    let pendingAttemptToken: number | null = null;
+
+    if (publicationPending) {
+      const publicationMatchesRequest: boolean =
+        publishingGeneration === requestedGeneration &&
+        publishingContext === requestedContext;
+      if (
+        publishingAuthority === "confirmed-replay" &&
+        publicationMatchesRequest
+      ) {
+        arrivalAuthority = "confirmed-replay";
+        arrivalContext = publishingContext;
+        arrivalGeneration = publishingGeneration as number;
+        arrivalEpoch = publishingEpoch;
+        if (arrivalContext !== null && arrivalEpoch !== null) {
+          binding = { context: arrivalContext, epoch: arrivalEpoch };
+        }
+      } else if (publicationCallableCaptured && publicationMatchesRequest) {
+        arrivalAuthority = "unpublished-attempt";
+        arrivalContext = publishingContext;
+        arrivalGeneration = publishingGeneration as number;
+        arrivalEpoch = publishingEpoch;
+        if (arrivalContext !== null && arrivalEpoch !== null) {
+          binding = { context: arrivalContext, epoch: arrivalEpoch };
+        }
+      } else {
+        arrivalAuthority = "unpublished-attempt";
+        arrivalContext = publicationMatchesRequest
+          ? publishingContext
+          : requestedContext;
+        arrivalGeneration = publicationMatchesRequest
+          ? (publishingGeneration as number)
+          : requestedGeneration;
+        arrivalEpoch = publicationMatchesRequest ? publishingEpoch : null;
+        if (
+          publicationMatchesRequest &&
+          publishingAuthority === "context-attempt"
+        ) {
+          pendingAttemptToken = publicationAttemptToken;
         }
       }
-      return;
     } else if (lifecycle === "active") {
-      context = confirmedContext;
-      epoch = confirmedEpoch;
+      arrivalContext = confirmedContext;
+      arrivalEpoch = confirmedEpoch;
+      if (arrivalContext !== null && arrivalEpoch !== null) {
+        binding = { context: arrivalContext, epoch: arrivalEpoch };
+      }
     } else {
       return;
     }
 
-    if (context === null || epoch === null) {
+    if (arrivalContext === null || (binding !== null && arrivalEpoch === null)) {
       if (lifecycle === "active") diagnose("batch_without_context");
       return;
     }
@@ -659,15 +696,19 @@ export function createSession(config: SessionConfig): Session {
     acceptingBatchCount += 1;
     try {
       const cancellation: CancellationScope = createCancellationScope();
-      const work: WorkRecord = {
-        context,
+      const occurrence: QueuedOccurrence = {
+        sequence: ++nextOccurrenceSequence,
         sourceBatch: batch,
-        epoch,
         cancellation,
+        arrivalAuthority,
+        arrivalContext,
+        arrivalGeneration,
+        binding,
+        linkedEpoch: null,
+        pendingAttemptToken,
       };
-      epoch.work.add(work);
-      if (epoch.aborted) cancellation.abort();
-      workQueue.push(work);
+      occurrenceQueue.push(occurrence);
+      linkOccurrenceToEpoch(occurrence, arrivalEpoch);
       cancellation.connect(batch);
     } finally {
       acceptingBatchCount -= 1;
@@ -737,10 +778,10 @@ export function createSession(config: SessionConfig): Session {
     publishingContext = null;
     publishingEpoch = null;
     publicationCallableCaptured = false;
+    publishingAuthority = null;
     stageNotifications.splice(0);
     stageListeners.clear();
-    detachedWork.push(...workQueue.splice(0));
-    detachUnboundBatches();
+    detachQueuedOccurrences();
     abortEpochsExcept(null);
     return promise;
   }
@@ -782,7 +823,7 @@ export function createSession(config: SessionConfig): Session {
     if (stopDrainStarted || acceptingBatchCount !== 0) return;
     stopDrainStarted = true;
     const activePump: Promise<void> | null = workPumpPromise;
-    const records: ReadonlyArray<WorkRecord> = detachedWork.splice(0);
+    const records: ReadonlyArray<QueuedOccurrence> = detachedWork.splice(0);
 
     const drain = async (): Promise<void> => {
       try {
@@ -896,6 +937,7 @@ export function createSession(config: SessionConfig): Session {
     publishingContext = record.context;
     publishingEpoch = epoch;
     publicationCallableCaptured = false;
+    publishingAuthority = "context-attempt";
     abortEpochsExcept(epoch);
 
     if (abandonSupersededPublication(record, epoch, attemptToken)) return;
@@ -945,6 +987,7 @@ export function createSession(config: SessionConfig): Session {
     publishingContext = context;
     publishingEpoch = epoch;
     publicationCallableCaptured = false;
+    publishingAuthority = "confirmed-replay";
 
     const abandonSupersededReplay = (): boolean => {
       if (!publicationIsCurrent(attemptToken)) return true;
@@ -994,7 +1037,7 @@ export function createSession(config: SessionConfig): Session {
       }
     } finally {
       transitionDraining = false;
-      bindUnboundBatches();
+      bindQueuedOccurrences();
       maybeStartPump();
     }
   }
@@ -1014,6 +1057,7 @@ export function createSession(config: SessionConfig): Session {
     if (lifecycle !== "active") throw new Error(STOPPED_ERROR);
     requestedContext = context;
     const generation: number = ++requestedGeneration;
+    abortSupersededUnlinkedAdmissions(generation);
     transitionQueue.push({
       kind: "context",
       generation,
