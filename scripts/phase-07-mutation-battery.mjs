@@ -2031,7 +2031,10 @@ function executeMutant(mutant) {
           mutant.id,
           directory,
         ],
-        { cwd: snapshot.root },
+        {
+          cwd: snapshot.root,
+          env: { ...process.env, PHASE_07_SNAPSHOT_GATE: "1" },
+        },
       );
     } finally {
       writeFileSync(snapshotTarget, sourceBytes);
@@ -3711,7 +3714,10 @@ function main(args) {
   throw new UsageError();
 }
 
-if (process.argv[1] !== undefined && resolve(process.argv[1]) === SCRIPT_PATH) {
+if (
+  process.env.PHASE_07_SNAPSHOT_GATE === "1" ||
+  (process.argv[1] !== undefined && resolve(process.argv[1]) === SCRIPT_PATH)
+) {
   try {
     const exitCode = main(process.argv.slice(2));
     if (process.exitCode === undefined) process.exitCode = exitCode;
