@@ -1,113 +1,74 @@
 ---
 phase: 07-session-and-the-transport-seam
-reviewed: 2026-08-09T02:26:57Z
+reviewed: 2026-08-09T05:28:48Z
 depth: standard
-files_reviewed: 20
+files_reviewed: 3
 files_reviewed_list:
-  - packages/concierge/src/contract.ts
-  - packages/concierge/src/index.ts
   - packages/concierge/src/session.ts
-  - packages/concierge/src/types.ts
-  - packages/concierge/test-d/actions.test-d.ts
-  - packages/concierge/test-d/exports.test-d.ts
-  - packages/concierge/test-d/session.test-d.ts
-  - packages/concierge/test-d/stub-transport.test-d.ts
-  - packages/concierge/test-d/transport.test-d.ts
-  - packages/concierge/test/artifact.test.ts
-  - packages/concierge/test/export-surface.test.ts
-  - packages/concierge/test/fixtures/probe.ts
-  - packages/concierge/test/fixtures/stub-transport.ts
   - packages/concierge/test/session-catalog.test.ts
-  - packages/concierge/test/session-lifecycle.test.ts
-  - packages/concierge/test/session-routing.test.ts
-  - packages/concierge/test/single-instance.test.ts
-  - packages/concierge/test/stub-transport.test.ts
-  - scripts/pack-install-check.sh
   - scripts/phase-07-mutation-battery.mjs
 findings:
   critical: 3
-  warning: 1
+  warning: 2
   info: 0
-  total: 4
+  total: 5
 status: issues_found
 ---
 
 # Phase 7: Code Review Report
 
-**Reviewed:** 2026-08-09T02:26:57Z
+**Reviewed:** 2026-08-09T05:28:48Z
 **Depth:** standard
-**Files Reviewed:** 20
+**Files Reviewed:** 3
 **Status:** issues_found
 
 ## Summary
 
-All 20 scoped files were re-reviewed after the three iteration-two fixes. Those fixes close the previously reported FIFO reservation, response-getter cutoff, and untracked-manifest cases, and the build, typecheck, 55 focused runtime tests, and mutation-battery self-test pass. The implementation is still not shippable: a `setTools` accessor can republish privileged tools after synchronous stop cleanup, reentrant resolver/capability reads can let a superseded context stop or strand the winning transition, and the release record still does not bind all shipped bytes or ensure that one immutable tree was exercised. The updated response-cutoff mutant is also mapped only to tests that cannot detect it.
+The post-gap build, focused C17 run, complete 22-test catalog suite, package typecheck, mutation-battery syntax check, self-test, `verify all`, and `verify inputs` all pass. The submitted revision is nevertheless not ready for verification. A hostile `setTools` accessor can still admit and answer work under the unpublished losing context B after it has queued winning context C; connected replay has the same missing context-supersession guard; and mutation execution still edits and restores the shared live worktree, so concurrent activity can both falsify evidence and lose another writer's changes. C17/M-07-C10 also prove only the clear half of the new abort-and-clear helper, and the supposedly exact C17 marker is reused by an unrelated factory smoke assertion.
 
 ## Narrative Findings (AI reviewer)
 
 ## Critical Issues
 
-### CR-01: A `setTools` accessor can republish tools after stop cleanup
+### CR-01: Accessor-time work is dispatched and answered under unpublished context B
 
 **Classification:** BLOCKER
-**File:** `packages/concierge/src/session.ts:750-755, 781-785`
-**Issue:** Both active publication paths evaluate and invoke `transport.setTools(...)` as one member-call expression. A structural transport may implement `setTools` as an accessor. If that accessor synchronously calls `session.stop()`, cleanup first publishes the frozen empty catalog, but JavaScript then continues the original expression and invokes the function returned by the accessor with the stale non-empty catalog. The publication token check happens only after that invocation. A built-artifact reproduction observed catalog history `['a', 'EMPTY', 'b']`: the Session was stopped and its cleanup completed, yet catalog B was the transport's final authority. The reconnect path has the same ordering defect. This violates the locked no-post-stop-output and stale-authority guarantees.
+**File:** `packages/concierge/src/session.ts:509-519, 757-776`
+**Issue:** `processContext` installs `publicationPending`, `publishingContext = B`, and B's provisional epoch before it reads the consumer-controlled `setTools` accessor. `acceptBatch` then binds every accessor-time callback to B without checking whether B is still the requested context or whether the callable has even been captured. If the getter first calls `session.setContext(C)` and then emits a batch before returning, C is already the newest context and B is never published, yet the batch is recorded against B. The new helper aborts B's epoch, but `runWork` still dispatches accepted aborted records and an active Session still responds to returned rows. A built-artifact probe produced `{"stage":"c","publicationCount":1,"dispatches":[{"context":"b","aborted":true}],"responseCount":1}`: only catalog A reached the transport, C won, but unpublished B received a dispatch and a response. This violates the Plan 07-07 requirement that C become the sole admission authority and creates a stale-authority path across the transport boundary.
+**Fix:** Do not make an accessor-read attempt eligible for publishing-context admission. Track an explicit invocation phase, or defer unbound batches while the accessor/transition is reentrant, and bind them only after the transition drain selects the winning context/epoch. At minimum, `acceptBatch` must never select `publishingContext` when it differs from `requestedContext` or before the captured callable has been revalidated. Extend C17 so the getter queues C and emits a batch before returning/throwing; assert that no dispatch ever observes B and that the accepted occurrence is handled under the contractually chosen winning authority.
 
-**Fix:** Resolve the callable separately, revalidate lifecycle/publication authority after the getter returns, and only then invoke it with the transport receiver. Handle a getter that throws after reentrant stop as an invalidated attempt rather than calling `failPublication` again. Apply the same boundary to context publication and connected replay, for example:
-
-```ts
-let setTools: typeof transport.setTools;
-try {
-  setTools = transport.setTools;
-} catch {
-  if (!isCurrent(record)) return;
-  failPublication(resolved.stage);
-}
-if (!isCurrent(record) || !publicationIsCurrent(attemptToken)) return;
-Reflect.apply(setTools, transport, [resolved.catalog]);
-```
-
-Add set-context and reconnect regressions whose `setTools` getter calls `stop()`; the only final publication must be the frozen empty catalog and the stale returned function must never run.
-
-### CR-02: Reentrant resolver and capability reads can apply a superseded transition
+### CR-02: Connected replay still invokes or fails on a callable superseded by context reentry
 
 **Classification:** BLOCKER
-**File:** `packages/concierge/src/session.ts:705-713, 726-733`
-**Issue:** `processContext` calls `catalogFor` and `stageFor` back-to-back and later reads `transport.capabilities.dynamicCatalog` without rechecking the record between these outside boundaries. A `dynamicCatalog` getter can synchronously enqueue newer context C and return `false`; the code then executes the fixed-transport branch for stale context B, records B's stage, stops the Session, and throws instead of processing winning C. A built-artifact reproduction with `catalog(C) === catalog(A)` returned `This transport does not support catalog changes.`, stopped with stage B, and cleared the transport even though the latest request required no catalog change. Separately, if `catalogFor(B)` enqueues C, stale `stageFor(B)` is still invoked; if it throws, C remains queued with the transition drain unwound and is not processed until some unrelated future event. This contradicts the serialized latest-generation-wins contract.
+**File:** `packages/concierge/src/session.ts:798-827`
+**Issue:** The new `abandonSupersededPublication` guard is used only by `processContext`. `processConnected` snapshots no context generation and checks only the publication token, which does not change when a `setTools` getter queues a context during the outer transition drain. A replay getter that calls `setContext(C)` and returns a sentinel is therefore still invoked with stale catalog A; a probe observed `staleCalls: 1` and publication history `A, A, C`. If the getter queues C and then throws, the catch treats the replay as current, calls `failPublication`, stops the Session, and discards C; the built artifact exposed the fixed publication error, remained at stage A, and never published C. This is the same return/throw reentrancy class C17 closes for context publication, left open on the reconnect path.
+**Fix:** Snapshot the requested generation/context when the replay attempt starts and revalidate both that snapshot and the publication token after the getter returns and in its catch. If context authority changed, clear only the replay attempt and let the queued context drain; do not invoke the returned function and do not fail the Session for a superseded getter throw. Add connected-replay return and throw regressions that queue C from the accessor and prove zero stale invocation, no fatal error, and final C authority.
 
-**Fix:** Split every reentrant outside read/call and check `isCurrent(record)` immediately afterward, before starting the next read or taking any state-changing branch:
-
-```ts
-const catalog = concierge.catalogFor(record.context as StageContext);
-if (!isCurrent(record)) return;
-const stage = concierge.stageFor(record.context as StageContext);
-if (!isCurrent(record)) return;
-const dynamicCatalog = transport.capabilities.dynamicCatalog;
-if (!isCurrent(record)) return;
-```
-
-Then branch only on captured values. Add regressions where `catalogFor` and the capability getter each enqueue a newer context, including a stale resolver that would throw and a fixed-capability value that would otherwise stop the Session.
-
-### CR-03: Release evidence still does not bind the bytes exercised by every gate
+### CR-03: Mutation runs can overwrite concurrent edits and certify mixed revision bytes
 
 **Classification:** BLOCKER
-**File:** `scripts/phase-07-mutation-battery.mjs:92-108, 843-866, 1747-1803, 2401-2457`
-**Issue:** The new digest manifest omits `packages/concierge/README.md` and `packages/concierge/LICENSE`, although both are tracked and explicitly shipped by the package `files` allow-list. Changing either shipped file leaves `releaseRevisionDigest()` unchanged, so previously recorded green release evidence remains valid for a different tarball. The pre/post source hashes also do not prove that the commands ran against one tree: `withExclusiveRepositoryLock` only locks a private `phase-07-mutation-battery.lock` file, and Git, editors, builds, and other agents do not acquire it. A scoped file can therefore change and be restored between the endpoint hashes, causing different gates to exercise different bytes while the recorded pre/post digest remains equal. The self-test checks only unequal endpoint digests and cannot detect an A-to-B-to-A change.
-
-**Fix:** Include every non-derived packed input, including the package README and license, in the release manifest. Materialize the complete manifest into an immutable temporary snapshot and run all seven release commands from that snapshot; record the snapshot digest. Do not describe the battery-only advisory lock as repository-exclusive. Add negative controls proving that a packaged-document change invalidates evidence and that a mutate-then-restore operation cannot mix inputs across simulated gates.
+**File:** `scripts/phase-07-mutation-battery.mjs:869-892, 1915-1951`
+**Issue:** The lock is private to this mutation battery, but `executeMutant` still passes a target in the shared `ROOT` worktree to the mutation/restore wrapper and runs build/tests there. Editors, Git commands, and other agents do not acquire this lock. The before/after status and hash checks observe only endpoints, so an A-to-B-to-A change in any scoped source or test during the gate can make a mutant fail for transient unrelated bytes and still record `scopedTreeClean`, `targetRestored`, and the pre-run revision digest as green. Worse, the wrapper restores the live target from Git, so a concurrent edit to that target after the initial clean check is discarded. This is both a data-loss risk and a false-positive/false-negative evidence path; the immutable snapshot repair applies only to release gates, not to the 31 mutation rows or M-07-C10.
+**Fix:** Execute every mutant in a disposable mutable snapshot or isolated temporary worktree pinned to the measured clean revision. Apply the literal, build, run the exact detector, restore, and run restored gates entirely there; never mutate or `git checkout` a file in the user's live worktree. Bind the evidence row to that snapshot digest and add an A-to-B-to-A/concurrent-writer negative control for mutation execution, parallel to the existing release-snapshot control.
 
 ## Warnings
 
-### WR-01: The updated response-cutoff mutant is wired to tests that cannot kill it
+### WR-01: M-07-C10 cannot detect loss of the helper's abort operation
 
 **Classification:** WARNING
-**File:** `scripts/phase-07-mutation-battery.mjs:585-599`; `packages/concierge/test/session-lifecycle.test.ts:389-436, 767-854, 856-929`
-**Issue:** Embedded M-07-L03 now removes the final lifecycle check after the `respond`, `callId`, and `result` getters, but its selected cases remain L03 and L05. L03 stops before row iteration and is caught by the earlier loop check; L05 stops inside the first response invocation and is caught by that same earlier check before row two. Neither test observes the removed final check, so the mutant escapes. The two tests that do exercise row/respond getter stop are unlabelled and therefore excluded by `casePattern`. The on-disk register/evidence still contain the old M-07-L03 literal, which is why `verify lifecycle` currently fails closed with `on-disk register differs from the embedded immutable register`; refreshing the artifacts will expose the detector escape rather than fix it.
+**File:** `packages/concierge/test/session-catalog.test.ts:1445-1506`; `scripts/phase-07-mutation-battery.mjs:391-409`
+**Issue:** C17 emits its only batch after `session.setContext(B)` has completely returned. B's provisional epoch is therefore empty when `abandonSupersededPublication` runs, so `abortEpoch(epoch)` has no observable effect in the test. M-07-C10 removes both `abortEpoch` and `clearPublication`; C17 kills it because the missing clear leaves admission stuck, not because the abort disappeared. Removing only the helper's `abortEpoch(epoch)` call would leave C17 green, even though an accessor-time B occurrence would remain un-aborted and could execute stale handler work. The current 31/31 claim therefore does not discriminate both load-bearing operations named by the plan and security report.
+**Fix:** Add a provisional-B occurrence before the getter queues C and assert that its composed signal is aborted, no live handler path runs, and its required cancellation result behavior is exact. Split the mutation so abort removal and clear removal are independently compiled and killed (or otherwise demonstrate an abort-only replacement fails the named case), then regenerate the register/evidence totals.
 
-**Fix:** Give the getter-stop regressions stable case IDs/RED markers (or fold them into an existing selected case), point M-07-L03 only at cases that fail when the final check is removed, refresh the immutable register, and rerun the mutant before recording green evidence. Add a self-test assertion that each mutant's selected cases are behaviorally sensitive to its current replacement, not merely syntactically present.
+### WR-02: The exact C17 mutation marker is shared with an unrelated smoke assertion
+
+**Classification:** WARNING
+**File:** `packages/concierge/test/session-catalog.test.ts:1441-1444, 1543-1549`; `scripts/phase-07-mutation-battery.mjs:1553-1597`
+**Issue:** C17 passes the same `[RED:C17:abandoned-publication-cleanup]` marker to both `requireFactory` and the load-bearing state assertion. The mutation harness accepts a failure by case id plus marker and does not verify the assertion location. A missing/broken `createSession` export can therefore produce the exact M-07-C10 fingerprint even though the abandoned-publication assertion never ran. This contradicts the plan's explicit requirement that C17 credit not come from a missing artifact or unrelated assertion, and the live-worktree race in CR-03 makes that scenario practical during a mutation run.
+**Fix:** Reserve the RED marker exclusively for the load-bearing cleanup assertion. Give the factory smoke check a distinct non-RED message (or no custom marker), and add a self-test showing a factory/export failure cannot satisfy M-07-C10's expected fingerprint.
 
 ---
 
-_Reviewed: 2026-08-09T02:26:57Z_
+_Reviewed: 2026-08-09T05:28:48Z_
 _Reviewer: Codex (gsd-code-reviewer)_
 _Depth: standard_
