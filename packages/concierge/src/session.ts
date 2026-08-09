@@ -101,6 +101,7 @@ interface OccurrenceBinding {
 type ArrivalAuthority =
   | "confirmed"
   | "confirmed-replay"
+  | "requested-transition"
   | "unpublished-attempt";
 
 interface QueuedOccurrence {
@@ -136,6 +137,7 @@ export function createSession(config: SessionConfig): Session {
   const transitionQueue: Transition[] = [];
 
   let confirmedContext: StageContext | null = null;
+  let confirmedGeneration: number | null = null;
   let confirmedCatalog: ReadonlyArray<EmittedTool> | null = null;
   let confirmedEpoch: CatalogEpoch | null = null;
   let currentStage: string | null = null;
@@ -584,6 +586,27 @@ export function createSession(config: SessionConfig): Session {
       if (occurrence.binding !== null || occurrence.pendingAttemptToken !== null) {
         continue;
       }
+      if (occurrence.arrivalAuthority === "requested-transition") {
+        if (
+          occurrence.arrivalGeneration === confirmedGeneration &&
+          occurrence.arrivalContext === confirmedContext &&
+          confirmedEpoch !== null
+        ) {
+          bindOccurrence(
+            occurrence,
+            occurrence.arrivalContext,
+            confirmedEpoch,
+          );
+        } else {
+          occurrence.cancellation.abort();
+          bindOccurrence(
+            occurrence,
+            occurrence.arrivalContext,
+            occurrence.linkedEpoch,
+          );
+        }
+        continue;
+      }
       if (
         lifecycle === "stopped" ||
         confirmedContext === null ||
@@ -623,7 +646,8 @@ export function createSession(config: SessionConfig): Session {
       if (
         occurrence.binding === null &&
         occurrence.linkedEpoch === null &&
-        occurrence.arrivalAuthority === "unpublished-attempt" &&
+        (occurrence.arrivalAuthority === "unpublished-attempt" ||
+          occurrence.arrivalAuthority === "requested-transition") &&
         occurrence.arrivalGeneration !== generation
       ) {
         occurrence.cancellation.abort();
@@ -682,10 +706,16 @@ export function createSession(config: SessionConfig): Session {
         }
       }
     } else if (lifecycle === "active") {
-      arrivalContext = confirmedContext;
-      arrivalEpoch = confirmedEpoch;
-      if (arrivalContext !== null && arrivalEpoch !== null) {
-        binding = { context: arrivalContext, epoch: arrivalEpoch };
+      if (transitionQueue.length !== 0) {
+        arrivalAuthority = "requested-transition";
+        arrivalContext = requestedContext;
+        arrivalGeneration = requestedGeneration;
+      } else {
+        arrivalContext = confirmedContext;
+        arrivalEpoch = confirmedEpoch;
+        if (arrivalContext !== null && arrivalEpoch !== null) {
+          binding = { context: arrivalContext, epoch: arrivalEpoch };
+        }
       }
     } else {
       return;
@@ -879,6 +909,7 @@ export function createSession(config: SessionConfig): Session {
     if (!isCurrent(record)) return;
     const priorStage: string | null = currentStage;
     confirmedContext = record.context;
+    confirmedGeneration = record.generation;
     confirmedCatalog = resolved.catalog;
     confirmedEpoch = epoch;
     currentStage = resolved.stage;

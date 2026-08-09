@@ -2119,6 +2119,552 @@ it("[C19] drains queued connected replay before rethrowing a current boundary va
   );
 });
 
+it("[C20] binds boundary-time admissions to the exact requested authority", async () => {
+  const marker = "[RED:C20:post-request-admission-authority]";
+  requireFactory("[SMOKE:C20:create-session-factory]");
+  const boundaries = [
+    "catalogFor-property",
+    "catalogFor-call",
+    "stageFor-property",
+    "stageFor-call",
+    "capabilities",
+    "dynamicCatalog",
+  ];
+
+  const trackedBatch = (callId, finalizations, sourceCounts, events) => {
+    const listeners = new Set();
+    const counts = { additions: 0, callId, removals: 0 };
+    sourceCounts.push(counts);
+    const signal = Object.freeze({
+      aborted: false,
+      addEventListener(type, listener) {
+        if (type !== "abort") return;
+        counts.additions += 1;
+        listeners.add(listener);
+      },
+      removeEventListener(type, listener) {
+        if (type !== "abort" || !listeners.delete(listener)) return;
+        counts.removals += 1;
+        finalizations.push(callId);
+        events.push(`finalize:${callId}`);
+      },
+    });
+    return Object.freeze({ ...toolBatch([callId]), signal });
+  };
+
+  const observations = [];
+  for (const boundary of boundaries) {
+    for (const mode of ["return", "throw"]) {
+      for (const catalogMode of ["distinct", "same"]) {
+        const a = { name: "a" };
+        const b = { name: "b" };
+        const c = { name: "c" };
+        const catalogA = Object.freeze([]);
+        const catalogB = Object.freeze([]);
+        const catalogC =
+          catalogMode === "same" ? catalogA : Object.freeze([]);
+        const catalogs = new Map([
+          [a, catalogA],
+          [b, catalogB],
+          [c, catalogC],
+        ]);
+        const base = controlledTransport();
+        const diagnostics = [];
+        const dispatches = [];
+        const events = [];
+        const finalizations = [];
+        const sourceCounts = [];
+        const stageEvents = [];
+        const secret = `PRIVATE-C20-${boundary}-${mode}-${catalogMode}`;
+        const sentinel = Object.freeze({ secret });
+        let boundaryEntries = 0;
+        let catalogForReads = 0;
+        let dynamicCatalogReads = 0;
+        let handlerEntries = 0;
+        let session;
+        let stageForReads = 0;
+        let staleCallableInvocations = 0;
+        let staleContinuationEffects = 0;
+        let staleStructuralReads = 0;
+        let transportCapabilityReads = 0;
+
+        const requestC = (value) => {
+          boundaryEntries += 1;
+          base.emitBatch(
+            trackedBatch("before-c", finalizations, sourceCounts, events),
+          );
+          session.setContext(c);
+          base.emitBatch(
+            trackedBatch("after-c", finalizations, sourceCounts, events),
+          );
+          if (mode === "throw") throw sentinel;
+          return value;
+        };
+        const catalogFor = (context) => {
+          if (boundary === "catalogFor-call" && context === b) {
+            return requestC(catalogB);
+          }
+          const catalog = catalogs.get(context);
+          if (catalog === undefined) throw new Error("unknown context");
+          return catalog;
+        };
+        const stageFor = (context) => {
+          if (boundary === "catalogFor-call" && context === b) {
+            staleContinuationEffects += 1;
+          }
+          if (boundary === "stageFor-call" && context === b) {
+            return requestC("b");
+          }
+          return context.name;
+        };
+        const concierge = {
+          get catalogFor() {
+            catalogForReads += 1;
+            if (
+              boundary === "catalogFor-property" &&
+              catalogForReads === 2
+            ) {
+              return requestC(() => {
+                staleCallableInvocations += 1;
+                return catalogB;
+              });
+            }
+            return catalogFor;
+          },
+          get stageFor() {
+            stageForReads += 1;
+            if (boundary === "stageFor-property" && stageForReads === 2) {
+              return requestC(() => {
+                staleCallableInvocations += 1;
+                return "b";
+              });
+            }
+            return stageFor;
+          },
+          async dispatchBatch(context, batch) {
+            const callId = batch.calls[0].callId;
+            const signal = batch.signal;
+            const aborted = signal.aborted;
+            dispatches.push({
+              aborted,
+              authority:
+                context === a ? "a" : context === c ? "c" : "other",
+              callId,
+              stableSignal: signal === batch.signal,
+            });
+            events.push(`dispatch:${callId}`);
+            if (!aborted) handlerEntries += 1;
+            return Object.freeze([
+              resultRow(
+                callId,
+                aborted
+                  ? {
+                      ok: false,
+                      reason: "aborted",
+                      message: "The action was cancelled before it ran.",
+                    }
+                  : undefined,
+              ),
+            ]);
+          },
+          dispatch: () => Promise.resolve({ ok: false, message: "unused" }),
+          explain: () => ({ stage: null, stages: [], catalog: [] }),
+        };
+        const liveCapabilities = Object.freeze({
+          ...CONVERSATIONAL_CAPABILITIES,
+          get dynamicCatalog() {
+            dynamicCatalogReads += 1;
+            if (boundary === "dynamicCatalog" && dynamicCatalogReads === 1) {
+              return requestC(false);
+            }
+            return true;
+          },
+        });
+        const staleCapabilities = Object.freeze({
+          ...CONVERSATIONAL_CAPABILITIES,
+          get dynamicCatalog() {
+            staleStructuralReads += 1;
+            return false;
+          },
+        });
+        const transport = Object.freeze({
+          get capabilities() {
+            transportCapabilityReads += 1;
+            if (
+              boundary === "capabilities" &&
+              transportCapabilityReads === 1
+            ) {
+              return requestC(staleCapabilities);
+            }
+            return liveCapabilities;
+          },
+          get status() {
+            return base.transport.status;
+          },
+          setTools(tools) {
+            base.transport.setTools(tools);
+          },
+          onStatusChange(callback) {
+            return base.transport.onStatusChange(callback);
+          },
+          onToolBatch(callback) {
+            return base.transport.onToolBatch(callback);
+          },
+          respond(callId, result) {
+            events.push(`respond:${callId}`);
+            base.transport.respond(callId, result);
+          },
+        });
+        session = createSession({
+          concierge,
+          transport,
+          initialContext: a,
+          onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+        });
+        session.onStageChange((stage) => stageEvents.push(stage));
+
+        let callerCaught = false;
+        try {
+          session.setContext(b);
+        } catch {
+          callerCaught = true;
+        }
+        base.emitBatch(
+          trackedBatch("later-c", finalizations, sourceCounts, events),
+        );
+        await flushMicrotasks();
+
+        observations.push({
+          boundary,
+          boundaryEntries,
+          callerCaught,
+          catalogMode,
+          diagnosticCodes: diagnostics.map((diagnostic) => diagnostic.code),
+          dispatches,
+          events,
+          finalizations,
+          handlerEntries,
+          mode,
+          publications: base.publications.map((catalog) =>
+            catalog === catalogA
+              ? "a"
+              : catalog === catalogB
+                ? "b"
+                : catalog === catalogC
+                  ? "c"
+                  : "other",
+          ),
+          responses: base.responses.map((response) => ({
+            cancelled: response.result.reason === "aborted",
+            callId: response.callId,
+          })),
+          sentinelDiagnosticLeak: JSON.stringify(diagnostics).includes(secret),
+          sourceCounts,
+          stage: session.stage(),
+          stageEvents,
+          staleCallableInvocations,
+          staleContinuationEffects,
+          staleStructuralReads,
+        });
+        await session.stop();
+      }
+    }
+  }
+
+  const expectedEvents = ["before-c", "after-c", "later-c"].flatMap(
+    (callId) => [
+      `dispatch:${callId}`,
+      `respond:${callId}`,
+      `finalize:${callId}`,
+    ],
+  );
+  const expected = boundaries.flatMap((boundary) =>
+    ["return", "throw"].flatMap((mode) =>
+      ["distinct", "same"].map((catalogMode) => ({
+        boundary,
+        boundaryEntries: 1,
+        callerCaught: false,
+        catalogMode,
+        diagnosticCodes: [],
+        dispatches: [
+          {
+            aborted: catalogMode === "distinct",
+            authority: "a",
+            callId: "before-c",
+            stableSignal: true,
+          },
+          {
+            aborted: false,
+            authority: "c",
+            callId: "after-c",
+            stableSignal: true,
+          },
+          {
+            aborted: false,
+            authority: "c",
+            callId: "later-c",
+            stableSignal: true,
+          },
+        ],
+        events: expectedEvents,
+        finalizations: ["before-c", "after-c", "later-c"],
+        handlerEntries: catalogMode === "distinct" ? 2 : 3,
+        mode,
+        publications: catalogMode === "same" ? ["a"] : ["a", "c"],
+        responses: [
+          { cancelled: catalogMode === "distinct", callId: "before-c" },
+          { cancelled: false, callId: "after-c" },
+          { cancelled: false, callId: "later-c" },
+        ],
+        sentinelDiagnosticLeak: false,
+        sourceCounts: [
+          { additions: 1, callId: "before-c", removals: 1 },
+          { additions: 1, callId: "after-c", removals: 1 },
+          { additions: 1, callId: "later-c", removals: 1 },
+        ],
+        stage: "c",
+        stageEvents: ["c"],
+        staleCallableInvocations: 0,
+        staleContinuationEffects: 0,
+        staleStructuralReads: 0,
+      })),
+    ),
+  );
+  expect(observations, marker).toEqual(expected);
+
+  const a = { name: "a" };
+  const b = { name: "b" };
+  const c = { name: "c" };
+  const catalogA = Object.freeze([]);
+  const catalogB = Object.freeze([]);
+  const catalogC = Object.freeze([]);
+  const repeatedBase = controlledTransport();
+  const repeatedDispatches = [];
+  const repeatedEvents = [];
+  const repeatedFinalizations = [];
+  const repeatedSourceCounts = [];
+  let repeatedSession;
+  const repeatedConcierge = conciergeDouble(
+    [
+      { context: a, catalog: catalogA, stage: "a" },
+      { context: b, catalog: catalogB, stage: "b" },
+      { context: c, catalog: catalogC, stage: "c" },
+    ],
+    async (context, batch) => {
+      const callId = batch.calls[0].callId;
+      const signal = batch.signal;
+      repeatedDispatches.push({
+        aborted: signal.aborted,
+        authority: context === c ? "c" : "other",
+        callId,
+        stableSignal: signal === batch.signal,
+      });
+      repeatedEvents.push(`dispatch:${callId}`);
+      return Object.freeze([resultRow(callId)]);
+    },
+  );
+  const repeatedCatalogFor = repeatedConcierge.catalogFor;
+  const repeatedBoundaryConcierge = {
+    ...repeatedConcierge,
+    catalogFor(context) {
+      if (context === b) {
+        repeatedSession.setContext(c);
+        repeatedBase.emitBatch(
+          trackedBatch(
+            "first-c-generation",
+            repeatedFinalizations,
+            repeatedSourceCounts,
+            repeatedEvents,
+          ),
+        );
+        repeatedSession.setContext(c);
+      }
+      return Reflect.apply(repeatedCatalogFor, repeatedConcierge, [context]);
+    },
+  };
+  const repeatedTransport = Object.freeze({
+    ...repeatedBase.transport,
+    respond(callId, result) {
+      repeatedEvents.push(`respond:${callId}`);
+      repeatedBase.transport.respond(callId, result);
+    },
+  });
+  repeatedSession = createSession({
+    concierge: repeatedBoundaryConcierge,
+    transport: repeatedTransport,
+    initialContext: a,
+  });
+  repeatedSession.setContext(b);
+  repeatedBase.emitBatch(
+    trackedBatch(
+      "later-c-generation",
+      repeatedFinalizations,
+      repeatedSourceCounts,
+      repeatedEvents,
+    ),
+  );
+  await flushMicrotasks();
+
+  expect(
+    {
+      dispatches: repeatedDispatches,
+      events: repeatedEvents,
+      finalizations: repeatedFinalizations,
+      publications: repeatedBase.publications.map((catalog) =>
+        catalog === catalogA ? "a" : catalog === catalogC ? "c" : "other",
+      ),
+      responses: repeatedBase.responses.map((response) => response.callId),
+      sourceCounts: repeatedSourceCounts,
+      stage: repeatedSession.stage(),
+    },
+    marker,
+  ).toEqual({
+    dispatches: [
+      {
+        aborted: true,
+        authority: "c",
+        callId: "first-c-generation",
+        stableSignal: true,
+      },
+      {
+        aborted: false,
+        authority: "c",
+        callId: "later-c-generation",
+        stableSignal: true,
+      },
+    ],
+    events: [
+      "dispatch:first-c-generation",
+      "respond:first-c-generation",
+      "finalize:first-c-generation",
+      "dispatch:later-c-generation",
+      "respond:later-c-generation",
+      "finalize:later-c-generation",
+    ],
+    finalizations: ["first-c-generation", "later-c-generation"],
+    publications: ["a", "c"],
+    responses: ["first-c-generation", "later-c-generation"],
+    sourceCounts: [
+      { additions: 1, callId: "first-c-generation", removals: 1 },
+      { additions: 1, callId: "later-c-generation", removals: 1 },
+    ],
+    stage: "c",
+  });
+  await repeatedSession.stop();
+
+  for (const mode of ["return", "throw"]) {
+    const stopA = { name: "a" };
+    const stopB = { name: "b" };
+    const stopC = { name: "c" };
+    const stopCatalogA = Object.freeze([]);
+    const stopCatalogB = Object.freeze([]);
+    const stopCatalogC = Object.freeze([]);
+    const stopBase = controlledTransport();
+    const stopDispatches = [];
+    const stopEvents = [];
+    const stopFinalizations = [];
+    const stopSourceCounts = [];
+    const stopSentinel = Object.freeze({ secret: `PRIVATE-C20-STOP-${mode}` });
+    let drain;
+    let stopSession;
+    const stopConcierge = conciergeDouble(
+      [
+        { context: stopA, catalog: stopCatalogA, stage: "a" },
+        { context: stopB, catalog: stopCatalogB, stage: "b" },
+        { context: stopC, catalog: stopCatalogC, stage: "c" },
+      ],
+      async (context, batch) => {
+        const callId = batch.calls[0].callId;
+        const signal = batch.signal;
+        stopDispatches.push({
+          aborted: signal.aborted,
+          authorityIsC: context === stopC,
+          callId,
+          stableSignal: signal === batch.signal,
+        });
+        stopEvents.push(`dispatch:${callId}`);
+        return Object.freeze([resultRow(callId)]);
+      },
+    );
+    const stopCatalogFor = stopConcierge.catalogFor;
+    const stopBoundaryConcierge = {
+      ...stopConcierge,
+      catalogFor(context) {
+        if (context === stopB) {
+          stopSession.setContext(stopC);
+          stopBase.emitBatch(
+            trackedBatch(
+              "stop-c",
+              stopFinalizations,
+              stopSourceCounts,
+              stopEvents,
+            ),
+          );
+          drain = stopSession.stop();
+          if (mode === "throw") throw stopSentinel;
+        }
+        return Reflect.apply(stopCatalogFor, stopConcierge, [context]);
+      },
+    };
+    const stopTransport = Object.freeze({
+      ...stopBase.transport,
+      respond(callId, result) {
+        stopEvents.push(`respond:${callId}`);
+        stopBase.transport.respond(callId, result);
+      },
+    });
+    stopSession = createSession({
+      concierge: stopBoundaryConcierge,
+      transport: stopTransport,
+      initialContext: stopA,
+    });
+
+    let callerCaught = false;
+    try {
+      stopSession.setContext(stopB);
+    } catch {
+      callerCaught = true;
+    }
+    await drain;
+
+    expect(
+      {
+        callerCaught,
+        dispatches: stopDispatches,
+        events: stopEvents,
+        finalizations: stopFinalizations,
+        mode,
+        publicationCount: stopBase.publications.length,
+        responses: stopBase.responses.length,
+        sameDrain: stopSession.stop() === drain,
+        sourceCounts: stopSourceCounts,
+        stage: stopSession.stage(),
+        subscribers: stopBase.subscriberCounts(),
+      },
+      marker,
+    ).toEqual({
+      callerCaught: false,
+      dispatches: [
+        {
+          aborted: true,
+          authorityIsC: true,
+          callId: "stop-c",
+          stableSignal: true,
+        },
+      ],
+      events: ["dispatch:stop-c", "finalize:stop-c"],
+      finalizations: ["stop-c"],
+      mode,
+      publicationCount: 2,
+      responses: 0,
+      sameDrain: true,
+      sourceCounts: [{ additions: 1, callId: "stop-c", removals: 1 }],
+      stage: "a",
+      subscribers: { status: 0, batch: 0 },
+    });
+  }
+});
+
 it("preserves connected replay occurrence authority across getter reentry", async () => {
   const marker = "[REGRESSION:connected-replay-getter-authority]";
   const observations = [];
