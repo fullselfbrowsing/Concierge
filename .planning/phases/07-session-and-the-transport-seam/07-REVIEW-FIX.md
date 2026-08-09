@@ -1,84 +1,72 @@
 ---
 phase: 07-session-and-the-transport-seam
-fixed_at: 2026-08-09T07:05:12Z
+fixed_at: 2026-08-09T20:19:42Z
 review_path: .planning/phases/07-session-and-the-transport-seam/07-REVIEW.md
-iteration: 2
-findings_in_scope: 4
-fixed: 4
+iteration: 3
+findings_in_scope: 2
+fixed: 2
 skipped: 0
 status: all_fixed
 ---
 
 # Phase 7: Code Review Fix Report
 
-**Fixed at:** 2026-08-09T07:05:12Z
+**Fixed at:** 2026-08-09T20:19:42Z
 **Source review:** `.planning/phases/07-session-and-the-transport-seam/07-REVIEW.md`
-**Iteration:** 2 (post-gap review)
+**Iteration:** 3 (authorized additional post-gap cycle)
 
 **Summary:**
-- Findings in scope: 4
-- Fixed: 4
+
+- Findings in scope: 2
+- Fixed: 2
 - Skipped: 0
 
-The preceding review's five fixes remain closed. This iteration replaces the repair's split bound/unbound queues with one global occurrence queue, preserves confirmed replay authority separately from unpublished publication attempts, drains every accepted unresolved occurrence through stop, and narrows mutation evidence wording to the endpoint property the harness actually measures.
+All nine findings closed before this iteration remain closed. The single occurrence queue, confirmed-replay authority, exact stop drain, unpublished-attempt abort/clear split, connected-replay getter containment, and endpoint-only mutation wording all retained their existing regression and independent mutation coverage.
 
 ## Fixed Issues
 
-### CR-01: The separate unbound queue reverses accessor-time FIFO
+### CR-01: A stale resolver or capability exception strands the winning transition and accepted work
 
 **Status:** fixed: requires human verification
 **Files modified:** `packages/concierge/src/session.ts`, `packages/concierge/test/session-catalog.test.ts`
-**Commits:** `1903edb`, `d4598e4`
-**Applied fix:** Replaced `workQueue` plus `unboundBatches` with one arrival-ordered `occurrenceQueue`. Every accepted record receives a monotonic sequence and remains at its original queue position; its private binding is resolved in place. The live pump reads only the head and returns while that head is unresolved, so a later bound callable occurrence cannot pass an earlier getter occurrence. Attempt clearing unlinks the unresolved record in place after the dedicated abort, preserving C17's independent abort-versus-clear observability.
-**Regression:** A built-artifact getter emits `getter-first`, its returned callable emits `callable-second`, and the test proves exact `getter-first → callable-second` dispatch, response, composed-signal reuse, and upstream-finalization order.
+**Commit:** `85bd9d7`
+**Applied fix:** Added one shared `captureCurrent` try/finally boundary. `catalogFor` and `stageFor` property capture are now separate from `Reflect.apply`, and freshness is revalidated after each property read and each invocation. `transport.capabilities` and `capabilities.dynamicCatalog` use the same guarded boundary. A superseded return or throw exits only stale B processing, so the outer transition loop continues draining queued C; a callable returned by a stale structural getter is never invoked. A current-record throw retains its prior behavior because the helper does not catch, bind, inspect, or interpolate the thrown value.
+**Regression:** C18 runs 24 built-artifact variants: catalogFor property/call, stageFor property/call, capabilities, and dynamicCatalog; each queues C immediately before return or throw and runs with both distinct- and same-catalog C. Every variant proves no stale callable/structural read, no leaked private value, no stale diagnostic/failure, no B publication or dispatch authority, final C stage/authority, stable cancellation-signal identity, and exactly one later C dispatch and response.
 
-### CR-02: A replay occurrence admitted under confirmed A executes live under C
-
-**Status:** fixed: requires human verification
-**Files modified:** `packages/concierge/src/session.ts`, `packages/concierge/test/session-catalog.test.ts`
-**Commit:** `1903edb`
-**Applied fix:** Publication state now distinguishes `confirmed-replay` from `context-attempt`. An occurrence arriving during the replay getter before C is requested binds immediately and immutably to confirmed A and A's epoch. A distinct-catalog C transition therefore aborts and dispatches it once under A; a same-catalog C transition leaves it live under A. An occurrence arriving after C is requested captures C as its precise admission context and binds to confirmed C. Unpublished accessor attempt B is never promoted to dispatch authority, preserving C17's zero-B contract.
-**Regression:** Return and throw getters are covered for both distinct- and same-catalog C. All four built-artifact cases assert exact A/C identity, cancellation state, handler count, FIFO responses, zero stale callable invocation, zero diagnostics, and final C stage.
-
-### CR-03: Stop silently drops a deferred post-reentry occurrence
+### WR-01: The catalog suite and mutation register cannot detect stale-boundary exception handling
 
 **Status:** fixed: requires human verification
-**Files modified:** `packages/concierge/src/session.ts`, `packages/concierge/test/session-catalog.test.ts`
-**Commit:** `1903edb`
-**Applied fix:** Stop now splices every queued record from the single occurrence queue in arrival order. Any unresolved record is bound to its immutable arrival context for detached routing, using its existing epoch link when present and nullable detached epoch state otherwise. The original cancellation scope is aborted, then every record crosses `dispatchBatch` and finalization exactly once with responses disabled; no unresolved record is disposed as a substitute for dispatch.
-**Regression:** SetContext and connected-replay publication are each exercised with direct stop and reentrant stop from the second source signal's `addEventListener`. All four built-artifact cases prove two FIFO dispatches, stable per-occurrence composed signals, both aborted, zero handler entries, zero responses, ordered upstream removal, one cached drain Promise, and drain settlement only after both records finalize.
-
-### WR-01: Endpoint equality is reported as proof that the live tree stayed untouched
-
-**Status:** fixed: requires human verification
-**Files modified:** `scripts/phase-07-mutation-battery.mjs`, `.planning/phases/07-session-and-the-transport-seam/07-MUTATION-REGISTER.json`, `.planning/phases/07-session-and-the-transport-seam/07-MUTATION-EVIDENCE.json`, `.planning/phases/07-session-and-the-transport-seam/07-VALIDATION.md`
-**Commits:** `068179a`, `f908d08`
-**Applied fix:** Renamed the evidence property from `scopedTreeClean` to `liveScopeEndpointsMatch` throughout pending, executed, synthetic, and validated rows. The validation ledger now says the disposable snapshot stayed revision-stable and the live scoped endpoints matched before and after, while explicitly disclaiming uninterrupted live-history stability. The A→B→A self-test now proves both that snapshot gate reads remain isolated and that endpoint equality can coexist with detected live-history drift.
-**Verification:** Mutation-battery syntax and self-test passed. Every regenerated evidence row contains `liveScopeEndpointsMatch: true`, contains no legacy `scopedTreeClean` property, and remains bound to its unique final revision digest.
+**Files modified:** `packages/concierge/test/session-catalog.test.ts`, `scripts/phase-07-mutation-battery.mjs`, `.planning/phases/07-session-and-the-transport-seam/07-MUTATION-REGISTER.json`, `.planning/phases/07-session-and-the-transport-seam/07-MUTATION-EVIDENCE.json`, `.planning/phases/07-session-and-the-transport-seam/07-VALIDATION.md`
+**Commits:** `85bd9d7`, `6a73bcc`
+**Applied fix:** Added uniquely marked built-artifact case C18 and compiled exact mutant M-07-C12. The mutant removes only the shared post-operation freshness/stale-exception guard, builds successfully, runs only C18, and fails exclusively on `[RED:C18:stale-boundary-progress]`. The disposable snapshot restores the target byte-identically and its restored build, full catalog suite, and typecheck all return green. Harness self-tests reject a missing C18 marker, factory/export false positives, a no-op mutant, duplicate source-literal occurrences, stale 32-row ledgers, and wrong neighboring detector fingerprints.
+**Evidence:** The regenerated register contains 33 ordered rows with distribution `12/9/8/2/2`; every row is revision-bound, compiled, killed by its exact named detector, restored, and green. Protected package inputs remain byte-identical.
 
 ## Aggregate Verification
 
 - `pnpm --filter @fullselfbrowsing/concierge build` — passed against final source.
+- Focused C17+C18 built-artifact run — 2/2 passed; C18 contains 24 stale-boundary variants.
+- Catalog, routing, and lifecycle suites — 65/65 passed (26 catalog, 18 routing, 21 lifecycle).
 - `pnpm --filter @fullselfbrowsing/concierge typecheck` — passed.
-- Focused C17 plus FIFO, replay-authority, and stop-drain regressions — 4/4 passed against built `dist`.
-- `pnpm exec vitest run packages/concierge/test/session-catalog.test.ts` — 25/25 passed.
-- Catalog, routing, and lifecycle suites together — 64/64 passed.
-- `pnpm build && pnpm typecheck && pnpm test` — passed; 16 runtime files, 326/326 tests.
+- `pnpm build && pnpm typecheck && pnpm test` — passed; 16 runtime files, 327/327 tests, zero failed/pending/todo.
 - `node --check scripts/phase-07-mutation-battery.mjs` — passed.
-- `node scripts/phase-07-mutation-battery.mjs self-test` — passed, including explicit snapshot-isolation/endpoint-limit and fingerprint negative controls.
-- Mutation evidence — 32/32 green: 11 catalog, 9 routing, 8 lifecycle, 2 diagnostics, 2 package (`11/9/8/2/2`).
-- Register digest — `5cccf0824bec93c2702d1ab712797dc23b477d3209db943c4d0f22846e177182`.
-- M-07-C10 revision digest — `ab273cfbee2ac8c84650ed054eac071e2dc899f1773fd7d9bc449f7696a76c1a`; exactly C17 and its RED marker killed the abort-only mutant.
-- M-07-C11 revision digest — `959e9c086c314121ff859d6f668b9b2de23ff91f6e322819c1688c0096dc39de`; exactly C17 and its RED marker killed the clear-only mutant.
+- `node scripts/phase-07-mutation-battery.mjs self-test` — passed every negative control.
+- Mutation evidence — 33/33 green: 12 catalog, 9 routing, 8 lifecycle, 2 diagnostics, 2 package (`12/9/8/2/2`).
+- Register digest — `b57d8a91933bf0884dd821047e6304def8138dd7a58d6759b38b1aadef813088`.
+- M-07-C10 revision digest — `2bcdeb29f553089207d61e66cc1542bd0652296c972e82311c7b500587ac2554`; exactly C17 and `[RED:C17:abandoned-publication-cleanup]` killed the abort-only mutant.
+- M-07-C11 revision digest — `37771d67807a4b68ae884b41566c46109857ec7415cf216f86167316291ee355`; exactly C17 and `[RED:C17:abandoned-publication-cleanup]` killed the clear-only mutant.
+- M-07-C12 revision digest — `aa162feb6f15fc404ddb2b09dec039abbe96c2e13efe98ad7cd642f17fa92a6e`; it compiled, ran one test, failed only C18 on `[RED:C18:stale-boundary-progress]`, restored byte-identically, and returned restored gates green.
+- `node scripts/phase-07-mutation-battery.mjs verify all` — 33/33 passed.
 - `node scripts/phase-07-mutation-battery.mjs verify inputs` — 3/3 protected files byte-identical.
-- `node scripts/phase-07-mutation-battery.mjs verify ledgers` — passed; all seven immutable release commands exited 0.
-- Release evidence — digest `2b98a50b8abbaabb66e4b0bdd8de82a3269598ed3d803b95ab1c517ff9127c77`; generated `2026-08-09T07:04:42.939Z`; 16 runtime files, 326 passed, 326 total, 0 failed/pending/todo.
+- `node scripts/phase-07-mutation-battery.mjs verify ledgers` — passed against final validation bytes; all seven immutable release commands exited 0.
+- Release evidence — revision digest `0c2fe699ade17c54cda98d9e0cab7d1d17dd3cb9b70988ab1e8aeb4abcb5ef13`; executed `2026-08-09T20:19:15.780Z`; 16 runtime files, 327 passed, 327 total, zero failed/pending/todo.
 
 ## Generated Artifact Commit and Handoff
 
-**Commit:** `f908d08`
+**Commit:** `6a73bcc`
 
-The regenerated `07-MUTATION-REGISTER.json`, `07-MUTATION-EVIDENCE.json`, and `07-VALIDATION.md` were committed together after the final verification run. This `07-REVIEW-FIX.md` remains uncommitted for the central orchestrator's documentation commit, as required by the fixer workflow.
+The final `07-MUTATION-REGISTER.json`, `07-MUTATION-EVIDENCE.json`, and `07-VALIDATION.md` were committed together after the final mutation and release runs. This `07-REVIEW-FIX.md` remains uncommitted for the central orchestrator's documentation commit.
+
+`07-REVIEW.md`, `07-SECURITY.md`, and `07-VERIFICATION.md` were intentionally left unchanged for independent re-review, security re-audit, and goal verification.
 
 ## Skipped Issues
 
@@ -86,10 +74,10 @@ None.
 
 ## Residual Uncertainty
 
-All four iteration-2 findings change reentrant runtime or evidence logic, so they retain the required human-verification flag. There are no unresolved fixer-scope findings. `07-REVIEW.md` intentionally remains `issues_found`; `07-SECURITY.md` and `07-VERIFICATION.md` were not changed because closure requires independent re-review, security re-audit, and phase verification.
+Both iteration-3 findings change reentrant runtime or evidence logic and therefore retain the required human-verification flag. The fixer found no unresolved in-scope issue, but independent re-review must confirm closure before the security and phase-verification artifacts are refreshed. In particular, C18 mechanically proves the requested stale return/throw matrix and later C progress; it does not replace independent reasoning about every possible consumer-defined proxy or callback composition.
 
 ---
 
-_Fixed: 2026-08-09T07:05:12Z_
+_Fixed: 2026-08-09T20:19:42Z_
 _Fixer: Codex (gsd-code-fixer)_
-_Iteration: 2_
+_Iteration: 3_
