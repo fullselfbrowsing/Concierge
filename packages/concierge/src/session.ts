@@ -83,6 +83,7 @@ type Transition = ContextTransition | ConnectedTransition;
 interface CatalogEpoch {
   readonly catalog: ReadonlyArray<EmittedTool>;
   readonly work: Set<WorkRecord>;
+  readonly unbound: Set<UnboundBatch>;
   aborted: boolean;
 }
 
@@ -98,6 +99,13 @@ interface WorkRecord {
   readonly sourceBatch: ToolBatch;
   readonly epoch: CatalogEpoch;
   readonly cancellation: CancellationScope;
+}
+
+interface UnboundBatch {
+  readonly sourceBatch: ToolBatch;
+  readonly cancellation: CancellationScope;
+  readonly provisionalContext: StageContext | null;
+  readonly provisionalEpoch: CatalogEpoch | null;
 }
 
 /**
@@ -128,14 +136,17 @@ export function createSession(config: SessionConfig): Session {
   let publicationPending: boolean = false;
   let publicationAttemptToken: number = 0;
   let publishingCatalog: ReadonlyArray<EmittedTool> | null = null;
+  let publishingGeneration: number | null = null;
   let publishingContext: StageContext | null = null;
   let publishingEpoch: CatalogEpoch | null = null;
+  let publicationCallableCaptured: boolean = false;
 
   let publishedCatalog: ReadonlyArray<EmittedTool> | null = null;
   let publishedEpoch: CatalogEpoch | null = null;
   const epochs: Set<CatalogEpoch> = new Set();
 
   const workQueue: WorkRecord[] = [];
+  const unboundBatches: UnboundBatch[] = [];
   let activeWork: WorkRecord | null = null;
   let workPumpRunning: boolean = false;
   let workPumpPromise: Promise<void> | null = null;
@@ -349,6 +360,7 @@ export function createSession(config: SessionConfig): Session {
     const epoch: CatalogEpoch = {
       catalog,
       work: new Set<WorkRecord>(),
+      unbound: new Set<UnboundBatch>(),
       aborted: false,
     };
     epochs.add(epoch);
@@ -360,7 +372,8 @@ export function createSession(config: SessionConfig): Session {
     if (epoch.aborted) return;
     epoch.aborted = true;
     for (const work of [...epoch.work]) work.cancellation.abort();
-    if (epoch.work.size === 0) epochs.delete(epoch);
+    for (const batch of [...epoch.unbound]) batch.cancellation.abort();
+    if (epoch.work.size === 0 && epoch.unbound.size === 0) epochs.delete(epoch);
   }
 
   function abortEpochsExcept(kept: CatalogEpoch | null): void {
@@ -381,8 +394,10 @@ export function createSession(config: SessionConfig): Session {
     }
     publicationPending = false;
     publishingCatalog = null;
+    publishingGeneration = null;
     publishingContext = null;
     publishingEpoch = null;
+    publicationCallableCaptured = false;
   }
 
   function publicationIsCurrent(attemptToken: number): boolean {
@@ -451,7 +466,11 @@ export function createSession(config: SessionConfig): Session {
     } finally {
       work.cancellation.dispose();
       work.epoch.work.delete(work);
-      if (work.epoch.aborted && work.epoch.work.size === 0) {
+      if (
+        work.epoch.aborted &&
+        work.epoch.work.size === 0 &&
+        work.epoch.unbound.size === 0
+      ) {
         epochs.delete(work.epoch);
       }
     }
@@ -505,15 +524,118 @@ export function createSession(config: SessionConfig): Session {
     void runner.then(finish, finish);
   }
 
+  function releaseUnboundEpoch(batch: UnboundBatch): void {
+    const epoch: CatalogEpoch | null = batch.provisionalEpoch;
+    if (epoch === null) return;
+    epoch.unbound.delete(batch);
+    if (epoch.aborted && epoch.work.size === 0 && epoch.unbound.size === 0) {
+      epochs.delete(epoch);
+    }
+  }
+
+  /** Bind accessor-time occurrences only after the transition drain chooses authority. */
+  function bindUnboundBatches(): void {
+    if (publicationPending || transitionQueue.length !== 0) return;
+    const batches: ReadonlyArray<UnboundBatch> = unboundBatches.splice(0);
+    for (const batch of batches) {
+      releaseUnboundEpoch(batch);
+      if (
+        lifecycle === "stopped" ||
+        confirmedContext === null ||
+        confirmedEpoch === null
+      ) {
+        if (lifecycle === "active") diagnose("batch_without_context");
+        batch.cancellation.dispose();
+        continue;
+      }
+
+      const work: WorkRecord = {
+        context: confirmedContext,
+        sourceBatch: batch.sourceBatch,
+        epoch: confirmedEpoch,
+        cancellation: batch.cancellation,
+      };
+      confirmedEpoch.work.add(work);
+      if (confirmedEpoch.aborted) batch.cancellation.abort();
+      workQueue.push(work);
+    }
+  }
+
+  /** Preserve accepted failure-stop occurrences under their provisional scope. */
+  function detachUnboundBatches(): void {
+    const batches: ReadonlyArray<UnboundBatch> = unboundBatches.splice(0);
+    for (const batch of batches) {
+      releaseUnboundEpoch(batch);
+      if (
+        batch.provisionalContext === null ||
+        batch.provisionalEpoch === null
+      ) {
+        batch.cancellation.abort();
+        batch.cancellation.dispose();
+        continue;
+      }
+      const work: WorkRecord = {
+        context: batch.provisionalContext,
+        sourceBatch: batch.sourceBatch,
+        epoch: batch.provisionalEpoch,
+        cancellation: batch.cancellation,
+      };
+      batch.provisionalEpoch.work.add(work);
+      detachedWork.push(work);
+    }
+  }
+
+  function acceptUnboundBatch(batch: ToolBatch): void {
+    const authorityCurrent: boolean =
+      publishingGeneration === requestedGeneration &&
+      publishingContext === requestedContext;
+    const provisionalContext: StageContext | null = authorityCurrent
+      ? publishingContext
+      : null;
+    const provisionalEpoch: CatalogEpoch | null = authorityCurrent
+      ? publishingEpoch
+      : null;
+    const cancellation: CancellationScope = createCancellationScope();
+    const unbound: UnboundBatch = {
+      sourceBatch: batch,
+      cancellation,
+      provisionalContext,
+      provisionalEpoch,
+    };
+    unboundBatches.push(unbound);
+    if (provisionalEpoch !== null) {
+      provisionalEpoch.unbound.add(unbound);
+      if (provisionalEpoch.aborted) cancellation.abort();
+    }
+    cancellation.connect(batch);
+  }
+
   /** Record a transport occurrence without inspecting its envelope fields. */
   function acceptBatch(batch: ToolBatch): void {
     if (lifecycle === "stopped") return;
 
     let context: StageContext | null;
     let epoch: CatalogEpoch | null;
-    if (publicationPending) {
+    if (
+      publicationPending &&
+      publicationCallableCaptured &&
+      publishingGeneration === requestedGeneration &&
+      publishingContext === requestedContext
+    ) {
       context = publishingContext;
       epoch = publishingEpoch;
+    } else if (publicationPending) {
+      acceptingBatchCount += 1;
+      try {
+        acceptUnboundBatch(batch);
+      } finally {
+        acceptingBatchCount -= 1;
+        if (acceptingBatchCount === 0) {
+          if (hasStopped()) startStopDrain();
+          else maybeStartPump();
+        }
+      }
+      return;
     } else if (lifecycle === "active") {
       context = confirmedContext;
       epoch = confirmedEpoch;
@@ -603,11 +725,14 @@ export function createSession(config: SessionConfig): Session {
     transitionQueue.splice(0);
     publicationPending = false;
     publishingCatalog = null;
+    publishingGeneration = null;
     publishingContext = null;
     publishingEpoch = null;
+    publicationCallableCaptured = false;
     stageNotifications.splice(0);
     stageListeners.clear();
     detachedWork.push(...workQueue.splice(0));
+    detachUnboundBatches();
     abortEpochsExcept(null);
     return promise;
   }
@@ -759,8 +884,10 @@ export function createSession(config: SessionConfig): Session {
     const attemptToken: number = ++publicationAttemptToken;
     publicationPending = true;
     publishingCatalog = resolved.catalog;
+    publishingGeneration = record.generation;
     publishingContext = record.context;
     publishingEpoch = epoch;
+    publicationCallableCaptured = false;
     abortEpochsExcept(epoch);
 
     if (abandonSupersededPublication(record, epoch, attemptToken)) return;
@@ -774,6 +901,7 @@ export function createSession(config: SessionConfig): Session {
       failPublication(resolved.stage);
     }
     if (abandonSupersededPublication(record, epoch, attemptToken)) return;
+    publicationCallableCaptured = true;
 
     try {
       Reflect.apply(setTools, transport, [resolved.catalog]);
@@ -800,20 +928,37 @@ export function createSession(config: SessionConfig): Session {
     const catalog: ReadonlyArray<EmittedTool> = confirmedCatalog;
     const context: StageContext | null = confirmedContext;
     const epoch: CatalogEpoch | null = confirmedEpoch;
+    const authorityGeneration: number = requestedGeneration;
+    const authorityContext: StageContext | null = requestedContext;
     const attemptToken: number = ++publicationAttemptToken;
     publicationPending = true;
     publishingCatalog = catalog;
+    publishingGeneration = authorityGeneration;
     publishingContext = context;
     publishingEpoch = epoch;
+    publicationCallableCaptured = false;
+
+    const abandonSupersededReplay = (): boolean => {
+      if (!publicationIsCurrent(attemptToken)) return true;
+      if (
+        requestedGeneration === authorityGeneration &&
+        requestedContext === authorityContext
+      ) {
+        return false;
+      }
+      clearPublication(epoch, attemptToken);
+      return true;
+    };
 
     let setTools: typeof transport.setTools;
     try {
       setTools = transport.setTools;
     } catch {
-      if (!publicationIsCurrent(attemptToken)) return;
+      if (abandonSupersededReplay()) return;
       failPublication(currentStage);
     }
-    if (!publicationIsCurrent(attemptToken)) return;
+    if (abandonSupersededReplay()) return;
+    publicationCallableCaptured = true;
 
     try {
       Reflect.apply(setTools, transport, [catalog]);
@@ -824,6 +969,7 @@ export function createSession(config: SessionConfig): Session {
     if (!publicationIsCurrent(attemptToken)) return;
     publishedCatalog = catalog;
     publishedEpoch = epoch;
+    if (abandonSupersededReplay()) return;
     clearPublication(epoch, attemptToken);
   }
 
@@ -840,6 +986,7 @@ export function createSession(config: SessionConfig): Session {
       }
     } finally {
       transitionDraining = false;
+      bindUnboundBatches();
       maybeStartPump();
     }
   }

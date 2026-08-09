@@ -1440,7 +1440,7 @@ it("[C16] republishes an older confirmed catalog after nested publication", asyn
 
 it("[C17] clears a publication abandoned by setTools accessor reentry", async () => {
   const marker = "[RED:C17:abandoned-publication-cleanup]";
-  requireFactory(marker);
+  requireFactory("[SMOKE:C17:create-session-factory]");
 
   function exercise(accessorThrows) {
     const a = { name: "a" };
@@ -1449,22 +1449,32 @@ it("[C17] clears a publication abandoned by setTools accessor reentry", async ()
     const catalogA = Object.freeze([]);
     const catalogB = Object.freeze([]);
     const base = controlledTransport();
-    const dispatchContexts = [];
+    const dispatches = [];
     const stageEvents = [];
-    const returnedRow = resultRow("later-c");
-    let resolveResponse;
-    const responseCompleted = new Promise((resolve) => {
-      resolveResponse = resolve;
-    });
+    let handlerEntries = 0;
     const concierge = conciergeDouble(
       [
         { context: a, catalog: catalogA, stage: "a" },
         { context: b, catalog: catalogB, stage: "b" },
         { context: c, catalog: catalogA, stage: "c" },
       ],
-      async (context) => {
-        dispatchContexts.push(context);
-        return Object.freeze([returnedRow]);
+      async (context, batch) => {
+        const callId = batch.calls[0].callId;
+        const aborted = batch.signal.aborted;
+        dispatches.push({ aborted, callId, context });
+        if (!aborted) handlerEntries += 1;
+        return Object.freeze([
+          resultRow(
+            callId,
+            aborted
+              ? {
+                  ok: false,
+                  reason: "aborted",
+                  message: "The action was cancelled before it ran.",
+                }
+              : undefined,
+          ),
+        ]);
       },
     );
     let accessorReads = 0;
@@ -1475,7 +1485,9 @@ it("[C17] clears a publication abandoned by setTools accessor reentry", async ()
       () => {
         accessorReads += 1;
         if (accessorReads === 2) {
+          base.emitBatch(toolBatch(["before-c"]));
           session.setContext(c);
+          base.emitBatch(toolBatch(["after-c"]));
           if (accessorThrows) throw new Error("PRIVATE-C17-STALE-GETTER");
           return () => {
             bSetToolsInvocations += 1;
@@ -1484,9 +1496,6 @@ it("[C17] clears a publication abandoned by setTools accessor reentry", async ()
         return (tools) => {
           base.transport.setTools(tools);
         };
-      },
-      () => {
-        resolveResponse();
       },
     );
     session = createSession({ concierge, transport, initialContext: a });
@@ -1498,45 +1507,35 @@ it("[C17] clears a publication abandoned by setTools accessor reentry", async ()
     } catch (error) {
       errorMessage = error.message;
     }
-    const beforeBatch = {
-      dispatches: dispatchContexts.length,
-      responses: base.responses.length,
-    };
-    base.emitBatch(toolBatch(["later-c"]));
-
     return {
       observation: {
         accessorReads,
         bSetToolsInvocations,
-        beforeBatch,
-        dispatchContexts: [...dispatchContexts],
         errorMessage,
         publications: [...base.publications],
-        responses: [...base.responses],
         stage: session.stage(),
         stageEvents: [...stageEvents],
       },
       catalogA,
-      responseCompleted,
-      returnedRow,
       session,
       contextC: c,
-      dispatchContexts,
+      dispatches,
+      get handlerEntries() {
+        return handlerEntries;
+      },
       responses: base.responses,
     };
   }
 
   const returned = exercise(false);
   const thrown = exercise(true);
+  await flushMicrotasks();
 
-  const expectedObservation = (contextC, catalogA) => ({
+  const expectedObservation = (catalogA) => ({
     accessorReads: 2,
     bSetToolsInvocations: 0,
-    beforeBatch: { dispatches: 0, responses: 0 },
-    dispatchContexts: [contextC],
     errorMessage: undefined,
     publications: [catalogA],
-    responses: [],
     stage: "c",
     stageEvents: ["c"],
   });
@@ -1544,28 +1543,157 @@ it("[C17] clears a publication abandoned by setTools accessor reentry", async ()
     {
       returned: returned.observation,
       thrown: thrown.observation,
+      returnedDispatches: returned.dispatches.map((entry) => ({
+        aborted: entry.aborted,
+        authorityIsC: entry.context === returned.contextC,
+        callId: entry.callId,
+      })),
+      returnedHandlerEntries: returned.handlerEntries,
+      returnedResponses: returned.responses,
+      thrownDispatches: thrown.dispatches.map((entry) => ({
+        aborted: entry.aborted,
+        authorityIsC: entry.context === thrown.contextC,
+        callId: entry.callId,
+      })),
+      thrownHandlerEntries: thrown.handlerEntries,
+      thrownResponses: thrown.responses,
     },
     marker,
   ).toEqual({
-    returned: expectedObservation(
-      returned.contextC,
-      returned.catalogA,
-    ),
-    thrown: expectedObservation(
-      thrown.contextC,
-      thrown.catalogA,
-    ),
+    returned: expectedObservation(returned.catalogA),
+    thrown: expectedObservation(thrown.catalogA),
+    returnedDispatches: [
+      { aborted: true, authorityIsC: true, callId: "before-c" },
+      { aborted: false, authorityIsC: true, callId: "after-c" },
+    ],
+    returnedHandlerEntries: 1,
+    returnedResponses: [
+      resultRow("before-c", {
+        ok: false,
+        reason: "aborted",
+        message: "The action was cancelled before it ran.",
+      }),
+      resultRow("after-c"),
+    ],
+    thrownDispatches: [
+      { aborted: true, authorityIsC: true, callId: "before-c" },
+      { aborted: false, authorityIsC: true, callId: "after-c" },
+    ],
+    thrownHandlerEntries: 1,
+    thrownResponses: [
+      resultRow("before-c", {
+        ok: false,
+        reason: "aborted",
+        message: "The action was cancelled before it ran.",
+      }),
+      resultRow("after-c"),
+    ],
   });
 
-  await Promise.all([returned.responseCompleted, thrown.responseCompleted]);
   for (const observed of [returned, thrown]) {
-    expect(observed.dispatchContexts).toHaveLength(1);
-    expect(observed.dispatchContexts[0]).toBe(observed.contextC);
-    expect(observed.responses).toHaveLength(1);
-    expect(observed.responses[0]?.callId).toBe(observed.returnedRow.callId);
-    expect(observed.responses[0]?.result).toBe(observed.returnedRow.result);
     await observed.session.stop();
   }
+});
+
+it("abandons connected replay getters superseded by context reentry", async () => {
+  const marker = "[REGRESSION:connected-replay-getter-authority]";
+  const observations = [];
+
+  for (const accessorThrows of [false, true]) {
+    const a = { name: "a" };
+    const c = { name: "c" };
+    const catalogA = Object.freeze([]);
+    const catalogC = Object.freeze([]);
+    const base = controlledTransport();
+    const diagnostics = [];
+    const dispatchContexts = [];
+    const stageEvents = [];
+    let accessorReads = 0;
+    let staleReplayInvocations = 0;
+    let session;
+    const concierge = conciergeDouble(
+      [
+        { context: a, catalog: catalogA, stage: "a" },
+        { context: c, catalog: catalogC, stage: "c" },
+      ],
+      async (context, batch) => {
+        dispatchContexts.push(context);
+        return Object.freeze([resultRow(batch.calls[0].callId)]);
+      },
+    );
+    const transport = accessorTransport(base, () => {
+      accessorReads += 1;
+      if (accessorReads === 2) {
+        session.setContext(c);
+        if (accessorThrows) throw new Error("PRIVATE-STALE-REPLAY-GETTER");
+        return () => {
+          staleReplayInvocations += 1;
+        };
+      }
+      return (tools) => {
+        base.transport.setTools(tools);
+      };
+    });
+    session = createSession({
+      concierge,
+      transport,
+      initialContext: a,
+      onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+    });
+    session.onStageChange((stage) => stageEvents.push(stage));
+
+    let errorMessage;
+    try {
+      base.emitStatus("connected");
+    } catch (error) {
+      errorMessage = error.message;
+    }
+    base.emitBatch(toolBatch([accessorThrows ? "throw-c" : "return-c"]));
+    await flushMicrotasks();
+
+    observations.push({
+      accessorReads,
+      diagnostics: diagnostics.map((entry) => entry.code),
+      dispatchAuthorityIsC: dispatchContexts.map((context) => context === c),
+      errorMessage,
+      mode: accessorThrows ? "throw" : "return",
+      publications: base.publications.map((catalog) =>
+        catalog === catalogA ? "a" : catalog === catalogC ? "c" : "other",
+      ),
+      responses: base.responses.map((entry) => entry.callId),
+      stage: session.stage(),
+      stageEvents,
+      staleReplayInvocations,
+    });
+    await session.stop();
+  }
+
+  expect(observations, marker).toEqual([
+    {
+      accessorReads: 3,
+      diagnostics: [],
+      dispatchAuthorityIsC: [true],
+      errorMessage: undefined,
+      mode: "return",
+      publications: ["a", "c"],
+      responses: ["return-c"],
+      stage: "c",
+      stageEvents: ["c"],
+      staleReplayInvocations: 0,
+    },
+    {
+      accessorReads: 3,
+      diagnostics: [],
+      dispatchAuthorityIsC: [true],
+      errorMessage: undefined,
+      mode: "throw",
+      publications: ["a", "c"],
+      responses: ["throw-c"],
+      stage: "c",
+      stageEvents: ["c"],
+      staleReplayInvocations: 0,
+    },
+  ]);
 });
 
 it("preserves current and stopped setTools getter failure semantics", async () => {
