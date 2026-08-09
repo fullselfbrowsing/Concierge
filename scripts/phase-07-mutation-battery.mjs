@@ -30,7 +30,6 @@ const REGISTER_PATH = join(PHASE_DIRECTORY, "07-MUTATION-REGISTER.json");
 const EVIDENCE_PATH = join(PHASE_DIRECTORY, "07-MUTATION-EVIDENCE.json");
 const VALIDATION_PATH = join(PHASE_DIRECTORY, "07-VALIDATION.md");
 const REQUIREMENTS_PATH = join(ROOT, ".planning/REQUIREMENTS.md");
-const HARNESS_PATH = join(ROOT, "scripts/mutate-and-prove.sh");
 const CORE_PACKAGE_DIRECTORY = join(ROOT, "packages/concierge");
 const BUILD_MARKER = "Build complete";
 const MAX_BUFFER = 64 * 1024 * 1024;
@@ -148,27 +147,11 @@ const REQUIRED_REQUIREMENT_IDS = Object.freeze([
 const PHASE_8_HANDOFF =
   "Partial — Phase 7 delivers U01-U08 reusable no-network fixture and Session seam/package proof; Phase 8 must reuse this exact fixture to exercise the consent kernel before TRN-02 can be Complete.";
 const MUTATION_DISTRIBUTION_LEDGER =
-  "10 catalog / 9 routing / 8 lifecycle / 2 diagnostics / 2 package-guard (`10/9/8/2/2`)";
+  "11 catalog / 9 routing / 8 lifecycle / 2 diagnostics / 2 package-guard (`11/9/8/2/2`)";
 const MUTATION_OUTCOME_LEDGER =
-  "31/31 green; zero pending, zero escaped, zero failed";
+  "32/32 green; zero pending, zero escaped, zero failed";
 const MUTATION_SHARDS_LEDGER =
-  "Exactly ten contiguous shards: C01-C03, C04-C06, C07-C10, R01-R04, R05-R08, R09-R09, L01-L04, L05-L08, D01-D02, P01-P02";
-
-const gitCommonDirectoryResult = spawnSync(
-  "git",
-  ["rev-parse", "--git-common-dir"],
-  { cwd: ROOT, encoding: "utf8" },
-);
-if (gitCommonDirectoryResult.status !== 0) {
-  throw new Error(
-    `cannot resolve git common directory: ${gitCommonDirectoryResult.stderr ?? ""}`,
-  );
-}
-const MUTATION_LOCK_PATH = resolve(
-  ROOT,
-  (gitCommonDirectoryResult.stdout ?? "").trim(),
-  "phase-07-mutation-battery.lock",
-);
+  "Exactly ten contiguous shards: C01-C03, C04-C07, C08-C11, R01-R04, R05-R08, R09-R09, L01-L04, L05-L08, D01-D02, P01-P02";
 
 function lines(...values) {
   return values.join("\n");
@@ -391,7 +374,7 @@ const MUTANTS = Object.freeze([
   runtimeMutant({
     id: "M-07-C10",
     group: "catalog",
-    name: "superseded unpublished accessor attempt is not aborted or cleared",
+    name: "superseded accessor-time occurrence is not aborted",
     literalPattern: lines(
       "    if (!publicationIsCurrent(attemptToken)) return true;",
       "    if (isCurrent(record)) return false;",
@@ -403,6 +386,27 @@ const MUTANTS = Object.freeze([
       "    if (!publicationIsCurrent(attemptToken)) return true;",
       "    if (isCurrent(record)) return false;",
       "    void epoch;",
+      "    clearPublication(epoch, attemptToken);",
+      "    return true;",
+    ),
+    intendedCaseIds: ["C17"],
+  }),
+  runtimeMutant({
+    id: "M-07-C11",
+    group: "catalog",
+    name: "superseded unpublished accessor attempt is not cleared",
+    literalPattern: lines(
+      "    if (!publicationIsCurrent(attemptToken)) return true;",
+      "    if (isCurrent(record)) return false;",
+      "    if (epoch !== null) abortEpoch(epoch);",
+      "    clearPublication(epoch, attemptToken);",
+      "    return true;",
+    ),
+    replacement: lines(
+      "    if (!publicationIsCurrent(attemptToken)) return true;",
+      "    if (isCurrent(record)) return false;",
+      "    if (epoch !== null) abortEpoch(epoch);",
+      "    void attemptToken;",
       "    return true;",
     ),
     intendedCaseIds: ["C17"],
@@ -804,7 +808,7 @@ const MUTANTS = Object.freeze([
 ]);
 
 export const EXPECTED_CATALOG_IDS = Object.freeze(
-  Array.from({ length: 10 }, (_, index) =>
+  Array.from({ length: 11 }, (_, index) =>
     `M-07-C${String(index + 1).padStart(2, "0")}`,
   ),
 );
@@ -887,8 +891,25 @@ function withExclusivePathLock(lockPath, operation, run) {
   }
 }
 
+function mutationLockPath() {
+  const result = spawnSync("git", ["rev-parse", "--git-common-dir"], {
+    cwd: ROOT,
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    throw new Error(
+      `cannot resolve git common directory: ${result.stderr ?? ""}`,
+    );
+  }
+  return resolve(
+    ROOT,
+    (result.stdout ?? "").trim(),
+    "phase-07-mutation-battery.lock",
+  );
+}
+
 function withMutationBatteryLock(operation, run) {
-  return withExclusivePathLock(MUTATION_LOCK_PATH, operation, run);
+  return withExclusivePathLock(mutationLockPath(), operation, run);
 }
 
 function command(commandName, args, options = {}) {
@@ -956,6 +977,7 @@ function validateRequiredMappings(mutants) {
     "M-07-C08": ["C10", "C11", "C15", "C16"],
     "M-07-C09": ["C11", "C12", "C13", "C14", "C15", "C16"],
     "M-07-C10": ["C17"],
+    "M-07-C11": ["C17"],
     "M-07-R01": ["J01"],
     "M-07-R02": ["J07"],
     "M-07-R03": ["J09"],
@@ -994,6 +1016,7 @@ function validateRequiredMappings(mutants) {
   const c05 = byId.get("M-07-C05");
   const c06 = byId.get("M-07-C06");
   const c10 = byId.get("M-07-C10");
+  const c11 = byId.get("M-07-C11");
   const l02 = byId.get("M-07-L02");
   const l05 = byId.get("M-07-L05");
   if (
@@ -1012,10 +1035,20 @@ function validateRequiredMappings(mutants) {
     !c10?.literalPattern.includes("if (epoch !== null) abortEpoch(epoch);") ||
     !c10.literalPattern.includes("clearPublication(epoch, attemptToken);") ||
     c10.replacement.includes("abortEpoch(epoch)") ||
-    c10.replacement.includes("clearPublication(epoch, attemptToken)")
+    !c10.replacement.includes("clearPublication(epoch, attemptToken)")
   ) {
     throw new Error(
-      "M-07-C10 must omit only the superseded unpublished attempt cleanup",
+      "M-07-C10 must omit only the superseded attempt abort",
+    );
+  }
+  if (
+    !c11?.literalPattern.includes("if (epoch !== null) abortEpoch(epoch);") ||
+    !c11.literalPattern.includes("clearPublication(epoch, attemptToken);") ||
+    !c11.replacement.includes("abortEpoch(epoch)") ||
+    c11.replacement.includes("clearPublication(epoch, attemptToken)")
+  ) {
+    throw new Error(
+      "M-07-C11 must omit only the superseded attempt clear",
     );
   }
   for (const displacedCase of ["C08", "C09", "C13", "C14"]) {
@@ -1049,6 +1082,7 @@ function validateRequiredMappings(mutants) {
     "M-07-C08",
     "M-07-C09",
     "M-07-C10",
+    "M-07-C11",
     "M-07-R09",
   ];
   const identities = independentIds.map((id) => {
@@ -1078,7 +1112,7 @@ function validateMutantList(
     throw new Error("mutant ids contain a duplicate");
   }
 
-  const expectedCounts = { catalog: 10, routing: 9, lifecycle: 8, diagnostics: 2, package: 2 };
+  const expectedCounts = { catalog: 11, routing: 9, lifecycle: 8, diagnostics: 2, package: 2 };
   for (const [group, count] of Object.entries(expectedCounts)) {
     if (mutants.filter((mutant) => mutant.group === group).length !== count) {
       throw new Error(`${group}: mutant count must equal ${count}`);
@@ -1505,7 +1539,7 @@ function summarizeVitestReport(reportPath) {
   }
 }
 
-function runVitest(testFiles, reportPath, selectedCaseIds = null) {
+function runVitest(testFiles, reportPath, selectedCaseIds = null, root = ROOT) {
   rmSync(reportPath, { force: true });
   const files = Array.isArray(testFiles) ? testFiles : [testFiles];
   const args = ["exec", "vitest", "run", ...files];
@@ -1513,7 +1547,7 @@ function runVitest(testFiles, reportPath, selectedCaseIds = null) {
     args.push(`--testNamePattern=${casePattern(selectedCaseIds)}`);
   }
   args.push("--reporter=json", `--outputFile=${reportPath}`);
-  const result = command("pnpm", args);
+  const result = command("pnpm", args, { cwd: root });
   return { ...result, report: summarizeVitestReport(reportPath) };
 }
 
@@ -1527,12 +1561,12 @@ function runFullVitest(reportPath, root = ROOT) {
   return { ...result, report: summarizeVitestReport(reportPath) };
 }
 
-function runTypecheck() {
+function runTypecheck(root = ROOT) {
   return command("pnpm", [
     "--filter",
     "@fullselfbrowsing/concierge",
     "typecheck",
-  ]);
+  ], { cwd: root });
 }
 
 function exactCaseSet(report, intendedCaseIds, expectedStatus) {
@@ -1715,22 +1749,22 @@ function runGate(mutantId, directory) {
   process.exitCode = gate.detectorSatisfied ? 1 : vitest.exitCode === 0 ? 0 : 93;
 }
 
-function runRestoredGates(mutant, directory) {
-  const build = runBuild();
+function runRestoredGates(mutant, directory, root = ROOT) {
+  const build = runBuild(root);
   const reportPath = join(directory, "restored-vitest.json");
   const vitest = build.succeeded
-    ? runVitest(mutant.intendedTestFiles, reportPath)
+    ? runVitest(mutant.intendedTestFiles, reportPath, null, root)
     : {
         exitCode: 255,
         output: "restored Vitest skipped because build failed",
         report: summarizeVitestReport(reportPath),
       };
   const typecheck = build.succeeded
-    ? runTypecheck()
+    ? runTypecheck(root)
     : { exitCode: 255, output: "restored typecheck skipped because build failed" };
   const pack =
     build.succeeded && mutant.detectorKind === "package"
-      ? command("pnpm", ["check:pack"])
+      ? command("pnpm", ["check:pack"], { cwd: root })
       : { exitCode: mutant.detectorKind === "package" ? 255 : 0, output: "" };
   const green =
     build.succeeded &&
@@ -1772,8 +1806,8 @@ function scopedStatus() {
   return result.stdout.trim();
 }
 
-function targetHash(mutant) {
-  return sha256(readFileSync(join(ROOT, mutant.target)));
+function targetHash(mutant, root = ROOT) {
+  return sha256(readFileSync(join(root, mutant.target)));
 }
 
 function assertNoUntrackedRevisionInputs(paths) {
@@ -1901,12 +1935,56 @@ function runAgainstReleaseSnapshot(snapshot, run) {
   return result;
 }
 
-function revisionDigest(mutant) {
+function materializeMutationSnapshot(
+  directory,
+  mutant,
+  paths,
+  { sourceRoot = ROOT, installDependencies = true } = {},
+) {
+  const snapshotRoot = join(directory, "mutation-snapshot");
+  mkdirSync(snapshotRoot, { recursive: true });
+  for (const path of paths) {
+    const target = join(snapshotRoot, path);
+    mkdirSync(dirname(target), { recursive: true });
+    copyFileSync(join(sourceRoot, path), target);
+  }
+  if (installDependencies) installReleaseSnapshotDependencies(snapshotRoot);
+  return Object.freeze({
+    root: snapshotRoot,
+    revision: Object.freeze({
+      paths: Object.freeze([...paths]),
+      digest: revisionDigest(mutant, snapshotRoot, paths),
+    }),
+  });
+}
+
+function assertStableMutationRevision(mutant, snapshot) {
+  const observed = revisionDigest(
+    mutant,
+    snapshot.root,
+    snapshot.revision.paths,
+  );
+  if (observed !== snapshot.revision.digest) {
+    throw new Error("mutation snapshot was not restored to its measured bytes");
+  }
+}
+
+function replaceExactOnce(source, pattern, replacement, label) {
+  const occurrenceCount = source.split(pattern).length - 1;
+  if (occurrenceCount !== 1) {
+    throw new Error(
+      `${label}: literal occurrence count is ${occurrenceCount}, expected 1`,
+    );
+  }
+  return source.replace(pattern, replacement);
+}
+
+function revisionDigest(mutant, root = ROOT, paths = revisionInputPaths()) {
   const digest = createHash("sha256");
   digest.update(`mutant\0${JSON.stringify(mutant)}\0`);
-  for (const path of revisionInputPaths()) {
+  for (const path of paths) {
     digest.update(`path\0${path}\0`);
-    digest.update(readFileSync(join(ROOT, path)));
+    digest.update(readFileSync(join(root, path)));
     digest.update("\0");
   }
   return digest.digest("hex");
@@ -1919,39 +1997,68 @@ function executeMutant(mutant) {
       `${mutant.id}: scoped source/test/type/lockfile tree is dirty before mutation:\n${beforeStatus}`,
     );
   }
-  const source = readFileSync(join(ROOT, mutant.target), "utf8");
-  const occurrenceCount = source.split(mutant.literalPattern).length - 1;
+  const paths = revisionInputPaths();
+  const liveSource = readFileSync(join(ROOT, mutant.target), "utf8");
+  const sourceBytes = Buffer.from(liveSource);
+  const occurrenceCount = liveSource.split(mutant.literalPattern).length - 1;
   const tracked =
     command("git", ["ls-files", "--error-unmatch", mutant.target]).exitCode === 0;
-  const hashBefore = targetHash(mutant);
-  const measuredRevisionDigest = revisionDigest(mutant);
+  const measuredRevisionDigest = revisionDigest(mutant, ROOT, paths);
   const directory = mkdtempSync(join(tmpdir(), "phase-07-mutation-"));
 
   try {
-    const harness = command("bash", [
-      HARNESS_PATH,
-      mutant.target,
+    const snapshot = materializeMutationSnapshot(directory, mutant, paths);
+    if (snapshot.revision.digest !== measuredRevisionDigest) {
+      throw new Error(`${mutant.id}: mutation snapshot differs from measured bytes`);
+    }
+    const snapshotTarget = join(snapshot.root, mutant.target);
+    const snapshotSource = readFileSync(snapshotTarget, "utf8");
+    const hashBefore = targetHash(mutant, snapshot.root);
+    const mutatedSource = replaceExactOnce(
+      snapshotSource,
       mutant.literalPattern,
       mutant.replacement,
-      "--",
-      "node",
-      SCRIPT_PATH,
-      "gate",
       mutant.id,
-      directory,
-    ]);
+    );
+    let gateProcess;
+    try {
+      writeFileSync(snapshotTarget, mutatedSource, "utf8");
+      gateProcess = command(
+        "node",
+        [
+          join(snapshot.root, "scripts/phase-07-mutation-battery.mjs"),
+          "gate",
+          mutant.id,
+          directory,
+        ],
+        { cwd: snapshot.root },
+      );
+    } finally {
+      writeFileSync(snapshotTarget, sourceBytes);
+    }
     const resultPath = gateResultPath(directory);
     const gate = existsSync(resultPath)
       ? JSON.parse(readFileSync(resultPath, "utf8"))
       : null;
-    const hashAfter = targetHash(mutant);
+    const hashAfter = targetHash(mutant, snapshot.root);
     const targetRestored = hashAfter === hashBefore;
-    const restored = runRestoredGates(mutant, directory);
+    assertStableMutationRevision(mutant, snapshot);
+    const restored = runRestoredGates(mutant, directory, snapshot.root);
+    assertStableMutationRevision(mutant, snapshot);
     const afterStatus = scopedStatus();
-    const scopedTreeClean = beforeStatus === "" && afterStatus === "";
+    const afterPaths = revisionInputPaths();
+    const liveRevisionStable =
+      JSON.stringify(afterPaths) === JSON.stringify(paths) &&
+      revisionDigest(mutant, ROOT, afterPaths) === measuredRevisionDigest;
+    const scopedTreeClean =
+      beforeStatus === "" && afterStatus === "" && liveRevisionStable;
+    const harnessExit = gateProcess.exitCode === 0 ? 1 : 0;
+    const harnessOutput =
+      gateProcess.exitCode === 0
+        ? "FAIL: snapshot gate did NOT fire — mutant escaped"
+        : `PASS: snapshot gate fired (exit ${gateProcess.exitCode}), snapshot restored`;
     const killed =
-      harness.exitCode === 0 &&
-      harness.output.includes("PASS: gate fired") &&
+      harnessExit === 0 &&
       gate !== null &&
       gate.compiled === true &&
       gate.buildMarker === true &&
@@ -1962,7 +2069,7 @@ function executeMutant(mutant) {
     const status =
       killed && targetRestored && restored.green && scopedTreeClean
         ? "green"
-        : harness.exitCode === 1 && harness.output.includes("mutant escaped")
+        : harnessExit === 1
           ? "escaped"
           : "failed";
     const row = {
@@ -1993,9 +2100,9 @@ function executeMutant(mutant) {
       scopedStatusBefore: beforeStatus,
       scopedStatusAfter: afterStatus,
       scopedTreeClean,
-      revisionDigest: measuredRevisionDigest,
-      harnessExit: harness.exitCode,
-      harnessOutput: shortOutput(harness.output),
+      revisionDigest: snapshot.revision.digest,
+      harnessExit,
+      harnessOutput,
       mutantGate: gate,
       executedAt: new Date().toISOString(),
     };
@@ -2005,8 +2112,10 @@ function executeMutant(mutant) {
         error: `${mutant.id} did not close green:\n${JSON.stringify(
           {
             status,
-            harnessExit: harness.exitCode,
-            harnessOutput: shortOutput(harness.output, 2_000),
+            gateExit: gateProcess.exitCode,
+            gateOutput: shortOutput(gateProcess.output, 2_000),
+            harnessExit,
+            harnessOutput,
             gate,
             targetRestored,
             restoredGreen: restored.green,
@@ -2274,7 +2383,7 @@ function validateApproval(validationText, registerDigestValue) {
     throw new Error("validation approval is still pending");
   }
   const approvalPattern = new RegExp(
-    `\\*\\*Approval:\\*\\* approved \\d{4}-\\d{2}-\\d{2} — register ${registerDigestValue}; 31/31 green; release gate green`,
+    `\\*\\*Approval:\\*\\* approved \\d{4}-\\d{2}-\\d{2} — register ${registerDigestValue}; 32/32 green; release gate green`,
     "u",
   );
   if (!approvalPattern.test(validationText)) {
@@ -2816,6 +2925,84 @@ function selfTestReleaseSnapshot() {
   }
 }
 
+function selfTestMutationSnapshot() {
+  const directory = mkdtempSync(join(tmpdir(), "phase-07-mutation-self-test-"));
+  const sourceRoot = join(directory, "source");
+  const snapshotDirectory = join(directory, "snapshot-container");
+  const targetPath = "src/target.ts";
+  const detectorPath = "test/detector.test.ts";
+  const paths = Object.freeze([targetPath, detectorPath]);
+  const originalTarget = "export const authority = 'A';\n";
+  const concurrentTarget = "export const authority = 'B';\n";
+  const mutant = Object.freeze({
+    id: "M-SELF-TEST",
+    target: targetPath,
+    literalPattern: "'A'",
+    replacement: "'M'",
+  });
+  try {
+    mkdirSync(join(sourceRoot, "src"), { recursive: true });
+    mkdirSync(join(sourceRoot, "test"), { recursive: true });
+    writeFileSync(join(sourceRoot, targetPath), originalTarget, "utf8");
+    writeFileSync(join(sourceRoot, detectorPath), "detector A\n", "utf8");
+    const baselineDigest = revisionDigest(mutant, sourceRoot, paths);
+    const snapshot = materializeMutationSnapshot(
+      snapshotDirectory,
+      mutant,
+      paths,
+      { sourceRoot, installDependencies: false },
+    );
+    assert(
+      snapshot.revision.digest === baselineDigest,
+      "mutation snapshot must start from the measured source bytes",
+    );
+
+    const snapshotTarget = join(snapshot.root, targetPath);
+    const mutatedTarget = replaceExactOnce(
+      readFileSync(snapshotTarget, "utf8"),
+      mutant.literalPattern,
+      mutant.replacement,
+      mutant.id,
+    );
+    writeFileSync(snapshotTarget, mutatedTarget, "utf8");
+    const snapshotGateReads = [readFileSync(snapshotTarget, "utf8")];
+    const directReads = [readFileSync(join(sourceRoot, targetPath), "utf8")];
+
+    writeFileSync(join(sourceRoot, targetPath), concurrentTarget, "utf8");
+    directReads.push(readFileSync(join(sourceRoot, targetPath), "utf8"));
+    snapshotGateReads.push(readFileSync(snapshotTarget, "utf8"));
+    assert(
+      revisionDigest(mutant, sourceRoot, paths) !== baselineDigest,
+      "a concurrent source revision must not match the measured mutation digest",
+    );
+
+    writeFileSync(snapshotTarget, originalTarget, "utf8");
+    assertStableMutationRevision(mutant, snapshot);
+    assert(
+      readFileSync(join(sourceRoot, targetPath), "utf8") === concurrentTarget,
+      "snapshot restoration must not clobber a concurrent target writer",
+    );
+
+    writeFileSync(join(sourceRoot, targetPath), originalTarget, "utf8");
+    directReads.push(readFileSync(join(sourceRoot, targetPath), "utf8"));
+    assert(
+      new Set(directReads).size === 2,
+      "A-to-B-to-A control must expose mixed live target bytes",
+    );
+    assert(
+      new Set(snapshotGateReads).size === 1 &&
+        snapshotGateReads[0] === mutatedTarget,
+      "mutation gate reads must remain pinned to one isolated mutant revision",
+    );
+    assert(
+      revisionDigest(mutant, sourceRoot, paths) === baselineDigest,
+      "restored live bytes may match only their own measured revision",
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function selfTestReleaseSnapshotBuild() {
   const directory = mkdtempSync(join(tmpdir(), "phase-07-release-build-self-test-"));
   try {
@@ -2890,9 +3077,9 @@ function selfTest() {
   const initialEvidence = makeInitialEvidence();
   validateEvidenceShape(initialEvidence);
   assert(
-    initialEvidence.rows.length === 31 &&
+    initialEvidence.rows.length === 32 &&
       initialEvidence.rows.every((row) => row.status === "pending"),
-    "refresh fixture must contain exactly 31 pending rows",
+    "refresh fixture must contain exactly 32 pending rows",
   );
   const expectedMutationRows = expectedMutationLedgerRows(
     initialEvidence.registerDigest,
@@ -2900,18 +3087,18 @@ function selfTest() {
   for (const [key, staleValue, label] of [
     [
       "Distribution",
-      "9 catalog / 9 routing / 8 lifecycle / 2 diagnostics / 2 package-guard (`9/9/8/2/2`)",
-      "stale 30-row mutation distribution",
+      "10 catalog / 9 routing / 8 lifecycle / 2 diagnostics / 2 package-guard (`10/9/8/2/2`)",
+      "stale 31-row mutation distribution",
     ],
     [
       "Outcome",
-      "30/30 green; zero pending, zero escaped, zero failed",
-      "stale 30-row mutation outcome",
+      "31/31 green; zero pending, zero escaped, zero failed",
+      "stale 31-row mutation outcome",
     ],
     [
       "Bounded execution",
-      "Exactly ten contiguous shards: C01-C03, C04-C06, C07-C09, R01-R04, R05-R08, R09-R09, L01-L04, L05-L08, D01-D02, P01-P02",
-      "stale 30-row catalog shard",
+      "Exactly ten contiguous shards: C01-C03, C04-C06, C07-C10, R01-R04, R05-R08, R09-R09, L01-L04, L05-L08, D01-D02, P01-P02",
+      "stale 31-row catalog shard",
     ],
   ]) {
     const staleRows = new Map(expectedMutationRows);
@@ -2927,16 +3114,16 @@ function selfTest() {
       label,
     );
   }
-  const approvalFixture = `**Approval:** approved 2026-08-09 — register ${initialEvidence.registerDigest}; 31/31 green; release gate green`;
+  const approvalFixture = `**Approval:** approved 2026-08-09 — register ${initialEvidence.registerDigest}; 32/32 green; release gate green`;
   validateApproval(approvalFixture, initialEvidence.registerDigest);
   assertThrows(
     () =>
       validateApproval(
-        approvalFixture.replace("31/31 green", "30/30 green"),
+        approvalFixture.replace("32/32 green", "31/31 green"),
         initialEvidence.registerDigest,
       ),
     /approval date\/digest is missing or invalid/u,
-    "stale 30-row approval",
+    "stale 31-row approval",
   );
 
   const syntheticRelease = syntheticReleaseEvidence();
@@ -3041,6 +3228,7 @@ function selfTest() {
     "M-07-C08",
     "M-07-C09",
     "M-07-C10",
+    "M-07-C11",
     "M-07-R09",
     "M-07-L05",
   ]) {
@@ -3098,31 +3286,33 @@ function selfTest() {
     "reordered mutant ids",
   );
 
-  const noOp = clone(MUTANTS);
-  const noOpC10 = noOp.find((mutant) => mutant.id === "M-07-C10");
-  assert(noOpC10 !== undefined, "M-07-C10 must exist for no-op self-test");
-  noOpC10.replacement = noOpC10.literalPattern;
-  assertThrows(
-    () => validateMutantList(noOp),
-    /no-op/u,
-    "no-op M-07-C10 cleanup mutant",
-  );
-  const multiOccurrence = clone(MUTANTS);
-  const doubled = multiOccurrence.find((mutant) => mutant.id === "M-07-C10");
-  assert(doubled !== undefined, "M-07-C10 must exist for occurrence self-test");
-  assertThrows(
-    () =>
-      validateMutantList(multiOccurrence, {
-        readTarget: (target) => {
-          const source = readFileSync(join(ROOT, target), "utf8");
-          return target === doubled.target
-            ? `${source}\n${doubled.literalPattern}`
-            : source;
-        },
-      }),
-    /occurrence count is 2/u,
-    "multi-occurrence M-07-C10 cleanup mutant",
-  );
+  for (const cleanupId of ["M-07-C10", "M-07-C11"]) {
+    const noOp = clone(MUTANTS);
+    const noOpCleanup = noOp.find((mutant) => mutant.id === cleanupId);
+    assert(noOpCleanup !== undefined, `${cleanupId} must exist for no-op self-test`);
+    noOpCleanup.replacement = noOpCleanup.literalPattern;
+    assertThrows(
+      () => validateMutantList(noOp),
+      /no-op/u,
+      `no-op ${cleanupId} cleanup mutant`,
+    );
+    const multiOccurrence = clone(MUTANTS);
+    const doubled = multiOccurrence.find((mutant) => mutant.id === cleanupId);
+    assert(doubled !== undefined, `${cleanupId} must exist for occurrence self-test`);
+    assertThrows(
+      () =>
+        validateMutantList(multiOccurrence, {
+          readTarget: (target) => {
+            const source = readFileSync(join(ROOT, target), "utf8");
+            return target === doubled.target
+              ? `${source}\n${doubled.literalPattern}`
+              : source;
+          },
+        }),
+      /occurrence count is 2/u,
+      `multi-occurrence ${cleanupId} cleanup mutant`,
+    );
+  }
 
   const greenRows = MUTANTS.map(syntheticGreenRow);
   validateSyntheticGreenRows(greenRows);
@@ -3232,6 +3422,41 @@ function selfTest() {
     "missing C17 marker",
   );
 
+  const c17FactoryFailure = {
+    readable: true,
+    numTotalTests: 1,
+    numPendingTests: 0,
+    assertions: [
+      {
+        caseId: "C17",
+        title: "[C17] clears a publication abandoned by setTools accessor reentry",
+        status: "failed",
+        failureMessages: [
+          "AssertionError: [SMOKE:C17:create-session-factory]",
+        ],
+      },
+    ],
+    suiteErrors: [],
+    unhandledErrors: [],
+  };
+  const c17ExportFailure = {
+    readable: true,
+    numTotalTests: 0,
+    numPendingTests: 0,
+    assertions: [],
+    suiteErrors: ["createSession export is missing"],
+    unhandledErrors: [],
+  };
+  for (const cleanupId of ["M-07-C10", "M-07-C11"]) {
+    const cleanupMutant = MUTANT_BY_ID.get(cleanupId);
+    assert(
+      cleanupMutant !== undefined &&
+        !exactRuntimeFailureSet(c17FactoryFailure, cleanupMutant).satisfied &&
+        !exactRuntimeFailureSet(c17ExportFailure, cleanupMutant).satisfied,
+      `${cleanupId} must reject C17 factory and export failures`,
+    );
+  }
+
   assertThrows(
     () => selectMutantRange("M-07-C01", "M-07-C05"),
     /one to four/u,
@@ -3243,7 +3468,7 @@ function selfTest() {
     "reversed range",
   );
   assertThrows(
-    () => selectMutantRange("M-07-C10", "M-07-R01"),
+    () => selectMutantRange("M-07-C11", "M-07-R01"),
     /crosses groups/u,
     "cross-group range",
   );
@@ -3395,6 +3620,7 @@ function selfTest() {
   }
 
   selfTestInputVerifier();
+  selfTestMutationSnapshot();
   selfTestReleaseSnapshot();
   selfTestReleaseSnapshotBuild();
   selfTestResponseCutoffSensitivity();
