@@ -318,7 +318,7 @@ const MUTANTS = Object.freeze([
       "    return lifecycle !== \"stopped\";",
       "  }",
     ),
-    intendedCaseIds: ["C10", "C11", "C15", "C16"],
+    intendedCaseIds: ["C10", "C11", "C16", "C20"],
   }),
   runtimeMutant({
     id: "M-07-C09",
@@ -1057,7 +1057,7 @@ function validateRequiredMappings(mutants) {
     "M-07-C05": ["C16"],
     "M-07-C06": ["C15"],
     "M-07-C07": ["C10", "C11", "C15", "C16"],
-    "M-07-C08": ["C10", "C11", "C15", "C16"],
+    "M-07-C08": ["C10", "C11", "C16", "C20"],
     "M-07-C09": ["C11", "C12", "C13", "C14", "C15", "C16"],
     "M-07-C10": ["C17"],
     "M-07-C11": ["C17"],
