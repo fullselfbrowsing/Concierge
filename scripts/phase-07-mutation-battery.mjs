@@ -2081,6 +2081,11 @@ function validatePackageBoundary({
   if (sourceFiles.exitCode === 0 && sourceFiles.output.trim() !== "") {
     throw new Error("stub transport reached production source");
   }
+  if (sourceFiles.exitCode !== 1) {
+    throw new Error(
+      `production source scan failed with exit ${sourceFiles.exitCode}`,
+    );
+  }
   for (const token of [
     "tar -tzf",
     "stub-transport|test/fixtures",
@@ -2953,6 +2958,20 @@ function selfTest() {
     /package exclusion detector/u,
     "package exclusion drift",
   );
+  for (const exitCode of [2, 255]) {
+    assertThrows(
+      () =>
+        validatePackageBoundary({
+          packageManifest: { files: ["dist", "src", "README.md", "LICENSE"] },
+          indexSource: "",
+          sourceFiles: { exitCode, output: "" },
+          packScript:
+            "tar -tzf archive.tgz | grep 'stub-transport|test/fixtures' [RED:P01:stub-tarball-exclusion]",
+        }),
+      new RegExp(`production source scan failed with exit ${exitCode}`, "u"),
+      `production source scanner exit ${exitCode}`,
+    );
+  }
 
   selfTestInputVerifier();
   assertThrows(
