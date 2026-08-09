@@ -42,6 +42,10 @@ const TEST_FILES = Object.freeze({
   diagnostics: "packages/concierge/test/session-lifecycle.test.ts",
   package: "packages/concierge/test/single-instance.test.ts",
 });
+const SINGLE_INSTANCE_SUITE_TITLE =
+  "PKG-04 — one core instance across two independently-resolved copies";
+const F7_TEST_NAME_PATTERN =
+  "PKG-04\\s+—\\s+one core instance across two independently-resolved copies\\s+F7\\s+—";
 
 const INPUT_PATHS = Object.freeze([
   "package.json",
@@ -1251,7 +1255,7 @@ function runBuild() {
 function casePattern(caseIds) {
   return `^(?:${caseIds
     .map((caseId) =>
-      caseId === "F7" ? "F7\\s+—" : `\\[${caseId}\\]`,
+      caseId === "F7" ? F7_TEST_NAME_PATTERN : `\\[${caseId}\\]`,
     )
     .join("|")})`;
 }
@@ -2463,6 +2467,27 @@ function selfTest() {
     () => selectMutantRange("M-07-C09", "M-07-R01"),
     /crosses groups/u,
     "cross-group range",
+  );
+
+  const f7Pattern = new RegExp(casePattern(["F7"]));
+  assert(
+    f7Pattern.test(`${SINGLE_INSTANCE_SUITE_TITLE} F7 — direct guard`),
+    "nested F7 selector must match the PKG-04 full test name",
+  );
+  for (const neighboringCase of ["F6", "F8"]) {
+    assert(
+      !f7Pattern.test(
+        `${SINGLE_INSTANCE_SUITE_TITLE} ${neighboringCase} — neighboring guard`,
+      ),
+      `nested F7 selector must not match ${neighboringCase}`,
+    );
+  }
+  const ordinaryPattern = new RegExp(casePattern(["C01", "J01"]));
+  assert(
+    ordinaryPattern.test("[C01] catalog detector") &&
+      ordinaryPattern.test("[J01] routing detector") &&
+      !ordinaryPattern.test("[C02] neighboring detector"),
+    "ordinary bracketed case selectors must remain exact",
   );
 
   const totals = {

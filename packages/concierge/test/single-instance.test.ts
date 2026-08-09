@@ -93,7 +93,14 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { rolldown } from "rolldown";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it as vitestIt,
+} from "vitest";
 
 // The built artifact, addressed two ways: as a URL for dynamic import (so a
 // query string can force a second module evaluation) and as an absolute
@@ -108,10 +115,23 @@ const DIST_PATH = fileURLToPath(DIST_URL);
 // STRING and nothing else. Importing the symbol from the artifact under test
 // would make this suite agree with whatever the artifact happens to say.
 const KEY = Symbol.for("@fullselfbrowsing/concierge.contract");
+const SUITE_TITLE =
+  "PKG-04 — one core instance across two independently-resolved copies";
 
 type Registry = Record<symbol, { version: number } | undefined>;
 
 const registry = globalThis as unknown as Registry;
+
+function it(title, run) {
+  const pattern = globalThis.__vitest_worker__?.config?.testNamePattern;
+  if (pattern instanceof RegExp) {
+    pattern.lastIndex = 0;
+    const selected = pattern.test(`${SUITE_TITLE} ${title}`);
+    pattern.lastIndex = 0;
+    if (!selected) return;
+  }
+  vitestIt(title, run);
+}
 
 // Temp directories created by F1b, removed unconditionally after every test so
 // that a failing assertion cannot leak one.
@@ -164,7 +184,7 @@ async function bundleConsumer(source: string): Promise<string> {
   return output[0].code;
 }
 
-describe("PKG-04 — one core instance across two independently-resolved copies", () => {
+describe(SUITE_TITLE, () => {
   it("F1a — two adapters resolving core independently converge on one registry record", async () => {
     // Two module evaluations of the same file. The query string is what makes
     // the second one genuine: it defeats Node's ESM module cache and produces
