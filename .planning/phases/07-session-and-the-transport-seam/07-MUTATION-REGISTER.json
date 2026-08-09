@@ -77,7 +77,7 @@
     "M-07-P01",
     "M-07-P02"
   ],
-  "registerDigest": "9104978e646b4d6a949562f485a28cdc46f76034f06cb0e0cc836845c976fc03",
+  "registerDigest": "5cccf0824bec93c2702d1ab712797dc23b477d3209db943c4d0f22846e177182",
   "mutants": [
     {
       "id": "M-07-C01",
@@ -282,8 +282,8 @@
       "group": "catalog",
       "name": "batch pump ignores publication and transition admission gates",
       "target": "packages/concierge/src/session.ts",
-      "literalPattern": "  async function runLivePump(): Promise<void> {\n    while (\n      lifecycle === \"active\" &&\n      !publicationPending &&\n      !transitionDraining &&\n      transitionQueue.length === 0\n    ) {\n      const work: WorkRecord | undefined = workQueue.shift();\n      if (work === undefined) return;\n      activeWork = work;\n      await runWork(work, true);\n      activeWork = null;\n    }\n  }\n\n  /** Start the single FIFO worker with its observable Promise installed first. */\n  function maybeStartPump(): void {\n    if (\n      lifecycle !== \"active\" ||\n      publicationPending ||\n      transitionDraining ||\n      transitionQueue.length !== 0 ||\n      workPumpRunning ||\n      acceptingBatchCount !== 0 ||\n      workQueue.length === 0",
-      "replacement": "  async function runLivePump(): Promise<void> {\n    while (lifecycle === \"active\") {\n      const work: WorkRecord | undefined = workQueue.shift();\n      if (work === undefined) return;\n      activeWork = work;\n      await runWork(work, true);\n      activeWork = null;\n    }\n  }\n\n  /** Start the single FIFO worker with its observable Promise installed first. */\n  function maybeStartPump(): void {\n    if (\n      lifecycle !== \"active\" ||\n      workPumpRunning ||\n      workQueue.length === 0",
+      "literalPattern": "  async function runLivePump(): Promise<void> {\n    while (\n      lifecycle === \"active\" &&\n      !publicationPending &&\n      !transitionDraining &&\n      transitionQueue.length === 0\n    ) {\n      const head: QueuedOccurrence | undefined = occurrenceQueue[0];\n      if (head === undefined || head.binding === null) return;\n      const work: QueuedOccurrence = occurrenceQueue.shift() as QueuedOccurrence;\n      activeWork = work;\n      await runWork(work, true);\n      activeWork = null;\n    }\n  }\n\n  /** Start the single FIFO worker with its observable Promise installed first. */\n  function maybeStartPump(): void {\n    if (\n      lifecycle !== \"active\" ||\n      publicationPending ||\n      transitionDraining ||\n      transitionQueue.length !== 0 ||\n      workPumpRunning ||\n      acceptingBatchCount !== 0 ||\n      occurrenceQueue.length === 0 ||\n      occurrenceQueue[0]?.binding === null",
+      "replacement": "  async function runLivePump(): Promise<void> {\n    while (lifecycle === \"active\") {\n      const head: QueuedOccurrence | undefined = occurrenceQueue[0];\n      if (head === undefined || head.binding === null) return;\n      const work: QueuedOccurrence = occurrenceQueue.shift() as QueuedOccurrence;\n      activeWork = work;\n      await runWork(work, true);\n      activeWork = null;\n    }\n  }\n\n  /** Start the single FIFO worker with its observable Promise installed first. */\n  function maybeStartPump(): void {\n    if (\n      lifecycle !== \"active\" ||\n      workPumpRunning ||\n      occurrenceQueue.length === 0 ||\n      occurrenceQueue[0]?.binding === null",
       "detectorKind": "vitest",
       "intendedTestFiles": [
         "packages/concierge/test/session-catalog.test.ts"
@@ -391,8 +391,8 @@
       "group": "routing",
       "name": "dispatch reads context at execution rather than arrival",
       "target": "packages/concierge/src/session.ts",
-      "literalPattern": "      const rows = await concierge.dispatchBatch(work.context, envelopeFor(work));",
-      "replacement": "      const rows = await concierge.dispatchBatch(confirmedContext as StageContext, envelopeFor(work));",
+      "literalPattern": "      const rows = await concierge.dispatchBatch(\n        binding.context,\n        envelopeFor(work),\n      );",
+      "replacement": "      const rows = await concierge.dispatchBatch(\n        confirmedContext as StageContext,\n        envelopeFor(work),\n      );",
       "detectorKind": "vitest",
       "intendedTestFiles": [
         "packages/concierge/test/session-routing.test.ts"
@@ -486,8 +486,8 @@
       "group": "routing",
       "name": "one accepted aborted queued occurrence bypasses dispatch",
       "target": "packages/concierge/src/session.ts",
-      "literalPattern": "  async function runWork(work: WorkRecord, allowResponses: boolean): Promise<void> {\n    try {\n      const rows = await concierge.dispatchBatch(work.context, envelopeFor(work));",
-      "replacement": "  async function runWork(work: WorkRecord, allowResponses: boolean): Promise<void> {\n    try {\n      const firstCall = work.sourceBatch.calls[0];\n      if (work.epoch.aborted && firstCall !== undefined) {\n        transport.respond(firstCall.callId, Object.freeze({\n          ok: false,\n          reason: \"aborted\",\n          message: \"The action was cancelled before it ran.\",\n        }));\n        return;\n      }\n      const rows = await concierge.dispatchBatch(work.context, envelopeFor(work));",
+      "literalPattern": "  async function runWork(\n    work: QueuedOccurrence,\n    allowResponses: boolean,\n  ): Promise<void> {\n    const binding: OccurrenceBinding | null = work.binding;\n    if (binding === null) {\n      diagnose(\"batch_without_context\");\n      work.cancellation.dispose();\n      linkOccurrenceToEpoch(work, null);\n      return;\n    }\n    try {\n      const rows = await concierge.dispatchBatch(\n        binding.context,\n        envelopeFor(work),\n      );",
+      "replacement": "  async function runWork(\n    work: QueuedOccurrence,\n    allowResponses: boolean,\n  ): Promise<void> {\n    const binding: OccurrenceBinding | null = work.binding;\n    if (binding === null) {\n      diagnose(\"batch_without_context\");\n      work.cancellation.dispose();\n      linkOccurrenceToEpoch(work, null);\n      return;\n    }\n    try {\n      const firstCall = work.sourceBatch.calls[0];\n      if (work.cancellation.signal.aborted && firstCall !== undefined) {\n        transport.respond(firstCall.callId, Object.freeze({\n          ok: false,\n          reason: \"aborted\",\n          message: \"The action was cancelled before it ran.\",\n        }));\n        return;\n      }\n      const rows = await concierge.dispatchBatch(\n        binding.context,\n        envelopeFor(work),\n      );",
       "detectorKind": "vitest",
       "intendedTestFiles": [
         "packages/concierge/test/session-routing.test.ts"
@@ -549,8 +549,8 @@
       "group": "routing",
       "name": "descriptor-backed envelope is replaced by an eager spread",
       "target": "packages/concierge/src/session.ts",
-      "literalPattern": "  /** Preserve every original envelope member and replace only its signal. */\n  function envelopeFor(work: WorkRecord): ToolBatch {\n    const envelope: ToolBatch = Object.create(null) as ToolBatch;\n    Object.defineProperties(envelope, {\n      responseId: {\n        enumerable: true,\n        get(): string {\n          return work.sourceBatch.responseId;\n        },\n      },\n      userTurnId: {\n        enumerable: true,\n        get(): string | undefined {\n          return work.sourceBatch.userTurnId;\n        },\n      },\n      calls: {\n        enumerable: true,\n        get(): ToolBatch[\"calls\"] {\n          return work.sourceBatch.calls;\n        },\n      },\n      signal: {\n        enumerable: true,\n        get(): AbortSignalLike {\n          return work.cancellation.signal;\n        },\n      },\n      deferUntilDelivered: {\n        enumerable: true,\n        get(): ToolBatch[\"deferUntilDelivered\"] {\n          return work.sourceBatch.deferUntilDelivered;\n        },\n      },\n    });\n    return Object.freeze(envelope);\n  }",
-      "replacement": "  /** Preserve every original envelope member and replace only its signal. */\n  function envelopeFor(work: WorkRecord): ToolBatch {\n    return Object.freeze({\n      ...work.sourceBatch,\n      signal: work.cancellation.signal,\n    });\n  }",
+      "literalPattern": "  /** Preserve every original envelope member and replace only its signal. */\n  function envelopeFor(work: QueuedOccurrence): ToolBatch {\n    const envelope: ToolBatch = Object.create(null) as ToolBatch;\n    Object.defineProperties(envelope, {\n      responseId: {\n        enumerable: true,\n        get(): string {\n          return work.sourceBatch.responseId;\n        },\n      },\n      userTurnId: {\n        enumerable: true,\n        get(): string | undefined {\n          return work.sourceBatch.userTurnId;\n        },\n      },\n      calls: {\n        enumerable: true,\n        get(): ToolBatch[\"calls\"] {\n          return work.sourceBatch.calls;\n        },\n      },\n      signal: {\n        enumerable: true,\n        get(): AbortSignalLike {\n          return work.cancellation.signal;\n        },\n      },\n      deferUntilDelivered: {\n        enumerable: true,\n        get(): ToolBatch[\"deferUntilDelivered\"] {\n          return work.sourceBatch.deferUntilDelivered;\n        },\n      },\n    });\n    return Object.freeze(envelope);\n  }",
+      "replacement": "  /** Preserve every original envelope member and replace only its signal. */\n  function envelopeFor(work: QueuedOccurrence): ToolBatch {\n    return Object.freeze({\n      ...work.sourceBatch,\n      signal: work.cancellation.signal,\n    });\n  }",
       "detectorKind": "vitest",
       "intendedTestFiles": [
         "packages/concierge/test/session-routing.test.ts"
@@ -752,8 +752,8 @@
       "group": "lifecycle",
       "name": "accepted detached work is discarded instead of drained",
       "target": "packages/concierge/src/session.ts",
-      "literalPattern": "    detachedWork.push(...workQueue.splice(0));",
-      "replacement": "    workQueue.splice(0);",
+      "literalPattern": "    detachQueuedOccurrences();",
+      "replacement": "    occurrenceQueue.splice(0);",
       "detectorKind": "vitest",
       "intendedTestFiles": [
         "packages/concierge/test/session-lifecycle.test.ts",
