@@ -68,7 +68,7 @@
 ### Transport
 
 - [x] **TRN-01**: A transport is defined entirely by an interface with no vendor event names in core
-- [x] **TRN-02**: A stub transport with configurable capabilities exercises the full consent kernel without any network or WebRTC
+- [ ] **TRN-02**: A stub transport with configurable capabilities exercises the full consent kernel without any network or WebRTC
 - [ ] **TRN-03**: A transport that cannot derive turn identity is prevented from being used with `bindTo: "userTurn"`
 - [x] **TRN-04**: Concierge is usable with no transport at all, driven directly from an application's own agent loop
 - [x] **TRN-05**: A transport declares the *provenance* of its turn identity, not merely whether it has one, and a transport whose turn identity can be minted by the agent's own output cannot satisfy the strongest user-turn binding
@@ -189,12 +189,12 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | CON-08 | Phase 8 — Consent kernel | Pending |
 | CON-09 | Phase 8 — Consent kernel | Pending |
 | CON-10 | Phase 8 — Consent kernel | Pending |
-| SES-01 | Phase 7 — Session and the transport seam | Complete |
-| SES-02 | Phase 7 — Session and the transport seam | Complete |
-| SES-03 | Phase 7 — Session and the transport seam | Complete |
-| SES-04 | Phase 7 — Session and the transport seam | Complete |
+| SES-01 | Phase 7 — Session and the transport seam | Complete — C01-C16 plus M-07-C01..C09/M-07-R03..R04 prove start, stage-change, reconnect, reconciliation, and publication admission behavior. |
+| SES-02 | Phase 7 — Session and the transport seam | Complete — C11-C16/J01-J06/J15-J18 plus M-07-C05/C06/C09/M-07-R01/R06/R07/R08/R09 prove one FIFO dispatch occurrence and one stable response attempt per call. |
+| SES-03 | Phase 7 — Session and the transport seam | Complete — J07-J18 plus M-07-R02..R05/R09 prove arrival identity, lazy envelope forwarding, delivery-hook preservation, signal composition, and direct-dispatch parity. |
+| SES-04 | Phase 7 — Session and the transport seam | Complete — C07-C14 and L01-L16 plus M-07-C07..C09/M-07-L02/L07/M-07-D02 prove stop-first invalidation, cleanup, cancellation, reentrancy containment, and no post-stop output. |
 | TRN-01 | Phase 1 — Type surface completion | Complete |
-| TRN-02 | Phase 7 — Session and the transport seam | Complete |
+| TRN-02 | Phase 7 — Session and the transport seam | Partial — Phase 7 delivers U01-U08 reusable no-network fixture and Session seam/package proof; Phase 8 must reuse this exact fixture to exercise the consent kernel before TRN-02 can be Complete. |
 | TRN-03 | Phase 8 — Consent kernel | Pending |
 | TRN-04 | Phase 6 — Dispatcher | Complete — R19 drives one action and Q14 drives a batch directly from an application loop without constructing a Transport; the complete 62-row mutation register remains green. |
 | TRN-05 | Phase 1 — Type surface completion | Complete |

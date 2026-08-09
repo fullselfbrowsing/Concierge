@@ -1,9 +1,9 @@
 ---
 phase: 07
 slug: session-and-the-transport-seam
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-08-08
 ---
 
@@ -27,8 +27,8 @@ created: 2026-08-08
 | **Type run** | `pnpm --filter @fullselfbrowsing/concierge typecheck` |
 | **Full suite** | `pnpm build && pnpm typecheck && pnpm test` |
 | **Release gate** | `pnpm build && pnpm typecheck && pnpm test && pnpm check:artifact && pnpm check:deps && pnpm check:pack && pnpm check:node-floor` |
-| **Current baseline** | 12 runtime files / 252 tests / 0 pending / 0 todo; replace with measured final counts during sign-off |
-| **Estimated runtime** | Focused feedback should remain under 5 seconds; record measured full-gate duration during execution |
+| **Measured final runtime** | 16 runtime files / 312 passed / 312 total / 0 pending / 0 todo (`pnpm test`, exit 0) |
+| **Feedback bound** | Focused feedback remains split into exact files or bounded mutation shards; the final release gate is measured separately below |
 
 Do not use `pnpm test -- <fragment>` for focused feedback. Build first, then invoke `pnpm exec vitest run <exact-file>` because runtime suites import `dist`.
 
@@ -46,16 +46,18 @@ Do not use `pnpm test -- <fragment>` for focused feedback. Build first, then inv
 
 ## Security Threat Index
 
-| Ref | Threat | Required control |
-|-----|--------|------------------|
-| T-07-01 | Reentrant transition resumes stale catalog/context authority, mistakes confirmed authority for transport reality, or admits work before reconciliation | Serialized context/status transition drain, latest-generation checkpoints, separate publishing/published/confirmed catalog state, identity-based epoch promotion/abort, publication-gated pump, fixed-catalog fail-close |
-| T-07-02 | Concurrent/retried routing duplicates work or responses | Session-wide FIFO, one `dispatchBatch` per accepted occurrence, one non-retried response attempt per row |
-| T-07-03 | Session invents/replaces consent evidence or eagerly reads a hostile envelope before Phase 6 can contain it | Lazy descriptor getters preserve response/turn ids, calls, and delivery hook; compose only signal; direct-dispatch parity |
-| T-07-04 | Transition, stop, or subscriber reentrancy leaves live state | Transition queue/generation guard; mark stopped and invalidate drain before outside calls; tokenized listeners; independent cleanup; no post-stop output |
-| T-07-05 | Publication/diagnostic failures leak secrets, reenter live state, or become a fatal callback path | Stop before diagnostic/cleanup reentrancy, closed immutable fixed messages/errors, no caught/raw values, contained runtime hook |
-| T-07-06 | Public/package drift or a duplicate core copy bypasses the intended seam | Exact type/export pins, direct `assertSingleInstance`, foreign consumer and tarball gates |
+| Ref | Threat | Required control | Measured verification | Status |
+|-----|--------|------------------|-----------------------|--------|
+| T-07-01 | Reentrant transition resumes stale catalog/context authority, mistakes confirmed authority for transport reality, or admits work before reconciliation | Serialized context/status transition drain, latest-generation checkpoints, separate publishing/published/confirmed catalog state, identity-based epoch promotion/abort, publication-gated pump, fixed-catalog fail-close | C01-C16; M-07-C01..C09 and M-07-R03..R04 all compiled, ran named detectors, and were killed | ✅ mitigated |
+| T-07-02 | Concurrent/retried routing duplicates work or responses | Session-wide FIFO, one `dispatchBatch` per accepted occurrence, one non-retried response attempt per row | C11-C16, J01-J06, J15-J18; M-07-C05/C06/C09 and M-07-R01/R06/R07/R08/R09 | ✅ mitigated |
+| T-07-03 | Session invents/replaces consent evidence or eagerly reads a hostile envelope before Phase 6 can contain it | Lazy descriptor getters preserve response/turn ids, calls, and delivery hook; compose only signal; direct-dispatch parity | J07-J18; M-07-R02/R05/R09 | ✅ mitigated |
+| T-07-04 | Transition, stop, or subscriber reentrancy leaves live state | Transition queue/generation guard; mark stopped and invalidate drain before outside calls; tokenized listeners; independent cleanup; no post-stop output | C10-C16, L01-L13; M-07-C05..C09 and M-07-L01..L08 | ✅ mitigated |
+| T-07-05 | Publication/diagnostic failures leak secrets, reenter live state, or become a fatal callback path | Stop before diagnostic/cleanup reentrancy, closed immutable fixed messages/errors, no caught/raw values, contained runtime hook | C08, C09, C13, C14, J14-J18, L14-L16; M-07-L02/L07, M-07-R09, and M-07-D01/D02 | ✅ mitigated |
+| T-07-06 | Public/package drift or a duplicate core copy bypasses the intended seam | Exact type/export pins, direct `assertSingleInstance`, foreign consumer and tarball gates | Exact 69/54/15 public surface, F7 direct guard, P02 guard kill, P01 package-exclusion kill, foreign exact-optional-property-types consumer, and byte-identical input hashes | ✅ mitigated |
 
 Applicable security references are OWASP ASVS 5.0 V2, V4, V8, V15, and V16. V7 applies only by lifecycle analogy: this is an agent-runtime session, not an authentication session.
+
+All six high-severity T-07-01..T-07-06 threats are mitigated and mechanically verified; none is accepted or pending. Residual risk is revision-bound evidence plus the possibility that a future vendor transport misreports its capabilities. Phase 7 proves the neutral seam and deterministic fixture, not trust in an unimplemented vendor adapter. The low supply-chain risk is accepted because dependency contribution is zero bytes and all three protected inputs remained byte-identical.
 
 ---
 
@@ -65,20 +67,20 @@ Task and plan IDs are the expected decomposition from research; the planner must
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 07-01-01 | 01 | 1 | SES-01, SES-03, TRN-02 | T-07-03, T-07-06 | Four-status neutral lifecycle, exact readonly six-key Transport, and baseline-safe scoped identifier gate that kills an onReconnect member control | type + static | `pnpm --filter @fullselfbrowsing/concierge typecheck` plus scoped Transport-block Node gate | `test-d/transport.test-d.ts` update required | ⬜ pending |
-| 07-01-02 | 01 | 1 | SES-04 | T-07-05, T-07-06 | Promise stop, EOPT-safe config, exact readonly nine-code diagnostics | type + security | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ `test-d/session.test-d.ts` W0 | ⬜ pending |
-| 07-02-01 | 02 | 1 | TRN-02 | T-07-06 | Frozen profiles, exact six-key transport, fixture-import type pin, synchronous status/batch snapshots and counts | fixture + type + runtime | `pnpm --filter @fullselfbrowsing/concierge typecheck && pnpm exec vitest run packages/concierge/test/stub-transport.test.ts --testNamePattern="^\\[U0[1-4]\\]"` | ❌ fixture + test-d W0 | ⬜ pending |
-| 07-02-02 | 02 | 1 | TRN-02 | T-07-02, T-07-05, T-07-06 | Attempt-before-throw failures, immutable identity-preserving histories, test-only boundary | fixture + security | `pnpm exec vitest run packages/concierge/test/stub-transport.test.ts` | ❌ W0 | ⬜ pending |
-| 07-03-01 | 03 | 2 | SES-01, SES-02, SES-04 | T-07-01, T-07-04, T-07-05 | C01-C16 hot publication, serialized latest-wins context/status reentrancy, actual-published identity reconciliation, publication-gated batch admission, fixed-catalog stop-first, and failing-publication batch drain | integration + concurrency + security | `pnpm --filter @fullselfbrowsing/concierge build && pnpm exec vitest run packages/concierge/test/session-catalog.test.ts` | ❌ W0 | ⬜ pending |
-| 07-03-02 | 03 | 2 | SES-01 | T-07-06 | Exact factory signature/value placement and truthful source/guard prose | type + integration | `pnpm --filter @fullselfbrowsing/concierge typecheck && pnpm --filter @fullselfbrowsing/concierge build` | existing files + W0 factory pin | ⬜ pending |
-| 07-03-03 | 03 | 2 | SES-01 | T-07-06 | Callable artifact, exact 69/54/15 surface, direct createSession F7 guard | artifact + integration | `pnpm build && pnpm exec vitest run packages/concierge/test/artifact.test.ts packages/concierge/test/export-surface.test.ts packages/concierge/test/single-instance.test.ts` | existing files need updates | ⬜ pending |
-| 07-04-01 | 04 | 3 | SES-02 | T-07-02, T-07-05 | Cross-batch FIFO, one dispatch occurrence, stable one-attempt responses, failure continuation | concurrency + integration | `pnpm --filter @fullselfbrowsing/concierge build && pnpm exec vitest run packages/concierge/test/session-routing.test.ts --testNamePattern="^\\[J0[1-6]\\]"` | ❌ W0 | ⬜ pending |
-| 07-04-02 | 04 | 3 | SES-01, SES-02, SES-03 | T-07-01, T-07-03, T-07-04, T-07-05 | J07-J18 arrival context/epoch, active/queued/held cancellation, lazy descriptor envelope, four throwing-getter direct-dispatch parity cases, signal-only replacement, and real-handler join | concurrency + totality + security | `pnpm --filter @fullselfbrowsing/concierge build && pnpm exec vitest run packages/concierge/test/session-routing.test.ts` | ❌ W0 | ⬜ pending |
-| 07-05-01 | 05 | 4 | SES-04 | T-07-01, T-07-02, T-07-04 | Stable cached drain, transition/publication-token invalidation, complete rollback/cleanup, queued/published-but-unconfirmed settlement, and no post-stop output | lifecycle + concurrency | `pnpm --filter @fullselfbrowsing/concierge build && pnpm exec vitest run packages/concierge/test/session-lifecycle.test.ts --testNamePattern="^\\[L0[1-8]\\]"` | ❌ W0 | ⬜ pending |
-| 07-05-02 | 05 | 4 | SES-04 | T-07-04, T-07-05 | Reentrant tokenized queued listeners and contained immutable fixed diagnostics | hostile callback + security | `pnpm --filter @fullselfbrowsing/concierge build && pnpm exec vitest run packages/concierge/test/session-lifecycle.test.ts` | ❌ W0 | ⬜ pending |
-| 07-06-01 | 06 | 5 | SES-01, SES-02, SES-03, SES-04, TRN-02 | T-07-01–T-07-06 | Foreign/package seam plus exact pending 30-mutant register, independent actual-published identity/reentrancy/admission/eager-read counterexamples, and specified three-file input verifier | mutation + package | `node scripts/phase-07-mutation-battery.mjs self-test && node scripts/phase-07-mutation-battery.mjs refresh && node scripts/phase-07-mutation-battery.mjs verify inputs && pnpm check:pack` | ❌ W0 | ⬜ pending |
-| 07-06-02 | 06 | 5 | SES-01, SES-02, SES-03, SES-04, TRN-02 | T-07-01–T-07-06 | Thirty non-vacuous mutation kills, release gates, tar exclusion, live counts, byte-identical inputs | mutation + release | `node scripts/phase-07-mutation-battery.mjs verify all && node scripts/phase-07-mutation-battery.mjs verify inputs && pnpm build && pnpm typecheck && pnpm test && pnpm check:artifact && pnpm check:deps && pnpm check:pack && pnpm check:node-floor` | ❌ W0 evidence | ⬜ pending |
-| 07-06-03 | 06 | 5 | SES-01, SES-02, SES-03, SES-04, TRN-02 | T-07-01–T-07-06 | Live task/threat/mutation/release ledgers, SES-01..04 closure, and enforced pending/Partial TRN-02 Phase 8 handoff | ledger + integration | `node scripts/phase-07-mutation-battery.mjs verify ledgers` | existing ledgers need updates | ⬜ pending |
+| 07-01-01 | 01 | 1 | SES-01, SES-03, TRN-02 | T-07-03, T-07-06 | Four-status neutral lifecycle, exact readonly six-key Transport, and baseline-safe scoped identifier gate that kills an onReconnect member control | type + static | `pnpm --filter @fullselfbrowsing/concierge typecheck` plus scoped Transport-block Node gate | ✅ `packages/concierge/test-d/transport.test-d.ts`; TransportStatus and exact six-key pins | ✅ green |
+| 07-01-02 | 01 | 1 | SES-04 | T-07-05, T-07-06 | Promise stop, EOPT-safe config, exact readonly nine-code diagnostics | type + security | `pnpm --filter @fullselfbrowsing/concierge typecheck` | ✅ `packages/concierge/test-d/session.test-d.ts`; Session/config/diagnostic pins | ✅ green |
+| 07-02-01 | 02 | 1 | TRN-02 | T-07-06 | Frozen profiles, exact six-key transport, fixture-import type pin, synchronous status/batch snapshots and counts | fixture + type + runtime | `pnpm --filter @fullselfbrowsing/concierge typecheck && pnpm exec vitest run packages/concierge/test/stub-transport.test.ts --testNamePattern="^\\[U0[1-4]\\]"` | ✅ `packages/concierge/test/fixtures/stub-transport.ts`, `packages/concierge/test-d/stub-transport.test-d.ts`; U01-U04 | ✅ green |
+| 07-02-02 | 02 | 1 | TRN-02 | T-07-02, T-07-05, T-07-06 | Attempt-before-throw failures, immutable identity-preserving histories, test-only boundary | fixture + security | `pnpm exec vitest run packages/concierge/test/stub-transport.test.ts` | ✅ `packages/concierge/test/stub-transport.test.ts`; U05-U08 | ✅ green |
+| 07-03-01 | 03 | 2 | SES-01, SES-02, SES-04 | T-07-01, T-07-04, T-07-05 | C01-C16 hot publication, serialized latest-wins context/status reentrancy, actual-published identity reconciliation, publication-gated batch admission, fixed-catalog stop-first, and failing-publication batch drain | integration + concurrency + security | `pnpm --filter @fullselfbrowsing/concierge build && pnpm exec vitest run packages/concierge/test/session-catalog.test.ts` | ✅ `packages/concierge/test/session-catalog.test.ts`; C01-C16 | ✅ green |
+| 07-03-02 | 03 | 2 | SES-01 | T-07-06 | Exact factory signature/value placement and truthful source/guard prose | type + integration | `pnpm --filter @fullselfbrowsing/concierge typecheck && pnpm --filter @fullselfbrowsing/concierge build` | ✅ `packages/concierge/test-d/session.test-d.ts`, `packages/concierge/test-d/exports.test-d.ts`; factory pin | ✅ green |
+| 07-03-03 | 03 | 2 | SES-01 | T-07-06 | Callable artifact, exact 69/54/15 surface, direct createSession F7 guard | artifact + integration | `pnpm build && pnpm exec vitest run packages/concierge/test/artifact.test.ts packages/concierge/test/export-surface.test.ts packages/concierge/test/single-instance.test.ts` | ✅ artifact/export/single-instance suites; 69/54/15 and F7 | ✅ green |
+| 07-04-01 | 04 | 3 | SES-02 | T-07-02, T-07-05 | Cross-batch FIFO, one dispatch occurrence, stable one-attempt responses, failure continuation | concurrency + integration | `pnpm --filter @fullselfbrowsing/concierge build && pnpm exec vitest run packages/concierge/test/session-routing.test.ts --testNamePattern="^\\[J0[1-6]\\]"` | ✅ `packages/concierge/test/session-routing.test.ts`; J01-J06 | ✅ green |
+| 07-04-02 | 04 | 3 | SES-01, SES-02, SES-03 | T-07-01, T-07-03, T-07-04, T-07-05 | J07-J18 arrival context/epoch, active/queued/held cancellation, lazy descriptor envelope, four throwing-getter direct-dispatch parity cases, signal-only replacement, and real-handler join | concurrency + totality + security | `pnpm --filter @fullselfbrowsing/concierge build && pnpm exec vitest run packages/concierge/test/session-routing.test.ts` | ✅ `packages/concierge/test/session-routing.test.ts`; J07-J18 | ✅ green |
+| 07-05-01 | 05 | 4 | SES-04 | T-07-01, T-07-02, T-07-04 | Stable cached drain, transition/publication-token invalidation, complete rollback/cleanup, queued/published-but-unconfirmed settlement, and no post-stop output | lifecycle + concurrency | `pnpm --filter @fullselfbrowsing/concierge build && pnpm exec vitest run packages/concierge/test/session-lifecycle.test.ts --testNamePattern="^\\[L0[1-8]\\]"` | ✅ `packages/concierge/test/session-lifecycle.test.ts`; L01-L08 | ✅ green |
+| 07-05-02 | 05 | 4 | SES-04 | T-07-04, T-07-05 | Reentrant tokenized queued listeners and contained immutable fixed diagnostics | hostile callback + security | `pnpm --filter @fullselfbrowsing/concierge build && pnpm exec vitest run packages/concierge/test/session-lifecycle.test.ts` | ✅ `packages/concierge/test/session-lifecycle.test.ts`; L09-L16 | ✅ green |
+| 07-06-01 | 06 | 5 | SES-01, SES-02, SES-03, SES-04, TRN-02 | T-07-01–T-07-06 | Foreign/package seam plus exact pending 30-mutant register, independent actual-published identity/reentrancy/admission/eager-read counterexamples, and specified three-file input verifier | mutation + package | `node scripts/phase-07-mutation-battery.mjs self-test && node scripts/phase-07-mutation-battery.mjs refresh && node scripts/phase-07-mutation-battery.mjs verify inputs && pnpm check:pack` | ✅ probe, pack script, battery, register, and evidence; pending register plus self-tests | ✅ green |
+| 07-06-02 | 06 | 5 | SES-01, SES-02, SES-03, SES-04, TRN-02 | T-07-01–T-07-06 | Thirty non-vacuous mutation kills, release gates, tar exclusion, live counts, byte-identical inputs | mutation + release | `node scripts/phase-07-mutation-battery.mjs verify all && node scripts/phase-07-mutation-battery.mjs verify inputs && pnpm build && pnpm typecheck && pnpm test && pnpm check:artifact && pnpm check:deps && pnpm check:pack && pnpm check:node-floor` | ✅ immutable evidence; M-07-C01..M-07-P02, 30/30 plus release facts | ✅ green |
+| 07-06-03 | 06 | 5 | SES-01, SES-02, SES-03, SES-04, TRN-02 | T-07-01–T-07-06 | Live task/threat/mutation/release ledgers, SES-01..04 closure, and enforced pending/Partial TRN-02 Phase 8 handoff | ledger + integration | `node scripts/phase-07-mutation-battery.mjs verify ledgers` | ✅ `.planning/phases/07-session-and-the-transport-seam/07-VALIDATION.md` and `.planning/REQUIREMENTS.md`; live ledger closure | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -115,17 +117,17 @@ Task and plan IDs are the expected decomposition from research; the planner must
 
 ## Wave 0 Requirements
 
-- [ ] `packages/concierge/test-d/session.test-d.ts` — 07-01-02 creates config/diagnostic/stop pins; 07-03-02 adds the callable factory pin.
-- [ ] Update `packages/concierge/test-d/transport.test-d.ts` — 07-01-01 owns lifecycle callback and exact six-key pin.
-- [ ] `packages/concierge/test/fixtures/stub-transport.ts` — 07-02-01/02 own the reusable deterministic fixture.
-- [ ] `packages/concierge/test-d/stub-transport.test-d.ts` — 07-02-01 imports the fixture into tsconfig.test-d.json and pins exact six-key Transport conformance after the Wave 1 merge.
-- [ ] `packages/concierge/test/session-catalog.test.ts` — 07-03-01 owns C01-C16 SES-01 publication, actual-published identity reconciliation, transition reentrancy, admission gating, and fail-closed batch-drain RED scaffolding before source edits.
-- [ ] `packages/concierge/test/session-routing.test.ts` — 07-04-01/02 own J01-J18 FIFO/epoch/lazy-envelope/hostile-getter parity RED scaffolding before source edits.
-- [ ] `packages/concierge/test/session-lifecycle.test.ts` — 07-05-01/02 own SES-04 rollback/reentrancy/diagnostic RED scaffolding before source edits.
-- [ ] `packages/concierge/test/stub-transport.test.ts` — 07-02-01/02 own TRN-02 fixture proof.
-- [ ] Artifact/export/single-instance gates — 07-03-03; foreign probe and tarball package-list gate — 07-06-01.
-- [ ] `scripts/phase-07-mutation-battery.mjs` and immutable register/evidence artifacts — 07-06-01 creates pending definitions and 07-06-02 records non-vacuous evidence.
-- [ ] Framework installation — none; existing infrastructure covers execution.
+- [x] `packages/concierge/test-d/session.test-d.ts` is present with the config, diagnostic, stop, and callable-factory pins.
+- [x] `packages/concierge/test-d/transport.test-d.ts` is present with lifecycle callbacks and the exact readonly six-key Transport pin.
+- [x] `packages/concierge/test/fixtures/stub-transport.ts` is present as the reusable deterministic zero-network fixture.
+- [x] `packages/concierge/test-d/stub-transport.test-d.ts` is present in the type-test project and pins exact six-key Transport conformance.
+- [x] `packages/concierge/test/session-catalog.test.ts` is present and C01-C16 are named, discovered, and green.
+- [x] `packages/concierge/test/session-routing.test.ts` is present and J01-J18 are named, discovered, and green.
+- [x] `packages/concierge/test/session-lifecycle.test.ts` is present and L01-L16 are named, discovered, and green.
+- [x] `packages/concierge/test/stub-transport.test.ts` is present and U01-U08 are named, discovered, and green.
+- [x] Artifact/export/single-instance gates are present and green at 69/54/15 with F7; the foreign probe and tarball package-list gate are present and green.
+- [x] `scripts/phase-07-mutation-battery.mjs` plus immutable register/evidence artifacts are present; the register digest is `85e4a253b9a2487bd692c08e3b751a8a66eceb91871f79e8878110ea7bebbb47` and all 30 rows are green.
+- [x] Framework installation was not required; existing infrastructure executed every gate without a new dependency.
 
 ---
 
@@ -156,6 +158,41 @@ Final replacement mapping, with the 30-row total and 9/9/8/2/2 distribution unch
 
 ---
 
+## Measured Mutation Evidence
+
+| Evidence | Measured result |
+|----------|-----------------|
+| Immutable register | Digest `85e4a253b9a2487bd692c08e3b751a8a66eceb91871f79e8878110ea7bebbb47` |
+| Distribution | 9 catalog / 9 routing / 8 lifecycle / 2 diagnostics / 2 package-guard (`9/9/8/2/2`) |
+| Outcome | 30/30 green; zero pending, zero escaped, zero failed |
+| Non-vacuity | Every row compiled successfully, ran a nonzero named detector set, satisfied its detector, was killed, and matched its one exact source literal before mutation |
+| Revision binding | Every row records a unique revision digest; all compiled-target hashes changed under mutation and returned to their recorded original values afterward |
+| Restoration | Each target was restored, the restored gate passed, the scoped worktree was clean, and no infrastructure error was recorded |
+| Bounded execution | Exactly ten contiguous shards: C01-C03, C04-C06, C07-C09, R01-R04, R05-R08, R09-R09, L01-L04, L05-L08, D01-D02, P01-P02 |
+
+The protected inputs were verified byte-identical before and after the battery:
+
+| Input | SHA-256 |
+|-------|---------|
+| `package.json` | `a8267855dba9a429225090c505a78c6169415e2978ce6fb8fcdd6b28e18d542a` |
+| `packages/concierge/package.json` | `5ed9d24829c2ac5bdcf69b57d4f4b503c226cee33f474ad07536521fec4112e4` |
+| `pnpm-lock.yaml` | `0e29065f823200f9bdb2284bdef721003f525f68fa60a2810046b1a7f720e0d4` |
+
+## Measured Release Evidence
+
+| Gate | Measured result |
+|------|-----------------|
+| `pnpm build` | Exit 0 |
+| `pnpm typecheck` | Exit 0 |
+| `pnpm test` | Exit 0; 16 runtime files, 312 passed, 312 total, 0 pending, 0 todo |
+| `pnpm check:artifact` | Exit 0; callable artifact and exact public declaration surface of 69 names / 54 types / 15 values |
+| Direct guard | F7 passed and P02 killed exactly the direct `createSession` single-instance guard |
+| `pnpm check:deps` | Exit 0; dependency contribution is zero bytes |
+| `pnpm check:pack` | Exit 0; foreign tarball install, typecheck with `exactOptionalPropertyTypes`, and runtime import of `createSession`/public types passed; the test-only stub fixture is absent from the tarball |
+| `pnpm check:node-floor` | Exit 0 under Node v22.12.0 |
+
+---
+
 ## Manual-Only Verifications
 
 All Phase 7 behaviors have automated verification. No network, browser, vendor account, framework host, or human perceptual judgment is in scope.
@@ -164,14 +201,14 @@ All Phase 7 behaviors have automated verification. No network, browser, vendor a
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verification or explicit Wave 0 dependencies.
-- [ ] Sampling continuity: no three consecutive tasks lack automated feedback.
-- [ ] Wave 0 covers every missing test and fixture above.
-- [ ] No watch-mode flags or hidden fixture timers.
-- [ ] Focused feedback latency stays below 5 seconds or is split into bounded groups.
-- [ ] All five requirement IDs map to tests and mutation targets; SES-01..04 are Complete while TRN-02 remains unchecked/Partial with the Phase 8 consent-kernel handoff.
-- [ ] Final runtime/type/artifact/package counts are measured live rather than copied from the Phase 6 baseline.
-- [ ] `nyquist_compliant: true`, `wave_0_complete: true`, and `status: complete` are set only after plans and evidence agree.
-- [ ] `**Approval:** pending` is replaced by `**Approval:** approved YYYY-MM-DD — register <digest>; 30/30 green; release gate green` using the actual UTC date and matching evidence digest.
+- [x] All tasks have `<automated>` verification or explicit Wave 0 dependencies.
+- [x] Sampling continuity: no three consecutive tasks lack automated feedback.
+- [x] Wave 0 covers every missing test and fixture above.
+- [x] No watch-mode flags or hidden fixture timers.
+- [x] Focused feedback latency stays below 5 seconds or is split into bounded groups.
+- [x] All five requirement IDs map to tests and mutation targets; SES-01..04 are Complete while TRN-02 remains unchecked/Partial with the Phase 8 consent-kernel handoff.
+- [x] Final runtime/type/artifact/package counts are measured live rather than copied from the Phase 6 baseline.
+- [x] `nyquist_compliant: true`, `wave_0_complete: true`, and `status: complete` are set only after plans and evidence agree.
+- [x] Approval records the actual UTC date, matching register digest, 30/30 outcome, and green release gate.
 
-**Approval:** pending
+**Approval:** approved 2026-08-09 — register 85e4a253b9a2487bd692c08e3b751a8a66eceb91871f79e8878110ea7bebbb47; 30/30 green; release gate green
