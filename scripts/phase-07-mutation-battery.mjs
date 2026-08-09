@@ -32,8 +32,43 @@ const HARNESS_PATH = join(ROOT, "scripts/mutate-and-prove.sh");
 const CORE_PACKAGE_DIRECTORY = join(ROOT, "packages/concierge");
 const BUILD_MARKER = "Build complete";
 const MAX_BUFFER = 64 * 1024 * 1024;
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 const USAGE = "Usage: node scripts/phase-07-mutation-battery.mjs verify inputs";
+
+const RELEASE_COMMAND_KEYS = Object.freeze([
+  "build",
+  "typecheck",
+  "test",
+  "check:artifact",
+  "check:deps",
+  "check:pack",
+  "check:node-floor",
+]);
+const RELEASE_KEYS = Object.freeze([
+  "revisionDigest",
+  "executedAt",
+  "commandExits",
+  "tests",
+]);
+const RELEASE_TEST_KEYS = Object.freeze([
+  "exitCode",
+  "numTestFiles",
+  "numPassedTests",
+  "numTotalTests",
+  "numFailedTests",
+  "numPendingTests",
+  "numTodoTests",
+]);
+const EVIDENCE_KEYS = Object.freeze([
+  "schemaVersion",
+  "phase",
+  "registerDigest",
+  "expectedIds",
+  "inputHashes",
+  "release",
+  "updatedAt",
+  "rows",
+]);
 
 const TEST_FILES = Object.freeze({
   catalog: "packages/concierge/test/session-catalog.test.ts",
@@ -850,6 +885,17 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function validateExactObjectKeys(value, expectedKeys, label) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`${label} must be an object`);
+  }
+  const observed = Object.keys(value).sort();
+  const expected = [...expectedKeys].sort();
+  if (JSON.stringify(observed) !== JSON.stringify(expected)) {
+    throw new Error(`${label} keys must equal ${expected.join(", ")}`);
+  }
+}
+
 function assertThrows(operation, pattern, label) {
   let observed = null;
   try {
@@ -1092,6 +1138,7 @@ function makeInitialEvidence(root = ROOT) {
     registerDigest: registerDigest(),
     expectedIds: EXPECTED_M07_IDS,
     inputHashes: inputHashes(root),
+    release: null,
     updatedAt: new Date().toISOString(),
     rows: MUTANTS.map(pendingEvidenceRow),
   };
@@ -1110,10 +1157,73 @@ function validateRegister(register) {
   }
 }
 
-function validateEvidenceShape(evidence) {
-  if (typeof evidence !== "object" || evidence === null) {
-    throw new Error("evidence must be an object");
+function validateReleaseEvidenceShape(
+  release,
+  { required = false, expectedRevisionDigest = undefined } = {},
+) {
+  if (release === null) {
+    if (required) throw new Error("release evidence is required");
+    return;
   }
+  validateExactObjectKeys(release, RELEASE_KEYS, "release evidence");
+  if (!/^[0-9a-f]{64}$/u.test(release.revisionDigest)) {
+    throw new Error("release revisionDigest must be lowercase SHA-256");
+  }
+  if (
+    expectedRevisionDigest !== undefined &&
+    release.revisionDigest !== expectedRevisionDigest
+  ) {
+    throw new Error("release revisionDigest is stale");
+  }
+  if (
+    typeof release.executedAt !== "string" ||
+    Number.isNaN(Date.parse(release.executedAt))
+  ) {
+    throw new Error("release executedAt must be an ISO timestamp");
+  }
+
+  validateExactObjectKeys(
+    release.commandExits,
+    RELEASE_COMMAND_KEYS,
+    "release commandExits",
+  );
+  for (const commandName of RELEASE_COMMAND_KEYS) {
+    const exitCode = release.commandExits[commandName];
+    if (!Number.isInteger(exitCode)) {
+      throw new Error(`release command ${commandName} exit must be an integer`);
+    }
+    if (exitCode !== 0) {
+      throw new Error(`release command ${commandName} exit must be zero`);
+    }
+  }
+
+  validateExactObjectKeys(release.tests, RELEASE_TEST_KEYS, "release tests");
+  for (const key of RELEASE_TEST_KEYS) {
+    if (!Number.isInteger(release.tests[key])) {
+      throw new Error(`release tests ${key} must be an integer`);
+    }
+  }
+  if (release.tests.exitCode !== release.commandExits.test) {
+    throw new Error("release test exit must equal the recorded test command exit");
+  }
+  if (release.tests.numTestFiles <= 0 || release.tests.numTotalTests <= 0) {
+    throw new Error("release test file and total counts must be positive");
+  }
+  if (
+    release.tests.numPassedTests !== release.tests.numTotalTests ||
+    release.tests.numFailedTests !== 0 ||
+    release.tests.numPendingTests !== 0 ||
+    release.tests.numTodoTests !== 0
+  ) {
+    throw new Error("release test counts must describe a fully green run");
+  }
+}
+
+function validateEvidenceShape(
+  evidence,
+  { requireRelease = false, expectedReleaseRevision = undefined } = {},
+) {
+  validateExactObjectKeys(evidence, EVIDENCE_KEYS, "evidence");
   if (evidence.schemaVersion !== SCHEMA_VERSION) {
     throw new Error(`evidence schemaVersion must equal ${SCHEMA_VERSION}`);
   }
@@ -1125,6 +1235,17 @@ function validateEvidenceShape(evidence) {
   }
   if (JSON.stringify(evidence.expectedIds) !== JSON.stringify(EXPECTED_M07_IDS)) {
     throw new Error("evidence expectedIds do not match the immutable register");
+  }
+  validateInputHashShape(evidence.inputHashes);
+  validateReleaseEvidenceShape(evidence.release, {
+    required: requireRelease,
+    expectedRevisionDigest: expectedReleaseRevision,
+  });
+  if (
+    typeof evidence.updatedAt !== "string" ||
+    Number.isNaN(Date.parse(evidence.updatedAt))
+  ) {
+    throw new Error("evidence updatedAt must be an ISO timestamp");
   }
   const rowIds = evidence.rows?.map((row) => row.id) ?? [];
   if (JSON.stringify(rowIds) !== JSON.stringify(EXPECTED_M07_IDS)) {
@@ -1648,6 +1769,17 @@ function revisionInputPaths() {
   return revisionInputPathCache;
 }
 
+function releaseRevisionDigest() {
+  const digest = createHash("sha256");
+  digest.update("phase-07-release\0");
+  for (const path of revisionInputPaths()) {
+    digest.update(`path\0${path}\0`);
+    digest.update(readFileSync(join(ROOT, path)));
+    digest.update("\0");
+  }
+  return digest.digest("hex");
+}
+
 function revisionDigest(mutant) {
   const digest = createHash("sha256");
   digest.update(`mutant\0${JSON.stringify(mutant)}\0`);
@@ -1960,7 +2092,58 @@ function validatePackageBoundary({
   }
 }
 
-function validateLedgerSkeleton(validationText, runtimeTotals) {
+function markdownSection(markdown, heading) {
+  const marker = `## ${heading}`;
+  const start = markdown.indexOf(marker);
+  if (start === -1) throw new Error(`validation ledger is missing ${heading} section`);
+  const bodyStart = start + marker.length;
+  const remainder = markdown.slice(bodyStart);
+  const nextHeading = remainder.search(/\n##\s/u);
+  return nextHeading === -1 ? remainder : remainder.slice(0, nextHeading);
+}
+
+function parseTwoColumnRows(markdown, label) {
+  const rows = new Map();
+  for (const line of markdown.split(/\r?\n/u)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) continue;
+    const cells = trimmed
+      .slice(1, -1)
+      .split("|")
+      .map((cell) => cell.trim());
+    if (cells.length !== 2) continue;
+    if (cells.every((cell) => /^:?-+:?$/u.test(cell))) continue;
+    if (["Property", "Evidence", "Input", "Gate"].includes(cells[0])) continue;
+    if (rows.has(cells[0])) {
+      throw new Error(`${label} contains duplicate row ${cells[0]}`);
+    }
+    rows.set(cells[0], cells[1]);
+  }
+  return rows;
+}
+
+function requireExactRows(rows, expectedRows, label) {
+  const observedKeys = [...rows.keys()];
+  const expectedKeys = [...expectedRows.keys()];
+  if (JSON.stringify(observedKeys) !== JSON.stringify(expectedKeys)) {
+    throw new Error(`${label} row keys are missing, reordered, or extra`);
+  }
+  for (const [key, expected] of expectedRows) {
+    const observed = rows.get(key);
+    if (observed !== expected) {
+      throw new Error(
+        `${label} row ${key} differs: expected ${JSON.stringify(expected)}, observed ${JSON.stringify(observed)}`,
+      );
+    }
+  }
+}
+
+function runtimeLedgerValue(release) {
+  const tests = release.tests;
+  return `${tests.numTestFiles} runtime files / ${tests.numPassedTests} passed / ${tests.numTotalTests} total / ${tests.numPendingTests} pending / ${tests.numTodoTests} todo (\`pnpm test\`, exit ${tests.exitCode})`;
+}
+
+function validateLedgerSkeleton(validationText, release = undefined) {
   for (const taskId of REQUIRED_TASK_IDS) {
     if (!validationText.includes(`| ${taskId} |`)) {
       throw new Error(`validation ledger is missing task row ${taskId}`);
@@ -1971,20 +2154,22 @@ function validateLedgerSkeleton(validationText, runtimeTotals) {
       throw new Error(`validation ledger is missing requirement mapping ${requirementId}`);
     }
   }
-  if (
-    runtimeTotals !== undefined &&
-    (!validationText.includes(`${runtimeTotals.numTestFiles} runtime files`) ||
-      !validationText.includes(`${runtimeTotals.numPassedTests} passed`) ||
-      !validationText.includes(`${runtimeTotals.numTotalTests} total`) ||
-      !validationText.includes(`${runtimeTotals.numPendingTests} pending`) ||
-      !validationText.includes(`${runtimeTotals.numTodoTests} todo`))
-  ) {
-    throw new Error("validation ledger runtime totals are stale or missing");
+  if (release !== undefined) {
+    validateReleaseEvidenceShape(release, { required: true });
+    const infrastructure = parseTwoColumnRows(
+      markdownSection(validationText, "Test Infrastructure"),
+      "Test Infrastructure",
+    );
+    if (infrastructure.get("**Measured final runtime**") !== runtimeLedgerValue(release)) {
+      throw new Error("validation ledger runtime totals are stale or missing");
+    }
   }
 }
 
-function validateFinalLedgers(validationText, requirementsText, evidence, runtimeTotals) {
-  validateLedgerSkeleton(validationText, runtimeTotals);
+function validateFinalLedgers(validationText, requirementsText, evidence) {
+  validateReleaseEvidenceShape(evidence.release, { required: true });
+  const release = evidence.release;
+  validateLedgerSkeleton(validationText, release);
   if (!/^status: complete$/mu.test(validationText)) {
     throw new Error("validation frontmatter status must be complete");
   }
@@ -2047,16 +2232,94 @@ function validateFinalLedgers(validationText, requirementsText, evidence, runtim
   if (!validationText.includes(evidence.registerDigest)) {
     throw new Error("validation ledger omits the immutable register digest");
   }
+
+  const mutationSection = markdownSection(validationText, "Measured Mutation Evidence");
+  const [mutationTableText, inputTableText = ""] = mutationSection.split(
+    "The protected inputs were verified byte-identical before and after the battery:",
+  );
+  const mutationRows = parseTwoColumnRows(
+    mutationTableText,
+    "Measured Mutation Evidence",
+  );
+  requireExactRows(
+    mutationRows,
+    new Map([
+      ["Immutable register", `Digest \`${evidence.registerDigest}\``],
+      [
+        "Distribution",
+        "9 catalog / 9 routing / 8 lifecycle / 2 diagnostics / 2 package-guard (`9/9/8/2/2`)",
+      ],
+      ["Outcome", "30/30 green; zero pending, zero escaped, zero failed"],
+      [
+        "Non-vacuity",
+        "Every row compiled successfully, ran a nonzero named detector set, satisfied its detector, was killed, and matched its one exact source literal before mutation",
+      ],
+      [
+        "Revision binding",
+        "Every row records a unique revision digest; all compiled-target hashes changed under mutation and returned to their recorded original values afterward",
+      ],
+      [
+        "Restoration",
+        "Each target was restored, the restored gate passed, the scoped worktree was clean, and no infrastructure error was recorded",
+      ],
+      [
+        "Bounded execution",
+        "Exactly ten contiguous shards: C01-C03, C04-C06, C07-C09, R01-R04, R05-R08, R09-R09, L01-L04, L05-L08, D01-D02, P01-P02",
+      ],
+    ]),
+    "Measured Mutation Evidence",
+  );
+
+  const inputRows = parseTwoColumnRows(inputTableText, "protected input evidence");
+  const expectedInputRows = new Map(
+    INPUT_PATHS.map((path) => [`\`${path}\``, `\`${evidence.inputHashes[path]}\``]),
+  );
+  requireExactRows(inputRows, expectedInputRows, "protected input evidence");
+
   for (const [path, hash] of Object.entries(evidence.inputHashes)) {
-    if (!validationText.includes(path) || !validationText.includes(hash)) {
+    if (inputRows.get(`\`${path}\``) !== `\`${hash}\``) {
       throw new Error(`validation ledger omits immutable input hash ${path}`);
     }
   }
-  for (const token of ["9/9/8/2/2", "30/30", "69", "54", "15", "F7"]) {
-    if (!validationText.includes(token)) {
-      throw new Error(`validation ledger omits final evidence token ${token}`);
-    }
-  }
+
+  const commandExits = release.commandExits;
+  const tests = release.tests;
+  const releaseRows = parseTwoColumnRows(
+    markdownSection(validationText, "Measured Release Evidence"),
+    "Measured Release Evidence",
+  );
+  requireExactRows(
+    releaseRows,
+    new Map([
+      ["`pnpm build`", `Exit ${commandExits.build}`],
+      ["`pnpm typecheck`", `Exit ${commandExits.typecheck}`],
+      [
+        "`pnpm test`",
+        `Exit ${commandExits.test}; ${tests.numTestFiles} runtime files, ${tests.numPassedTests} passed, ${tests.numTotalTests} total, ${tests.numPendingTests} pending, ${tests.numTodoTests} todo`,
+      ],
+      [
+        "`pnpm check:artifact`",
+        `Exit ${commandExits["check:artifact"]}; callable artifact and exact public declaration surface of 69 names / 54 types / 15 values`,
+      ],
+      [
+        "Direct guard",
+        "F7 passed and P02 killed exactly the direct `createSession` single-instance guard",
+      ],
+      [
+        "`pnpm check:deps`",
+        `Exit ${commandExits["check:deps"]}; dependency contribution is zero bytes`,
+      ],
+      [
+        "`pnpm check:pack`",
+        `Exit ${commandExits["check:pack"]}; foreign tarball install, typecheck with \`exactOptionalPropertyTypes\`, and runtime import of \`createSession\`/public types passed; the test-only stub fixture is absent from the tarball`,
+      ],
+      [
+        "`pnpm check:node-floor`",
+        `Exit ${commandExits["check:node-floor"]} under Node v22.12.0`,
+      ],
+    ]),
+    "Measured Release Evidence",
+  );
 }
 
 function verifyNamedCasesAndWaveFiles() {
@@ -2104,24 +2367,82 @@ function verifyNamedCasesAndWaveFiles() {
   }
 }
 
-function runReleaseGates() {
-  const gates = [
-    ["build", ["build"]],
-    ["typecheck", ["typecheck"]],
-    ["artifact", ["check:artifact"]],
-    ["deps", ["check:deps"]],
-    ["pack", ["check:pack"]],
-    ["node-floor", ["check:node-floor"]],
-  ];
-  for (const [name, args] of gates) {
-    const result = command("pnpm", args);
+function runReleaseGates(directory) {
+  const commandExits = {};
+
+  const build = runBuild();
+  commandExits.build = build.exitCode;
+  if (!build.succeeded) {
+    throw new Error(`release gate build failed:\n${shortOutput(build.output)}`);
+  }
+
+  const typecheck = command("pnpm", ["typecheck"]);
+  commandExits.typecheck = typecheck.exitCode;
+  if (typecheck.exitCode !== 0) {
+    throw new Error(
+      `release gate typecheck exited ${typecheck.exitCode}:\n${shortOutput(typecheck.output)}`,
+    );
+  }
+
+  const test = runFullVitest(join(directory, "full-vitest.json"));
+  commandExits.test = test.exitCode;
+  if (
+    test.exitCode !== 0 ||
+    !test.report.readable ||
+    test.report.numTestFiles <= 0 ||
+    test.report.numTotalTests <= 0 ||
+    test.report.numPassedTests !== test.report.numTotalTests ||
+    test.report.numFailedTests !== 0 ||
+    test.report.numPendingTests !== 0 ||
+    test.report.numTodoTests !== 0
+  ) {
+    throw new Error(`release gate test is not green:\n${shortOutput(test.output)}`);
+  }
+
+  for (const commandName of [
+    "check:artifact",
+    "check:deps",
+    "check:pack",
+    "check:node-floor",
+  ]) {
+    const result = command("pnpm", [commandName]);
+    commandExits[commandName] = result.exitCode;
     if (result.exitCode !== 0) {
-      throw new Error(`release gate ${name} exited ${result.exitCode}:\n${shortOutput(result.output)}`);
-    }
-    if (name === "build" && !result.output.includes(BUILD_MARKER)) {
-      throw new Error("release build omitted its success marker");
+      throw new Error(
+        `release gate ${commandName} exited ${result.exitCode}:\n${shortOutput(result.output)}`,
+      );
     }
   }
+
+  const release = {
+    revisionDigest: releaseRevisionDigest(),
+    executedAt: new Date().toISOString(),
+    commandExits,
+    tests: {
+      exitCode: test.exitCode,
+      numTestFiles: test.report.numTestFiles,
+      numPassedTests: test.report.numPassedTests,
+      numTotalTests: test.report.numTotalTests,
+      numFailedTests: test.report.numFailedTests,
+      numPendingTests: test.report.numPendingTests,
+      numTodoTests: test.report.numTodoTests,
+    },
+  };
+  validateReleaseEvidenceShape(release, {
+    required: true,
+    expectedRevisionDigest: releaseRevisionDigest(),
+  });
+  return release;
+}
+
+function recordReleaseEvidence(evidence, release) {
+  evidence.release = release;
+  evidence.updatedAt = new Date().toISOString();
+  validateEvidenceShape(evidence, {
+    requireRelease: true,
+    expectedReleaseRevision: releaseRevisionDigest(),
+  });
+  atomicWriteJson(EVIDENCE_PATH, evidence);
 }
 
 function verifyLedgers() {
@@ -2135,25 +2456,11 @@ function verifyLedgers() {
 
   const directory = mkdtempSync(join(tmpdir(), "phase-07-ledger-"));
   try {
-    const build = runBuild();
-    if (!build.succeeded) {
-      throw new Error(`fresh ledger build failed:\n${shortOutput(build.output)}`);
-    }
-    const full = runFullVitest(join(directory, "full-vitest.json"));
-    if (
-      full.exitCode !== 0 ||
-      !full.report.readable ||
-      full.report.numTotalTests <= 0 ||
-      full.report.numFailedTests !== 0 ||
-      full.report.numPendingTests !== 0 ||
-      full.report.numTodoTests !== 0
-    ) {
-      throw new Error(`fresh full Vitest report is not green:\n${shortOutput(full.output)}`);
-    }
-    runReleaseGates();
+    const release = runReleaseGates(directory);
+    recordReleaseEvidence(evidence, release);
     const validation = readFileSync(VALIDATION_PATH, "utf8");
     const requirements = readFileSync(REQUIREMENTS_PATH, "utf8");
-    validateFinalLedgers(validation, requirements, evidence, full.report);
+    validateFinalLedgers(validation, requirements, evidence);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -2212,6 +2519,25 @@ function changedRegister(mutator) {
   mutator(register);
   register.registerDigest = registerDigest(register.mutants);
   return register;
+}
+
+function syntheticReleaseEvidence() {
+  return {
+    revisionDigest: sha256("synthetic-release-revision"),
+    executedAt: "2026-08-08T00:00:00.000Z",
+    commandExits: Object.fromEntries(
+      RELEASE_COMMAND_KEYS.map((commandName) => [commandName, 0]),
+    ),
+    tests: {
+      exitCode: 0,
+      numTestFiles: 15,
+      numPassedTests: 296,
+      numTotalTests: 296,
+      numFailedTests: 0,
+      numPendingTests: 0,
+      numTodoTests: 0,
+    },
+  };
 }
 
 function selfTestInputVerifier() {
@@ -2281,6 +2607,62 @@ function selfTest() {
       initialEvidence.rows.every((row) => row.status === "pending"),
     "refresh fixture must contain exactly 30 pending rows",
   );
+
+  const syntheticRelease = syntheticReleaseEvidence();
+  const releasedEvidence = clone(initialEvidence);
+  releasedEvidence.release = clone(syntheticRelease);
+  validateEvidenceShape(releasedEvidence, {
+    requireRelease: true,
+    expectedReleaseRevision: syntheticRelease.revisionDigest,
+  });
+  const missingRelease = clone(releasedEvidence);
+  delete missingRelease.release;
+  assertThrows(
+    () => validateEvidenceShape(missingRelease, { requireRelease: true }),
+    /evidence keys/u,
+    "missing release object",
+  );
+  const nullRelease = clone(releasedEvidence);
+  nullRelease.release = null;
+  assertThrows(
+    () => validateEvidenceShape(nullRelease, { requireRelease: true }),
+    /release evidence is required/u,
+    "null release object",
+  );
+  for (const commandName of RELEASE_COMMAND_KEYS) {
+    const missingCommand = clone(syntheticRelease);
+    delete missingCommand.commandExits[commandName];
+    assertThrows(
+      () => validateReleaseEvidenceShape(missingCommand, { required: true }),
+      /commandExits keys/u,
+      `missing release command exit ${commandName}`,
+    );
+
+    const failedCommand = clone(syntheticRelease);
+    failedCommand.commandExits[commandName] = 1;
+    if (commandName === "test") failedCommand.tests.exitCode = 1;
+    assertThrows(
+      () => validateReleaseEvidenceShape(failedCommand, { required: true }),
+      /exit must be zero/u,
+      `nonzero release command exit ${commandName}`,
+    );
+  }
+  for (const [countName, value] of [
+    ["numTestFiles", 0],
+    ["numPassedTests", 295],
+    ["numTotalTests", 297],
+    ["numFailedTests", 1],
+    ["numPendingTests", 1],
+    ["numTodoTests", 1],
+  ]) {
+    const alteredCounts = clone(syntheticRelease);
+    alteredCounts.tests[countName] = value;
+    assertThrows(
+      () => validateReleaseEvidenceShape(alteredCounts, { required: true }),
+      /counts must|fully green/u,
+      `altered release test count ${countName}`,
+    );
+  }
 
   assertThrows(
     () => validateRegister({ ...makeRegister(), registerDigest: "0".repeat(64) }),
@@ -2490,34 +2872,63 @@ function selfTest() {
     "ordinary bracketed case selectors must remain exact",
   );
 
-  const totals = {
-    numTestFiles: 15,
-    numPassedTests: 296,
-    numTotalTests: 296,
-    numPendingTests: 0,
-    numTodoTests: 0,
-  };
   const ledgerFixture = [
+    "## Test Infrastructure",
+    "",
+    "| Property | Value |",
+    "|----------|-------|",
+    `| **Measured final runtime** | ${runtimeLedgerValue(syntheticRelease)} |`,
+    "",
+    "## Per-Task Verification Map",
     ...REQUIRED_TASK_IDS.map((id) => `| ${id} | fixture |`),
     ...REQUIRED_REQUIREMENT_IDS,
-    "15 runtime files / 296 passed / 296 total / 0 pending / 0 todo",
   ].join("\n");
-  validateLedgerSkeleton(ledgerFixture, totals);
+  validateLedgerSkeleton(ledgerFixture, syntheticRelease);
   assertThrows(
-    () => validateLedgerSkeleton(ledgerFixture.replace("| 07-03-02 | fixture |", ""), totals),
+    () =>
+      validateLedgerSkeleton(
+        ledgerFixture.replace("| 07-03-02 | fixture |", ""),
+        syntheticRelease,
+      ),
     /07-03-02/u,
     "missing task row",
   );
   assertThrows(
-    () => validateLedgerSkeleton(ledgerFixture.replace("SES-03", "MISSING"), totals),
+    () =>
+      validateLedgerSkeleton(
+        ledgerFixture.replace("SES-03", "MISSING"),
+        syntheticRelease,
+      ),
     /SES-03/u,
     "missing requirement mapping",
   );
   assertThrows(
-    () => validateLedgerSkeleton(ledgerFixture.replace("296 total", "295 total"), totals),
+    () =>
+      validateLedgerSkeleton(
+        ledgerFixture.replace("296 total", "295 total"),
+        syntheticRelease,
+      ),
     /runtime totals/u,
     "stale runtime totals",
   );
+  for (const mutateRelease of [
+    (release) => {
+      release.tests.numTestFiles += 1;
+    },
+    (release) => {
+      release.tests.numPassedTests += 1;
+      release.tests.numTotalTests += 1;
+    },
+  ]) {
+    const alteredCounts = clone(syntheticRelease);
+    mutateRelease(alteredCounts);
+    validateReleaseEvidenceShape(alteredCounts, { required: true });
+    assertThrows(
+      () => validateLedgerSkeleton(ledgerFixture, alteredCounts),
+      /runtime totals/u,
+      "plausible altered release test counts",
+    );
+  }
 
   validatePackageBoundary();
   assertThrows(
