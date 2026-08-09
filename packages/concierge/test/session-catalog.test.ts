@@ -1916,6 +1916,209 @@ it("[C18] suppresses stale resolver and capability boundaries while C progresses
   expect(observations, marker).toEqual(expected);
 });
 
+it("[C19] drains queued connected replay before rethrowing a current boundary value", async () => {
+  const marker = "[RED:C19:current-exception-drain-progress]";
+  requireFactory("[SMOKE:C19:create-session-factory]");
+  const boundaries = [
+    "catalogFor-property",
+    "catalogFor-call",
+    "stageFor-property",
+    "stageFor-call",
+    "capabilities",
+    "dynamicCatalog",
+  ];
+  const observations = [];
+
+  for (const boundary of boundaries) {
+    const a = { name: "a" };
+    const b = { name: "b" };
+    const catalogA = Object.freeze([]);
+    const catalogB = Object.freeze([]);
+    const catalogs = new Map([
+      [a, catalogA],
+      [b, catalogB],
+    ]);
+    const base = controlledTransport();
+    const diagnostics = [];
+    const dispatches = [];
+    const events = [];
+    const finalizations = [];
+    const sourceCounts = { additions: 0, removals: 0 };
+    const stageEvents = [];
+    const secret = `PRIVATE-C19-${boundary}`;
+    const sentinel = Object.freeze({ secret });
+    let boundaryEntries = 0;
+    let catalogForReads = 0;
+    let dynamicCatalogReads = 0;
+    let session;
+    let stageForReads = 0;
+    let transportCapabilityReads = 0;
+
+    const queueConnectedAndThrow = () => {
+      boundaryEntries += 1;
+      base.emitStatus("connected");
+      throw sentinel;
+    };
+    const catalogFor = (context) => {
+      if (boundary === "catalogFor-call" && context === b) {
+        queueConnectedAndThrow();
+      }
+      const catalog = catalogs.get(context);
+      if (catalog === undefined) throw new Error("unknown context");
+      return catalog;
+    };
+    const stageFor = (context) => {
+      if (boundary === "stageFor-call" && context === b) {
+        queueConnectedAndThrow();
+      }
+      return context.name;
+    };
+    const concierge = {
+      get catalogFor() {
+        catalogForReads += 1;
+        if (boundary === "catalogFor-property" && catalogForReads === 2) {
+          queueConnectedAndThrow();
+        }
+        return catalogFor;
+      },
+      get stageFor() {
+        stageForReads += 1;
+        if (boundary === "stageFor-property" && stageForReads === 2) {
+          queueConnectedAndThrow();
+        }
+        return stageFor;
+      },
+      async dispatchBatch(context, batch) {
+        const callId = batch.calls[0].callId;
+        const signal = batch.signal;
+        dispatches.push({
+          aborted: signal.aborted,
+          authorityIsA: context === a,
+          callId,
+          stableSignal: signal === batch.signal,
+        });
+        events.push(`dispatch:${callId}`);
+        return Object.freeze([resultRow(callId)]);
+      },
+      dispatch: () => Promise.resolve({ ok: false, message: "unused" }),
+      explain: () => ({ stage: null, stages: [], catalog: [] }),
+    };
+    const liveCapabilities = Object.freeze({
+      ...CONVERSATIONAL_CAPABILITIES,
+      get dynamicCatalog() {
+        dynamicCatalogReads += 1;
+        if (boundary === "dynamicCatalog" && dynamicCatalogReads === 1) {
+          queueConnectedAndThrow();
+        }
+        return true;
+      },
+    });
+    const transport = Object.freeze({
+      get capabilities() {
+        transportCapabilityReads += 1;
+        if (boundary === "capabilities" && transportCapabilityReads === 1) {
+          queueConnectedAndThrow();
+        }
+        return liveCapabilities;
+      },
+      get status() {
+        return base.transport.status;
+      },
+      setTools(tools) {
+        base.transport.setTools(tools);
+      },
+      onStatusChange(callback) {
+        return base.transport.onStatusChange(callback);
+      },
+      onToolBatch(callback) {
+        return base.transport.onToolBatch(callback);
+      },
+      respond(callId, result) {
+        events.push(`respond:${callId}`);
+        base.transport.respond(callId, result);
+      },
+    });
+    session = createSession({
+      concierge,
+      transport,
+      initialContext: a,
+      onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+    });
+    session.onStageChange((stage) => stageEvents.push(stage));
+
+    let thrownValue;
+    try {
+      session.setContext(b);
+    } catch (failure) {
+      thrownValue = failure;
+    }
+
+    const listeners = new Set();
+    const signal = Object.freeze({
+      aborted: false,
+      addEventListener(type, listener) {
+        if (type !== "abort") return;
+        sourceCounts.additions += 1;
+        listeners.add(listener);
+      },
+      removeEventListener(type, listener) {
+        if (type !== "abort" || !listeners.delete(listener)) return;
+        sourceCounts.removals += 1;
+        finalizations.push("later");
+        events.push("finalize:later");
+      },
+    });
+    base.emitBatch(Object.freeze({ ...toolBatch(["later"]), signal }));
+    await flushMicrotasks();
+
+    observations.push({
+      boundary,
+      boundaryEntries,
+      diagnosticCodes: diagnostics.map((diagnostic) => diagnostic.code),
+      dispatches,
+      events,
+      finalizations,
+      publications: base.publications.map((catalog) =>
+        catalog === catalogA ? "a" : catalog === catalogB ? "b" : "other",
+      ),
+      responseIds: base.responses.map((response) => response.callId),
+      sentinelDiagnosticLeak: JSON.stringify(diagnostics).includes(secret),
+      sourceCounts,
+      stage: session.stage(),
+      stageEvents,
+      subscribers: base.subscriberCounts(),
+      thrownIdentityPreserved: thrownValue === sentinel,
+    });
+    await session.stop();
+  }
+
+  expect(observations, marker).toEqual(
+    boundaries.map((boundary) => ({
+      boundary,
+      boundaryEntries: 1,
+      diagnosticCodes: [],
+      dispatches: [
+        {
+          aborted: false,
+          authorityIsA: true,
+          callId: "later",
+          stableSignal: true,
+        },
+      ],
+      events: ["dispatch:later", "respond:later", "finalize:later"],
+      finalizations: ["later"],
+      publications: ["a", "a"],
+      responseIds: ["later"],
+      sentinelDiagnosticLeak: false,
+      sourceCounts: { additions: 1, removals: 1 },
+      stage: "a",
+      stageEvents: [],
+      subscribers: { status: 1, batch: 1 },
+      thrownIdentityPreserved: true,
+    })),
+  );
+});
+
 it("preserves connected replay occurrence authority across getter reentry", async () => {
   const marker = "[REGRESSION:connected-replay-getter-authority]";
   const observations = [];

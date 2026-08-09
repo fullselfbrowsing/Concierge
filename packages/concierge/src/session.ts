@@ -1068,18 +1068,24 @@ export function createSession(config: SessionConfig): Session {
   function drainTransitions(): void {
     if (transitionDraining || lifecycle === "stopped") return;
     transitionDraining = true;
+    let firstFailure: { readonly value: unknown } | null = null;
     try {
       while (!hasStopped()) {
         const transition: Transition | undefined = transitionQueue.shift();
         if (transition === undefined) break;
-        if (transition.kind === "context") processContext(transition);
-        else processConnected();
+        try {
+          if (transition.kind === "context") processContext(transition);
+          else processConnected();
+        } catch (failure) {
+          if (firstFailure === null) firstFailure = { value: failure };
+        }
       }
     } finally {
       transitionDraining = false;
       bindQueuedOccurrences();
       maybeStartPump();
     }
+    if (firstFailure !== null) throw firstFailure.value;
   }
 
   function handleStatus(status: TransportStatus): void {
