@@ -13,7 +13,6 @@ import {
   readFileSync,
   renameSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -1808,31 +1807,26 @@ function assertStableReleaseRevision(before, after) {
   }
 }
 
-function linkReleaseSnapshotDependencies(snapshotRoot, sourceRoot) {
-  for (const path of ["node_modules", "packages/concierge/node_modules"]) {
-    const source = join(sourceRoot, path);
-    if (!existsSync(source)) continue;
-    const target = join(snapshotRoot, path);
-    mkdirSync(dirname(target), { recursive: true });
-    symlinkSync(source, target, "dir");
-  }
-
-  for (const adapter of ["adapter-alpha", "adapter-beta"]) {
-    const scope = join(
-      snapshotRoot,
-      "packages/concierge/test/fixtures",
-      adapter,
-      "node_modules/@fullselfbrowsing",
+function installReleaseSnapshotDependencies(snapshotRoot) {
+  const install = command(
+    "pnpm",
+    ["install", "--offline", "--frozen-lockfile"],
+    {
+      cwd: snapshotRoot,
+      env: { ...process.env, CI: "true" },
+    },
+  );
+  if (install.exitCode !== 0) {
+    throw new Error(
+      `release snapshot dependency install failed:\n${shortOutput(install.output)}`,
     );
-    mkdirSync(scope, { recursive: true });
-    symlinkSync("../../../../..", join(scope, "concierge"), "dir");
   }
 }
 
 function materializeReleaseSnapshot(
   directory,
   paths,
-  { sourceRoot = ROOT, linkDependencies = true } = {},
+  { sourceRoot = ROOT, installDependencies = true } = {},
 ) {
   const snapshotRoot = join(directory, "release-snapshot");
   mkdirSync(snapshotRoot, { recursive: true });
@@ -1842,7 +1836,7 @@ function materializeReleaseSnapshot(
     copyFileSync(join(sourceRoot, path), target);
     chmodSync(target, 0o444);
   }
-  if (linkDependencies) linkReleaseSnapshotDependencies(snapshotRoot, sourceRoot);
+  if (installDependencies) installReleaseSnapshotDependencies(snapshotRoot);
   return Object.freeze({
     root: snapshotRoot,
     revision: Object.freeze({
@@ -2740,7 +2734,7 @@ function selfTestReleaseSnapshot() {
     });
     const snapshot = materializeReleaseSnapshot(snapshotDirectory, paths, {
       sourceRoot,
-      linkDependencies: false,
+      installDependencies: false,
     });
     assertStableReleaseRevision(baseline, snapshot.revision);
 
@@ -2771,6 +2765,26 @@ function selfTestReleaseSnapshot() {
       "immutable snapshot must keep simulated gates on one input revision",
     );
     assertReleaseSnapshotStable(snapshot);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+function selfTestReleaseSnapshotBuild() {
+  const directory = mkdtempSync(join(tmpdir(), "phase-07-release-build-self-test-"));
+  try {
+    const paths = revisionInputPaths();
+    const sourceRevision = Object.freeze({
+      paths,
+      digest: releaseRevisionDigest(paths),
+    });
+    const snapshot = materializeReleaseSnapshot(directory, paths);
+    assertStableReleaseRevision(sourceRevision, snapshot.revision);
+    const build = runAgainstReleaseSnapshot(snapshot, runBuild);
+    assert(
+      build.succeeded,
+      `release snapshot self-test build failed: ${shortOutput(build.output)}`,
+    );
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -3254,6 +3268,7 @@ function selfTest() {
 
   selfTestInputVerifier();
   selfTestReleaseSnapshot();
+  selfTestReleaseSnapshotBuild();
   selfTestResponseCutoffSensitivity();
   assertThrows(
     () => parseInvocation(["verify", "unknown"]),
