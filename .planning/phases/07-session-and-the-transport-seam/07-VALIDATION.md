@@ -27,7 +27,7 @@ created: 2026-08-08
 | **Type run** | `pnpm --filter @fullselfbrowsing/concierge typecheck` |
 | **Full suite** | `pnpm build && pnpm typecheck && pnpm test` |
 | **Release gate** | `pnpm build && pnpm typecheck && pnpm test && pnpm check:artifact && pnpm check:deps && pnpm check:pack && pnpm check:node-floor` |
-| **Measured final runtime** | 16 runtime files / 312 passed / 312 total / 0 pending / 0 todo (`pnpm test`, exit 0) |
+| **Measured final runtime** | 16 runtime files / 321 passed / 321 total / 0 pending / 0 todo (`pnpm test`, exit 0) |
 | **Feedback bound** | Focused feedback remains split into exact files or bounded mutation shards; the final release gate is measured separately below |
 
 Do not use `pnpm test -- <fragment>` for focused feedback. Build first, then invoke `pnpm exec vitest run <exact-file>` because runtime suites import `dist`.
@@ -126,7 +126,7 @@ Task and plan IDs are the expected decomposition from research; the planner must
 - [x] `packages/concierge/test/session-lifecycle.test.ts` is present and L01-L16 are named, discovered, and green.
 - [x] `packages/concierge/test/stub-transport.test.ts` is present and U01-U08 are named, discovered, and green.
 - [x] Artifact/export/single-instance gates are present and green at 69/54/15 with F7; the foreign probe and tarball package-list gate are present and green.
-- [x] `scripts/phase-07-mutation-battery.mjs` plus immutable register/evidence artifacts are present; the register digest is `85e4a253b9a2487bd692c08e3b751a8a66eceb91871f79e8878110ea7bebbb47` and all 30 rows are green.
+- [x] `scripts/phase-07-mutation-battery.mjs` plus immutable register/evidence artifacts are present; the register digest is `c2fc5caca8b0657bf3436e66227761d6c29ba64e945ac8e0ff622939a4180484` and all 30 rows are green.
 - [x] Framework installation was not required; existing infrastructure executed every gate without a new dependency.
 
 ---
@@ -162,7 +162,7 @@ Final replacement mapping, with the 30-row total and 9/9/8/2/2 distribution unch
 
 | Evidence | Measured result |
 |----------|-----------------|
-| Immutable register | Digest `85e4a253b9a2487bd692c08e3b751a8a66eceb91871f79e8878110ea7bebbb47` |
+| Immutable register | Digest `c2fc5caca8b0657bf3436e66227761d6c29ba64e945ac8e0ff622939a4180484` |
 | Distribution | 9 catalog / 9 routing / 8 lifecycle / 2 diagnostics / 2 package-guard (`9/9/8/2/2`) |
 | Outcome | 30/30 green; zero pending, zero escaped, zero failed |
 | Non-vacuity | Every row compiled successfully, ran a nonzero named detector set, satisfied its detector, was killed, and matched its one exact source literal before mutation |
@@ -184,7 +184,7 @@ The protected inputs were verified byte-identical before and after the battery:
 |------|-----------------|
 | `pnpm build` | Exit 0 |
 | `pnpm typecheck` | Exit 0 |
-| `pnpm test` | Exit 0; 16 runtime files, 312 passed, 312 total, 0 pending, 0 todo |
+| `pnpm test` | Exit 0; 16 runtime files, 321 passed, 321 total, 0 pending, 0 todo |
 | `pnpm check:artifact` | Exit 0; callable artifact and exact public declaration surface of 69 names / 54 types / 15 values |
 | Direct guard | F7 passed and P02 killed exactly the direct `createSession` single-instance guard |
 | `pnpm check:deps` | Exit 0; dependency contribution is zero bytes |
@@ -211,4 +211,4 @@ All Phase 7 behaviors have automated verification. No network, browser, vendor a
 - [x] `nyquist_compliant: true`, `wave_0_complete: true`, and `status: complete` are set only after plans and evidence agree.
 - [x] Approval records the actual UTC date, matching register digest, 30/30 outcome, and green release gate.
 
-**Approval:** approved 2026-08-09 — register 85e4a253b9a2487bd692c08e3b751a8a66eceb91871f79e8878110ea7bebbb47; 30/30 green; release gate green
+**Approval:** approved 2026-08-09 — register c2fc5caca8b0657bf3436e66227761d6c29ba64e945ac8e0ff622939a4180484; 30/30 green; release gate green

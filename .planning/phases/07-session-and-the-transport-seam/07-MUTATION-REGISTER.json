@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "phase": "07-session-and-the-transport-seam",
   "expectedCatalogIds": [
     "M-07-C01",
@@ -73,15 +73,15 @@
     "M-07-P01",
     "M-07-P02"
   ],
-  "registerDigest": "85e4a253b9a2487bd692c08e3b751a8a66eceb91871f79e8878110ea7bebbb47",
+  "registerDigest": "c2fc5caca8b0657bf3436e66227761d6c29ba64e945ac8e0ff622939a4180484",
   "mutants": [
     {
       "id": "M-07-C01",
       "group": "catalog",
       "name": "initial catalog publication is omitted",
       "target": "packages/concierge/src/session.ts",
-      "literalPattern": "    try {\n      transport.setTools(resolved.catalog);\n    } catch {",
-      "replacement": "    try {\n      if (lifecycle !== \"starting\") transport.setTools(resolved.catalog);\n    } catch {",
+      "literalPattern": "      Reflect.apply(setTools, transport, [resolved.catalog]);",
+      "replacement": "      if (lifecycle !== \"starting\") Reflect.apply(setTools, transport, [resolved.catalog]);",
       "detectorKind": "vitest",
       "intendedTestFiles": [
         "packages/concierge/test/session-catalog.test.ts"
@@ -101,7 +101,7 @@
       "group": "catalog",
       "name": "connected transition no longer replays the catalog",
       "target": "packages/concierge/src/session.ts",
-      "literalPattern": "      transport.setTools(catalog);",
+      "literalPattern": "      Reflect.apply(setTools, transport, [catalog]);",
       "replacement": "      void catalog;",
       "detectorKind": "vitest",
       "intendedTestFiles": [
@@ -143,8 +143,8 @@
       "group": "catalog",
       "name": "fixed-catalog cleanup reaches outside code before stopped state",
       "target": "packages/concierge/src/session.ts",
-      "literalPattern": "      currentStage = resolved.stage;\n      stopNow();\n      throw new Error(FIXED_CATALOG_ERROR);",
-      "replacement": "      currentStage = resolved.stage;\n      performCleanup();\n      throw new Error(FIXED_CATALOG_ERROR);",
+      "literalPattern": "        currentStage = resolved.stage;\n        stopNow();\n        throw new Error(FIXED_CATALOG_ERROR);",
+      "replacement": "        currentStage = resolved.stage;\n        performCleanup();\n        throw new Error(FIXED_CATALOG_ERROR);",
       "detectorKind": "vitest",
       "intendedTestFiles": [
         "packages/concierge/test/session-catalog.test.ts"
@@ -278,7 +278,7 @@
       "group": "catalog",
       "name": "batch pump ignores publication and transition admission gates",
       "target": "packages/concierge/src/session.ts",
-      "literalPattern": "  async function runLivePump(): Promise<void> {\n    while (\n      lifecycle === \"active\" &&\n      !publicationPending &&\n      !transitionDraining &&\n      transitionQueue.length === 0\n    ) {\n      const work: WorkRecord | undefined = workQueue.shift();\n      if (work === undefined) return;\n      activeWork = work;\n      await runWork(work, true);\n      activeWork = null;\n    }\n  }\n\n  /** Start the single FIFO worker with its observable Promise installed first. */\n  function maybeStartPump(): void {\n    if (\n      lifecycle !== \"active\" ||\n      publicationPending ||\n      transitionDraining ||\n      transitionQueue.length !== 0 ||\n      workPumpRunning ||\n      workQueue.length === 0",
+      "literalPattern": "  async function runLivePump(): Promise<void> {\n    while (\n      lifecycle === \"active\" &&\n      !publicationPending &&\n      !transitionDraining &&\n      transitionQueue.length === 0\n    ) {\n      const work: WorkRecord | undefined = workQueue.shift();\n      if (work === undefined) return;\n      activeWork = work;\n      await runWork(work, true);\n      activeWork = null;\n    }\n  }\n\n  /** Start the single FIFO worker with its observable Promise installed first. */\n  function maybeStartPump(): void {\n    if (\n      lifecycle !== \"active\" ||\n      publicationPending ||\n      transitionDraining ||\n      transitionQueue.length !== 0 ||\n      workPumpRunning ||\n      acceptingBatchCount !== 0 ||\n      workQueue.length === 0",
       "replacement": "  async function runLivePump(): Promise<void> {\n    while (lifecycle === \"active\") {\n      const work: WorkRecord | undefined = workQueue.shift();\n      if (work === undefined) return;\n      activeWork = work;\n      await runWork(work, true);\n      activeWork = null;\n    }\n  }\n\n  /** Start the single FIFO worker with its observable Promise installed first. */\n  function maybeStartPump(): void {\n    if (\n      lifecycle !== \"active\" ||\n      workPumpRunning ||\n      workQueue.length === 0",
       "detectorKind": "vitest",
       "intendedTestFiles": [
@@ -607,24 +607,24 @@
       "group": "lifecycle",
       "name": "response rows continue after stop",
       "target": "packages/concierge/src/session.ts",
-      "literalPattern": "        if (!allowResponses || lifecycle !== \"active\") break;",
-      "replacement": "        if (!allowResponses) break;",
+      "literalPattern": "          const result = row.result;\n          if (!allowResponses || lifecycle !== \"active\") break;\n          Reflect.apply(respond, transport, [callId, result]);",
+      "replacement": "          const result = row.result;\n          if (!allowResponses) break;\n          Reflect.apply(respond, transport, [callId, result]);",
       "detectorKind": "vitest",
       "intendedTestFiles": [
         "packages/concierge/test/session-lifecycle.test.ts"
       ],
       "intendedCaseIds": [
-        "L03",
-        "L05"
+        "L17",
+        "L18"
       ],
       "expectedFailureFingerprint": [
         {
-          "caseId": "L03",
-          "marker": "[RED:L03:active-handler-drain]"
+          "caseId": "L17",
+          "marker": "[RED:L17:row-getter-stop-response-cutoff]"
         },
         {
-          "caseId": "L05",
-          "marker": "[RED:L05:stop-at-every-boundary]"
+          "caseId": "L18",
+          "marker": "[RED:L18:respond-getter-stop-response-cutoff]"
         }
       ]
     },
@@ -834,7 +834,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "F7",
-          "marker": "F7 — createSession records this copy through its own direct guard call"
+          "marker": "[RED:F7:direct-create-session-guard]"
         }
       ]
     }
