@@ -1021,21 +1021,27 @@ function inputHashes(root = ROOT) {
   );
 }
 
-function pendingEvidenceRow(mutant) {
+function immutableEvidenceMetadata(mutant) {
   return {
     id: mutant.id,
     group: mutant.group,
     target: mutant.target,
     detectorKind: mutant.detectorKind,
+    intendedCaseIds: mutant.intendedCaseIds,
+    intendedTestFiles: mutant.intendedTestFiles,
+    expectedFailureFingerprint: mutant.expectedFailureFingerprint,
+  };
+}
+
+function pendingEvidenceRow(mutant) {
+  return {
+    ...immutableEvidenceMetadata(mutant),
     status: "pending",
     executed: false,
     compiled: false,
     buildMarker: false,
     testsRan: 0,
-    intendedCaseIds: mutant.intendedCaseIds,
-    intendedTestFiles: mutant.intendedTestFiles,
     intendedFailingCaseIds: [],
-    expectedFailureFingerprint: mutant.expectedFailureFingerprint,
     observedFailureFingerprint: [],
     infrastructureErrors: [],
     detectorSatisfied: false,
@@ -1686,23 +1692,18 @@ function executeMutant(mutant) {
           ? "escaped"
           : "failed";
     const row = {
-      id: mutant.id,
-      group: mutant.group,
-      target: mutant.target,
-      detectorKind: mutant.detectorKind,
+      ...immutableEvidenceMetadata(mutant),
       status,
       executed: true,
       compiled: gate?.compiled === true,
       buildMarker: gate?.buildMarker === true,
       testsRan: gate?.testsRan ?? 0,
-      intendedCaseIds: mutant.intendedCaseIds,
       intendedFailingCaseIds:
         gate?.testReport?.assertions
           ?.filter((assertion) => assertion.status === "failed")
           .map((assertion) => assertion.caseId)
           .filter((caseId) => caseId !== null) ??
         (gate?.detectorSatisfied === true ? mutant.intendedCaseIds : []),
-      expectedFailureFingerprint: mutant.expectedFailureFingerprint,
       observedFailureFingerprint: gate?.observedFailureFingerprint ?? [],
       infrastructureErrors: gate?.infrastructureErrors ?? [],
       detectorSatisfied: gate?.detectorSatisfied === true,
