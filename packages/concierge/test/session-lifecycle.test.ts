@@ -553,7 +553,15 @@ it("[L05] cuts off output when stop occurs at dispatch, response, and stage boun
   const marker = "[RED:L05:stop-at-every-boundary]";
   let responseSession;
   let responseDrain;
+  const responseCleanupMessages = [];
+  const responseCleanupStops = [];
   const responseTransport = controlledTransport({
+    onStatusUnsubscribe() {
+      responseCleanupMessages.push(
+        thrownMessage(() => responseSession.setContext(CONTEXT_B)),
+      );
+      responseCleanupStops.push(responseSession.stop());
+    },
     respond(_attempt, occurrence) {
       if (occurrence === 1) responseDrain = responseSession.stop();
     },
@@ -592,6 +600,10 @@ it("[L05] cuts off output when stop occurs at dispatch, response, and stage boun
     {
       responseAttempts: responseTransport.responses.map((entry) => entry.callId),
       responseCleanup: responseTransport.attempts,
+      responseCleanupMessages,
+      responseCleanupRecursiveSame: responseCleanupStops.every(
+        (promise) => promise === responseDrain,
+      ),
       stage: stageSession.stage(),
       stageEvents,
       stagePublications: stageTransport.publications.length,
@@ -605,6 +617,8 @@ it("[L05] cuts off output when stop occurs at dispatch, response, and stage boun
       statusUnsubscribe: 1,
       batchUnsubscribe: 1,
     },
+    responseCleanupMessages: [STOPPED_ERROR],
+    responseCleanupRecursiveSame: true,
     stage: "beta",
     stageEvents: ["first:beta"],
     stagePublications: 3,
