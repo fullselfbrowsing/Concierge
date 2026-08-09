@@ -520,7 +520,9 @@ it("[C08] fails closed when a later setContext publication throws", async () => 
   const reentry = [];
   let session;
   harness.setSetToolsHook((_tools, occurrence) => {
-    if (occurrence === 2) throw new Error(sentinel);
+    if (occurrence !== 2) return;
+    session.stop();
+    throw new Error(sentinel);
   });
   const exerciseReentry = (source) => {
     try {
@@ -566,9 +568,9 @@ it("[C08] fails closed when a later setContext publication throws", async () => 
     dispatchEntries: 0,
     errorMessage: "The session could not publish the current catalog.",
     reentry: [
-      "diagnostic:This session has stopped.",
       "status:This session has stopped.",
       "batch:This session has stopped.",
+      "diagnostic:This session has stopped.",
     ],
     stage: "b",
     subscribers: { status: 0, batch: 0 },
@@ -594,7 +596,9 @@ it("[C09] fails closed when a connected replay publication throws", async () => 
   const reentry = [];
   let session;
   harness.setSetToolsHook((_tools, occurrence) => {
-    if (occurrence === 2) throw new Error(sentinel);
+    if (occurrence !== 2) return;
+    session.stop();
+    throw new Error(sentinel);
   });
   const exerciseReentry = (source) => {
     try {
@@ -638,9 +642,9 @@ it("[C09] fails closed when a connected replay publication throws", async () => 
     dispatchEntries: 0,
     errorMessage: "The session could not publish the current catalog.",
     reentry: [
-      "diagnostic:This session has stopped.",
       "status:This session has stopped.",
       "batch:This session has stopped.",
+      "diagnostic:This session has stopped.",
     ],
     subscribers: { status: 0, batch: 0 },
   });

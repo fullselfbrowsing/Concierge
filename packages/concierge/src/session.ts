@@ -741,7 +741,6 @@ export function createSession(config: SessionConfig): Session {
     try {
       transport.setTools(resolved.catalog);
     } catch {
-      if (!publicationIsCurrent(attemptToken)) return;
       if (lifecycle === "starting") throw new Error(START_ERROR);
       failPublication(resolved.stage);
     }
@@ -773,7 +772,6 @@ export function createSession(config: SessionConfig): Session {
     try {
       transport.setTools(catalog);
     } catch {
-      if (!publicationIsCurrent(attemptToken)) return;
       failPublication(currentStage);
     }
 
