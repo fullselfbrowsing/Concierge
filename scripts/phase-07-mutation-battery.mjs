@@ -1743,6 +1743,10 @@ function assertNoUntrackedRevisionInputs(paths) {
   );
 }
 
+function isInstalledDependencyPath(path) {
+  return path.split("/").includes("node_modules");
+}
+
 function revisionInputPaths() {
   const tracked = command("git", [
     "ls-files",
@@ -1766,7 +1770,9 @@ function revisionInputPaths() {
     throw new Error(`untracked revision manifest lookup failed: ${untracked.output}`);
   }
   assertNoUntrackedRevisionInputs(
-    [...new Set(untracked.stdout.split("\0").filter(Boolean))].sort(),
+    [...new Set(untracked.stdout.split("\0").filter(Boolean))]
+      .filter((path) => !isInstalledDependencyPath(path))
+      .sort(),
   );
   const paths = [...new Set(tracked.stdout.split("\0").filter(Boolean))].sort();
   for (const path of REVISION_REQUIRED_PATHS) {
@@ -2885,6 +2891,15 @@ function selfTest() {
     );
   }
   assertNoUntrackedRevisionInputs([]);
+  assert(
+    isInstalledDependencyPath(
+      "packages/concierge/test/fixtures/adapter-alpha/node_modules/@fullselfbrowsing/concierge",
+    ) &&
+      !isInstalledDependencyPath(
+        "packages/concierge/test/untracked-release-input.test.ts",
+      ),
+    "only installed node_modules paths may be excluded from untracked release inputs",
+  );
   assertThrows(
     () =>
       assertNoUntrackedRevisionInputs([
