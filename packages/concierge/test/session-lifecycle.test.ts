@@ -549,6 +549,105 @@ it("[L04] drains queued, publishing, and published-unconfirmed records once in F
   });
 });
 
+it("drains accepted work when cancellation normalization stops reentrantly", async () => {
+  const observations = [];
+
+  for (const stopSource of ["signal-accessor", "diagnostic-hook"]) {
+    const dispatchGate = deferred();
+    const dispatches = [];
+    const signalStates = [];
+    const diagnostics = [];
+    let drain;
+    let session;
+    const transport = controlledTransport();
+    session = createSession({
+      concierge: conciergeDouble({
+        async dispatchBatch(_context, batch) {
+          dispatches.push(batch.responseId);
+          signalStates.push(batch.signal.aborted);
+          await dispatchGate.promise;
+          return [row(batch.responseId)];
+        },
+      }),
+      transport: transport.transport,
+      initialContext: CONTEXT_A,
+      onDiagnostic(diagnostic) {
+        diagnostics.push(diagnostic.code);
+        if (
+          stopSource === "diagnostic-hook" &&
+          diagnostic.code === "abort_signal_failed"
+        ) {
+          drain = session.stop();
+        }
+      },
+    });
+
+    transport.emitBatch(
+      Object.freeze({
+        responseId: stopSource,
+        calls: Object.freeze([toolCall(stopSource)]),
+        get signal() {
+          if (stopSource === "signal-accessor") {
+            drain = session.stop();
+            return undefined;
+          }
+          throw new Error("PRIVATE-NORMALIZATION-SIGNAL");
+        },
+      }),
+    );
+
+    if (drain === undefined) throw new Error("reentrant stop was not observed");
+    let settled = false;
+    void drain.then(() => {
+      settled = true;
+    });
+    await flushMicrotasks();
+    const beforeDispatchSettles = {
+      dispatches: [...dispatches],
+      responses: transport.responses.length,
+      settled,
+      signalStates: [...signalStates],
+    };
+    dispatchGate.resolve();
+    await drain;
+
+    observations.push({
+      beforeDispatchSettles,
+      diagnostics,
+      responses: transport.responses.length,
+      settled,
+      stopSource,
+    });
+  }
+
+  expect(observations, "[REGRESSION:accepted-normalization-stop-drain]").toEqual([
+    {
+      beforeDispatchSettles: {
+        dispatches: ["signal-accessor"],
+        responses: 0,
+        settled: false,
+        signalStates: [true],
+      },
+      diagnostics: [],
+      responses: 0,
+      settled: true,
+      stopSource: "signal-accessor",
+    },
+    {
+      beforeDispatchSettles: {
+        dispatches: ["diagnostic-hook"],
+        responses: 0,
+        settled: false,
+        signalStates: [true],
+      },
+      diagnostics: ["abort_signal_failed"],
+      responses: 0,
+      settled: true,
+      stopSource: "diagnostic-hook",
+    },
+  ]);
+});
+
 it("[L05] cuts off output when stop occurs at dispatch, response, and stage boundaries", async () => {
   const marker = "[RED:L05:stop-at-every-boundary]";
   let responseSession;

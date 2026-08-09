@@ -138,6 +138,7 @@ export function createSession(config: SessionConfig): Session {
   let activeWork: WorkRecord | null = null;
   let workPumpRunning: boolean = false;
   let workPumpPromise: Promise<void> | null = null;
+  let acceptingBatchCount: number = 0;
 
   let nextStageListenerToken: number = 0;
   const stageListeners: Map<number, (stage: string | null) => void> = new Map();
@@ -514,22 +515,28 @@ export function createSession(config: SessionConfig): Session {
       return;
     }
 
-    const cancellation: CancellationScope = createCancellationScope(batch);
-    if (hasStopped()) {
-      cancellation.abort();
-      cancellation.dispose();
-      return;
+    acceptingBatchCount += 1;
+    try {
+      const cancellation: CancellationScope = createCancellationScope(batch);
+      const work: WorkRecord = {
+        context,
+        sourceBatch: batch,
+        epoch,
+        cancellation,
+      };
+      epoch.work.add(work);
+      if (epoch.aborted) cancellation.abort();
+      if (hasStopped()) {
+        cancellation.abort();
+        detachedWork.push(work);
+      } else {
+        workQueue.push(work);
+        maybeStartPump();
+      }
+    } finally {
+      acceptingBatchCount -= 1;
+      if (hasStopped() && acceptingBatchCount === 0) startStopDrain();
     }
-    if (epoch.aborted) cancellation.abort();
-    const work: WorkRecord = {
-      context,
-      sourceBatch: batch,
-      epoch,
-      cancellation,
-    };
-    epoch.work.add(work);
-    workQueue.push(work);
-    maybeStartPump();
   }
 
   /** Deliver stage values serially over identity-guarded subscriptions. */
@@ -630,7 +637,7 @@ export function createSession(config: SessionConfig): Session {
 
   /** Resolve the cached stop Promise after active and detached work drain. */
   function startStopDrain(): void {
-    if (stopDrainStarted) return;
+    if (stopDrainStarted || acceptingBatchCount !== 0) return;
     stopDrainStarted = true;
     const activePump: Promise<void> | null = workPumpPromise;
     const records: ReadonlyArray<WorkRecord> = detachedWork.splice(0);
