@@ -1038,7 +1038,10 @@ it("[C15] promotes a published epoch when nested context shares its catalog", as
     });
   });
   session = createSession({ concierge, transport: harness.transport, initialContext: a });
-  session.onStageChange((stage) => stageEvents.push(stage));
+  session.onStageChange((stage) => {
+    stageEvents.push(stage);
+    if (stage === "next") harness.emitBatch(toolBatch(["stage-confirmed"]));
+  });
 
   session.setContext(b);
   await flushMicrotasks();
@@ -1059,9 +1062,9 @@ it("[C15] promotes a published epoch when nested context shares its catalog", as
     },
     marker,
   ).toEqual({
-    contexts: [b, c],
-    dispatchEntries: 2,
-    handlerEntries: 2,
+    contexts: [b, c, c],
+    dispatchEntries: 3,
+    handlerEntries: 3,
     history: [catalogA, catalogB],
     nestedSnapshots: [{
       dispatchEntries: 0,
@@ -1070,8 +1073,8 @@ it("[C15] promotes a published epoch when nested context shares its catalog", as
       responses: 0,
       stageEvents: [],
     }],
-    responses: ["held-b", "later-c"],
-    signalStates: [false, false],
+    responses: ["held-b", "stage-confirmed", "later-c"],
+    signalStates: [false, false, false],
     stage: "next",
     stageEvents: ["next"],
   });
