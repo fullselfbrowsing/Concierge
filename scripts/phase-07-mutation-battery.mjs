@@ -81,6 +81,7 @@ const SINGLE_INSTANCE_SUITE_TITLE =
   "PKG-04 — one core instance across two independently-resolved copies";
 const F7_TEST_NAME_PATTERN =
   "PKG-04\\s+—\\s+one core instance across two independently-resolved copies\\s+F7\\s+—";
+const F7_FAILURE_MARKER = "[RED:F7:direct-create-session-guard]";
 
 const INPUT_PATHS = Object.freeze([
   "package.json",
@@ -162,9 +163,7 @@ function lines(...values) {
 
 function failureMarkerForCase(testFile, caseId) {
   if (caseId === "P01") return "[RED:P01:stub-tarball-exclusion]";
-  if (caseId === "F7") {
-    return "F7 — createSession records this copy through its own direct guard call";
-  }
+  if (caseId === "F7") return F7_FAILURE_MARKER;
   const generatedRoutingMarkers = Object.freeze({
     J15: "[RED:J15:throwing-responseid-totality]",
     J16: "[RED:J16:throwing-userturnid-totality]",
@@ -1509,21 +1508,11 @@ function runtimeFailureFingerprint(report) {
   const errors = [];
   for (const assertion of report.assertions) {
     if (assertion.status !== "failed") continue;
-    if (assertion.caseId === "F7") {
-      if (assertion.failureMessages.length === 0) {
-        errors.push("F7: failureMessages=0");
-      }
-      fingerprint.push({
-        caseId: "F7",
-        marker: "F7 — createSession records this copy through its own direct guard call",
-      });
-      continue;
-    }
     const messages = assertion.failureMessages.filter(
       (message) => typeof message === "string",
     );
     const markers = messages.flatMap((message) => [
-      ...message.matchAll(/\[RED:[CJL]\d{2}:[^\]]+\]/gu),
+      ...message.matchAll(/\[RED:(?:[CJL]\d{2}|F7):[^\]]+\]/gu),
     ].map((match) => match[0]));
     if (messages.length !== 1) {
       errors.push(`${assertion.caseId ?? assertion.title}: failureMessages=${messages.length}`);
@@ -2370,6 +2359,9 @@ function verifyNamedCasesAndWaveFiles() {
   if (!singleInstance.includes("F7 — createSession records this copy through its own direct guard call")) {
     throw new Error("single-instance suite is missing F7");
   }
+  if (!singleInstance.includes(F7_FAILURE_MARKER)) {
+    throw new Error("single-instance suite is missing the exact F7 RED marker");
+  }
 }
 
 function runReleaseGates(directory) {
@@ -2875,6 +2867,35 @@ function selfTest() {
       ordinaryPattern.test("[J01] routing detector") &&
       !ordinaryPattern.test("[C02] neighboring detector"),
     "ordinary bracketed case selectors must remain exact",
+  );
+
+  const f7Mutant = MUTANT_BY_ID.get("M-07-P02");
+  const f7FailureReport = {
+    readable: true,
+    numTotalTests: 1,
+    numPendingTests: 0,
+    assertions: [
+      {
+        caseId: "F7",
+        title: "F7 — createSession records this copy through its own direct guard call",
+        status: "failed",
+        failureMessages: [`AssertionError: ${F7_FAILURE_MARKER}`],
+      },
+    ],
+    suiteErrors: [],
+    unhandledErrors: [],
+  };
+  assert(
+    exactRuntimeFailureSet(f7FailureReport, f7Mutant).satisfied,
+    "F7 detector must accept its exact direct-guard marker",
+  );
+  const neighboringF7Failure = clone(f7FailureReport);
+  neighboringF7Failure.assertions[0].failureMessages = [
+    "AssertionError: neighboring F7 construction assertion failed",
+  ];
+  assert(
+    !exactRuntimeFailureSet(neighboringF7Failure, f7Mutant).satisfied,
+    "F7 detector must reject a neighboring assertion failure",
   );
 
   const ledgerFixture = [

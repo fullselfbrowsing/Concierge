@@ -403,7 +403,9 @@ describe(SUITE_TITLE, () => {
     };
 
     const session = createSession({ concierge, transport });
-    expect(registry[KEY]).toEqual({ version: CONTRACT_VERSION });
+    expect(registry[KEY], "[RED:F7:direct-create-session-guard]").toEqual({
+      version: CONTRACT_VERSION,
+    });
     await session.stop();
     expect({ statusSubscribers, batchSubscribers }).toEqual({
       statusSubscribers: 0,
