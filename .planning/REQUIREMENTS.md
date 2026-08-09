@@ -189,8 +189,8 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | CON-08 | Phase 8 — Consent kernel | Pending |
 | CON-09 | Phase 8 — Consent kernel | Pending |
 | CON-10 | Phase 8 — Consent kernel | Pending |
-| SES-01 | Phase 7 — Session and the transport seam | Complete — C01-C16 plus M-07-C01..C09/M-07-R03..R04 prove start, stage-change, reconnect, reconciliation, and publication admission behavior. |
-| SES-02 | Phase 7 — Session and the transport seam | Complete — C11-C16/J01-J06/J15-J18 plus M-07-C05/C06/C09/M-07-R01/R06/R07/R08/R09 prove one FIFO dispatch occurrence and one stable response attempt per call. |
+| SES-01 | Phase 7 — Session and the transport seam | Complete — C01-C17 plus M-07-C01..C10/M-07-R03..R04 prove start, stage-change, reconnect, latest-wins publication authority, abandoned-attempt cleanup, reconciliation, and publication admission behavior. |
+| SES-02 | Phase 7 — Session and the transport seam | Complete — C11-C17/J01-J06/J15-J18 plus M-07-C05/C06/C09, M-07-C10, and M-07-R01/R06/R07/R08/R09 prove one FIFO dispatch occurrence and one stable response attempt per call, including the exact later C batch after accessor-abandoned publication cleanup. |
 | SES-03 | Phase 7 — Session and the transport seam | Complete — J07-J18 plus M-07-R02..R05/R09 prove arrival identity, lazy envelope forwarding, delivery-hook preservation, signal composition, and direct-dispatch parity. |
 | SES-04 | Phase 7 — Session and the transport seam | Complete — C07-C14 and L01-L16 plus M-07-C07..C09/M-07-L02/L07/M-07-D02 prove stop-first invalidation, cleanup, cancellation, reentrancy containment, and no post-stop output. |
 | TRN-01 | Phase 1 — Type surface completion | Complete |
