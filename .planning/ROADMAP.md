@@ -23,7 +23,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Stages, catalog assembly, and explain()** - The agent sees only the actions valid for where the user is, and a developer can find out why one wasn't offered (completed 2026-07-30)
 - [x] **Phase 5: Bridge registry and the no-bridge path** - Handlers read live app state through getters, and behave honestly when no component is mounted (completed 2026-07-31)
 - [x] **Phase 6: Dispatcher** - A retried, malformed, aborted, or crashing call produces exactly one honest result and never fires an effect twice (completed 2026-08-06; **verification gap closure planned — plans 06-07–06-08**)
-- [x] **Phase 7: Session and the transport seam** - Something owns the loop between catalog and transport, driven by a stub with no network (completed 2026-08-09)
+- [x] **Phase 7: Session and the transport seam** - Something owns the loop between catalog and transport, driven by a stub with no network (completed 2026-08-09; **verification gap closure planned — plan 07-07**)
 - [ ] **Phase 8: Consent kernel** - A consequential action runs only when a human, not the agent, confirmed this exact payload
 - [ ] **Phase 9: React and Svelte adapters** - Two opposite reactivity models drive the same core through adapters small enough to prove no logic leaked out
 
@@ -296,7 +296,7 @@ Plans:
   4. Stopping a session unregisters cleanly and cancels in-flight work, leaving no timer, listener, or pending promise behind. (SES-04)
   5. A stub transport with configurable capabilities drives all of the above with no network, no WebRTC, and no vendor SDK. (TRN-02)
 
-**Plans**: 6 plans across 5 waves. Plans 07-01 and 07-02 run in parallel on disjoint contract and fixture files; the four shared Session/evidence deliverables then run serially.
+**Plans**: 7 plans across 6 waves. Plans 07-01 and 07-02 run in parallel on disjoint contract and fixture files; the five shared Session/evidence deliverables then run serially, including one verifier-driven gap-closure plan.
 
 Plans:
 
@@ -320,6 +320,10 @@ Plans:
 **Wave 5** *(blocked on Wave 4 completion)*
 
 - [x] 07-06-PLAN.md — Mutation, foreign/tarball, release, lockfile, live-ledger, SES closure, and TRN-02 Phase 8 handoff
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 07-07-PLAN.md — Clear accessor-abandoned publication authority, add C17/M-07-C10, regenerate 31-row evidence, and re-open security for independent audit
 
 **Research**: Completed 2026-08-08 — `07-RESEARCH.md`; closest implementation analogs and file ownership are mapped in `07-PATTERNS.md`.
 **Notes**: The catalog/status loop uses one serialized transition drain with latest-generation confirmation and keeps publication-in-progress, last-successfully-published transport catalog, and confirmed application authority separate. Reentrant queued contexts reconcile against what the transport actually holds: a context sharing published B promotes B's epoch without republishing, while a context returning to previously confirmed A republishes A after successful B. Transport callbacks may emit batches synchronously, so the batch pump remains paused until reconciliation confirms the newest authority. Session stores hostile ToolBatch envelopes by reference and forwards their evidence fields through lazy descriptors so Phase 6 retains ownership of guarded snapshot totality. The stub transport built here is the instrument Phase 8 uses to prove the build-time grade gate. Criterion 3 is the seam that makes Phase 8 possible at all: an earlier draft of `Transport` delivered a bare `ToolCall[]`, and the gate the whole design rests on had no data to read. Phase 7 delivers and validates only the reusable stub/session-seam portion of literal requirement TRN-02. Its REQUIREMENTS checkbox and traceability status remain unchecked/Partial after this phase; Phase 8 must reuse this exact fixture against the full consent kernel before TRN-02 can become Complete.
