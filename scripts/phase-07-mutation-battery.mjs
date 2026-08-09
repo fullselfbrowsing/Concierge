@@ -580,23 +580,28 @@ const MUTANTS = Object.freeze([
     group: "lifecycle",
     name: "nested stage notification recurses instead of queueing",
     literalPattern: lines(
-      "    stageNotifications.push(nextStage);",
-      "    if (stageNotifying) return;",
-      "    stageNotifying = true;",
+      "    transitionQueue.push({",
+      "      kind: \"context\",",
+      "      generation,",
+      "      context,",
+      "      resolved: null,",
+      "    });",
+      "    drainTransitions();",
     ),
     replacement: lines(
+      "    const transition: ContextTransition = {",
+      "      kind: \"context\",",
+      "      generation,",
+      "      context,",
+      "      resolved: null,",
+      "    };",
       "    if (stageNotifying) {",
-      "      for (const listener of [...stageListeners.values()]) {",
-      "        try {",
-      "          listener(nextStage);",
-      "        } catch {",
-      "          diagnose(\"stage_listener_failed\");",
-      "        }",
-      "      }",
+      "      stageNotifying = false;",
+      "      processContext(transition);",
       "      return;",
       "    }",
-      "    stageNotifications.push(nextStage);",
-      "    stageNotifying = true;",
+      "    transitionQueue.push(transition);",
+      "    drainTransitions();",
     ),
     intendedCaseIds: ["L11"],
   }),
@@ -905,6 +910,7 @@ function validateRequiredMappings(mutants) {
   const c05 = byId.get("M-07-C05");
   const c06 = byId.get("M-07-C06");
   const l02 = byId.get("M-07-L02");
+  const l05 = byId.get("M-07-L05");
   if (
     c05?.replacement !== "    if (resolved.catalog === confirmedCatalog) {" ||
     !c05.literalPattern.includes("publishedCatalog")
@@ -921,6 +927,17 @@ function validateRequiredMappings(mutants) {
     if (!l02?.intendedCaseIds.includes(displacedCase)) {
       throw new Error(`M-07-L02 must retain displaced stop-order detector ${displacedCase}`);
     }
+  }
+  if (
+    !l05?.literalPattern.includes("transitionQueue.push({") ||
+    !l05.literalPattern.includes("drainTransitions();") ||
+    !l05.replacement.includes("if (stageNotifying) {") ||
+    !l05.replacement.includes("processContext(transition);") ||
+    l05.replacement.includes("transitionDraining =")
+  ) {
+    throw new Error(
+      "M-07-L05 must recurse only at the nested setContext enqueue/drain seam",
+    );
   }
   const forbiddenStopTarget = "failPublication(resolved.stage)";
   if (
@@ -2279,6 +2296,7 @@ function selfTest() {
     "M-07-C08",
     "M-07-C09",
     "M-07-R09",
+    "M-07-L05",
   ]) {
     assertThrows(
       () =>

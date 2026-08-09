@@ -73,7 +73,7 @@
     "M-07-P01",
     "M-07-P02"
   ],
-  "registerDigest": "093d2551f90dcf9bc01984ad5b29287df50e990e9d243766799817d3b9243f3b",
+  "registerDigest": "85e4a253b9a2487bd692c08e3b751a8a66eceb91871f79e8878110ea7bebbb47",
   "mutants": [
     {
       "id": "M-07-C01",
@@ -664,8 +664,8 @@
       "group": "lifecycle",
       "name": "nested stage notification recurses instead of queueing",
       "target": "packages/concierge/src/session.ts",
-      "literalPattern": "    stageNotifications.push(nextStage);\n    if (stageNotifying) return;\n    stageNotifying = true;",
-      "replacement": "    if (stageNotifying) {\n      for (const listener of [...stageListeners.values()]) {\n        try {\n          listener(nextStage);\n        } catch {\n          diagnose(\"stage_listener_failed\");\n        }\n      }\n      return;\n    }\n    stageNotifications.push(nextStage);\n    stageNotifying = true;",
+      "literalPattern": "    transitionQueue.push({\n      kind: \"context\",\n      generation,\n      context,\n      resolved: null,\n    });\n    drainTransitions();",
+      "replacement": "    const transition: ContextTransition = {\n      kind: \"context\",\n      generation,\n      context,\n      resolved: null,\n    };\n    if (stageNotifying) {\n      stageNotifying = false;\n      processContext(transition);\n      return;\n    }\n    transitionQueue.push(transition);\n    drainTransitions();",
       "detectorKind": "vitest",
       "intendedTestFiles": [
         "packages/concierge/test/session-lifecycle.test.ts"
