@@ -1,0 +1,842 @@
+{
+  "schemaVersion": 1,
+  "phase": "07-session-and-the-transport-seam",
+  "expectedCatalogIds": [
+    "M-07-C01",
+    "M-07-C02",
+    "M-07-C03",
+    "M-07-C04",
+    "M-07-C05",
+    "M-07-C06",
+    "M-07-C07",
+    "M-07-C08",
+    "M-07-C09"
+  ],
+  "expectedRoutingIds": [
+    "M-07-R01",
+    "M-07-R02",
+    "M-07-R03",
+    "M-07-R04",
+    "M-07-R05",
+    "M-07-R06",
+    "M-07-R07",
+    "M-07-R08",
+    "M-07-R09"
+  ],
+  "expectedLifecycleIds": [
+    "M-07-L01",
+    "M-07-L02",
+    "M-07-L03",
+    "M-07-L04",
+    "M-07-L05",
+    "M-07-L06",
+    "M-07-L07",
+    "M-07-L08"
+  ],
+  "expectedDiagnosticIds": [
+    "M-07-D01",
+    "M-07-D02"
+  ],
+  "expectedPackageIds": [
+    "M-07-P01",
+    "M-07-P02"
+  ],
+  "expectedIds": [
+    "M-07-C01",
+    "M-07-C02",
+    "M-07-C03",
+    "M-07-C04",
+    "M-07-C05",
+    "M-07-C06",
+    "M-07-C07",
+    "M-07-C08",
+    "M-07-C09",
+    "M-07-R01",
+    "M-07-R02",
+    "M-07-R03",
+    "M-07-R04",
+    "M-07-R05",
+    "M-07-R06",
+    "M-07-R07",
+    "M-07-R08",
+    "M-07-R09",
+    "M-07-L01",
+    "M-07-L02",
+    "M-07-L03",
+    "M-07-L04",
+    "M-07-L05",
+    "M-07-L06",
+    "M-07-L07",
+    "M-07-L08",
+    "M-07-D01",
+    "M-07-D02",
+    "M-07-P01",
+    "M-07-P02"
+  ],
+  "registerDigest": "093d2551f90dcf9bc01984ad5b29287df50e990e9d243766799817d3b9243f3b",
+  "mutants": [
+    {
+      "id": "M-07-C01",
+      "group": "catalog",
+      "name": "initial catalog publication is omitted",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    try {\n      transport.setTools(resolved.catalog);\n    } catch {",
+      "replacement": "    try {\n      if (lifecycle !== \"starting\") transport.setTools(resolved.catalog);\n    } catch {",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C01"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C01",
+          "marker": "[RED:C01:initial-publication]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-C02",
+      "group": "catalog",
+      "name": "connected transition no longer replays the catalog",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "      transport.setTools(catalog);",
+      "replacement": "      void catalog;",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C04"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C04",
+          "marker": "[RED:C04:connected-replay]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-C03",
+      "group": "catalog",
+      "name": "catalog reuse compares stage value instead of reference identity",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    if (resolved.catalog === publishedCatalog) {",
+      "replacement": "    if (resolved.stage === currentStage) {",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C03"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C03",
+          "marker": "[RED:C03:catalog-reference-epoch]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-C04",
+      "group": "catalog",
+      "name": "fixed-catalog cleanup reaches outside code before stopped state",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "      currentStage = resolved.stage;\n      stopNow();\n      throw new Error(FIXED_CATALOG_ERROR);",
+      "replacement": "      currentStage = resolved.stage;\n      performCleanup();\n      throw new Error(FIXED_CATALOG_ERROR);",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C06"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C06",
+          "marker": "[RED:C06:fixed-catalog-stop-first]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-C05",
+      "group": "catalog",
+      "name": "queued reconciliation trusts confirmed instead of published catalog",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    if (resolved.catalog === publishedCatalog) {",
+      "replacement": "    if (resolved.catalog === confirmedCatalog) {",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C16"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C16",
+          "marker": "[RED:C16:reentrant-return-to-confirmed-catalog]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-C06",
+      "group": "catalog",
+      "name": "same published catalog is aborted and republished",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    if (resolved.catalog === publishedCatalog) {",
+      "replacement": "    if (false && resolved.catalog === publishedCatalog) {",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C15"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C15",
+          "marker": "[RED:C15:reentrant-same-published-catalog]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-C07",
+      "group": "catalog",
+      "name": "nested transitions drain reentrantly",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    if (transitionDraining || lifecycle === \"stopped\") return;",
+      "replacement": "    if (lifecycle === \"stopped\") return;",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C10",
+        "C11",
+        "C15",
+        "C16"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C10",
+          "marker": "[RED:C10:abort-reentry-latest-wins]"
+        },
+        {
+          "caseId": "C11",
+          "marker": "[RED:C11:settools-reentry-latest-wins]"
+        },
+        {
+          "caseId": "C15",
+          "marker": "[RED:C15:reentrant-same-published-catalog]"
+        },
+        {
+          "caseId": "C16",
+          "marker": "[RED:C16:reentrant-return-to-confirmed-catalog]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-C08",
+      "group": "catalog",
+      "name": "latest-generation checks are removed after reentrant callbacks",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "  function isCurrent(record: ContextTransition): boolean {\n    return (\n      lifecycle !== \"stopped\" &&\n      record.generation === requestedGeneration &&\n      record.context === requestedContext\n    );\n  }",
+      "replacement": "  function isCurrent(_record: ContextTransition): boolean {\n    return lifecycle !== \"stopped\";\n  }",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C10",
+        "C11",
+        "C15",
+        "C16"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C10",
+          "marker": "[RED:C10:abort-reentry-latest-wins]"
+        },
+        {
+          "caseId": "C11",
+          "marker": "[RED:C11:settools-reentry-latest-wins]"
+        },
+        {
+          "caseId": "C15",
+          "marker": "[RED:C15:reentrant-same-published-catalog]"
+        },
+        {
+          "caseId": "C16",
+          "marker": "[RED:C16:reentrant-return-to-confirmed-catalog]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-C09",
+      "group": "catalog",
+      "name": "batch pump ignores publication and transition admission gates",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "  async function runLivePump(): Promise<void> {\n    while (\n      lifecycle === \"active\" &&\n      !publicationPending &&\n      !transitionDraining &&\n      transitionQueue.length === 0\n    ) {\n      const work: WorkRecord | undefined = workQueue.shift();\n      if (work === undefined) return;\n      activeWork = work;\n      await runWork(work, true);\n      activeWork = null;\n    }\n  }\n\n  /** Start the single FIFO worker with its observable Promise installed first. */\n  function maybeStartPump(): void {\n    if (\n      lifecycle !== \"active\" ||\n      publicationPending ||\n      transitionDraining ||\n      transitionQueue.length !== 0 ||\n      workPumpRunning ||\n      workQueue.length === 0",
+      "replacement": "  async function runLivePump(): Promise<void> {\n    while (lifecycle === \"active\") {\n      const work: WorkRecord | undefined = workQueue.shift();\n      if (work === undefined) return;\n      activeWork = work;\n      await runWork(work, true);\n      activeWork = null;\n    }\n  }\n\n  /** Start the single FIFO worker with its observable Promise installed first. */\n  function maybeStartPump(): void {\n    if (\n      lifecycle !== \"active\" ||\n      workPumpRunning ||\n      workQueue.length === 0",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C11",
+        "C12",
+        "C13",
+        "C14",
+        "C15",
+        "C16"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C11",
+          "marker": "[RED:C11:settools-reentry-latest-wins]"
+        },
+        {
+          "caseId": "C12",
+          "marker": "[RED:C12:publication-admission-gate]"
+        },
+        {
+          "caseId": "C13",
+          "marker": "[RED:C13:setcontext-failure-batch-drain]"
+        },
+        {
+          "caseId": "C14",
+          "marker": "[RED:C14:replay-failure-batch-drain]"
+        },
+        {
+          "caseId": "C15",
+          "marker": "[RED:C15:reentrant-same-published-catalog]"
+        },
+        {
+          "caseId": "C16",
+          "marker": "[RED:C16:reentrant-return-to-confirmed-catalog]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-R01",
+      "group": "routing",
+      "name": "a second batch pump may start",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "      workPumpRunning ||",
+      "replacement": "      false ||",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J01"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J01",
+          "marker": "[RED:J01:cross-batch-fifo]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-R02",
+      "group": "routing",
+      "name": "dispatch reads context at execution rather than arrival",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "      const rows = await concierge.dispatchBatch(work.context, envelopeFor(work));",
+      "replacement": "      const rows = await concierge.dispatchBatch(confirmedContext as StageContext, envelopeFor(work));",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J07"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J07",
+          "marker": "[RED:J07:arrival-context]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-R03",
+      "group": "routing",
+      "name": "active old-epoch work is not aborted",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    for (const work of [...epoch.work]) work.cancellation.abort();",
+      "replacement": "    for (const work of [...epoch.work]) {\n      if (work !== activeWork) work.cancellation.abort();\n    }",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J09"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J09",
+          "marker": "[RED:J09:active-epoch-abort]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-R04",
+      "group": "routing",
+      "name": "queued and held old-epoch work is not aborted",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    for (const work of [...epoch.work]) work.cancellation.abort();",
+      "replacement": "    for (const work of [...epoch.work]) {\n      if (work === activeWork) work.cancellation.abort();\n    }",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts",
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J10",
+        "C11"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J10",
+          "marker": "[RED:J10:queued-epoch-abort]"
+        },
+        {
+          "caseId": "C11",
+          "marker": "[RED:C11:settools-reentry-latest-wins]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-R05",
+      "group": "routing",
+      "name": "envelope forwards only the transport cancellation signal",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "      signal: {\n        enumerable: true,\n        get(): AbortSignalLike {\n          return work.cancellation.signal;\n        },\n      },",
+      "replacement": "      signal: {\n        enumerable: true,\n        get(): AbortSignalLike {\n          return work.sourceBatch.signal ?? work.cancellation.signal;\n        },\n      },",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J11",
+        "J12"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J11",
+          "marker": "[RED:J11:three-source-signal]"
+        },
+        {
+          "caseId": "J12",
+          "marker": "[RED:J12:lazy-envelope-identity]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-R06",
+      "group": "routing",
+      "name": "one accepted aborted queued occurrence bypasses dispatch",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "  async function runWork(work: WorkRecord, allowResponses: boolean): Promise<void> {\n    try {\n      const rows = await concierge.dispatchBatch(work.context, envelopeFor(work));",
+      "replacement": "  async function runWork(work: WorkRecord, allowResponses: boolean): Promise<void> {\n    try {\n      const firstCall = work.sourceBatch.calls[0];\n      if (work.epoch.aborted && firstCall !== undefined) {\n        transport.respond(firstCall.callId, Object.freeze({\n          ok: false,\n          reason: \"aborted\",\n          message: \"The action was cancelled before it ran.\",\n        }));\n        return;\n      }\n      const rows = await concierge.dispatchBatch(work.context, envelopeFor(work));",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J10"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J10",
+          "marker": "[RED:J10:queued-epoch-abort]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-R07",
+      "group": "routing",
+      "name": "one accepted occurrence is dispatched twice",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "      await runWork(work, true);",
+      "replacement": "      await runWork(work, true);\n      await runWork(work, true);",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J02"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J02",
+          "marker": "[RED:J02:accepted-occurrence-once]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-R08",
+      "group": "routing",
+      "name": "a failed response is retried",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "        } catch {\n          diagnose(\"response_failed\");\n        }",
+      "replacement": "        } catch {\n          diagnose(\"response_failed\");\n          transport.respond(row.callId, row.result);\n        }",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J04"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J04",
+          "marker": "[RED:J04:response-throw-no-retry]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-R09",
+      "group": "routing",
+      "name": "descriptor-backed envelope is replaced by an eager spread",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "  /** Preserve every original envelope member and replace only its signal. */\n  function envelopeFor(work: WorkRecord): ToolBatch {\n    const envelope: ToolBatch = Object.create(null) as ToolBatch;\n    Object.defineProperties(envelope, {\n      responseId: {\n        enumerable: true,\n        get(): string {\n          return work.sourceBatch.responseId;\n        },\n      },\n      userTurnId: {\n        enumerable: true,\n        get(): string | undefined {\n          return work.sourceBatch.userTurnId;\n        },\n      },\n      calls: {\n        enumerable: true,\n        get(): ToolBatch[\"calls\"] {\n          return work.sourceBatch.calls;\n        },\n      },\n      signal: {\n        enumerable: true,\n        get(): AbortSignalLike {\n          return work.cancellation.signal;\n        },\n      },\n      deferUntilDelivered: {\n        enumerable: true,\n        get(): ToolBatch[\"deferUntilDelivered\"] {\n          return work.sourceBatch.deferUntilDelivered;\n        },\n      },\n    });\n    return Object.freeze(envelope);\n  }",
+      "replacement": "  /** Preserve every original envelope member and replace only its signal. */\n  function envelopeFor(work: WorkRecord): ToolBatch {\n    return Object.freeze({\n      ...work.sourceBatch,\n      signal: work.cancellation.signal,\n    });\n  }",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J15",
+        "J16",
+        "J17",
+        "J18"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J15",
+          "marker": "[RED:J15:throwing-responseid-totality]"
+        },
+        {
+          "caseId": "J16",
+          "marker": "[RED:J16:throwing-userturnid-totality]"
+        },
+        {
+          "caseId": "J17",
+          "marker": "[RED:J17:throwing-calls-totality]"
+        },
+        {
+          "caseId": "J18",
+          "marker": "[RED:J18:throwing-delivery-hook-totality]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-L01",
+      "group": "lifecycle",
+      "name": "repeated stop allocates a fresh Promise",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    if (stopPromise !== null) return stopPromise;",
+      "replacement": "    if (stopPromise !== null) return stopPromise.then(() => undefined);",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts"
+      ],
+      "intendedCaseIds": [
+        "L01"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L01",
+          "marker": "[RED:L01:stable-stop-promise]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-L02",
+      "group": "lifecycle",
+      "name": "stopped and token invalidation occur after outside cleanup",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    stopPromise = promise;\n    resolveStopPromise = resolve;\n    lifecycle = \"stopped\";",
+      "replacement": "    stopPromise = promise;\n    resolveStopPromise = resolve;\n    performCleanup();\n    lifecycle = \"stopped\";",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts",
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "L01",
+        "L05",
+        "C08",
+        "C09",
+        "C13",
+        "C14"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L01",
+          "marker": "[RED:L01:stable-stop-promise]"
+        },
+        {
+          "caseId": "L05",
+          "marker": "[RED:L05:stop-at-every-boundary]"
+        },
+        {
+          "caseId": "C08",
+          "marker": "[RED:C08:setcontext-publication-fail-closed]"
+        },
+        {
+          "caseId": "C09",
+          "marker": "[RED:C09:replay-publication-fail-closed]"
+        },
+        {
+          "caseId": "C13",
+          "marker": "[RED:C13:setcontext-failure-batch-drain]"
+        },
+        {
+          "caseId": "C14",
+          "marker": "[RED:C14:replay-failure-batch-drain]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-L03",
+      "group": "lifecycle",
+      "name": "response rows continue after stop",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "        if (!allowResponses || lifecycle !== \"active\") break;",
+      "replacement": "        if (!allowResponses) break;",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts"
+      ],
+      "intendedCaseIds": [
+        "L03",
+        "L05"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L03",
+          "marker": "[RED:L03:active-handler-drain]"
+        },
+        {
+          "caseId": "L05",
+          "marker": "[RED:L05:stop-at-every-boundary]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-L04",
+      "group": "lifecycle",
+      "name": "cleanup resurrects the session for recursive output",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    try {\n      transport.setTools(EMPTY_CATALOG);\n    } catch {\n      diagnose(\"catalog_clear_failed\");\n    }\n  }",
+      "replacement": "    try {\n      transport.setTools(EMPTY_CATALOG);\n    } catch {\n      diagnose(\"catalog_clear_failed\");\n    }\n    lifecycle = \"active\";\n  }",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts"
+      ],
+      "intendedCaseIds": [
+        "L05",
+        "L08",
+        "L13"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L05",
+          "marker": "[RED:L05:stop-at-every-boundary]"
+        },
+        {
+          "caseId": "L08",
+          "marker": "[RED:L08:post-stop-contract]"
+        },
+        {
+          "caseId": "L13",
+          "marker": "[RED:L13:listener-stop-cuts-off]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-L05",
+      "group": "lifecycle",
+      "name": "nested stage notification recurses instead of queueing",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    stageNotifications.push(nextStage);\n    if (stageNotifying) return;\n    stageNotifying = true;",
+      "replacement": "    if (stageNotifying) {\n      for (const listener of [...stageListeners.values()]) {\n        try {\n          listener(nextStage);\n        } catch {\n          diagnose(\"stage_listener_failed\");\n        }\n      }\n      return;\n    }\n    stageNotifications.push(nextStage);\n    stageNotifying = true;",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts"
+      ],
+      "intendedCaseIds": [
+        "L11"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L11",
+          "marker": "[RED:L11:nested-stage-order]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-L06",
+      "group": "lifecycle",
+      "name": "stage unsubscription is keyed by callback identity",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    return (): void => {\n      if (stageListeners.get(token) === callback) stageListeners.delete(token);\n    };",
+      "replacement": "    return (): void => {\n      for (const [candidate, listener] of stageListeners) {\n        if (listener === callback) stageListeners.delete(candidate);\n      }\n    };",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts"
+      ],
+      "intendedCaseIds": [
+        "L09"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L09",
+          "marker": "[RED:L09:listener-token]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-L07",
+      "group": "lifecycle",
+      "name": "accepted detached work is discarded instead of drained",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    detachedWork.push(...workQueue.splice(0));",
+      "replacement": "    workQueue.splice(0);",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts",
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "L04",
+        "C13",
+        "C14"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L04",
+          "marker": "[RED:L04:detached-queued-drain]"
+        },
+        {
+          "caseId": "C13",
+          "marker": "[RED:C13:setcontext-failure-batch-drain]"
+        },
+        {
+          "caseId": "C14",
+          "marker": "[RED:C14:replay-failure-batch-drain]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-L08",
+      "group": "lifecycle",
+      "name": "stage notification iterates the live listener collection",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "        const snapshot: ReadonlyArray<(stage: string | null) => void> = [\n          ...stageListeners.values(),\n        ];",
+      "replacement": "        const snapshot: Iterable<(stage: string | null) => void> =\n          stageListeners.values();",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts"
+      ],
+      "intendedCaseIds": [
+        "L10"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L10",
+          "marker": "[RED:L10:listener-snapshot]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-D01",
+      "group": "diagnostics",
+      "name": "caught dispatch detail is interpolated into a diagnostic",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    } catch {\n      diagnose(\"batch_dispatch_failed\");\n    } finally {",
+      "replacement": "    } catch (error) {\n      const unsafeDiagnostic: SessionDiagnostic = Object.freeze({\n        code: \"batch_dispatch_failed\",\n        message: String(error),\n      });\n      if (onDiagnostic !== undefined) {\n        try { onDiagnostic(unsafeDiagnostic); } catch {}\n      } else {\n        try { warnHost(`concierge: [batch_dispatch_failed] ${String(error)}`); } catch {}\n      }\n    } finally {",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts"
+      ],
+      "intendedCaseIds": [
+        "L14"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L14",
+          "marker": "[RED:L14:immutable-safe-diagnostic]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-D02",
+      "group": "diagnostics",
+      "name": "replacement diagnostic hook may escape response routing",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    if (onDiagnostic !== undefined) {\n      try {\n        onDiagnostic(diagnostic);\n      } catch {\n        // A diagnostic replacement is contained and is never echoed elsewhere.\n      }\n      return;\n    }",
+      "replacement": "    if (onDiagnostic !== undefined) {\n      if (code === \"response_failed\") {\n        onDiagnostic(diagnostic);\n        return;\n      }\n      try {\n        onDiagnostic(diagnostic);\n      } catch {\n        // A diagnostic replacement is contained and is never echoed elsewhere.\n      }\n      return;\n    }",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts"
+      ],
+      "intendedCaseIds": [
+        "L15"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L15",
+          "marker": "[RED:L15:replacement-hook]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-P01",
+      "group": "package",
+      "name": "test fixtures are included in the published package",
+      "target": "packages/concierge/package.json",
+      "literalPattern": "    \"src\",\n    \"README.md\",",
+      "replacement": "    \"src\",\n    \"test/fixtures\",\n    \"README.md\",",
+      "detectorKind": "package",
+      "intendedTestFiles": [
+        "packages/concierge/test/single-instance.test.ts"
+      ],
+      "intendedCaseIds": [
+        "P01"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "P01",
+          "marker": "[RED:P01:stub-tarball-exclusion]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-P02",
+      "group": "package",
+      "name": "createSession direct single-instance guard is removed",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "  assertSingleInstance();",
+      "replacement": "  void assertSingleInstance;",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/single-instance.test.ts"
+      ],
+      "intendedCaseIds": [
+        "F7"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "F7",
+          "marker": "F7 — createSession records this copy through its own direct guard call"
+        }
+      ]
+    }
+  ]
+}

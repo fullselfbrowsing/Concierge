@@ -1,0 +1,1468 @@
+{
+  "schemaVersion": 1,
+  "phase": "07-session-and-the-transport-seam",
+  "registerDigest": "093d2551f90dcf9bc01984ad5b29287df50e990e9d243766799817d3b9243f3b",
+  "expectedIds": [
+    "M-07-C01",
+    "M-07-C02",
+    "M-07-C03",
+    "M-07-C04",
+    "M-07-C05",
+    "M-07-C06",
+    "M-07-C07",
+    "M-07-C08",
+    "M-07-C09",
+    "M-07-R01",
+    "M-07-R02",
+    "M-07-R03",
+    "M-07-R04",
+    "M-07-R05",
+    "M-07-R06",
+    "M-07-R07",
+    "M-07-R08",
+    "M-07-R09",
+    "M-07-L01",
+    "M-07-L02",
+    "M-07-L03",
+    "M-07-L04",
+    "M-07-L05",
+    "M-07-L06",
+    "M-07-L07",
+    "M-07-L08",
+    "M-07-D01",
+    "M-07-D02",
+    "M-07-P01",
+    "M-07-P02"
+  ],
+  "inputHashes": {
+    "package.json": "a8267855dba9a429225090c505a78c6169415e2978ce6fb8fcdd6b28e18d542a",
+    "packages/concierge/package.json": "5ed9d24829c2ac5bdcf69b57d4f4b503c226cee33f474ad07536521fec4112e4",
+    "pnpm-lock.yaml": "0e29065f823200f9bdb2284bdef721003f525f68fa60a2810046b1a7f720e0d4"
+  },
+  "updatedAt": "2026-08-09T00:08:53.261Z",
+  "rows": [
+    {
+      "id": "M-07-C01",
+      "group": "catalog",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "C01"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C01",
+          "marker": "[RED:C01:initial-publication]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-C02",
+      "group": "catalog",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "C04"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C04",
+          "marker": "[RED:C04:connected-replay]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-C03",
+      "group": "catalog",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "C03"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C03",
+          "marker": "[RED:C03:catalog-reference-epoch]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-C04",
+      "group": "catalog",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "C06"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C06",
+          "marker": "[RED:C06:fixed-catalog-stop-first]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-C05",
+      "group": "catalog",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "C16"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C16",
+          "marker": "[RED:C16:reentrant-return-to-confirmed-catalog]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-C06",
+      "group": "catalog",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "C15"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C15",
+          "marker": "[RED:C15:reentrant-same-published-catalog]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-C07",
+      "group": "catalog",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "C10",
+        "C11",
+        "C15",
+        "C16"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C10",
+          "marker": "[RED:C10:abort-reentry-latest-wins]"
+        },
+        {
+          "caseId": "C11",
+          "marker": "[RED:C11:settools-reentry-latest-wins]"
+        },
+        {
+          "caseId": "C15",
+          "marker": "[RED:C15:reentrant-same-published-catalog]"
+        },
+        {
+          "caseId": "C16",
+          "marker": "[RED:C16:reentrant-return-to-confirmed-catalog]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-C08",
+      "group": "catalog",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "C10",
+        "C11",
+        "C15",
+        "C16"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C10",
+          "marker": "[RED:C10:abort-reentry-latest-wins]"
+        },
+        {
+          "caseId": "C11",
+          "marker": "[RED:C11:settools-reentry-latest-wins]"
+        },
+        {
+          "caseId": "C15",
+          "marker": "[RED:C15:reentrant-same-published-catalog]"
+        },
+        {
+          "caseId": "C16",
+          "marker": "[RED:C16:reentrant-return-to-confirmed-catalog]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-C09",
+      "group": "catalog",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "C11",
+        "C12",
+        "C13",
+        "C14",
+        "C15",
+        "C16"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C11",
+          "marker": "[RED:C11:settools-reentry-latest-wins]"
+        },
+        {
+          "caseId": "C12",
+          "marker": "[RED:C12:publication-admission-gate]"
+        },
+        {
+          "caseId": "C13",
+          "marker": "[RED:C13:setcontext-failure-batch-drain]"
+        },
+        {
+          "caseId": "C14",
+          "marker": "[RED:C14:replay-failure-batch-drain]"
+        },
+        {
+          "caseId": "C15",
+          "marker": "[RED:C15:reentrant-same-published-catalog]"
+        },
+        {
+          "caseId": "C16",
+          "marker": "[RED:C16:reentrant-return-to-confirmed-catalog]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-R01",
+      "group": "routing",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "J01"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J01",
+          "marker": "[RED:J01:cross-batch-fifo]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-R02",
+      "group": "routing",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "J07"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J07",
+          "marker": "[RED:J07:arrival-context]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-R03",
+      "group": "routing",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "J09"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J09",
+          "marker": "[RED:J09:active-epoch-abort]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-R04",
+      "group": "routing",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "J10",
+        "C11"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts",
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J10",
+          "marker": "[RED:J10:queued-epoch-abort]"
+        },
+        {
+          "caseId": "C11",
+          "marker": "[RED:C11:settools-reentry-latest-wins]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-R05",
+      "group": "routing",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "J11",
+        "J12"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J11",
+          "marker": "[RED:J11:three-source-signal]"
+        },
+        {
+          "caseId": "J12",
+          "marker": "[RED:J12:lazy-envelope-identity]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-R06",
+      "group": "routing",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "J10"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J10",
+          "marker": "[RED:J10:queued-epoch-abort]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-R07",
+      "group": "routing",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "J02"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J02",
+          "marker": "[RED:J02:accepted-occurrence-once]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-R08",
+      "group": "routing",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "J04"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J04",
+          "marker": "[RED:J04:response-throw-no-retry]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-R09",
+      "group": "routing",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "J15",
+        "J16",
+        "J17",
+        "J18"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J15",
+          "marker": "[RED:J15:throwing-responseid-totality]"
+        },
+        {
+          "caseId": "J16",
+          "marker": "[RED:J16:throwing-userturnid-totality]"
+        },
+        {
+          "caseId": "J17",
+          "marker": "[RED:J17:throwing-calls-totality]"
+        },
+        {
+          "caseId": "J18",
+          "marker": "[RED:J18:throwing-delivery-hook-totality]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-L01",
+      "group": "lifecycle",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "L01"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L01",
+          "marker": "[RED:L01:stable-stop-promise]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-L02",
+      "group": "lifecycle",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "L01",
+        "L05",
+        "C08",
+        "C09",
+        "C13",
+        "C14"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts",
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L01",
+          "marker": "[RED:L01:stable-stop-promise]"
+        },
+        {
+          "caseId": "L05",
+          "marker": "[RED:L05:stop-at-every-boundary]"
+        },
+        {
+          "caseId": "C08",
+          "marker": "[RED:C08:setcontext-publication-fail-closed]"
+        },
+        {
+          "caseId": "C09",
+          "marker": "[RED:C09:replay-publication-fail-closed]"
+        },
+        {
+          "caseId": "C13",
+          "marker": "[RED:C13:setcontext-failure-batch-drain]"
+        },
+        {
+          "caseId": "C14",
+          "marker": "[RED:C14:replay-failure-batch-drain]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-L03",
+      "group": "lifecycle",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "L03",
+        "L05"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L03",
+          "marker": "[RED:L03:active-handler-drain]"
+        },
+        {
+          "caseId": "L05",
+          "marker": "[RED:L05:stop-at-every-boundary]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-L04",
+      "group": "lifecycle",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "L05",
+        "L08",
+        "L13"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L05",
+          "marker": "[RED:L05:stop-at-every-boundary]"
+        },
+        {
+          "caseId": "L08",
+          "marker": "[RED:L08:post-stop-contract]"
+        },
+        {
+          "caseId": "L13",
+          "marker": "[RED:L13:listener-stop-cuts-off]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-L05",
+      "group": "lifecycle",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "L11"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L11",
+          "marker": "[RED:L11:nested-stage-order]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-L06",
+      "group": "lifecycle",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "L09"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L09",
+          "marker": "[RED:L09:listener-token]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-L07",
+      "group": "lifecycle",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "L04",
+        "C13",
+        "C14"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts",
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L04",
+          "marker": "[RED:L04:detached-queued-drain]"
+        },
+        {
+          "caseId": "C13",
+          "marker": "[RED:C13:setcontext-failure-batch-drain]"
+        },
+        {
+          "caseId": "C14",
+          "marker": "[RED:C14:replay-failure-batch-drain]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-L08",
+      "group": "lifecycle",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "L10"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L10",
+          "marker": "[RED:L10:listener-snapshot]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-D01",
+      "group": "diagnostics",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "L14"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L14",
+          "marker": "[RED:L14:immutable-safe-diagnostic]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-D02",
+      "group": "diagnostics",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "L15"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-lifecycle.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "L15",
+          "marker": "[RED:L15:replacement-hook]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-P01",
+      "group": "package",
+      "target": "packages/concierge/package.json",
+      "detectorKind": "package",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "P01"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/single-instance.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "P01",
+          "marker": "[RED:P01:stub-tarball-exclusion]"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    },
+    {
+      "id": "M-07-P02",
+      "group": "package",
+      "target": "packages/concierge/src/session.ts",
+      "detectorKind": "vitest",
+      "status": "pending",
+      "executed": false,
+      "compiled": false,
+      "buildMarker": false,
+      "testsRan": 0,
+      "intendedCaseIds": [
+        "F7"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/single-instance.test.ts"
+      ],
+      "intendedFailingCaseIds": [],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "F7",
+          "marker": "F7 — createSession records this copy through its own direct guard call"
+        }
+      ],
+      "observedFailureFingerprint": [],
+      "infrastructureErrors": [],
+      "detectorSatisfied": false,
+      "killed": false,
+      "packagePreconditionSatisfied": false,
+      "targetTracked": false,
+      "literalOccurrenceCount": null,
+      "targetHashBefore": null,
+      "targetHashAfter": null,
+      "targetRestored": false,
+      "restoredGreen": false,
+      "scopedStatusBefore": null,
+      "scopedStatusAfter": null,
+      "scopedTreeClean": false,
+      "revisionDigest": null,
+      "harnessExit": null,
+      "harnessOutput": "",
+      "mutantGate": null,
+      "executedAt": null
+    }
+  ]
+}

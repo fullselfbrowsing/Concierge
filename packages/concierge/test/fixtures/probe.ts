@@ -67,12 +67,19 @@ import {
   assertSingleInstance,
   defineAction,
   buildCatalog,
+  createSession,
 } from "@fullselfbrowsing/concierge";
 import type {
   ActionResult,
+  Concierge,
   ConsentAck,
-  Transport,
+  Session,
+  SessionConfig,
+  SessionDiagnostic,
+  SessionDiagnosticCode,
   StandardSchemaV1,
+  Transport,
+  TransportStatus,
 } from "@fullselfbrowsing/concierge";
 
 /**
@@ -153,3 +160,82 @@ export const descSlotSurvived: "Probe description." = null as unknown as DescSlo
  * binding at all.
  */
 export const bc: (a: readonly never[]) => unknown = buildCatalog;
+
+/**
+ * Phase 7's foreign declaration probe exercises the complete six-member
+ * transport seam from a plain object literal. Nothing here imports a test
+ * helper, DOM declaration, or source path; every annotation resolves through
+ * the packed package's public `dist/index.d.ts`.
+ */
+export const foreignStatus: TransportStatus = "idle";
+export const foreignTransport: Transport = {
+  capabilities: Object.freeze({
+    consentGrade: "none",
+    userTurnIdentity: "none",
+    parallelCalls: false,
+    dynamicCatalog: true,
+  }),
+  status: foreignStatus,
+  setTools: (_tools) => {},
+  onStatusChange: (_callback) => () => {},
+  onToolBatch: (_callback) => () => {},
+  respond: (_callId, _result) => {},
+};
+
+/** A fully structural Concierge, again checked only through shipped types. */
+export const foreignConcierge: Concierge = {
+  dispatch: (_context, _name, _args, _meta) =>
+    Promise.resolve({ ok: true, message: "ok" }),
+  dispatchBatch: (_context, _batch) => Promise.resolve(Object.freeze([])),
+  catalogFor: (_context) => Object.freeze([]),
+  stageFor: (_context) => null,
+  explain: (_context) =>
+    Object.freeze({
+      stage: null,
+      stages: Object.freeze([]),
+      catalog: Object.freeze([]),
+    }),
+};
+
+/** Pin the closed diagnostic vocabulary and immutable public shape. */
+export const foreignDiagnosticCode: SessionDiagnosticCode = "response_failed";
+export const foreignDiagnostic: SessionDiagnostic = Object.freeze({
+  code: foreignDiagnosticCode,
+  message: "The transport rejected a result; it was not retried.",
+});
+
+/**
+ * These values are deliberately computed as possibly undefined and then
+ * written explicitly. That is the foreign EOPT proof for both optional config
+ * members; dropping either declared `| undefined` makes this object TS2375.
+ */
+function initialContextFor(
+  status: TransportStatus,
+): SessionConfig["initialContext"] {
+  return status === "connected" ? { pathname: "/probe" } : undefined;
+}
+
+function diagnosticHookFor(
+  status: TransportStatus,
+): SessionConfig["onDiagnostic"] {
+  return status === "connected"
+    ? (_diagnostic: SessionDiagnostic) => {}
+    : undefined;
+}
+
+const computedInitialContext: SessionConfig["initialContext"] =
+  initialContextFor(foreignTransport.status);
+const computedDiagnosticHook: SessionConfig["onDiagnostic"] =
+  diagnosticHookFor(foreignTransport.status);
+
+export const foreignSessionConfig: SessionConfig = {
+  concierge: foreignConcierge,
+  transport: foreignTransport,
+  initialContext: computedInitialContext,
+  onDiagnostic: computedDiagnosticHook,
+};
+
+/** Pin the shipped value binding, factory signature, frozen handle, and drain. */
+export const sessionFactory: (config: SessionConfig) => Session = createSession;
+export const foreignSession: Session = sessionFactory(foreignSessionConfig);
+export const foreignStopDrain: Promise<void> = foreignSession.stop();

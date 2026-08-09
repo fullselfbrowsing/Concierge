@@ -53,6 +53,16 @@ fi
 echo "==> tarball: $TGZ"
 echo "==> tarball bytes: $(wc -c < "$TGZ" | tr -d ' ')"
 
+# Inspect the archive itself before installing it. Test-only helpers must never
+# become reachable through an accidentally widened `files` allow-list.
+echo "==> tarball entries"
+TAR_ENTRIES="$(tar -tzf "$TGZ")"
+printf '%s\n' "$TAR_ENTRIES"
+if printf '%s\n' "$TAR_ENTRIES" | grep -Eq 'stub-transport|test/fixtures'; then
+  echo "FAIL: [RED:P01:stub-tarball-exclusion] tarball contains a test fixture or stub transport" >&2
+  exit 1
+fi
+
 cd "$OUT"
 
 cat > package.json <<'JSON'
@@ -126,6 +136,9 @@ node --input-type=module -e '
   const m = await import("@fullselfbrowsing/concierge");
   if (m.MESSAGE_MAX_CHARS !== 180) {
     throw new Error("runtime binding erased: MESSAGE_MAX_CHARS is " + String(m.MESSAGE_MAX_CHARS));
+  }
+  if (typeof m.createSession !== "function") {
+    throw new Error("runtime binding erased: createSession is " + typeof m.createSession);
   }
 '
 
