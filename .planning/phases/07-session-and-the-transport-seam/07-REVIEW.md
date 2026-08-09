@@ -1,6 +1,6 @@
 ---
 phase: 07-session-and-the-transport-seam
-reviewed: 2026-08-09T06:28:06Z
+reviewed: 2026-08-09T07:25:24Z
 depth: standard
 files_reviewed: 3
 files_reviewed_list:
@@ -8,16 +8,16 @@ files_reviewed_list:
   - packages/concierge/test/session-catalog.test.ts
   - scripts/phase-07-mutation-battery.mjs
 findings:
-  critical: 3
+  critical: 1
   warning: 1
   info: 0
-  total: 4
+  total: 2
 status: issues_found
 ---
 
 # Phase 7: Code Review Report
 
-**Reviewed:** 2026-08-09T06:28:06Z
+**Reviewed:** 2026-08-09T07:25:24Z
 
 **Depth:** standard
 
@@ -27,125 +27,90 @@ status: issues_found
 
 ## Summary
 
-The five findings from the preceding review are closed in their exact reported forms. C17 now prevents unpublished B authority for getter-time work and independently observes the abort and clear operations; connected replay getters that queue C no longer invoke a returned stale callable or fail the Session for a superseded getter throw; mutation execution no longer writes or restores the live target; M-07-C10 and M-07-C11 are distinct one-test mutants with separate revision digests; and the C17 RED marker is no longer shared with its factory smoke check.
+The four iteration-2 findings are closed in their reported forms. The single occurrence queue preserves accessor/callable FIFO and blocks at an unresolved head; confirmed-replay work retains immutable A authority while post-reentry work binds to the winning context; stop detaches and dispatches every unresolved record once in arrival order with the original composed cancellation signal; and mutation evidence now makes only the endpoint claim it measures. The five findings that preceded iteration 2 also remain closed: unpublished B is not live dispatch authority, superseded replay getters neither invoke stale callables nor fail the Session, mutation execution stays inside a disposable snapshot, C17 independently detects abort and clear removal, and its RED marker is isolated from the factory smoke check.
 
-| Prior finding | Disposition | Independent evidence |
+| Finding set | Disposition | Independent evidence |
 |---|---|---|
-| CR-01 | Closed as reported | C17 covers batches before and after C is queued in both getter-return and getter-throw modes, with zero B invocation/authority, one aborted pre-C result, and one live post-C result. |
-| CR-02 | Closed as reported | The connected-replay regression covers superseded getter return and throw, with zero stale invocation, no fatal error/diagnostic, A to C publication, and later C routing. |
-| CR-03 | Closed as reported | `executeMutant` mutates, gates, restores, and rechecks only `snapshot.root`; no production mutation path writes `join(ROOT, mutant.target)`. The snapshot/concurrent-writer self-test passed. |
-| WR-01 | Closed | M-07-C10 removes abort only; M-07-C11 removes clear only. Both current rows ran exactly C17, matched its exact marker, have distinct revision digests, and restored green. |
-| WR-02 | Closed | C17 uses `[SMOKE:C17:create-session-factory]` for the factory check, reserves its RED marker for the load-bearing assertion, and the self-test rejects both factory and suite/export failures. |
+| Iteration-2 CR-01 — one-queue FIFO | Closed as reported | The getter/callable regression passed, and an additional built-artifact B→C→D probe dispatched, responded, and finalized `before-c`, `after-c`, `after-d` in exact arrival order. Only the final D occurrence was live. |
+| Iteration-2 CR-02 — confirmed-A replay authority | Closed as reported | The four distinct/same-catalog × getter-return/throw cases passed with pre-C authority A, post-C authority C, exact cancellation state, zero stale invocation, and final C stage. |
+| Iteration-2 CR-03 — stop exact-once drain | Closed as reported | Direct stop and stop from the second source signal passed for setContext and replay: two FIFO dispatches, two exact composed signals, both aborted, zero handlers/responses, ordered finalizers, and one cached drain Promise. |
+| Iteration-2 WR-01 — endpoint-only wording | Closed | The harness, every evidence row, and validation use `liveScopeEndpointsMatch`; the self-test explicitly proves endpoint equality can coexist with detected A→B→A history drift. No legacy `scopedTreeClean` claim remains in current executable/generated artifacts. |
+| Preceding five findings | Closed as reported | C17 covers accessor work on both sides of C and separately killed M-07-C10/M-07-C11; connected replay covers stale getter return/throw; mutation gates and restoration use `snapshot.root`; the two mutants have distinct revision digests; and `[SMOKE:C17:create-session-factory]` is separate from the exact RED fingerprint. |
 
-The repair nevertheless introduced a second queue for accessor-time occurrences without preserving their global arrival position or complete admission identity. Three built-artifact probes show that this reverses FIFO, executes a confirmed-A replay occurrence live under C, and drops an accepted post-reentry occurrence during stop. The mutation script also overstates an endpoint comparison as proof that the live tree was untouched throughout a run. Security re-audit and formal phase verification must not proceed until the three blockers are fixed and independently re-reviewed.
+The final pass nevertheless found a distinct outside-boundary exception ordering. `catalogFor`, `stageFor`, `transport.capabilities`, and `dynamicCatalog` are checked for supersession only after a successful return. If one of those consumer-controlled computations queues C and then throws, the stale B exception exits the outer transition drain, leaves C queued, and permanently gates subsequently accepted work until another control happens to restart the drain. A structural `catalogFor` accessor can likewise queue C yet have its returned stale B callable invoked because property capture and invocation are one expression. These failures contradict latest-wins publication, no-stale-authority, FIFO progress, and one-response-per-call claims.
 
-Verification passed for the behaviors represented by the current suite: package build, package typecheck, the focused C17 plus connected-replay regression (2/2), the complete catalog suite (23/23), mutation-battery syntax, mutation self-test, `verify all` (32/32), and `verify inputs` (3/3). These green gates do not exercise the three hostile orderings below. `verify ledgers` was not rerun because it rewrites release evidence; the committed release object remains present and structurally valid, but another ledger run cannot override the reproduced runtime failures.
+All gates represented by the submitted suite/evidence passed: package build, package typecheck, catalog 25/25, routing 18/18, lifecycle 21/21, mutation-battery syntax, mutation self-test, `verify all` 32/32, and `verify inputs` 3/3. `verify ledgers` was not rerun because it rewrites release evidence and cannot override the built-artifact counterexamples; the committed release object remains present with seven zero exits and 326/326 tests. Security re-audit and formal phase verification must not proceed until both findings below are repaired, regenerated into evidence, and independently re-reviewed.
 
 ## Narrative Findings (AI reviewer)
 
 ## Critical Issues
 
-### CR-01: The separate unbound queue reverses accessor-time FIFO
+### CR-01: A stale resolver or capability exception strands the winning transition and accepted work
 
 **Classification:** BLOCKER
 
-**File:** `packages/concierge/src/session.ts:148-150, 545-569, 659-671`
+**File:** `packages/concierge/src/session.ts:899-906, 921-926, 1035-1044`
 
-**Issue:** A batch emitted while the `setTools` accessor is being read is appended to `unboundBatches`. Once the callable is captured, a later batch emitted by that callable is appended directly to `workQueue`. `bindUnboundBatches` runs only after publication confirmation and appends the earlier accessor occurrence to the end of `workQueue`, behind the later callable occurrence. A built-artifact probe emitted `getter-first` in the getter and `callable-second` in the returned function and observed:
+**Issue:** The freshness checks after `catalogFor`, `stageFor`, `transport.capabilities`, and `capabilities.dynamicCatalog` run only when the preceding property/call returns normally. If an outside computation synchronously calls `session.setContext(C)` and then throws while B is being processed, its now-stale exception escapes `processContext` and exits the `while` loop in `drainTransitions`. The `finally` block clears `transitionDraining`, but it does not resume the non-empty queue; `bindQueuedOccurrences` and `maybeStartPump` both refuse progress while C remains queued. A later batch is accepted but receives no dispatch and no response.
+
+Two independent built-artifact probes observed:
 
 ```json
 {
-  "dispatches": ["callable-second", "getter-first"],
-  "responses": ["callable-second", "getter-first"]
+  "catalogForThrow": {
+    "error": "STALE-B",
+    "events": ["catalog:a", "stage:a", "catalog:b"],
+    "publications": ["a"],
+    "stage": "a",
+    "responses": []
+  },
+  "capabilitiesThrow": {
+    "error": "STALE-CAPS",
+    "events": ["catalog:a", "stage:a", "catalog:b", "stage:b", "capabilities"],
+    "publications": ["a"],
+    "stage": "a",
+    "responses": []
+  }
 }
 ```
 
-Both occurrences used B and were non-aborted, so the reversal is caused solely by queue placement. This violates the locked session-wide complete-batch FIFO and can reorder stateful action execution and correlated results even on a successful, non-reentrant publication.
+The same boundary is unsafe even without a throw: because `concierge.catalogFor(record.context)` combines property lookup and invocation, a `catalogFor` getter that queues C can return a B callable that is still invoked before line 902 checks freshness. The probe observed `staleCalls: 1` even though only A→C was published. This is the same stale-callable class already fixed for `transport.setTools`, now exposed at the resolver seam.
 
-**Fix:** Store every accepted occurrence in one arrival-ordered queue. Represent binding as mutable private state on the queued occurrence, and bind accessor-time records in place rather than splicing them into a second array and appending them later. The pump must stop at an unresolved head record rather than allow a later bound record to pass it. Stop must detach from that same queue in order. Add a built-artifact regression where the getter emits occurrence 1 and its returned callable emits occurrence 2; assert dispatch, response, and finalization remain `1, 2`.
+**Fix:** Split property capture from invocation for `catalogFor` and `stageFor`, and place an `isCurrent(record)` guard after each property read and after each call. Use `try/finally` around every resolver/capability boundary so a `return` in the `finally` suppresses only a superseded throw while a current throw retains its existing behavior without binding or exposing the caught value. Apply the same pattern to `transport.capabilities` and `dynamicCatalog`. Ensure the outer drain always continues with queued C after a stale B return or throw, and never invokes a callable captured by a getter that already superseded B. For example:
 
 ```ts
-interface QueuedOccurrence {
-  readonly sequence: number;
-  readonly sourceBatch: ToolBatch;
-  readonly cancellation: CancellationScope;
-  binding: { context: StageContext; epoch: CatalogEpoch } | null;
+let catalogFor: typeof concierge.catalogFor;
+try {
+  catalogFor = concierge.catalogFor;
+} finally {
+  if (!isCurrent(record)) return;
 }
 
-// One queue owns both bound and not-yet-bound occurrences.
-const occurrenceQueue: QueuedOccurrence[] = [];
-```
-
-### CR-02: A replay occurrence admitted under confirmed A executes live under C
-
-**Classification:** BLOCKER
-
-**File:** `packages/concierge/src/session.ts:395-400, 545-569, 596-619, 934-980`
-
-**Issue:** During a connected replay, A is already the confirmed and published authority. A batch emitted by the replay getter before it calls `setContext(C)` is initially recorded with provisional context/epoch A. Once C is requested, `abandonSupersededReplay` calls `clearPublication`, which erases that provisional binding. After C confirms, `bindUnboundBatches` binds every deferred record to C and does not preserve or abort the earlier A arrival. Built-artifact probes for both a returned sentinel and a thrown getter observed the same result:
-
-```json
-{
-  "stage": "c",
-  "dispatches": [
-    { "context": "c", "callId": "before-c", "aborted": false },
-    { "context": "c", "callId": "after-c", "aborted": false }
-  ],
-  "responses": ["before-c", "after-c"]
+let catalog: ReadonlyArray<EmittedTool>;
+try {
+  catalog = Reflect.apply(catalogFor, concierge, [record.context]);
+} finally {
+  if (!isCurrent(record)) return;
 }
 ```
 
-`before-c` arrived while the transport and Session both held A, yet it ran successfully under C. If C exposes a different action set or context-sensitive authority, a transport occurrence admitted under A can execute functionality that was not published when it arrived. The current connected-replay regression emits only after the getter completes, so it proves stale-callable suppression but misses this authority transfer.
-
-**Fix:** Distinguish an accessor attempt for an unpublished context from an accessor read that merely replays an already-confirmed epoch. Preserve immutable arrival context/epoch A for a pre-C replay occurrence; when C uses a different catalog, the normal epoch transition must abort that A record before it dispatches once under its captured A context. An occurrence emitted after C is requested can be deferred for C. Do not weaken C17's rule that unpublished B is never dispatch authority. Add return and throw regressions with batches on both sides of the C reentry, for both distinct-catalog and same-catalog C, and assert exact context identity, cancellation state, handler count, and responses.
-
-```ts
-interface UnboundBatch {
-  readonly sourceBatch: ToolBatch;
-  readonly cancellation: CancellationScope;
-  readonly arrivalAuthority: "confirmed-replay" | "unpublished-attempt";
-  readonly arrivalContext: StageContext | null;
-  readonly arrivalEpoch: CatalogEpoch | null;
-}
-```
-
-### CR-03: Stop silently drops a deferred post-reentry occurrence
-
-**Classification:** BLOCKER
-
-**File:** `packages/concierge/src/session.ts:573-619, 720-745`
-
-**Issue:** If a getter queues C and then emits a batch, `acceptUnboundBatch` sees that the still-publishing B generation is no longer current and records the occurrence with null provisional context/epoch. It nevertheless pushes the occurrence into `unboundBatches` and connects its cancellation scope. If `stop()` reenters before the transition drain selects C, `detachUnboundBatches` aborts and disposes this record without creating detached work. A built-artifact probe emitted `before-c`, queued C, emitted `after-c`, and stopped from the B getter. After the cached stop Promise resolved, it observed only:
-
-```json
-{
-  "dispatches": [
-    { "context": "b", "callId": "before-c", "aborted": true }
-  ],
-  "responses": [],
-  "sameDrain": true
-}
-```
-
-The accepted `after-c` occurrence never crossed `dispatchBatch`. This violates the locked stop guarantee that queued and publication-in-progress accepted records detach and dispatch exactly once with their original cancellation object, and it creates an unobservable queue drop during a hostile but synchronous lifecycle ordering.
-
-**Fix:** Retain an immutable admission context for every unbound occurrence, including one accepted after a newer requested generation supersedes the active accessor. On stop, convert every queued occurrence into detached work in global arrival order, abort the same cancellation scope, dispatch it once, and suppress responses; never use `dispose()` as a substitute for the required dispatch/finalizer path. If an epoch has not yet been created for the requested context, use a private detached/holding epoch or make detached work explicitly support that state. Add setContext and connected-replay tests that emit before C, emit after C, then stop/stop-from-signal, and assert two FIFO dispatches, identical cancellation-signal objects, zero handlers/responses, and drain completion.
+Add built-artifact variants for `catalogFor`, `stageFor`, `capabilities`, and `dynamicCatalog` that queue C immediately before both return and throw. Assert zero stale callable invocation/error/diagnostic, final C authority, and exactly one later C dispatch/response. Include distinct- and same-catalog C where identity changes the epoch result.
 
 ## Warnings
 
-### WR-01: Endpoint equality is reported as proof that the live tree stayed untouched
+### WR-01: The catalog suite and mutation register cannot detect stale-boundary exception handling
 
 **Classification:** WARNING
 
-**File:** `scripts/phase-07-mutation-battery.mjs:2051-2057, 2407-2413, 2931-3003`
+**File:** `packages/concierge/test/session-catalog.test.ts:787-912`; `scripts/phase-07-mutation-battery.mjs:1005-1018, 2628-2644`
 
-**Issue:** The snapshot repair correctly prevents gates and restoration from reading or writing a concurrent live edit. However, `liveRevisionStable` compares only post-run paths/digest with the pre-run values, folds that into `scopedTreeClean`, and the validation ledger then claims the live worktree remained “untouched and stable.” The new self-test itself performs A to B to A, confirms mixed direct reads, restores A, and asserts the final digest equals the baseline. That exact history is therefore invisible to the production endpoint check and can still be recorded as `scopedTreeClean: true`. This no longer corrupts mutant evidence because all gate reads are snapshot-pinned, but the recorded field and ledger statement claim a stronger historical property than the harness proves.
+**Issue:** The resolver and capability regressions exercise only the successful-return side of reentry. C17 and the connected-replay regression cover return/throw only for `setTools`; no named case makes `catalogFor`, `stageFor`, `capabilities`, or `dynamicCatalog` queue C and then throw, and no case checks a stale callable returned by a resolver property getter. M-07-C07/C08 therefore remain green while the built artifact is stuck with C queued and a later accepted batch unanswered. `verify all` reporting 32/32 does not discriminate this load-bearing latest-wins branch.
 
-**Fix:** Rename the measurement to an endpoint claim such as `liveScopeEndpointsMatch` and change the ledger wording to state that the disposable snapshot stayed revision-stable while live scoped endpoints matched before and after. If uninterrupted live-tree stability is genuinely required, require all writers to share the lock or add a trustworthy change journal/watch mechanism; an A to B to A history cannot be proven absent by two hashes. Update the negative control to distinguish snapshot isolation (which it proves) from live-history detection (which it does not).
+**Fix:** Add a uniquely marked built-artifact case for the resolver/capability return-and-throw matrix and a compiled exact mutant that removes the new stale-exception/freshness guard. Require a successful build, only the intended named case, its exact marker, byte-identical snapshot restoration, and restored-green gates; then regenerate the register, evidence, release facts, and validation counts. The detector must assert later dispatch/response progress so an incidental thrown error cannot receive credit.
 
 ---
 
-_Reviewed: 2026-08-09T06:28:06Z_
+_Reviewed: 2026-08-09T07:25:24Z_
 
 _Reviewer: the agent (gsd-code-reviewer)_
 
