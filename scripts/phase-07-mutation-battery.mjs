@@ -1851,9 +1851,11 @@ function validateGreenRow(
   if (row.revisionDigest !== currentRevisionDigest) {
     throw new Error(`${mutant.id}: revision digest is stale`);
   }
+  const recordedFailingCaseIds = [...row.intendedFailingCaseIds].sort();
+  const expectedFailingCaseIds = [...mutant.intendedCaseIds].sort();
   if (
-    JSON.stringify(row.intendedFailingCaseIds) !==
-      JSON.stringify(mutant.intendedCaseIds)
+    JSON.stringify(recordedFailingCaseIds) !==
+      JSON.stringify(expectedFailingCaseIds)
   ) {
     throw new Error(`${mutant.id}: exact intended case set did not fail`);
   }
@@ -2382,6 +2384,22 @@ function selfTest() {
     () => validateSyntheticGreenRows(sharedDigest),
     /revision digest/u,
     "shared revision digest",
+  );
+  const reorderedFailureSet = clone(greenRows);
+  const multiCaseRow = reorderedFailureSet.find(
+    (row) => row.id === "M-07-R04",
+  );
+  multiCaseRow.intendedFailingCaseIds.reverse();
+  validateSyntheticGreenRows(reorderedFailureSet);
+  const incompleteFailureSet = clone(greenRows);
+  const incompleteMultiCaseRow = incompleteFailureSet.find(
+    (row) => row.id === "M-07-R04",
+  );
+  incompleteMultiCaseRow.intendedFailingCaseIds.pop();
+  assertThrows(
+    () => validateSyntheticGreenRows(incompleteFailureSet),
+    /exact intended case set/u,
+    "incomplete intended failure set",
   );
 
   for (const caseId of [
