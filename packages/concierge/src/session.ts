@@ -756,6 +756,19 @@ export function createSession(config: SessionConfig): Session {
     );
   }
 
+  function captureCurrent<T>(
+    record: ContextTransition,
+    operation: () => T,
+  ): { readonly value: T } | null {
+    let value!: T;
+    try {
+      value = operation();
+    } finally {
+      if (!isCurrent(record)) return null;
+    }
+    return { value };
+  }
+
   /** Read lifecycle without allowing TypeScript to freeze a stale narrowing. */
   function hasStopped(): boolean {
     return lifecycle === "stopped";
@@ -896,15 +909,34 @@ export function createSession(config: SessionConfig): Session {
 
     let resolved: ResolvedContext | null = record.resolved;
     if (resolved === null) {
-      const catalog: ReadonlyArray<EmittedTool> = concierge.catalogFor(
-        record.context as StageContext,
+      const catalogFor = captureCurrent(
+        record,
+        (): typeof concierge.catalogFor => concierge.catalogFor,
       );
-      if (!isCurrent(record)) return;
-      const stage: string | null = concierge.stageFor(
-        record.context as StageContext,
+      if (catalogFor === null) return;
+      const catalog = captureCurrent(
+        record,
+        (): ReadonlyArray<EmittedTool> =>
+          Reflect.apply(catalogFor.value, concierge, [
+            record.context as StageContext,
+          ]),
       );
-      if (!isCurrent(record)) return;
-      resolved = { catalog, stage };
+      if (catalog === null) return;
+
+      const stageFor = captureCurrent(
+        record,
+        (): typeof concierge.stageFor => concierge.stageFor,
+      );
+      if (stageFor === null) return;
+      const stage = captureCurrent(
+        record,
+        (): string | null =>
+          Reflect.apply(stageFor.value, concierge, [
+            record.context as StageContext,
+          ]),
+      );
+      if (stage === null) return;
+      resolved = { catalog: catalog.value, stage: stage.value };
     }
 
     if (resolved.catalog === publishedCatalog) {
@@ -919,12 +951,17 @@ export function createSession(config: SessionConfig): Session {
     }
 
     if (publishedCatalog !== null) {
-      const capabilities: typeof transport.capabilities =
-        transport.capabilities;
-      if (!isCurrent(record)) return;
-      const dynamicCatalog: boolean = capabilities.dynamicCatalog;
-      if (!isCurrent(record)) return;
-      if (dynamicCatalog === false) {
+      const capabilities = captureCurrent(
+        record,
+        (): typeof transport.capabilities => transport.capabilities,
+      );
+      if (capabilities === null) return;
+      const dynamicCatalog = captureCurrent(
+        record,
+        (): boolean => capabilities.value.dynamicCatalog,
+      );
+      if (dynamicCatalog === null) return;
+      if (dynamicCatalog.value === false) {
         currentStage = resolved.stage;
         stopNow();
         throw new Error(FIXED_CATALOG_ERROR);

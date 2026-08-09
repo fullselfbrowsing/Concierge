@@ -147,11 +147,11 @@ const REQUIRED_REQUIREMENT_IDS = Object.freeze([
 const PHASE_8_HANDOFF =
   "Partial — Phase 7 delivers U01-U08 reusable no-network fixture and Session seam/package proof; Phase 8 must reuse this exact fixture to exercise the consent kernel before TRN-02 can be Complete.";
 const MUTATION_DISTRIBUTION_LEDGER =
-  "11 catalog / 9 routing / 8 lifecycle / 2 diagnostics / 2 package-guard (`11/9/8/2/2`)";
+  "12 catalog / 9 routing / 8 lifecycle / 2 diagnostics / 2 package-guard (`12/9/8/2/2`)";
 const MUTATION_OUTCOME_LEDGER =
-  "32/32 green; zero pending, zero escaped, zero failed";
+  "33/33 green; zero pending, zero escaped, zero failed";
 const MUTATION_SHARDS_LEDGER =
-  "Exactly ten contiguous shards: C01-C03, C04-C07, C08-C11, R01-R04, R05-R08, R09-R09, L01-L04, L05-L08, D01-D02, P01-P02";
+  "Exactly ten contiguous shards: C01-C04, C05-C08, C09-C12, R01-R04, R05-R08, R09-R09, L01-L04, L05-L08, D01-D02, P01-P02";
 
 function lines(...values) {
   return values.join("\n");
@@ -414,6 +414,14 @@ const MUTANTS = Object.freeze([
       "    return true;",
     ),
     intendedCaseIds: ["C17"],
+  }),
+  runtimeMutant({
+    id: "M-07-C12",
+    group: "catalog",
+    name: "stale resolver and capability freshness guard is removed",
+    literalPattern: "      if (!isCurrent(record)) return null;",
+    replacement: "      void record;",
+    intendedCaseIds: ["C18"],
   }),
 
   runtimeMutant({
@@ -846,7 +854,7 @@ const MUTANTS = Object.freeze([
 ]);
 
 export const EXPECTED_CATALOG_IDS = Object.freeze(
-  Array.from({ length: 11 }, (_, index) =>
+  Array.from({ length: 12 }, (_, index) =>
     `M-07-C${String(index + 1).padStart(2, "0")}`,
   ),
 );
@@ -1016,6 +1024,7 @@ function validateRequiredMappings(mutants) {
     "M-07-C09": ["C11", "C12", "C13", "C14", "C15", "C16"],
     "M-07-C10": ["C17"],
     "M-07-C11": ["C17"],
+    "M-07-C12": ["C18"],
     "M-07-R01": ["J01"],
     "M-07-R02": ["J07"],
     "M-07-R03": ["J09"],
@@ -1055,6 +1064,7 @@ function validateRequiredMappings(mutants) {
   const c06 = byId.get("M-07-C06");
   const c10 = byId.get("M-07-C10");
   const c11 = byId.get("M-07-C11");
+  const c12 = byId.get("M-07-C12");
   const l02 = byId.get("M-07-L02");
   const l05 = byId.get("M-07-L05");
   if (
@@ -1089,6 +1099,14 @@ function validateRequiredMappings(mutants) {
       "M-07-C11 must omit only the superseded attempt clear",
     );
   }
+  if (
+    c12?.literalPattern !== "      if (!isCurrent(record)) return null;" ||
+    c12.replacement !== "      void record;"
+  ) {
+    throw new Error(
+      "M-07-C12 must remove only the shared stale-boundary freshness guard",
+    );
+  }
   for (const displacedCase of ["C08", "C09", "C13", "C14"]) {
     if (!l02?.intendedCaseIds.includes(displacedCase)) {
       throw new Error(`M-07-L02 must retain displaced stop-order detector ${displacedCase}`);
@@ -1121,6 +1139,7 @@ function validateRequiredMappings(mutants) {
     "M-07-C09",
     "M-07-C10",
     "M-07-C11",
+    "M-07-C12",
     "M-07-R09",
   ];
   const identities = independentIds.map((id) => {
@@ -1150,7 +1169,7 @@ function validateMutantList(
     throw new Error("mutant ids contain a duplicate");
   }
 
-  const expectedCounts = { catalog: 11, routing: 9, lifecycle: 8, diagnostics: 2, package: 2 };
+  const expectedCounts = { catalog: 12, routing: 9, lifecycle: 8, diagnostics: 2, package: 2 };
   for (const [group, count] of Object.entries(expectedCounts)) {
     if (mutants.filter((mutant) => mutant.group === group).length !== count) {
       throw new Error(`${group}: mutant count must equal ${count}`);
@@ -2426,7 +2445,7 @@ function validateApproval(validationText, registerDigestValue) {
     throw new Error("validation approval is still pending");
   }
   const approvalPattern = new RegExp(
-    `\\*\\*Approval:\\*\\* approved \\d{4}-\\d{2}-\\d{2} — register ${registerDigestValue}; 32/32 green; release gate green`,
+    `\\*\\*Approval:\\*\\* approved \\d{4}-\\d{2}-\\d{2} — register ${registerDigestValue}; 33/33 green; release gate green`,
     "u",
   );
   if (!approvalPattern.test(validationText)) {
@@ -2626,7 +2645,7 @@ function verifyNamedCasesAndWaveFiles({
     if (!pathExists(path)) throw new Error(`Wave 0 file is missing: ${path}`);
   }
   const markerFiles = [
-    [TEST_FILES.catalog, Array.from({ length: 17 }, (_, index) => `C${String(index + 1).padStart(2, "0")}`)],
+    [TEST_FILES.catalog, Array.from({ length: 18 }, (_, index) => `C${String(index + 1).padStart(2, "0")}`)],
     [TEST_FILES.routing, Array.from({ length: 18 }, (_, index) => `J${String(index + 1).padStart(2, "0")}`)],
     [TEST_FILES.lifecycle, Array.from({ length: 18 }, (_, index) => `L${String(index + 1).padStart(2, "0")}`)],
     ["packages/concierge/test/stub-transport.test.ts", Array.from({ length: 8 }, (_, index) => `U${String(index + 1).padStart(2, "0")}`)],
@@ -3127,9 +3146,9 @@ function selfTest() {
   const initialEvidence = makeInitialEvidence();
   validateEvidenceShape(initialEvidence);
   assert(
-    initialEvidence.rows.length === 32 &&
+    initialEvidence.rows.length === 33 &&
       initialEvidence.rows.every((row) => row.status === "pending"),
-    "refresh fixture must contain exactly 32 pending rows",
+    "refresh fixture must contain exactly 33 pending rows",
   );
   const expectedMutationRows = expectedMutationLedgerRows(
     initialEvidence.registerDigest,
@@ -3137,18 +3156,18 @@ function selfTest() {
   for (const [key, staleValue, label] of [
     [
       "Distribution",
-      "10 catalog / 9 routing / 8 lifecycle / 2 diagnostics / 2 package-guard (`10/9/8/2/2`)",
-      "stale 31-row mutation distribution",
+      "11 catalog / 9 routing / 8 lifecycle / 2 diagnostics / 2 package-guard (`11/9/8/2/2`)",
+      "stale 32-row mutation distribution",
     ],
     [
       "Outcome",
-      "31/31 green; zero pending, zero escaped, zero failed",
-      "stale 31-row mutation outcome",
+      "32/32 green; zero pending, zero escaped, zero failed",
+      "stale 32-row mutation outcome",
     ],
     [
       "Bounded execution",
-      "Exactly ten contiguous shards: C01-C03, C04-C06, C07-C10, R01-R04, R05-R08, R09-R09, L01-L04, L05-L08, D01-D02, P01-P02",
-      "stale 31-row catalog shard",
+      "Exactly ten contiguous shards: C01-C03, C04-C07, C08-C11, R01-R04, R05-R08, R09-R09, L01-L04, L05-L08, D01-D02, P01-P02",
+      "stale 32-row catalog shard",
     ],
   ]) {
     const staleRows = new Map(expectedMutationRows);
@@ -3164,16 +3183,16 @@ function selfTest() {
       label,
     );
   }
-  const approvalFixture = `**Approval:** approved 2026-08-09 — register ${initialEvidence.registerDigest}; 32/32 green; release gate green`;
+  const approvalFixture = `**Approval:** approved 2026-08-09 — register ${initialEvidence.registerDigest}; 33/33 green; release gate green`;
   validateApproval(approvalFixture, initialEvidence.registerDigest);
   assertThrows(
     () =>
       validateApproval(
-        approvalFixture.replace("32/32 green", "31/31 green"),
+        approvalFixture.replace("33/33 green", "32/32 green"),
         initialEvidence.registerDigest,
       ),
     /approval date\/digest is missing or invalid/u,
-    "stale 31-row approval",
+    "stale 32-row approval",
   );
 
   const syntheticRelease = syntheticReleaseEvidence();
@@ -3279,6 +3298,7 @@ function selfTest() {
     "M-07-C09",
     "M-07-C10",
     "M-07-C11",
+    "M-07-C12",
     "M-07-R09",
     "M-07-L05",
   ]) {
@@ -3336,19 +3356,19 @@ function selfTest() {
     "reordered mutant ids",
   );
 
-  for (const cleanupId of ["M-07-C10", "M-07-C11"]) {
+  for (const exactId of ["M-07-C10", "M-07-C11", "M-07-C12"]) {
     const noOp = clone(MUTANTS);
-    const noOpCleanup = noOp.find((mutant) => mutant.id === cleanupId);
-    assert(noOpCleanup !== undefined, `${cleanupId} must exist for no-op self-test`);
-    noOpCleanup.replacement = noOpCleanup.literalPattern;
+    const noOpMutant = noOp.find((mutant) => mutant.id === exactId);
+    assert(noOpMutant !== undefined, `${exactId} must exist for no-op self-test`);
+    noOpMutant.replacement = noOpMutant.literalPattern;
     assertThrows(
       () => validateMutantList(noOp),
       /no-op/u,
-      `no-op ${cleanupId} cleanup mutant`,
+      `no-op ${exactId} exact mutant`,
     );
     const multiOccurrence = clone(MUTANTS);
-    const doubled = multiOccurrence.find((mutant) => mutant.id === cleanupId);
-    assert(doubled !== undefined, `${cleanupId} must exist for occurrence self-test`);
+    const doubled = multiOccurrence.find((mutant) => mutant.id === exactId);
+    assert(doubled !== undefined, `${exactId} must exist for occurrence self-test`);
     assertThrows(
       () =>
         validateMutantList(multiOccurrence, {
@@ -3360,7 +3380,7 @@ function selfTest() {
           },
         }),
       /occurrence count is 2/u,
-      `multi-occurrence ${cleanupId} cleanup mutant`,
+      `multi-occurrence ${exactId} exact mutant`,
     );
   }
 
@@ -3427,6 +3447,7 @@ function selfTest() {
     "C15",
     "C16",
     "C17",
+    "C18",
     "J15",
     "J16",
     "J17",
@@ -3441,11 +3462,13 @@ function selfTest() {
       caseId.startsWith("C")
         ? failureMarkerForCase(
             TEST_FILES.catalog,
-            caseId === "C17"
-              ? "C16"
-              : caseId === "C16"
-                ? "C15"
-                : `C${String(Number(caseId.slice(1)) + 1).padStart(2, "0")}`,
+            caseId === "C18"
+              ? "C17"
+              : caseId === "C17"
+                ? "C16"
+                : caseId === "C16"
+                  ? "C15"
+                  : `C${String(Number(caseId.slice(1)) + 1).padStart(2, "0")}`,
           )
         : failureMarkerForCase(TEST_FILES.routing, caseId === "J18" ? "J17" : `J${String(Number(caseId.slice(1)) + 1).padStart(2, "0")}`);
     assertThrows(
@@ -3470,6 +3493,22 @@ function selfTest() {
       }),
     /missing named RED marker C17/u,
     "missing C17 marker",
+  );
+  assertThrows(
+    () =>
+      verifyNamedCasesAndWaveFiles({
+        readSource: (path) => {
+          const source = readFileSync(join(ROOT, path), "utf8");
+          return path === TEST_FILES.catalog
+            ? source.replace(
+                "[RED:C18:stale-boundary-progress]",
+                "[REMOVED:C18:stale-boundary-progress]",
+              )
+            : source;
+        },
+      }),
+    /missing named RED marker C18/u,
+    "missing C18 marker",
   );
 
   const c17FactoryFailure = {
@@ -3506,6 +3545,30 @@ function selfTest() {
       `${cleanupId} must reject C17 factory and export failures`,
     );
   }
+  const c18FactoryFailure = {
+    readable: true,
+    numTotalTests: 1,
+    numPendingTests: 0,
+    assertions: [
+      {
+        caseId: "C18",
+        title: "[C18] suppresses stale resolver and capability boundaries while C progresses",
+        status: "failed",
+        failureMessages: [
+          "AssertionError: [SMOKE:C18:create-session-factory]",
+        ],
+      },
+    ],
+    suiteErrors: [],
+    unhandledErrors: [],
+  };
+  const c12Mutant = MUTANT_BY_ID.get("M-07-C12");
+  assert(
+    c12Mutant !== undefined &&
+      !exactRuntimeFailureSet(c18FactoryFailure, c12Mutant).satisfied &&
+      !exactRuntimeFailureSet(c17ExportFailure, c12Mutant).satisfied,
+    "M-07-C12 must reject C18 factory and export failures",
+  );
 
   assertThrows(
     () => selectMutantRange("M-07-C01", "M-07-C05"),
@@ -3518,7 +3581,7 @@ function selfTest() {
     "reversed range",
   );
   assertThrows(
-    () => selectMutantRange("M-07-C11", "M-07-R01"),
+    () => selectMutantRange("M-07-C12", "M-07-R01"),
     /crosses groups/u,
     "cross-group range",
   );

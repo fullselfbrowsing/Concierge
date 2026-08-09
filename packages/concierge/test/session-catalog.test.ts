@@ -1677,6 +1677,245 @@ it("[C17] clears a publication abandoned by setTools accessor reentry", async ()
   }
 });
 
+it("[C18] suppresses stale resolver and capability boundaries while C progresses", async () => {
+  const marker = "[RED:C18:stale-boundary-progress]";
+  requireFactory("[SMOKE:C18:create-session-factory]");
+  const boundaries = [
+    "catalogFor-property",
+    "catalogFor-call",
+    "stageFor-property",
+    "stageFor-call",
+    "capabilities",
+    "dynamicCatalog",
+  ];
+  const observations = [];
+
+  for (const boundary of boundaries) {
+    for (const mode of ["return", "throw"]) {
+      for (const catalogMode of ["distinct", "same"]) {
+        const a = { name: "a" };
+        const b = { name: "b" };
+        const c = { name: "c" };
+        const catalogA = Object.freeze([]);
+        const catalogB = Object.freeze([]);
+        const catalogC =
+          catalogMode === "same" ? catalogA : Object.freeze([]);
+        const catalogs = new Map([
+          [a, catalogA],
+          [b, catalogB],
+          [c, catalogC],
+        ]);
+        const base = controlledTransport();
+        const diagnostics = [];
+        const dispatches = [];
+        const stageEvents = [];
+        let catalogForReads = 0;
+        let dynamicCatalogReads = 0;
+        let handlerEntries = 0;
+        let session;
+        let stageForReads = 0;
+        let staleCallableInvocations = 0;
+        let staleContinuationEffects = 0;
+        let staleStructuralReads = 0;
+        let transportCapabilityReads = 0;
+        const sentinel = `PRIVATE-C18-${boundary}-${mode}-${catalogMode}`;
+
+        const supersede = (value) => {
+          session.setContext(c);
+          if (mode === "throw") throw new Error(sentinel);
+          return value;
+        };
+        const catalogFor = (context) => {
+          if (boundary === "catalogFor-call" && context === b) {
+            return supersede(catalogB);
+          }
+          const catalog = catalogs.get(context);
+          if (catalog === undefined) throw new Error("unknown context");
+          return catalog;
+        };
+        const stageFor = (context) => {
+          if (boundary === "catalogFor-call" && context === b) {
+            staleContinuationEffects += 1;
+          }
+          if (boundary === "stageFor-call" && context === b) {
+            return supersede("b");
+          }
+          return context.name;
+        };
+        const concierge = {
+          get catalogFor() {
+            catalogForReads += 1;
+            if (
+              boundary === "catalogFor-property" &&
+              catalogForReads === 2
+            ) {
+              return supersede(() => {
+                staleCallableInvocations += 1;
+                return catalogB;
+              });
+            }
+            return catalogFor;
+          },
+          get stageFor() {
+            stageForReads += 1;
+            if (boundary === "stageFor-property" && stageForReads === 2) {
+              return supersede(() => {
+                staleCallableInvocations += 1;
+                return "b";
+              });
+            }
+            return stageFor;
+          },
+          async dispatchBatch(context, batch) {
+            const callId = batch.calls[0].callId;
+            const signal = batch.signal;
+            dispatches.push({
+              aborted: signal.aborted,
+              callId,
+              context,
+              stableSignal: signal === batch.signal,
+            });
+            if (!signal.aborted) handlerEntries += 1;
+            return Object.freeze([resultRow(callId)]);
+          },
+          dispatch: () => Promise.resolve({ ok: false, message: "unused" }),
+          explain: () => ({ stage: null, stages: [], catalog: [] }),
+        };
+        const liveCapabilities = Object.freeze({
+          ...CONVERSATIONAL_CAPABILITIES,
+          get dynamicCatalog() {
+            dynamicCatalogReads += 1;
+            if (boundary === "dynamicCatalog" && dynamicCatalogReads === 1) {
+              return supersede(false);
+            }
+            return true;
+          },
+        });
+        const staleCapabilities = Object.freeze({
+          ...CONVERSATIONAL_CAPABILITIES,
+          get dynamicCatalog() {
+            staleStructuralReads += 1;
+            return false;
+          },
+        });
+        const transport = Object.freeze({
+          get capabilities() {
+            transportCapabilityReads += 1;
+            if (
+              boundary === "capabilities" &&
+              transportCapabilityReads === 1
+            ) {
+              return supersede(staleCapabilities);
+            }
+            return liveCapabilities;
+          },
+          get status() {
+            return base.transport.status;
+          },
+          setTools(tools) {
+            base.transport.setTools(tools);
+          },
+          onStatusChange(callback) {
+            return base.transport.onStatusChange(callback);
+          },
+          onToolBatch(callback) {
+            return base.transport.onToolBatch(callback);
+          },
+          respond(callId, result) {
+            base.transport.respond(callId, result);
+          },
+        });
+        session = createSession({
+          concierge,
+          transport,
+          initialContext: a,
+          onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+        });
+        session.onStageChange((stage) => stageEvents.push(stage));
+
+        let errorMessage;
+        try {
+          session.setContext(b);
+        } catch (error) {
+          errorMessage = error instanceof Error ? error.message : String(error);
+        }
+        await flushMicrotasks();
+        const callId = `later-${boundary}-${mode}-${catalogMode}`;
+        base.emitBatch(toolBatch([callId]));
+        await flushMicrotasks();
+
+        observations.push({
+          boundary,
+          catalogMode,
+          diagnosticCodes: diagnostics.map((diagnostic) => diagnostic.code),
+          dispatches: dispatches.map((entry) => ({
+            aborted: entry.aborted,
+            authorityIsC: entry.context === c,
+            callId: entry.callId,
+            stableSignal: entry.stableSignal,
+          })),
+          errorMessage,
+          handlerEntries,
+          mode,
+          privateValueLeaked: JSON.stringify({ diagnostics, errorMessage }).includes(
+            sentinel,
+          ),
+          publications: base.publications.map((catalog) =>
+            catalog === catalogA
+              ? "a"
+              : catalog === catalogB
+                ? "b"
+                : catalog === catalogC
+                  ? "c"
+                  : "other",
+          ),
+          responseIds: base.responses.map((response) => response.callId),
+          stage: session.stage(),
+          stageEvents,
+          staleCallableInvocations,
+          staleContinuationEffects,
+          staleStructuralReads,
+        });
+        await session.stop();
+      }
+    }
+  }
+
+  const expected = boundaries.flatMap((boundary) =>
+    ["return", "throw"].flatMap((mode) =>
+      ["distinct", "same"].map((catalogMode) => {
+        const callId = `later-${boundary}-${mode}-${catalogMode}`;
+        return {
+          boundary,
+          catalogMode,
+          diagnosticCodes: [],
+          dispatches: [
+            {
+              aborted: false,
+              authorityIsC: true,
+              callId,
+              stableSignal: true,
+            },
+          ],
+          errorMessage: undefined,
+          handlerEntries: 1,
+          mode,
+          privateValueLeaked: false,
+          publications:
+            catalogMode === "same" ? ["a"] : ["a", "c"],
+          responseIds: [callId],
+          stage: "c",
+          stageEvents: ["c"],
+          staleCallableInvocations: 0,
+          staleContinuationEffects: 0,
+          staleStructuralReads: 0,
+        };
+      }),
+    ),
+  );
+  expect(observations, marker).toEqual(expected);
+});
+
 it("preserves connected replay occurrence authority across getter reentry", async () => {
   const marker = "[REGRESSION:connected-replay-getter-authority]";
   const observations = [];
