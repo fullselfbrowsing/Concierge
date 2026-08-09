@@ -402,6 +402,9 @@ export function createSession(config: SessionConfig): Session {
     for (const occurrence of occurrenceQueue) {
       if (occurrence.pendingAttemptToken === attemptToken) {
         occurrence.pendingAttemptToken = null;
+        if (occurrence.binding === null && occurrence.linkedEpoch === epoch) {
+          linkOccurrenceToEpoch(occurrence, null);
+        }
       }
     }
     if (epoch !== null && epoch.aborted && epoch.work.size === 0) {
