@@ -323,7 +323,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 07-07-PLAN.md — Clear accessor-abandoned publication authority, add C17/M-07-C10, regenerate 31-row evidence, and re-open security for independent audit
+- [x] 07-07-PLAN.md — Clear accessor-abandoned publication authority, add C17/M-07-C10, regenerate 31-row evidence, and re-open security for independent audit
 
 **Research**: Completed 2026-08-08 — `07-RESEARCH.md`; closest implementation analogs and file ownership are mapped in `07-PATTERNS.md`.
 **Notes**: The catalog/status loop uses one serialized transition drain with latest-generation confirmation and keeps publication-in-progress, last-successfully-published transport catalog, and confirmed application authority separate. Reentrant queued contexts reconcile against what the transport actually holds: a context sharing published B promotes B's epoch without republishing, while a context returning to previously confirmed A republishes A after successful B. Transport callbacks may emit batches synchronously, so the batch pump remains paused until reconciliation confirms the newest authority. Session stores hostile ToolBatch envelopes by reference and forwards their evidence fields through lazy descriptors so Phase 6 retains ownership of guarded snapshot totality. The stub transport built here is the instrument Phase 8 uses to prove the build-time grade gate. Criterion 3 is the seam that makes Phase 8 possible at all: an earlier draft of `Transport` delivered a bare `ToolCall[]`, and the gate the whole design rests on had no data to read. Phase 7 delivers and validates only the reusable stub/session-seam portion of literal requirement TRN-02. Its REQUIREMENTS checkbox and traceability status remain unchecked/Partial after this phase; Phase 8 must reuse this exact fixture against the full consent kernel before TRN-02 can become Complete.
@@ -403,6 +403,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Stages, catalog assembly, and explain() | 8/8 | Complete   | 2026-07-30 |
 | 5. Bridge registry and the no-bridge path | 7/7 | Complete   | 2026-07-31 |
 | 6. Dispatcher | 8/8 | Complete   | 2026-08-07 |
-| 7. Session and the transport seam | 6/6 | Complete   | 2026-08-09 |
+| 7. Session and the transport seam | 7/7 | Complete   | 2026-08-09 |
 | 8. Consent kernel | 0/TBD | Not started | - |
 | 9. React and Svelte adapters | 0/TBD | Not started | - |

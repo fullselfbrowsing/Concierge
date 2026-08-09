@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
-status: executing
-stopped_at: Ready to execute 07-07-PLAN.md
-last_updated: "2026-08-09T04:03:22.650Z"
-last_activity: 2026-08-09 -- Phase 7 planning complete
+status: verifying
+stopped_at: Completed 07-07-PLAN.md; awaiting independent Phase 7 security re-audit
+last_updated: "2026-08-09T04:54:56.639Z"
+last_activity: 2026-08-09
 progress:
   total_phases: 9
   completed_phases: 6
-  total_plans: 66
-  completed_plans: 64
+  total_plans: 65
+  completed_plans: 65
   percent: 67
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-07-27)
 ## Current Position
 
 Phase: 07 (session-and-the-transport-seam) — EXECUTING
-Plan: 6 of 7
-Status: Ready to execute
-Last activity: 2026-08-09 -- Phase 7 planning complete
+Plan: 7 of 7
+Status: Phase complete — ready for verification
+Last activity: 2026-08-09
 
-Progress: [█████████░] 86%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Progress: [█████████░] 86%
 | Phase 07 P04 | 22m 12s | 2 tasks | 2 files |
 | Phase 07 P05 | 20m 51s | 2 tasks | 2 files |
 | Phase 07 P06 | 1h 28m | 3 tasks | 11 files |
+| Phase 07 P07 | 42m 45s | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -112,6 +113,9 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 07-04]: Direct Phase 6 dispatch is the oracle for hostile envelope row cardinality, order, and authorship.
 - [Phase 07]: Validate subscription cleanup values before activation and invalidate publication attempts before outside stop callbacks. — This keeps hot construction transactional and prevents a reentrant setTools return from restoring stopped authority.
 - [Phase 07]: Exercise every Session diagnostic through public failures with fresh frozen exact objects and secret-absence assertions. — The operational channel stays useful without allowing caught values, identifiers, context, arguments, results, raw batches, stacks, or classes to escape.
+- [Phase 07]: Accessor-superseded publications use current attempt-token ownership for cleanup. — Abort and clear only while the abandoned attempt still owns publication state, preventing stale cleanup from erasing a newer attempt.
+- [Phase 07]: Accessor throws after reentrant supersession are inert abandoned attempts. — Once the getter enqueues the winning context, its later throw cannot become a fatal publication failure or restore obsolete authority.
+- [Phase 07]: Phase 7 technical closure remains blocked on independent T-07-01/T-07-02 security re-audit. — C17 and M-07-C10 postdate the prior audit, so implementation evidence cannot self-assign secured status or advance the phase.
 
 ### Pending Todos
 
@@ -140,6 +144,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-09T01:07:15.365Z
-Stopped at: Completed 07-06-PLAN.md
+Last session: 2026-08-09T04:54:56.634Z
+Stopped at: Completed 07-07-PLAN.md; awaiting independent Phase 7 security re-audit
 Resume file: None
