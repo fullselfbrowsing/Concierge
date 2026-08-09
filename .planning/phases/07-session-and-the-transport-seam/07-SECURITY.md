@@ -2,47 +2,48 @@
 phase: 07-session-and-the-transport-seam
 phase_number: 7
 phase_name: Session and the Transport Seam
-audited_at: 2026-08-09T03:13:53Z
-status: re_audit_required
+audited_at: 2026-08-09T05:06:43Z
+status: secured
 asvs_level: 1
 block_on: high
 threats_total: 7
-threats_closed: 4
+threats_closed: 6
 threats_accepted: 1
-threats_open: 2
+threats_open: 0
 unregistered_flags: 0
 ---
 
 # Phase 7 Security Audit
 
-## RE-AUDIT REQUIRED
+## SECURED
 
-**Resolved:** 5/7 declared threats (4 mitigated, 1 documented accepted risk; 2 require re-audit)
-**Open high-severity threats:** 2
+**Resolved:** 7/7 declared threats (6 mitigated, 1 documented accepted risk; 0 open)
+**Open high-severity threats:** 0
 **ASVS level:** 1
 
 This audit deduplicates the threat registers in Plans 07-01 through 07-06 into the seven unique IDs below. A threat is closed only where the declared control is present at the relevant runtime/package entry points and has executable negative evidence. Planning prose and the prior review's intent were not treated as implementation evidence.
 
-Plan 07-07 repaired a verifier-discovered ordering that did not exist when this audit was performed. Current technical evidence closes the implementation gap, but this report cannot self-certify that new evidence: T-07-01 and T-07-02 are reopened until a fresh independent security audit reviews the repaired revision. The other four mitigated threats and the accepted supply-chain risk retain their prior dispositions.
+This independent gap-closure audit re-evaluated only T-07-01 and T-07-02 against the repaired Plan 07-07 revision. Both mitigations are present in the live implementation and have exact executable negative evidence, so both threats are closed. The prior CLOSED dispositions for T-07-03 through T-07-06 and the bounded ACCEPTED disposition for T-07-SC are preserved.
 
 ## Threat Verification
 
 | Threat ID | Severity | Category | Disposition | Result | Implementation and executable evidence |
 |-----------|----------|----------|-------------|--------|----------------------------------------|
-| T-07-01 | high | Elevation of privilege / Tampering | mitigate | **RE-AUDIT REQUIRED** | `session.ts` now detects an accessor-superseded unpublished attempt, aborts only its provisional epoch, and clears its publication token before the queued winning context reconciles. C17 proves accessor B→context C where C reuses already-published catalog A, and M-07-C10 removes exactly that cleanup and is killed only by C17. The preserved CR-01/CR-02 accessor-stop and superseding-resolver regressions remain green. Technical evidence is bound to register `a55444ba593e9d4f80dfb3664267d015dbb5740a8c6fe1c2f08ccf0585945492` and release `4efea16561defaf73e924b5dd855df2619af2186c58c00f92eab5855751c3252`; an independent auditor must review it before reclosing this threat. |
-| T-07-02 | high | Tampering / Repudiation | mitigate | **RE-AUDIT REQUIRED** | C17 and M-07-C10 jointly prove the repaired publication gate resumes under the exact C context, calls `dispatchBatch` once, and makes one non-retried response attempt for the returned row; the cleanup mutant recreates zero progress and fails on the unique C17 marker. Existing J01-J06/J15-J18 routing and L17/L18 response-cutoff evidence remains green, and the regenerated battery is 31/31. Because the prior audit predates this composed publication-to-routing case, an independent auditor must re-evaluate the closure claim. |
+| T-07-01 | high | Elevation of privilege / Tampering | mitigate | **CLOSED** | `clearPublication` mutates pending publication state only when both the provisional epoch identity and attempt token match, while `publicationIsCurrent` rejects stopped or superseded tokens (`session.ts:372-392`). Stop invalidates the token before clearing queues/state and aborting epochs (`:590-612`). For context publication, `abandonSupersededPublication` first rejects a stale token, otherwise aborts only the unpublished losing epoch and clears only that matching attempt (`:705-715`); it runs before the getter, after a returned getter, and inside the getter-throw catch before any stale callable or failure path can run (`:757-795`). C17 exercises both accessor-return and accessor-throws-after-supersession branches for B→C where C reuses published catalog A; it proves B's callable is never invoked, the throw is inert, only A remains published, C is confirmed, and no dispatch/response occurs before the later batch (`session-catalog.test.ts:1441-1558`). M-07-C10 removes exactly the abort-and-clear pair (`phase-07-mutation-battery.mjs:391-409`); its current evidence has one literal occurrence, compiles, fails only C17 on `[RED:C17:abandoned-publication-cleanup]`, restores byte-identically, and returns the 22/22 catalog suite plus typecheck to green (`07-MUTATION-EVIDENCE.json:1255-1357`). |
+| T-07-02 | high | Tampering / Repudiation / Denial of service | mitigate | **CLOSED** | Superseded B returns to the synchronous outer transition drain, which continues through queued C (`session.ts:830-844`), and C17 verifies both getter outcomes reach stage C with the exact C object. After emitting one `later-c` batch, each branch records exactly one dispatch under C and exactly one completed response carrying the returned row's `callId` and `result` identities (`session-catalog.test.ts:1529-1568`). The compiled M-07-C10 mutant removes B's abort/clear cleanup and recreates zero progress: exactly one selected test runs, only C17 fails, and the unique failure marker is observed with no infrastructure, suite, or unhandled error (`07-MUTATION-EVIDENCE.json:1255-1357`). The immutable 31/31 mutation register and 16-test-file, 323/323 release record are current at register digest `a55444ba593e9d4f80dfb3664267d015dbb5740a8c6fe1c2f08ccf0585945492` and release digest `4efea16561defaf73e924b5dd855df2619af2186c58c00f92eab5855751c3252`. |
 | T-07-03 | high | Spoofing / Repudiation | mitigate | **CLOSED** | The public envelope/capability/lifecycle vocabulary is explicit and readonly at `types.ts:1221-1254`, `:1303-1367`, and `:1814-1889`. `session.ts:395-430` constructs a frozen null-prototype facade with lazy getters that return the original `responseId`, `userTurnId`, `calls`, and delivery hook and replaces only `signal`. The downstream guarded snapshot and exact metadata join are at `dispatch.ts:805-853` and `:1040-1052`. J12/J13 at `session-routing.test.ts:904` and `:1065` verify descriptor shape and a real handler join; generated J15-J18 at `:1289` verify throwing-getter parity and prove Session performs no eager evidence read. Source and foreign-consumer type probes pin the six-key Transport, four-key Session config, closed diagnostics, and delivery-hook signature. |
 | T-07-04 | high | Tampering / Denial of service | mitigate | **CLOSED** | `session.ts:183-345` uses idempotent cancellation, snapshots listeners, guards every hostile signal operation independently, closes the registration race, and disposes at most once. `session.ts:551-574` snapshots/tokenizes stage notifications and queues nested changes. `session.ts:590-672` caches the stop promise and marks stopped, invalidates transitions/publication, detaches work, aborts epochs, then attempts each cleanup independently before draining. `session.ts:822-878` serializes status/context transitions and makes public post-stop mutation entry points inert. L01-L13 begin at `session-lifecycle.test.ts:258` through `:1320`; L17/L18 at `:767` and `:806` specifically prove a row getter or `respond` getter that stops the session cannot begin a response. C13/C14 and J09-J14 exercise publication, cancellation, finalizer, and hostile-callback reentrancy. |
 | T-07-05 | high | Information disclosure / Denial of service | mitigate | **CLOSED** | The only Session diagnostic strings are the fixed table at `session.ts:42-61`; `session.ts:159-180` creates a fresh frozen exact `{code,message}` object and contains both replacement and default sinks. Every catch in `session.ts` is no-binding; caught values, batch identifiers, results, and hostile getter values have no interpolation path. The fixture likewise throws only six fixed authored constants (`stub-transport.ts:70-81`, `:113-165`). L14 at `session-lifecycle.test.ts:1377` drives all nine codes with a private sentinel and asserts exact keys, fixed messages, freshness, freezing, and no secret; L15/L16 at `:1554` and `:1603` contain throwing hooks and missing/throwing consoles. J04/J05/J14-J18 cover response, dispatch, signal, and envelope failures without retry or detail leakage. |
 | T-07-06 | high | Tampering | mitigate | **CLOSED** | `createSession` calls the shared-instance guard as its first statement (`session.ts:103-115`); the versioned global registry rejects incompatible copies at `contract.ts:190-210`; the public barrel exports the guard and factory at `index.ts:144-154`. The package allow-list excludes tests (`packages/concierge/package.json:36-40`), the pack harness inspects the real archive and rejects stub/fixture entries (`scripts/pack-install-check.sh:56-64`), and U08 verifies no production/barrel/config reachability (`stub-transport.test.ts:366`). The mutation/release harness rejects untracked scoped inputs, hashes every tracked source/test/type/script plus required package/config/document input, copies them read-only to one snapshot, installs offline with a frozen lockfile, and brackets every release gate with digest checks (`phase-07-mutation-battery.mjs:88-120`, `:1720-1860`, `:2458-2557`). F7, P01, and P02 cover the direct guard and package exclusion. Current generated verification found all 31 rows executed, compiled, killed, restored byte-identically, restored-green, and clean; the immutable-snapshot release digest is `4efea16561defaf73e924b5dd855df2619af2186c58c00f92eab5855751c3252`. |
 | T-07-SC | low | Tampering | accept | **ACCEPTED** | See the accepted-risks log below. The acceptance is bounded by the three protected SHA-256 inputs in `07-MUTATION-EVIDENCE.json:37-40`; the live input verifier reread all three and passed. This disposition does not waive any high-severity runtime or package control. |
 
-## Gap-Closure Re-Audit Handoff
+## Gap-Closure Independent Re-Audit
 
-- **Reopened scope:** Only T-07-01 and T-07-02. T-07-03 through T-07-06 remain closed, and T-07-SC remains accepted under its existing boundary.
-- **Technical evidence to inspect:** C17, compiled M-07-C10, register digest `a55444ba593e9d4f80dfb3664267d015dbb5740a8c6fe1c2f08ccf0585945492`, and immutable release digest `4efea16561defaf73e924b5dd855df2619af2186c58c00f92eab5855751c3252` with 16 files and 323/323 tests.
-- **Preserved regressions:** CR-01, CR-02, CR-03, WR-01, C10-C16, J01-J18, and L01-L18 remain green alongside the new C17 case and 31-row mutation battery.
-- **Mandatory next action:** Run `$gsd-secure-phase 7` after Plan 07-07 completes. Only that independent audit may restore `status: secured` and `threats_open: 0` before phase verification or advancement.
+- **Audited scope:** Only the reopened T-07-01 and T-07-02. T-07-03 through T-07-06 remain closed, and T-07-SC remains accepted under its existing boundary.
+- **Independent result:** T-07-01 and T-07-02 are CLOSED. The accessor return, accessor throw, supersession, stop/token invalidation, exact later C dispatch, and exact one-response assertions are all present in code or C17 at the declared entry points.
+- **Negative evidence:** Compiled M-07-C10 is exact, non-vacuous, uniquely detected by C17, byte-identically restored, and bound to register digest `a55444ba593e9d4f80dfb3664267d015dbb5740a8c6fe1c2f08ccf0585945492`.
+- **Preserved regressions:** CR-01, CR-02, CR-03, WR-01, C10-C16, J01-J18, and L01-L18 remain green alongside C17 and the 31-row mutation battery.
+- **Release binding:** The independently recomputed live revision digest equals immutable release digest `4efea16561defaf73e924b5dd855df2619af2186c58c00f92eab5855751c3252`; its recorded run has seven successful commands and 16 test files with 323/323 tests.
 
 ## Accepted Risks Log
 
@@ -66,21 +67,34 @@ The prior review remained an issue report, so each reported edge was checked dir
 
 No summary contains an unmapped `## Threat Flags` item. The executor's threat-evidence entries map only to T-07-01 through T-07-06, and the Phase 07-04 summary explicitly records no new endpoint, authentication path, file-access boundary, schema, or other surface beyond the registered Session transport seam. **Unregistered flags: none.**
 
-## Gap-Closure Technical Verification
+## Independent Gap-Closure Verification
 
-These checks establish the evidence package for the next security auditor; they do not replace the required independent re-audit of T-07-01 and T-07-02.
+The independent audit performed the following live, read-only or build/test checks against the repaired revision and separately inspected the immutable mutation/release records.
 
 | Check | Result |
 |-------|--------|
 | `node scripts/phase-07-mutation-battery.mjs verify inputs` | PASS — 3 protected inputs byte-identical |
 | `node scripts/phase-07-mutation-battery.mjs verify all` | PASS — 31/31 current-revision mutation rows green |
 | `node scripts/phase-07-mutation-battery.mjs self-test` | PASS — negative controls, including release-snapshot and response-cutoff sensitivity, rejected |
-| M-07-C10 focused and restored gates | PASS — exactly C17 ran and failed on its unique marker; restored catalog 22/22, build, and typecheck were green |
-| Immutable release digest checks | PASS — pre/around/post snapshot digests remained `4efea16561defaf73e924b5dd855df2619af2186c58c00f92eab5855751c3252` |
-| Recorded immutable release run | PASS — 7/7 release commands exit 0; 16 files, 323/323 tests, 0 failed/pending/todo (`07-MUTATION-EVIDENCE.json:42-62`) |
+| `pnpm -r build` | PASS — package build, ATTW, and publint green |
+| C17 exact focused test | PASS — 1/1; both accessor return and accessor throw branches reached exact later C dispatch/response |
+| Full catalog suite and package typecheck | PASS — 22/22 catalog tests and `tsc -p tsconfig.test-d.json` green |
+| M-07-C10 immutable focused/restored record | PASS — exactly C17 ran and failed on its unique marker; target hashes match; restored catalog 22/22, build, and typecheck were green |
+| Independently recomputed register/release digests | PASS — register `a55444ba593e9d4f80dfb3664267d015dbb5740a8c6fe1c2f08ccf0585945492`; release `4efea16561defaf73e924b5dd855df2619af2186c58c00f92eab5855751c3252` |
+| Recorded immutable release run | PASS — 7/7 release commands exit 0; 16 test files, 323/323 tests, 0 failed/pending/todo (`07-MUTATION-EVIDENCE.json:42-62`) |
+
+## Audit Trail
+
+### 2026-08-09 — Plan 07-07 gap-closure independent re-audit
+
+- **Prior state:** T-07-01 and T-07-02 were reopened because the earlier security audit predated the composed accessor-supersession repair and could not self-certify it.
+- **Code verification:** The live implementation contains token/epoch-identity cleanup, stale-record abandonment on both getter return and getter throw, stop-time token invalidation, and continued outer transition draining to the winning context.
+- **Executable verification:** C17 passed live and proves exact later C dispatch/response in both getter branches. The current M-07-C10 record proves removal of abort/clear compiles, executes one detector, fails only C17 on its unique marker, and restores the target byte-identically.
+- **Integrity verification:** The on-disk register digest was recomputed, every one of 31 evidence rows passed current-revision verification, and the immutable release digest was independently recomputed from the 68 tracked release inputs and matched its seven-command, 16-test-file, 323/323 record.
+- **Disposition change:** T-07-01 and T-07-02 move from RE-AUDIT REQUIRED to CLOSED. No other threat disposition changed; there are no unregistered flags and no open high-severity threats.
 
 ## Residual Risk
 
 JavaScript cannot forcibly terminate a handler that has already entered and ignores cancellation, and core cannot prove that a future consumer transport reports truthful capabilities. The implementation aborts the composed signal, waits for entered work during stop, suppresses all post-stop responses, and treats capability declarations as immutable. These are declared design limits, not unverified Phase 7 mitigations.
 
-**Current disposition:** RE-AUDIT REQUIRED. T-07-01 and T-07-02 remain open under `block_on: high` until the mandatory independent Phase 7 security audit reviews the C17/M-07-C10 gap closure.
+**Current disposition:** SECURED. All six mitigated threats are CLOSED, T-07-SC remains a documented ACCEPTED risk within its stated boundary, and `threats_open: 0` satisfies `block_on: high`.
