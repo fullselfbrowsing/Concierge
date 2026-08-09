@@ -3,7 +3,9 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
   closeSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -11,6 +13,7 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -105,6 +108,8 @@ const REVISION_REQUIRED_PATHS = Object.freeze([
   "packages/concierge/tsconfig.json",
   "packages/concierge/tsconfig.test-d.json",
   "packages/concierge/tsdown.config.ts",
+  "packages/concierge/README.md",
+  "packages/concierge/LICENSE",
 ]);
 const SCOPED_PATHS = Object.freeze([
   ...new Set([
@@ -240,23 +245,17 @@ const MUTANTS = Object.freeze([
     id: "M-07-C01",
     group: "catalog",
     name: "initial catalog publication is omitted",
-    literalPattern: lines(
-      "    try {",
-      "      transport.setTools(resolved.catalog);",
-      "    } catch {",
-    ),
-    replacement: lines(
-      "    try {",
-      "      if (lifecycle !== \"starting\") transport.setTools(resolved.catalog);",
-      "    } catch {",
-    ),
+    literalPattern:
+      "      Reflect.apply(setTools, transport, [resolved.catalog]);",
+    replacement:
+      "      if (lifecycle !== \"starting\") Reflect.apply(setTools, transport, [resolved.catalog]);",
     intendedCaseIds: ["C01"],
   }),
   runtimeMutant({
     id: "M-07-C02",
     group: "catalog",
     name: "connected transition no longer replays the catalog",
-    literalPattern: "      transport.setTools(catalog);",
+    literalPattern: "      Reflect.apply(setTools, transport, [catalog]);",
     replacement: "      void catalog;",
     intendedCaseIds: ["C04"],
   }),
@@ -273,14 +272,14 @@ const MUTANTS = Object.freeze([
     group: "catalog",
     name: "fixed-catalog cleanup reaches outside code before stopped state",
     literalPattern: lines(
-      "      currentStage = resolved.stage;",
-      "      stopNow();",
-      "      throw new Error(FIXED_CATALOG_ERROR);",
+      "        currentStage = resolved.stage;",
+      "        stopNow();",
+      "        throw new Error(FIXED_CATALOG_ERROR);",
     ),
     replacement: lines(
-      "      currentStage = resolved.stage;",
-      "      performCleanup();",
-      "      throw new Error(FIXED_CATALOG_ERROR);",
+      "        currentStage = resolved.stage;",
+      "        performCleanup();",
+      "        throw new Error(FIXED_CATALOG_ERROR);",
     ),
     intendedCaseIds: ["C06"],
   }),
@@ -861,7 +860,7 @@ function withExclusivePathLock(lockPath, operation, run) {
   }
 }
 
-function withExclusiveRepositoryLock(operation, run) {
+function withMutationBatteryLock(operation, run) {
   return withExclusivePathLock(MUTATION_LOCK_PATH, operation, run);
 }
 
@@ -1371,8 +1370,8 @@ function ensureArtifacts() {
   return { register, evidence };
 }
 
-function runBuild() {
-  const result = command("pnpm", ["build"]);
+function runBuild(root = ROOT) {
+  const result = command("pnpm", ["build"], { cwd: root });
   return {
     ...result,
     markerFound: result.output.includes(BUILD_MARKER),
@@ -1478,13 +1477,13 @@ function runVitest(testFiles, reportPath, selectedCaseIds = null) {
   return { ...result, report: summarizeVitestReport(reportPath) };
 }
 
-function runFullVitest(reportPath) {
+function runFullVitest(reportPath, root = ROOT) {
   rmSync(reportPath, { force: true });
-  const result = command("pnpm", [
-    "test",
-    "--reporter=json",
-    `--outputFile=${reportPath}`,
-  ]);
+  const result = command(
+    "pnpm",
+    ["test", "--reporter=json", `--outputFile=${reportPath}`],
+    { cwd: root },
+  );
   return { ...result, report: summarizeVitestReport(reportPath) };
 }
 
@@ -1783,12 +1782,12 @@ function revisionInputPaths() {
   return Object.freeze(paths);
 }
 
-function releaseRevisionDigest(paths = revisionInputPaths()) {
+function releaseRevisionDigest(paths = revisionInputPaths(), root = ROOT) {
   const digest = createHash("sha256");
   digest.update("phase-07-release\0");
   for (const path of paths) {
     digest.update(`path\0${path}\0`);
-    digest.update(readFileSync(join(ROOT, path)));
+    digest.update(readFileSync(join(root, path)));
     digest.update("\0");
   }
   return digest.digest("hex");
@@ -1801,6 +1800,64 @@ function assertStableReleaseRevision(before, after) {
   ) {
     throw new Error("release inputs changed while gates were running");
   }
+}
+
+function linkReleaseSnapshotDependencies(snapshotRoot, sourceRoot) {
+  for (const path of ["node_modules", "packages/concierge/node_modules"]) {
+    const source = join(sourceRoot, path);
+    if (!existsSync(source)) continue;
+    const target = join(snapshotRoot, path);
+    mkdirSync(dirname(target), { recursive: true });
+    symlinkSync(source, target, "dir");
+  }
+
+  for (const adapter of ["adapter-alpha", "adapter-beta"]) {
+    const scope = join(
+      snapshotRoot,
+      "packages/concierge/test/fixtures",
+      adapter,
+      "node_modules/@fullselfbrowsing",
+    );
+    mkdirSync(scope, { recursive: true });
+    symlinkSync("../../../../..", join(scope, "concierge"), "dir");
+  }
+}
+
+function materializeReleaseSnapshot(
+  directory,
+  paths,
+  { sourceRoot = ROOT, linkDependencies = true } = {},
+) {
+  const snapshotRoot = join(directory, "release-snapshot");
+  mkdirSync(snapshotRoot, { recursive: true });
+  for (const path of paths) {
+    const target = join(snapshotRoot, path);
+    mkdirSync(dirname(target), { recursive: true });
+    copyFileSync(join(sourceRoot, path), target);
+    chmodSync(target, 0o444);
+  }
+  if (linkDependencies) linkReleaseSnapshotDependencies(snapshotRoot, sourceRoot);
+  return Object.freeze({
+    root: snapshotRoot,
+    revision: Object.freeze({
+      paths: Object.freeze([...paths]),
+      digest: releaseRevisionDigest(paths, snapshotRoot),
+    }),
+  });
+}
+
+function assertReleaseSnapshotStable(snapshot) {
+  assertStableReleaseRevision(snapshot.revision, {
+    paths: snapshot.revision.paths,
+    digest: releaseRevisionDigest(snapshot.revision.paths, snapshot.root),
+  });
+}
+
+function runAgainstReleaseSnapshot(snapshot, run) {
+  assertReleaseSnapshotStable(snapshot);
+  const result = run(snapshot.root);
+  assertReleaseSnapshotStable(snapshot);
+  return result;
 }
 
 function revisionDigest(mutant) {
@@ -2405,14 +2462,23 @@ function runReleaseGates(directory) {
     paths: preGatePaths,
     digest: releaseRevisionDigest(preGatePaths),
   });
+  const snapshot = materializeReleaseSnapshot(directory, preGatePaths);
+  assertStableReleaseRevision(preGateRevision, snapshot.revision);
+  const postSnapshotPaths = revisionInputPaths();
+  assertStableReleaseRevision(preGateRevision, {
+    paths: postSnapshotPaths,
+    digest: releaseRevisionDigest(postSnapshotPaths),
+  });
 
-  const build = runBuild();
+  const build = runAgainstReleaseSnapshot(snapshot, runBuild);
   commandExits.build = build.exitCode;
   if (!build.succeeded) {
     throw new Error(`release gate build failed:\n${shortOutput(build.output)}`);
   }
 
-  const typecheck = command("pnpm", ["typecheck"]);
+  const typecheck = runAgainstReleaseSnapshot(snapshot, (root) =>
+    command("pnpm", ["typecheck"], { cwd: root }),
+  );
   commandExits.typecheck = typecheck.exitCode;
   if (typecheck.exitCode !== 0) {
     throw new Error(
@@ -2420,7 +2486,9 @@ function runReleaseGates(directory) {
     );
   }
 
-  const test = runFullVitest(join(directory, "full-vitest.json"));
+  const test = runAgainstReleaseSnapshot(snapshot, (root) =>
+    runFullVitest(join(directory, "full-vitest.json"), root),
+  );
   commandExits.test = test.exitCode;
   if (
     test.exitCode !== 0 ||
@@ -2441,7 +2509,9 @@ function runReleaseGates(directory) {
     "check:pack",
     "check:node-floor",
   ]) {
-    const result = command("pnpm", [commandName]);
+    const result = runAgainstReleaseSnapshot(snapshot, (root) =>
+      command("pnpm", [commandName], { cwd: root }),
+    );
     commandExits[commandName] = result.exitCode;
     if (result.exitCode !== 0) {
       throw new Error(
@@ -2455,9 +2525,10 @@ function runReleaseGates(directory) {
     paths: postGatePaths,
     digest: releaseRevisionDigest(postGatePaths),
   });
+  assertReleaseSnapshotStable(snapshot);
 
   const release = {
-    revisionDigest: preGateRevision.digest,
+    revisionDigest: snapshot.revision.digest,
     executedAt: new Date().toISOString(),
     commandExits,
     tests: {
@@ -2472,7 +2543,7 @@ function runReleaseGates(directory) {
   };
   validateReleaseEvidenceShape(release, {
     required: true,
-    expectedRevisionDigest: releaseRevisionDigest(),
+    expectedRevisionDigest: snapshot.revision.digest,
   });
   return release;
 }
@@ -2634,6 +2705,66 @@ function selfTestInputVerifier() {
       /pnpm-lock\.yaml/u,
       "missing input file",
     );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+function selfTestReleaseSnapshot() {
+  const directory = mkdtempSync(join(tmpdir(), "phase-07-release-self-test-"));
+  const sourceRoot = join(directory, "source");
+  const snapshotDirectory = join(directory, "snapshot-container");
+  const readmePath = "packages/concierge/README.md";
+  const licensePath = "packages/concierge/LICENSE";
+  const paths = Object.freeze([readmePath, licensePath]);
+  const originalReadme = "release readme A\n";
+  try {
+    mkdirSync(join(sourceRoot, "packages/concierge"), { recursive: true });
+    writeFileSync(join(sourceRoot, readmePath), originalReadme, "utf8");
+    writeFileSync(join(sourceRoot, licensePath), "release license\n", "utf8");
+    assert(
+      REVISION_REQUIRED_PATHS.includes(readmePath) &&
+        REVISION_REQUIRED_PATHS.includes(licensePath),
+      "every explicitly packed document must be a required release input",
+    );
+
+    const baseline = Object.freeze({
+      paths,
+      digest: releaseRevisionDigest(paths, sourceRoot),
+    });
+    const snapshot = materializeReleaseSnapshot(snapshotDirectory, paths, {
+      sourceRoot,
+      linkDependencies: false,
+    });
+    assertStableReleaseRevision(baseline, snapshot.revision);
+
+    const directReads = [readFileSync(join(sourceRoot, readmePath), "utf8")];
+    const snapshotReads = [readFileSync(join(snapshot.root, readmePath), "utf8")];
+    writeFileSync(join(sourceRoot, readmePath), "release readme B\n", "utf8");
+    directReads.push(readFileSync(join(sourceRoot, readmePath), "utf8"));
+    snapshotReads.push(readFileSync(join(snapshot.root, readmePath), "utf8"));
+    assertThrows(
+      () =>
+        assertStableReleaseRevision(baseline, {
+          paths,
+          digest: releaseRevisionDigest(paths, sourceRoot),
+        }),
+      /changed while gates were running/u,
+      "packaged document drift",
+    );
+
+    writeFileSync(join(sourceRoot, readmePath), originalReadme, "utf8");
+    directReads.push(readFileSync(join(sourceRoot, readmePath), "utf8"));
+    snapshotReads.push(readFileSync(join(snapshot.root, readmePath), "utf8"));
+    assert(
+      new Set(directReads).size === 2,
+      "A-to-B-to-A negative control must mix direct repository inputs",
+    );
+    assert(
+      new Set(snapshotReads).size === 1 && snapshotReads[0] === originalReadme,
+      "immutable snapshot must keep simulated gates on one input revision",
+    );
+    assertReleaseSnapshotStable(snapshot);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -3059,6 +3190,7 @@ function selfTest() {
   }
 
   selfTestInputVerifier();
+  selfTestReleaseSnapshot();
   assertThrows(
     () => parseInvocation(["verify", "unknown"]),
     /usage/u,
@@ -3127,12 +3259,12 @@ function main(args) {
     return 0;
   }
   if (invocation.kind === "refresh") {
-    withExclusiveRepositoryLock("refresh", refreshArtifacts);
+    withMutationBatteryLock("refresh", refreshArtifacts);
     return 0;
   }
   if (invocation.kind === "run") {
     const selected = selectMutantRange(invocation.firstId, invocation.lastId);
-    withExclusiveRepositoryLock("run range", () => runSelected(selected));
+    withMutationBatteryLock("run range", () => runSelected(selected));
     return 0;
   }
   if (invocation.kind === "verify-group") {
@@ -3140,7 +3272,7 @@ function main(args) {
     return 0;
   }
   if (invocation.kind === "verify-ledgers") {
-    withExclusiveRepositoryLock("verify ledgers", verifyLedgers);
+    withMutationBatteryLock("verify ledgers", verifyLedgers);
     return 0;
   }
   throw new UsageError();
