@@ -11,7 +11,8 @@
     "M-07-C07",
     "M-07-C08",
     "M-07-C09",
-    "M-07-C10"
+    "M-07-C10",
+    "M-07-C11"
   ],
   "expectedRoutingIds": [
     "M-07-R01",
@@ -53,6 +54,7 @@
     "M-07-C08",
     "M-07-C09",
     "M-07-C10",
+    "M-07-C11",
     "M-07-R01",
     "M-07-R02",
     "M-07-R03",
@@ -75,7 +77,7 @@
     "M-07-P01",
     "M-07-P02"
   ],
-  "registerDigest": "a55444ba593e9d4f80dfb3664267d015dbb5740a8c6fe1c2f08ccf0585945492",
+  "registerDigest": "9104978e646b4d6a949562f485a28cdc46f76034f06cb0e0cc836845c976fc03",
   "mutants": [
     {
       "id": "M-07-C01",
@@ -324,10 +326,31 @@
     {
       "id": "M-07-C10",
       "group": "catalog",
-      "name": "superseded unpublished accessor attempt is not aborted or cleared",
+      "name": "superseded accessor-time occurrence is not aborted",
       "target": "packages/concierge/src/session.ts",
       "literalPattern": "    if (!publicationIsCurrent(attemptToken)) return true;\n    if (isCurrent(record)) return false;\n    if (epoch !== null) abortEpoch(epoch);\n    clearPublication(epoch, attemptToken);\n    return true;",
-      "replacement": "    if (!publicationIsCurrent(attemptToken)) return true;\n    if (isCurrent(record)) return false;\n    void epoch;\n    return true;",
+      "replacement": "    if (!publicationIsCurrent(attemptToken)) return true;\n    if (isCurrent(record)) return false;\n    void epoch;\n    clearPublication(epoch, attemptToken);\n    return true;",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C17"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C17",
+          "marker": "[RED:C17:abandoned-publication-cleanup]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-C11",
+      "group": "catalog",
+      "name": "superseded unpublished accessor attempt is not cleared",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    if (!publicationIsCurrent(attemptToken)) return true;\n    if (isCurrent(record)) return false;\n    if (epoch !== null) abortEpoch(epoch);\n    clearPublication(epoch, attemptToken);\n    return true;",
+      "replacement": "    if (!publicationIsCurrent(attemptToken)) return true;\n    if (isCurrent(record)) return false;\n    if (epoch !== null) abortEpoch(epoch);\n    void attemptToken;\n    return true;",
       "detectorKind": "vitest",
       "intendedTestFiles": [
         "packages/concierge/test/session-catalog.test.ts"
