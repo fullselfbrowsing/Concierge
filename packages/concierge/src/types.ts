@@ -1800,9 +1800,12 @@ export interface ConciergeConfig {
  *
  * An application may call `dispatch(ctx, name, args, meta?)` or
  * `dispatchBatch(ctx, batch)` with its own {@link StageContext} and
- * {@link ToolBatch}; neither method requires a {@link Transport}. Session
- * ownership, transport subscription/respond routing, telemetry, and consent
- * gating are separate runtime layers and are not implemented by this handle.
+ * {@link ToolBatch}; neither method requires a {@link Transport}. Both methods
+ * enforce declared consent policies directly: review delivery arms
+ * measured, payload-bound authority, and a gated dispatch consumes that
+ * authority once before entering the handler. Session ownership, transport
+ * subscription/respond routing, failure-outcome presentation, and telemetry
+ * remain the surrounding runtime layers.
  */
 export interface Concierge {
   /**

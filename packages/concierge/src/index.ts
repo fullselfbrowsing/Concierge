@@ -3,13 +3,14 @@
  *
  * Typed, consent-gated actions that let an AI agent operate your web app.
  *
- * Pre-alpha. What ships today is the design contract; the single-instance
- * contract guard (`CONTRACT_VERSION`, `assertSingleInstance`) that stops two
+ * Pre-alpha. The repository contains an unpublished framework-neutral core
+ * runtime and its design contract; the single-instance contract guard
+ * (`CONTRACT_VERSION`, `assertSingleInstance`) that stops two
  * independently-resolved copies of core from splitting the bridge registry, the
- * dedup window, and the consent kernel; and the declaration half of the
- * runtime. `defineAction` narrows an action's description to a static string
- * literal written at the declaration, so a sentence assembled from i18n, a CMS,
- * or any other runtime value fails to compile rather than reaching a model.
+ * dedup window, and the consent kernel. `defineAction` narrows an action's
+ * description to a static string literal written at the declaration, so a
+ * sentence assembled from i18n, a CMS, or any other runtime value fails to
+ * compile rather than reaching a model.
  * `buildCatalog` validates a set of declarations at application start, reports
  * every problem in one throw, and returns a recursively frozen catalog.
  *
@@ -43,19 +44,22 @@
  * Direct dispatch now routes through that one live registry seam and passes
  * `null` honestly when nothing is mounted.
  *
- * `createSession` now owns the hot transport loop. It publishes the initial
+ * `createSession` owns the hot transport loop. It publishes the initial
  * catalog, reconciles catalog identity on context changes, replays the current
  * catalog after a real reconnect, routes accepted batches through
- * `dispatchBatch`, and returns each result through the transport. Its frozen
- * handle also exposes current-stage observation and an awaitable stop drain.
+ * `dispatchBatch`, presents every app-authored failure outcome through the
+ * captured outcome sink, and releases results only after that presentation
+ * completes. Its frozen handle also exposes current-stage observation and an
+ * awaitable stop drain.
  *
- * The public contract now includes immutable consent capability, observation,
- * delivery, and app-authored failure-outcome seams. Stated plainly so this is
- * not oversold: the current Session does not yet invoke that outcome presenter,
- * and dispatch does not yet enforce a consent policy. Those runtime layers,
- * telemetry, and framework lifecycle adapters remain separate work. React,
- * Vue, and Svelte integrations remain separate adapter packages. `defineStage`
- * is **not planned**: a stage needs no identity mechanism, a plain
+ * Direct dispatch enforces each action's consent policy: a review must complete
+ * delivery, achieve the required evidence grade, remain bound to the reviewed
+ * payload and app snapshot, and be consumed once before a gated handler runs.
+ * The public contract includes immutable consent capability, observation,
+ * delivery, and app-authored failure-outcome seams. This remains pre-alpha and
+ * unpublished; telemetry and framework lifecycle adapters remain separate
+ * work. React, Vue, and Svelte integrations remain separate adapter packages.
+ * `defineStage` is **not planned**: a stage needs no identity mechanism, a plain
  * `StageDefinition` object literal already typechecks, and the unforgeable
  * bridge identity that would have justified it belongs to `createBridge`. See
  * the roadmap in the repository README.

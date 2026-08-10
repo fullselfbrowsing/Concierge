@@ -18,7 +18,7 @@ Give AI agents a small set of typed, app-defined actions so they can operate you
 ---
 
 > [!IMPORTANT]
-> **Concierge is a work in progress.** The public type contract is taking shape, but there is no published package or production runtime yet. The API may change before v0.1.
+> **Concierge is a work in progress.** This repository contains a pre-alpha core runtime, but there is no published package or production-supported integration yet. The API may change before v0.1; do not build production integrations against it.
 
 ## Why Concierge
 
@@ -47,7 +47,7 @@ The agent sees typed capabilities and current app state—not your DOM.
 
 ## How It Works
 
-Concierge is being designed around six ideas:
+Concierge is built around six ideas:
 
 - **Typed verbs** — actions are declared once with a name, schema, effects, redaction policy, and handler.
 - **Structured results** — every action returns a safe, human-readable outcome instead of leaking exceptions or implementation details.
@@ -123,16 +123,18 @@ Concurrency control must serialize redemption so two requests cannot both pass t
 The repository currently contains:
 
 - The public TypeScript contract for actions, transports, bridges, results, and consent.
-- Type-level tests for the highest-risk parts of that contract.
-- The design and implementation plan for the first release.
+- A framework-neutral catalog and stage resolver, live bridge registry, direct dispatcher and batch executor, transport Session loop, and client-side consent kernel.
+- Direct consent enforcement that binds one-shot achieved authority to completed review delivery, the reviewed payload, and the captured app snapshot.
+- Mandatory Session presentation of app-authored failure outcomes before transport responses are released.
+- Runtime, type-level, package-boundary, and mutation tests for the highest-risk parts of the contract and implementation.
 
-It does **not** yet contain the runtime or framework adapters. Please do not build production integrations against it yet.
+It does **not** yet provide a published package, framework adapters, telemetry, or a production support contract. The client-side consent kernel is not server authorization; please do not build production integrations against this pre-alpha runtime yet.
 
 ## Roadmap
 
-- **Now** — finish and harden the public type surface.
-- **v0.1** — core runtime, catalog, dispatcher, bridge registry, session loop, consent kernel, and React + Svelte adapters.
-- **Later** — server-side consent verification, developer tools, and first-party transports.
+- **Now** — harden the pre-alpha core runtime, public contract, packaging, and security evidence.
+- **v0.1** — publish the first supported core package and add React + Svelte adapters.
+- **Later** — server-side consent verification, telemetry, developer tools, and first-party transports.
 
 If you want to help shape the project, design feedback is especially useful right now. Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request. If you are continuing implementation, start with [HANDOFF.md](./HANDOFF.md).
 
