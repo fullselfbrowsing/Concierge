@@ -18,7 +18,7 @@ Everything else (framework breadth, transport breadth, DX) is in service of that
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] **Phase 7 — Session and transport seam:** `createSession` owns catalog publication on stage change/reconnect and the `onToolBatch → dispatch → respond` loop, proven with a reusable no-network transport fixture.
 
 ### Active
 
@@ -30,7 +30,6 @@ Everything else (framework breadth, transport breadth, DX) is in service of that
 - [ ] Consent handshake: review → human responds in a genuinely new turn → confirm, with snapshot equality invalidating stale consent
 - [ ] Transports declare a consent grade; actions declare a minimum grade; mismatch fails at catalog build time
 - [ ] Consent snapshots are normalized out of framework reactivity before storage, so a proxy-backed store cannot make the drift check vacuously pass
-- [ ] `createSession` owns the transport loop — catalog push on stage change and reconnect, and `onToolBatch → dispatch → respond`
 - [ ] Actions declare side effects (`readOnly` / `destructive` / `idempotent`); a destructive action without a consent policy is a build warning
 - [ ] Server re-verifies consent rather than trusting the client's assertion
 - [ ] React adapter and Svelte adapter, shipped together
@@ -96,7 +95,7 @@ OpenAI Agents JS is also closer than assumed — `needsApproval`, `interruptions
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Name it Concierge, not a voice-flavored name | The noun is agent actuation of a cooperating app; voice is one transport. Naming it for voice would cap the audience and misdescribe the core. | — Pending |
-| Transport interface from day one | Welding to OpenAI Realtime's event names makes the library a bet on one vendor's wire protocol. A text sidebar, MCP client, or command palette must be first-class. | — Pending |
+| Transport interface from day one | Welding to OpenAI Realtime's event names makes the library a bet on one vendor's wire protocol. A text sidebar, MCP client, or command palette must be first-class. | ✓ Resolved 2026-08-10 (Phase 7) |
 | Standard Schema v1 as a real dependency, instead of a Zod peer dep | Keeps core open to Valibot/ArkType/Effect Schema. `@standard-schema/spec` is depended on rather than inlined — research verified its ESM runtime entry is 0 bytes with zero dependencies, so "core is dependency-free" holds in substance while the inlined copy had already drifted from the spec in four places. No `concierge-zod` bridge: Standard JSON Schema (`~standard.jsonSchema`) makes it unnecessary, and the `jsonSchema?` escape hatch covers valibot, which does not implement the companion spec despite its docs. | ✓ Resolved 2026-07-27 |
 | Consent is *graded*, and mismatches fail at build time | "The human perceived the readback" is only guaranteed on some transports. Voice guarantees it; a text sidebar does not; headless has no human. Silent degradation here is the worst possible failure. | — Pending |
 | Ship a non-React adapter *with* v0.1, not after | Building React-first and porting later produces a hooks-shaped core. The non-React adapter is what forces React-isms out. | — Pending |
@@ -134,4 +133,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-27 after the Phase 1 discussion and milestone correction pass (57 → 62 requirements)*
+*Last updated: 2026-08-10 after verified Phase 7 completion*

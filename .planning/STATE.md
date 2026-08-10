@@ -18,7 +18,7 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-07-27)
+See: .planning/PROJECT.md (updated 2026-08-10)
 
 **Core value:** An agent can take a consequential action in a real app — and it is structurally guaranteed that a human, not the agent, confirmed this specific payload, or the action does not run.
 **Current focus:** Phase 8 — consent kernel
