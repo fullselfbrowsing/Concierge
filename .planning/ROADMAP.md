@@ -23,7 +23,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Stages, catalog assembly, and explain()** - The agent sees only the actions valid for where the user is, and a developer can find out why one wasn't offered (completed 2026-07-30)
 - [x] **Phase 5: Bridge registry and the no-bridge path** - Handlers read live app state through getters, and behave honestly when no component is mounted (completed 2026-07-31)
 - [x] **Phase 6: Dispatcher** - A retried, malformed, aborted, or crashing call produces exactly one honest result and never fires an effect twice (completed 2026-08-06; **verification gap closure planned — plans 06-07–06-08**)
-- [x] **Phase 7: Session and the transport seam** - Something owns the loop between catalog and transport, driven by a stub with no network (completed 2026-08-09; **verification gap closure planned — plan 07-07**)
+- [x] **Phase 7: Session and the transport seam** - Something owns the loop between catalog and transport, driven by a stub with no network (completed 2026-08-10)
 - [ ] **Phase 8: Consent kernel** - A consequential action runs only when a human, not the agent, confirmed this exact payload
 - [ ] **Phase 9: React and Svelte adapters** - Two opposite reactivity models drive the same core through adapters small enough to prove no logic leaked out
 
@@ -403,6 +403,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Stages, catalog assembly, and explain() | 8/8 | Complete   | 2026-07-30 |
 | 5. Bridge registry and the no-bridge path | 7/7 | Complete   | 2026-07-31 |
 | 6. Dispatcher | 8/8 | Complete   | 2026-08-07 |
-| 7. Session and the transport seam | 7/7 | Complete   | 2026-08-09 |
+| 7. Session and the transport seam | 7/7 | Complete    | 2026-08-10 |
 | 8. Consent kernel | 0/TBD | Not started | - |
 | 9. React and Svelte adapters | 0/TBD | Not started | - |

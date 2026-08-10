@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 07-07-PLAN.md; awaiting independent Phase 7 security re-audit
-last_updated: "2026-08-09T04:54:56.639Z"
-last_activity: 2026-08-09
+status: ready_to_plan
+stopped_at: Phase 7 complete (7/7) — ready to discuss Phase 8
+last_updated: 2026-08-10T05:48:36.444Z
+last_activity: 2026-08-10
 progress:
   total_phases: 9
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 65
   completed_plans: 65
-  percent: 67
+  percent: 78
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-07-27)
 
 **Core value:** An agent can take a consequential action in a real app — and it is structurally guaranteed that a human, not the agent, confirmed this specific payload, or the action does not run.
-**Current focus:** Phase 07 — session-and-the-transport-seam
+**Current focus:** Phase 8 — consent kernel
 
 ## Current Position
 
-Phase: 07 (session-and-the-transport-seam) — EXECUTING
-Plan: 7 of 7
-Status: Phase complete — ready for verification
-Last activity: 2026-08-09
+Phase: 8
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-08-10
 
-Progress: [██████████] 100%
+Progress: [████████░░] 78%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 16
+- Total plans completed: 23
 - Average duration: —
 - Total execution time: —
 
@@ -45,6 +45,7 @@ Progress: [██████████] 100%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 06 | 8 | - | - |
+| 7 | 7 | - | - |
 
 **Recent Trend:**
 
@@ -115,7 +116,7 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 07]: Exercise every Session diagnostic through public failures with fresh frozen exact objects and secret-absence assertions. — The operational channel stays useful without allowing caught values, identifiers, context, arguments, results, raw batches, stacks, or classes to escape.
 - [Phase 07]: Accessor-superseded publications use current attempt-token ownership for cleanup. — Abort and clear only while the abandoned attempt still owns publication state, preventing stale cleanup from erasing a newer attempt.
 - [Phase 07]: Accessor throws after reentrant supersession are inert abandoned attempts. — Once the getter enqueues the winning context, its later throw cannot become a fatal publication failure or restore obsolete authority.
-- [Phase 07]: Phase 7 technical closure remains blocked on independent T-07-01/T-07-02 security re-audit. — C17 and M-07-C10 postdate the prior audit, so implementation evidence cannot self-assign secured status or advance the phase.
+- [Phase 07]: Final authority and failure-recovery closure is independently clean, secured, and verified. — C17-C22 and M-07-C10..C16 bind the repaired Session state machine to 37/37 mutation evidence and the 331-test immutable release.
 
 ### Pending Todos
 
@@ -144,6 +145,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-09T04:54:56.634Z
-Stopped at: Completed 07-07-PLAN.md; awaiting independent Phase 7 security re-audit
+Last session: 2026-08-10T05:48:36.444Z
+Stopped at: Phase 7 complete (7/7) — ready to discuss Phase 8
 Resume file: None
