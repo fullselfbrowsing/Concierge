@@ -578,4 +578,142 @@ describe("receipt verification retains core-owned bytes and distrusts every clai
     }
     expect(getterCalls).toBe(0);
   });
+
+  it("J15 — rejects shadowed byte-brand accessors without invoking them", async () => {
+    const canonical = utf8("{\"payload\":{\"amount\":41}}");
+    let bufferGetterCalls = 0;
+    const shadowedCanonical = new Uint8Array(canonical);
+    Object.defineProperty(shadowedCanonical, "buffer", {
+      get() {
+        bufferGetterCalls += 1;
+        throw new Error("BYTE_BUFFER_SECRET");
+      },
+    });
+    const receiptFlow = createFlow({
+      output: { amount: 41 },
+      presentReadback: async () => receiptFor(shadowedCanonical, {
+        hash: hashBytes(canonical),
+      }),
+    });
+
+    expect(await receiptFlow.review()).toMatchObject({ ok: true });
+    expect(receiptFlow.deliveryCallbacks).toHaveLength(0);
+    expect(bufferGetterCalls).toBe(0);
+
+    let byteLengthGetterCalls = 0;
+    const hostileDigest = createDigest({
+      transform(result) {
+        Object.defineProperty(result, "byteLength", {
+          get() {
+            byteLengthGetterCalls += 1;
+            throw new Error("DIGEST_BUFFER_SECRET");
+          },
+        });
+        return result;
+      },
+    });
+    const digestFlow = createFlow({
+      digest: hostileDigest,
+      output: { amount: 41 },
+      presentReadback: async () => receiptFor(canonical),
+    });
+
+    expect(await digestFlow.review()).toMatchObject({ ok: true });
+    expect(digestFlow.deliveryCallbacks).toHaveLength(0);
+    expect(byteLengthGetterCalls).toBe(0);
+  });
+
+  it("J16 — captures the digest method once and preserves its receiver", async () => {
+    const canonical = utf8("{\"payload\":{\"amount\":41}}");
+    const calls = [];
+    let methodReads = 0;
+    const capability = {};
+    const method = async function (algorithm, data) {
+      expect(this).toBe(capability);
+      const bytes = new Uint8Array(viewOf(data));
+      calls.push({ algorithm, bytes });
+      return digestBuffer(bytes);
+    };
+    Object.defineProperty(capability, "digest", {
+      get() {
+        methodReads += 1;
+        if (methodReads > 1) {
+          throw new Error("DIGEST_METHOD_REREAD");
+        }
+        return method;
+      },
+    });
+    const flow = createFlow({
+      digest: { calls, digest: capability },
+      output: { amount: 41 },
+      presentReadback: async () => receiptFor(canonical),
+    });
+
+    expect(await flow.review()).toMatchObject({ ok: true });
+    await completeAttestedDelivery(flow, hashBytes(canonical));
+    expect(await flow.confirm()).toMatchObject({ ok: true });
+    expect(methodReads).toBe(1);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("J17 — accepts non-enumerable data claims but closes on optional accessors", async () => {
+    const canonical = utf8("{\"payload\":{\"amount\":41}}");
+    const hash = hashBytes(canonical);
+    const receipt = {};
+    Object.defineProperties(receipt, {
+      alg: { value: "SHA-256" },
+      canonical: { value: canonical },
+      canonicalization: { value: "JCS" },
+      hash: { value: hash },
+    });
+    const flow = createFlow({
+      output: { amount: 41 },
+      presentReadback: async () => receipt,
+    });
+    expect(await flow.review()).toMatchObject({ ok: true });
+    expect(flow.deliveryCallbacks).toHaveLength(1);
+    const attestation = {};
+    Object.defineProperties(attestation, {
+      act: { value: "confirmed" },
+      readbackHash: { value: hash },
+      userTurnId: { value: "confirm-turn" },
+    });
+    const report = {};
+    Object.defineProperties(report, {
+      attestation: { value: attestation },
+      outcome: { value: "completed" },
+      readbackHash: { value: hash },
+      responseId: { value: "review-response" },
+    });
+    flow.deliveryCallbacks[0](report);
+    await flushMicrotasks();
+    expect(await flow.confirm()).toMatchObject({ ok: true });
+
+    for (const authorityField of ["readbackHash", "attestation"]) {
+      let getterCalls = 0;
+      const hostileFlow = createFlow({
+        output: { amount: 41 },
+        presentReadback: async () => receiptFor(canonical),
+      });
+      expect(await hostileFlow.review()).toMatchObject({ ok: true });
+      const hostileReport = {
+        responseId: "review-response",
+        outcome: "completed",
+      };
+      Object.defineProperty(hostileReport, authorityField, {
+        enumerable: true,
+        get() {
+          getterCalls += 1;
+          throw new Error("OPTIONAL_AUTHORITY_SECRET");
+        },
+      });
+      hostileFlow.deliveryCallbacks[0](hostileReport);
+      await flushMicrotasks();
+      expect(await hostileFlow.confirm(`optional-${authorityField}`)).toMatchObject({
+        ok: false,
+        reason: "consent_required",
+      });
+      expect(getterCalls).toBe(0);
+    }
+  });
 });
