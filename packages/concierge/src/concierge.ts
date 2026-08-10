@@ -60,6 +60,10 @@
 
 import { buildCatalog, deepFreeze } from "./catalog.js";
 import {
+  attachConsentProfile,
+  snapshotConsentProfile,
+} from "./consent-profile.js";
+import {
   authoredResult,
   deriveDispatchKey,
   executeDispatchBatch,
@@ -85,6 +89,7 @@ import type {
   Bridge,
   Concierge,
   ConciergeConfig,
+  ConsentProfile,
   EmittedTool,
   Explanation,
   InvocationMeta,
@@ -121,6 +126,39 @@ const NO_SKIP: ReadonlySet<object> = /* @__PURE__ */ new Set<object>();
 type InvocationMetaSnapshot =
   | { readonly ok: true; readonly value: InvocationMeta }
   | { readonly ok: false };
+
+interface CapturedConsentConfiguration {
+  readonly profile: ConsentProfile;
+  readonly presentReadback: ConciergeConfig["presentReadback"];
+  readonly digest: ConciergeConfig["digest"];
+  readonly normalizeSnapshot: ConciergeConfig["normalizeSnapshot"];
+}
+
+/** Read every consent-related config seam once at the factory boundary. */
+function captureConsentConfiguration(
+  config: ConciergeConfig,
+): CapturedConsentConfiguration {
+  let rawProfile: unknown;
+  try {
+    rawProfile = config.consentProfile;
+  } catch {
+    rawProfile = null;
+  }
+
+  const profile: ConsentProfile = snapshotConsentProfile(rawProfile);
+  try {
+    return Object.freeze({
+      profile,
+      presentReadback: config.presentReadback,
+      digest: config.digest,
+      normalizeSnapshot: config.normalizeSnapshot,
+    });
+  } catch {
+    throw new TypeError(
+      "Invalid Concierge configuration: consent evidence capabilities could not be read.",
+    );
+  }
+}
 
 /** Copy every public metadata field once, before any asynchronous work begins. */
 function snapshotInvocationMeta(
@@ -422,6 +460,8 @@ function bridgeStatus(
  * none.
  */
 export function createConcierge(config: ConciergeConfig): Concierge {
+  const capturedConsent: CapturedConsentConfiguration =
+    captureConsentConfiguration(config);
   const stages: ConciergeConfig["stages"] = config.stages.map(
     (stage): ConciergeConfig["stages"][number] => {
       const actions: ConciergeConfig["stages"][number]["actions"] =
@@ -468,7 +508,14 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   // stages, exactly as it does within one. That is the intended outcome. An
   // action name is the agent's vocabulary, and two behaviours under one name is
   // the ambiguity the design exists to prevent.
-  const catalog: Catalog = buildCatalog([...stages.flatMap((stage) => stage.actions), ...crossStage]);
+  const catalog: Catalog = buildCatalog(
+    [...stages.flatMap((stage) => stage.actions), ...crossStage],
+    {
+      consentProfile: capturedConsent.profile,
+      presentReadback: capturedConsent.presentReadback,
+      digest: capturedConsent.digest,
+    },
+  );
 
   // One `EmittedTool` per action, built ONCE here and shared by reference into
   // every stage array that contains it. Header constraint 2 is what this
@@ -1189,5 +1236,12 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   // number of seals in this file; that argument was arithmetically wrong, and
   // a wrong reason attached to a right decision is how a right decision gets
   // reversed by the first reader who checks it.
-  return { dispatch, dispatchBatch, catalogFor, stageFor, explain };
+  const concierge: Concierge = {
+    dispatch,
+    dispatchBatch,
+    catalogFor,
+    stageFor,
+    explain,
+  };
+  return attachConsentProfile(concierge, capturedConsent.profile);
 }

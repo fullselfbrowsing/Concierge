@@ -92,8 +92,8 @@ import type {
  * distinction between "the validator has no converter" and "the validator's
  * converter threw" survives in the issue's `problem` text, where it belongs.
  *
- * **The last two members are CAT-03, and they are two codes rather than one by
- * that same test — applied and answered the other way.** Both describe a
+ * **The two CAT-03 members are separate codes rather than one by that same
+ * test — applied and answered the other way.** Both describe a
  * `consent.requires` that can never be satisfied, and their *consequence* is
  * identical: a safety gate that is silently permanently closed. But the
  * paragraph above collapses two cases because they share a fix, and these two do
@@ -372,7 +372,7 @@ export interface Catalog<Name extends string = string> {
 }
 
 /**
- * The two knobs on a build.
+ * The catalog policy and consent-construction inputs for one build.
  *
  * `jsonSchemaTarget` overrides {@link JSON_SCHEMA_TARGET}. Only
  * `"draft-2020-12"` and `"draft-07"` are supported by both emitting vendors;
@@ -385,9 +385,9 @@ export interface Catalog<Name extends string = string> {
  * choosing it for everyone. The throw propagates by design; see
  * {@link buildCatalog}.
  *
- * Both carry the explicit `| undefined` this repo's `exactOptionalPropertyTypes`
- * requires — without it, building this object from a possibly-absent value is
- * TS2375 at every call site.
+ * Every optional member carries the explicit `| undefined` this repo's
+ * `exactOptionalPropertyTypes` requires — without it, building this object from
+ * possibly-absent captured values is TS2375 at every call site.
  */
 export interface BuildCatalogOptions {
   readonly jsonSchemaTarget?: JsonSchemaTarget | undefined;
