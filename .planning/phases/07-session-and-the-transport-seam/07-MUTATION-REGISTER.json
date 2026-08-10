@@ -16,7 +16,8 @@
     "M-07-C12",
     "M-07-C13",
     "M-07-C14",
-    "M-07-C15"
+    "M-07-C15",
+    "M-07-C16"
   ],
   "expectedRoutingIds": [
     "M-07-R01",
@@ -63,6 +64,7 @@
     "M-07-C13",
     "M-07-C14",
     "M-07-C15",
+    "M-07-C16",
     "M-07-R01",
     "M-07-R02",
     "M-07-R03",
@@ -85,7 +87,7 @@
     "M-07-P01",
     "M-07-P02"
   ],
-  "registerDigest": "5d9d5b6dc291ab65e99b386c6edd568c16dfdd61cd29c569dabc9a8187761262",
+  "registerDigest": "58e8e7d6f15a61156d4f9cc8acad2a86af7840b860f4d2107c6fda261bbd004f",
   "mutants": [
     {
       "id": "M-07-C01",
@@ -454,6 +456,27 @@
         {
           "caseId": "C21",
           "marker": "[RED:C21:active-request-generation-authority]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-C16",
+      "group": "catalog",
+      "name": "failed requested authority is not reconciled to confirmed context",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "          if (\n            transition.kind === \"context\" &&\n            transition.generation === requestedGeneration &&\n            transition.context === requestedContext\n          ) {\n            requestedContext = confirmedContext;\n          }",
+      "replacement": "          if (\n            false &&\n            transition.kind === \"context\" &&\n            transition.generation === requestedGeneration &&\n            transition.context === requestedContext\n          ) {\n            requestedContext = confirmedContext;\n          }",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C22"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C22",
+          "marker": "[RED:C22:failed-request-authority-reconciliation]"
         }
       ]
     },
