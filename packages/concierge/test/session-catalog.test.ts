@@ -3613,6 +3613,799 @@ it("[C21] retains active requested authority after the transition queue shift", 
   );
 });
 
+it("[C22] reconciles failed requested authority before confirmed replay reentry", async () => {
+  const marker = "[RED:C22:failed-request-authority-reconciliation]";
+  requireFactory("[SMOKE:C22:create-session-factory]");
+
+  const trackedBatch = (callId, records, onAdd) => {
+    const listeners = new Set();
+    const counts = { additions: 0, callId, removals: 0 };
+    records.sourceCounts.push(counts);
+    const signal = Object.freeze({
+      aborted: false,
+      addEventListener(type, listener) {
+        if (type !== "abort") return;
+        counts.additions += 1;
+        listeners.add(listener);
+        if (onAdd !== undefined) onAdd();
+      },
+      removeEventListener(type, listener) {
+        if (type !== "abort" || !listeners.delete(listener)) return;
+        counts.removals += 1;
+        records.finalizations.push(callId);
+        records.events.push(`finalize:${callId}`);
+      },
+    });
+    return Object.freeze({ ...toolBatch([callId]), signal });
+  };
+
+  const makeDispatchingConcierge = (entries, records, labels) =>
+    conciergeDouble(entries, async (context, batch) => {
+      const callId = batch.calls[0].callId;
+      const signal = batch.signal;
+      const abortedAtEntry = signal.aborted;
+      records.dispatches.push({
+        abortedAtEntry,
+        authority: labels.get(context) ?? "other",
+        callId,
+        signal,
+        stableSignal: signal === batch.signal,
+      });
+      records.events.push(`dispatch:${callId}`);
+      return Object.freeze([
+        resultRow(
+          callId,
+          abortedAtEntry
+            ? {
+                ok: false,
+                reason: "aborted",
+                message: "The action was cancelled before it ran.",
+              }
+            : undefined,
+        ),
+      ]);
+    });
+
+  const summarizeDispatches = (records) =>
+    records.dispatches.map((entry) => ({
+      abortedAtEntry: entry.abortedAtEntry,
+      authority: entry.authority,
+      callId: entry.callId,
+      finalAborted: entry.signal.aborted,
+      stableSignal: entry.stableSignal,
+    }));
+
+  const replayActions = [
+    { action: "request-d", catalogMode: "same" },
+    { action: "request-d", catalogMode: "distinct" },
+    { action: "stop", stopMode: "direct" },
+    { action: "stop", stopMode: "signal-accessor" },
+  ];
+  const recoveryMatrix = [];
+
+  for (const variant of replayActions) {
+    const a = { name: "a" };
+    const c = { name: "c" };
+    const d = { name: "d" };
+    const catalogA = Object.freeze([]);
+    const catalogC = Object.freeze([]);
+    const catalogD =
+      variant.catalogMode === "same" ? catalogA : Object.freeze([]);
+    const base = controlledTransport();
+    const diagnostics = [];
+    const records = {
+      dispatches: [],
+      events: [],
+      finalizations: [],
+      sourceCounts: [],
+    };
+    const labels = new Map([
+      [a, "a"],
+      [c, "c"],
+      [d, "d"],
+    ]);
+    const sentinel = Object.freeze({
+      secret: `PRIVATE-C22-${variant.action}-${variant.catalogMode ?? variant.stopMode}`,
+    });
+    let drain;
+    let replayEntries = 0;
+    let session;
+    const concierge = makeDispatchingConcierge(
+      [
+        { context: a, catalog: catalogA, stage: "a" },
+        { context: c, catalog: catalogC, stage: "c" },
+        { context: d, catalog: catalogD, stage: "d" },
+      ],
+      records,
+      labels,
+    );
+    const catalogFor = concierge.catalogFor;
+    const boundaryConcierge = {
+      ...concierge,
+      catalogFor(context) {
+        if (context === c) {
+          base.emitStatus("connected");
+          throw sentinel;
+        }
+        return Reflect.apply(catalogFor, concierge, [context]);
+      },
+    };
+    base.setSetToolsHook((_tools, count) => {
+      if (count !== 2) return;
+      replayEntries += 1;
+      if (variant.action === "request-d") {
+        base.emitBatch(trackedBatch("before-d", records));
+        session.setContext(d);
+        base.emitBatch(trackedBatch("after-d", records));
+        return;
+      }
+      base.emitBatch(
+        trackedBatch(
+          "before-stop",
+          records,
+          variant.stopMode === "signal-accessor"
+            ? () => {
+                drain = session.stop();
+              }
+            : undefined,
+        ),
+      );
+      if (variant.stopMode === "direct") drain = session.stop();
+    });
+    const transport = Object.freeze({
+      ...base.transport,
+      respond(callId, result) {
+        records.events.push(`respond:${callId}`);
+        base.transport.respond(callId, result);
+      },
+    });
+    session = createSession({
+      concierge: boundaryConcierge,
+      transport,
+      initialContext: a,
+      onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+    });
+
+    let thrownValue;
+    try {
+      session.setContext(c);
+    } catch (failure) {
+      thrownValue = failure;
+    }
+    if (variant.action === "stop") {
+      if (drain === undefined) throw new Error("C22 stop did not reenter");
+      await drain;
+    } else {
+      await flushMicrotasks();
+    }
+
+    recoveryMatrix.push({
+      action: variant.action,
+      callerCaughtExact: thrownValue === sentinel,
+      catalogMode: variant.catalogMode,
+      diagnosticCodes: diagnostics.map((diagnostic) => diagnostic.code),
+      dispatches: summarizeDispatches(records),
+      events: records.events,
+      finalizations: records.finalizations,
+      publications: base.publications.map((catalog) =>
+        catalog === catalogA
+          ? "a"
+          : catalog === catalogD
+            ? "d"
+            : catalog.length === 0
+              ? "empty"
+              : "other",
+      ),
+      replayEntries,
+      responses: base.responses.map((response) => ({
+        cancelled: response.result.reason === "aborted",
+        callId: response.callId,
+      })),
+      sentinelDiagnosticLeak: JSON.stringify(diagnostics).includes(
+        sentinel.secret,
+      ),
+      sourceCounts: records.sourceCounts,
+      stage: session.stage(),
+      stopMode: variant.stopMode,
+      subscribers: base.subscriberCounts(),
+    });
+    if (variant.action !== "stop") await session.stop();
+  }
+
+  const expectedRecoveryMatrix = replayActions.map((variant) => {
+    if (variant.action === "request-d") {
+      const replacesCatalog = variant.catalogMode === "distinct";
+      return {
+        action: "request-d",
+        callerCaughtExact: true,
+        catalogMode: variant.catalogMode,
+        diagnosticCodes: [],
+        dispatches: [
+          {
+            abortedAtEntry: replacesCatalog,
+            authority: "a",
+            callId: "before-d",
+            finalAborted: replacesCatalog,
+            stableSignal: true,
+          },
+          {
+            abortedAtEntry: false,
+            authority: "d",
+            callId: "after-d",
+            finalAborted: false,
+            stableSignal: true,
+          },
+        ],
+        events: ["before-d", "after-d"].flatMap((callId) => [
+          `dispatch:${callId}`,
+          `respond:${callId}`,
+          `finalize:${callId}`,
+        ]),
+        finalizations: ["before-d", "after-d"],
+        publications: replacesCatalog ? ["a", "a", "d"] : ["a", "a"],
+        replayEntries: 1,
+        responses: [
+          { cancelled: replacesCatalog, callId: "before-d" },
+          { cancelled: false, callId: "after-d" },
+        ],
+        sentinelDiagnosticLeak: false,
+        sourceCounts: ["before-d", "after-d"].map((callId) => ({
+          additions: 1,
+          callId,
+          removals: 1,
+        })),
+        stage: "d",
+        stopMode: undefined,
+        subscribers: { status: 1, batch: 1 },
+      };
+    }
+    return {
+      action: "stop",
+      callerCaughtExact: true,
+      catalogMode: undefined,
+      diagnosticCodes: [],
+      dispatches: [
+        {
+          abortedAtEntry: true,
+          authority: "a",
+          callId: "before-stop",
+          finalAborted: true,
+          stableSignal: true,
+        },
+      ],
+      events: ["dispatch:before-stop", "finalize:before-stop"],
+      finalizations: ["before-stop"],
+      publications: ["a", "a", "empty"],
+      replayEntries: 1,
+      responses: [],
+      sentinelDiagnosticLeak: false,
+      sourceCounts: [
+        { additions: 1, callId: "before-stop", removals: 1 },
+      ],
+      stage: "a",
+      stopMode: variant.stopMode,
+      subscribers: { status: 0, batch: 0 },
+    };
+  });
+
+  const sameObjectA = { name: "same-object-a" };
+  const sameObjectC = { name: "same-object-c" };
+  const sameObjectCatalogA = Object.freeze([]);
+  const sameObjectCatalogC = Object.freeze([]);
+  const sameObjectBase = controlledTransport();
+  const sameObjectRecords = {
+    dispatches: [],
+    events: [],
+    finalizations: [],
+    sourceCounts: [],
+  };
+  const sameObjectLabels = new Map([
+    [sameObjectA, "a"],
+    [sameObjectC, "c"],
+  ]);
+  const sameObjectSentinel = Object.freeze({
+    secret: "PRIVATE-C22-SAME-OBJECT-GENERATIONS",
+  });
+  let sameObjectAttempts = 0;
+  let sameObjectSession;
+  const sameObjectConcierge = makeDispatchingConcierge(
+    [
+      {
+        context: sameObjectA,
+        catalog: sameObjectCatalogA,
+        stage: "a",
+      },
+      {
+        context: sameObjectC,
+        catalog: sameObjectCatalogC,
+        stage: "c",
+      },
+    ],
+    sameObjectRecords,
+    sameObjectLabels,
+  );
+  const sameObjectCatalogFor = sameObjectConcierge.catalogFor;
+  const sameObjectBoundaryConcierge = {
+    ...sameObjectConcierge,
+    catalogFor(context) {
+      if (context === sameObjectC) {
+        sameObjectAttempts += 1;
+        if (sameObjectAttempts === 1) {
+          sameObjectBase.emitStatus("connected");
+          throw sameObjectSentinel;
+        }
+      }
+      return Reflect.apply(sameObjectCatalogFor, sameObjectConcierge, [context]);
+    },
+  };
+  sameObjectBase.setSetToolsHook((_tools, count) => {
+    if (count !== 2) return;
+    sameObjectBase.emitBatch(
+      trackedBatch("same-before-new-generation", sameObjectRecords),
+    );
+    sameObjectSession.setContext(sameObjectC);
+    sameObjectBase.emitBatch(
+      trackedBatch("same-after-new-generation", sameObjectRecords),
+    );
+  });
+  const sameObjectTransport = Object.freeze({
+    ...sameObjectBase.transport,
+    respond(callId, result) {
+      sameObjectRecords.events.push(`respond:${callId}`);
+      sameObjectBase.transport.respond(callId, result);
+    },
+  });
+  sameObjectSession = createSession({
+    concierge: sameObjectBoundaryConcierge,
+    transport: sameObjectTransport,
+    initialContext: sameObjectA,
+  });
+  let sameObjectThrown;
+  try {
+    sameObjectSession.setContext(sameObjectC);
+  } catch (failure) {
+    sameObjectThrown = failure;
+  }
+  await flushMicrotasks();
+  const sameObjectObservation = {
+    attempts: sameObjectAttempts,
+    callerCaughtExact: sameObjectThrown === sameObjectSentinel,
+    dispatches: summarizeDispatches(sameObjectRecords),
+    events: sameObjectRecords.events,
+    finalizations: sameObjectRecords.finalizations,
+    publications: sameObjectBase.publications.map((catalog) =>
+      catalog === sameObjectCatalogA
+        ? "a"
+        : catalog === sameObjectCatalogC
+          ? "c"
+          : "other",
+    ),
+    responses: sameObjectBase.responses.map((response) => ({
+      cancelled: response.result.reason === "aborted",
+      callId: response.callId,
+    })),
+    sourceCounts: sameObjectRecords.sourceCounts,
+    stage: sameObjectSession.stage(),
+  };
+  await sameObjectSession.stop();
+
+  const sequentialA = { name: "sequential-a" };
+  const sequentialC = { name: "sequential-c" };
+  const sequentialD = { name: "sequential-d" };
+  const sequentialE = { name: "sequential-e" };
+  const sequentialCatalogA = Object.freeze([]);
+  const sequentialCatalogC = Object.freeze([]);
+  const sequentialCatalogD = Object.freeze([]);
+  const sequentialCatalogE = Object.freeze([]);
+  const sequentialBase = controlledTransport();
+  const sequentialRecords = {
+    dispatches: [],
+    events: [],
+    finalizations: [],
+    sourceCounts: [],
+  };
+  const sequentialLabels = new Map([
+    [sequentialA, "a"],
+    [sequentialC, "c"],
+    [sequentialD, "d"],
+    [sequentialE, "e"],
+  ]);
+  const sequentialCSentinel = Object.freeze({ secret: "PRIVATE-C22-C-FAILURE" });
+  const sequentialDSentinel = Object.freeze({ secret: "PRIVATE-C22-D-FAILURE" });
+  const sequentialConcierge = makeDispatchingConcierge(
+    [
+      { context: sequentialA, catalog: sequentialCatalogA, stage: "a" },
+      { context: sequentialC, catalog: sequentialCatalogC, stage: "c" },
+      { context: sequentialD, catalog: sequentialCatalogD, stage: "d" },
+      { context: sequentialE, catalog: sequentialCatalogE, stage: "e" },
+    ],
+    sequentialRecords,
+    sequentialLabels,
+  );
+  const sequentialCatalogFor = sequentialConcierge.catalogFor;
+  const sequentialBoundaryConcierge = {
+    ...sequentialConcierge,
+    catalogFor(context) {
+      if (context === sequentialC) {
+        sequentialBase.emitStatus("connected");
+        throw sequentialCSentinel;
+      }
+      if (context === sequentialD) {
+        sequentialBase.emitStatus("disconnected");
+        sequentialBase.emitStatus("connected");
+        throw sequentialDSentinel;
+      }
+      return Reflect.apply(sequentialCatalogFor, sequentialConcierge, [context]);
+    },
+  };
+  sequentialBase.setSetToolsHook((_tools, count) => {
+    if (count === 2) {
+      sequentialBase.emitBatch(
+        trackedBatch("after-c-failure", sequentialRecords),
+      );
+    }
+    if (count === 3) {
+      sequentialBase.emitBatch(
+        trackedBatch("after-d-failure", sequentialRecords),
+      );
+    }
+  });
+  const sequentialTransport = Object.freeze({
+    ...sequentialBase.transport,
+    respond(callId, result) {
+      sequentialRecords.events.push(`respond:${callId}`);
+      sequentialBase.transport.respond(callId, result);
+    },
+  });
+  const sequentialSession = createSession({
+    concierge: sequentialBoundaryConcierge,
+    transport: sequentialTransport,
+    initialContext: sequentialA,
+  });
+  let sequentialCThrown;
+  try {
+    sequentialSession.setContext(sequentialC);
+  } catch (failure) {
+    sequentialCThrown = failure;
+  }
+  await flushMicrotasks();
+  let sequentialDThrown;
+  try {
+    sequentialSession.setContext(sequentialD);
+  } catch (failure) {
+    sequentialDThrown = failure;
+  }
+  await flushMicrotasks();
+  sequentialSession.setContext(sequentialE);
+  sequentialBase.emitBatch(trackedBatch("after-e", sequentialRecords));
+  await flushMicrotasks();
+  const sequentialObservation = {
+    cCaughtExact: sequentialCThrown === sequentialCSentinel,
+    dCaughtExact: sequentialDThrown === sequentialDSentinel,
+    dispatches: summarizeDispatches(sequentialRecords),
+    events: sequentialRecords.events,
+    finalizations: sequentialRecords.finalizations,
+    publications: sequentialBase.publications.map((catalog) =>
+      catalog === sequentialCatalogA
+        ? "a"
+        : catalog === sequentialCatalogE
+          ? "e"
+          : "other",
+    ),
+    responses: sequentialBase.responses.map((response) => response.callId),
+    sourceCounts: sequentialRecords.sourceCounts,
+    stage: sequentialSession.stage(),
+  };
+  await sequentialSession.stop();
+
+  const mixtureA = { name: "mixture-a" };
+  const mixtureC = { name: "mixture-c" };
+  const mixtureCatalogA = Object.freeze([]);
+  const mixtureCatalogC = Object.freeze([]);
+  const mixtureBase = controlledTransport();
+  const mixtureRecords = {
+    dispatches: [],
+    events: [],
+    finalizations: [],
+    sourceCounts: [],
+  };
+  const mixtureSentinel = Object.freeze({ secret: "PRIVATE-C22-STATUS-MIXTURE" });
+  const mixtureConcierge = makeDispatchingConcierge(
+    [
+      { context: mixtureA, catalog: mixtureCatalogA, stage: "a" },
+      { context: mixtureC, catalog: mixtureCatalogC, stage: "c" },
+    ],
+    mixtureRecords,
+    new Map([
+      [mixtureA, "a"],
+      [mixtureC, "c"],
+    ]),
+  );
+  const mixtureCatalogFor = mixtureConcierge.catalogFor;
+  const mixtureBoundaryConcierge = {
+    ...mixtureConcierge,
+    catalogFor(context) {
+      if (context === mixtureC) {
+        mixtureBase.emitStatus("connected");
+        mixtureBase.emitStatus("disconnected");
+        mixtureBase.emitStatus("connected");
+        throw mixtureSentinel;
+      }
+      return Reflect.apply(mixtureCatalogFor, mixtureConcierge, [context]);
+    },
+  };
+  mixtureBase.setSetToolsHook((_tools, count) => {
+    if (count === 2 || count === 3) {
+      mixtureBase.emitBatch(
+        trackedBatch(`mixture-replay-${count - 1}`, mixtureRecords),
+      );
+    }
+  });
+  const mixtureTransport = Object.freeze({
+    ...mixtureBase.transport,
+    respond(callId, result) {
+      mixtureRecords.events.push(`respond:${callId}`);
+      mixtureBase.transport.respond(callId, result);
+    },
+  });
+  const mixtureSession = createSession({
+    concierge: mixtureBoundaryConcierge,
+    transport: mixtureTransport,
+    initialContext: mixtureA,
+  });
+  let mixtureThrown;
+  try {
+    mixtureSession.setContext(mixtureC);
+  } catch (failure) {
+    mixtureThrown = failure;
+  }
+  await flushMicrotasks();
+  const mixtureObservation = {
+    callerCaughtExact: mixtureThrown === mixtureSentinel,
+    dispatches: summarizeDispatches(mixtureRecords),
+    events: mixtureRecords.events,
+    finalizations: mixtureRecords.finalizations,
+    publicationCount: mixtureBase.publications.length,
+    responses: mixtureBase.responses.map((response) => response.callId),
+    sourceCounts: mixtureRecords.sourceCounts,
+    stage: mixtureSession.stage(),
+  };
+  await mixtureSession.stop();
+
+  const noWorkA = { name: "no-work-a" };
+  const noWorkC = { name: "no-work-c" };
+  const noWorkCatalogA = Object.freeze([]);
+  const noWorkCatalogC = Object.freeze([]);
+  const noWorkBase = controlledTransport();
+  const noWorkSentinel = Object.freeze({ secret: "PRIVATE-C22-NO-WORK" });
+  const noWorkConcierge = conciergeDouble(
+    [
+      { context: noWorkA, catalog: noWorkCatalogA, stage: "a" },
+      { context: noWorkC, catalog: noWorkCatalogC, stage: "c" },
+    ],
+    async () => Object.freeze([]),
+  );
+  const noWorkCatalogFor = noWorkConcierge.catalogFor;
+  const noWorkBoundaryConcierge = {
+    ...noWorkConcierge,
+    catalogFor(context) {
+      if (context === noWorkC) {
+        noWorkBase.emitStatus("connected");
+        throw noWorkSentinel;
+      }
+      return Reflect.apply(noWorkCatalogFor, noWorkConcierge, [context]);
+    },
+  };
+  const noWorkSession = createSession({
+    concierge: noWorkBoundaryConcierge,
+    transport: noWorkBase.transport,
+    initialContext: noWorkA,
+  });
+  let noWorkThrown;
+  try {
+    noWorkSession.setContext(noWorkC);
+  } catch (failure) {
+    noWorkThrown = failure;
+  }
+  const noWorkObservation = {
+    callerCaughtExact: noWorkThrown === noWorkSentinel,
+    publicationCount: noWorkBase.publications.length,
+    responses: noWorkBase.responses.length,
+    stage: noWorkSession.stage(),
+  };
+  await noWorkSession.stop();
+
+  const noContextC = { name: "no-context-c" };
+  const noContextCatalogC = Object.freeze([]);
+  const noContextBase = controlledTransport();
+  const noContextDiagnostics = [];
+  const noContextRecords = {
+    dispatches: [],
+    events: [],
+    finalizations: [],
+    sourceCounts: [],
+  };
+  const noContextSentinel = Object.freeze({ secret: "PRIVATE-C22-NO-CONTEXT" });
+  let noContextDrain;
+  let noContextSession;
+  const noContextConcierge = makeDispatchingConcierge(
+    [{ context: noContextC, catalog: noContextCatalogC, stage: "c" }],
+    noContextRecords,
+    new Map([[noContextC, "c"]]),
+  );
+  const noContextCatalogFor = noContextConcierge.catalogFor;
+  const noContextBoundaryConcierge = {
+    ...noContextConcierge,
+    catalogFor(context) {
+      if (context === noContextC) {
+        noContextBase.emitStatus("connected");
+        throw noContextSentinel;
+      }
+      return Reflect.apply(noContextCatalogFor, noContextConcierge, [context]);
+    },
+  };
+  noContextBase.setSetToolsHook((_tools, count) => {
+    if (count !== 2) return;
+    noContextBase.emitBatch(
+      trackedBatch("no-confirmed-context", noContextRecords),
+    );
+    noContextDrain = noContextSession.stop();
+  });
+  noContextSession = createSession({
+    concierge: noContextBoundaryConcierge,
+    transport: noContextBase.transport,
+    onDiagnostic: (diagnostic) => noContextDiagnostics.push(diagnostic),
+  });
+  let noContextThrown;
+  try {
+    noContextSession.setContext(noContextC);
+  } catch (failure) {
+    noContextThrown = failure;
+  }
+  if (noContextDrain === undefined) {
+    throw new Error("C22 no-context stop did not reenter");
+  }
+  await noContextDrain;
+  const noContextObservation = {
+    callerCaughtExact: noContextThrown === noContextSentinel,
+    diagnosticCodes: noContextDiagnostics.map((diagnostic) => diagnostic.code),
+    dispatches: summarizeDispatches(noContextRecords),
+    finalizations: noContextRecords.finalizations,
+    publicationLengths: noContextBase.publications.map((catalog) => catalog.length),
+    responses: noContextBase.responses.length,
+    sourceCounts: noContextRecords.sourceCounts,
+    stage: noContextSession.stage(),
+    subscribers: noContextBase.subscriberCounts(),
+  };
+
+  expect(
+    {
+      mixture: mixtureObservation,
+      noContext: noContextObservation,
+      noWork: noWorkObservation,
+      recoveryMatrix,
+      sameObject: sameObjectObservation,
+      sequential: sequentialObservation,
+    },
+    marker,
+  ).toEqual({
+    mixture: {
+      callerCaughtExact: true,
+      dispatches: ["mixture-replay-1", "mixture-replay-2"].map((callId) => ({
+        abortedAtEntry: false,
+        authority: "a",
+        callId,
+        finalAborted: false,
+        stableSignal: true,
+      })),
+      events: ["mixture-replay-1", "mixture-replay-2"].flatMap((callId) => [
+        `dispatch:${callId}`,
+        `respond:${callId}`,
+        `finalize:${callId}`,
+      ]),
+      finalizations: ["mixture-replay-1", "mixture-replay-2"],
+      publicationCount: 3,
+      responses: ["mixture-replay-1", "mixture-replay-2"],
+      sourceCounts: ["mixture-replay-1", "mixture-replay-2"].map((callId) => ({
+        additions: 1,
+        callId,
+        removals: 1,
+      })),
+      stage: "a",
+    },
+    noContext: {
+      callerCaughtExact: true,
+      diagnosticCodes: ["batch_without_context"],
+      dispatches: [],
+      finalizations: [],
+      publicationLengths: [0, 0, 0],
+      responses: 0,
+      sourceCounts: [
+        { additions: 0, callId: "no-confirmed-context", removals: 0 },
+      ],
+      stage: null,
+      subscribers: { status: 0, batch: 0 },
+    },
+    noWork: {
+      callerCaughtExact: true,
+      publicationCount: 2,
+      responses: 0,
+      stage: "a",
+    },
+    recoveryMatrix: expectedRecoveryMatrix,
+    sameObject: {
+      attempts: 2,
+      callerCaughtExact: true,
+      dispatches: [
+        {
+          abortedAtEntry: true,
+          authority: "a",
+          callId: "same-before-new-generation",
+          finalAborted: true,
+          stableSignal: true,
+        },
+        {
+          abortedAtEntry: false,
+          authority: "c",
+          callId: "same-after-new-generation",
+          finalAborted: false,
+          stableSignal: true,
+        },
+      ],
+      events: ["same-before-new-generation", "same-after-new-generation"].flatMap(
+        (callId) => [
+          `dispatch:${callId}`,
+          `respond:${callId}`,
+          `finalize:${callId}`,
+        ],
+      ),
+      finalizations: [
+        "same-before-new-generation",
+        "same-after-new-generation",
+      ],
+      publications: ["a", "a", "c"],
+      responses: [
+        { cancelled: true, callId: "same-before-new-generation" },
+        { cancelled: false, callId: "same-after-new-generation" },
+      ],
+      sourceCounts: [
+        "same-before-new-generation",
+        "same-after-new-generation",
+      ].map((callId) => ({ additions: 1, callId, removals: 1 })),
+      stage: "c",
+    },
+    sequential: {
+      cCaughtExact: true,
+      dCaughtExact: true,
+      dispatches: [
+        { callId: "after-c-failure", authority: "a" },
+        { callId: "after-d-failure", authority: "a" },
+        { callId: "after-e", authority: "e" },
+      ].map(({ callId, authority }) => ({
+        abortedAtEntry: false,
+        authority,
+        callId,
+        finalAborted: false,
+        stableSignal: true,
+      })),
+      events: ["after-c-failure", "after-d-failure", "after-e"].flatMap(
+        (callId) => [
+          `dispatch:${callId}`,
+          `respond:${callId}`,
+          `finalize:${callId}`,
+        ],
+      ),
+      finalizations: ["after-c-failure", "after-d-failure", "after-e"],
+      publications: ["a", "a", "a", "e"],
+      responses: ["after-c-failure", "after-d-failure", "after-e"],
+      sourceCounts: ["after-c-failure", "after-d-failure", "after-e"].map(
+        (callId) => ({ additions: 1, callId, removals: 1 }),
+      ),
+      stage: "e",
+    },
+  });
+});
+
 it("preserves connected replay occurrence authority across getter reentry", async () => {
   const marker = "[REGRESSION:connected-replay-getter-authority]";
   const observations = [];

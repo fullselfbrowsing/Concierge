@@ -1145,6 +1145,13 @@ export function createSession(config: SessionConfig): Session {
           ) {
             activeRequestedAuthority = null;
           }
+          if (
+            transition.kind === "context" &&
+            transition.generation === requestedGeneration &&
+            transition.context === requestedContext
+          ) {
+            requestedContext = confirmedContext;
+          }
           if (firstFailure === null) firstFailure = { value: failure };
         }
       }
