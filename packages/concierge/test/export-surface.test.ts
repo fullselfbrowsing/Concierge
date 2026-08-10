@@ -125,6 +125,15 @@ const VALUE_EXPORTS = [
   "offPageResult",
 ];
 
+const CONSENT_TYPE_EXPORTS = [
+  "ConsentProfile",
+  "ReadbackAttestation",
+  "FailureOutcomeRow",
+  "FailureOutcome",
+  "OutcomePresentationReport",
+  "OutcomeSink",
+];
+
 beforeAll(() => {
   if (!existsSync(DTS_PATH)) {
     throw new Error(
@@ -135,15 +144,22 @@ beforeAll(() => {
 });
 
 describe("the published export surface of dist/index.d.ts", () => {
-  it("is exactly 69 names — an export added or dropped by a build-config change lands here", () => {
+  it("is exactly 75 names — an export added or dropped by a build-config change lands here", () => {
     const { names } = readSurface();
-    expect(names).toHaveLength(69);
+    expect(names).toHaveLength(75);
   });
 
-  it("splits 54 types to 15 values", () => {
+  it("splits 60 types to 15 values", () => {
     const { types, values } = readSurface();
-    expect(types).toHaveLength(54);
+    expect(types).toHaveLength(60);
     expect(values).toHaveLength(15);
+  });
+
+  it("carries all six consent evidence and outcome types by name", () => {
+    const { types } = readSurface();
+    for (const name of CONSENT_TYPE_EXPORTS) {
+      expect(types).toContain(name);
+    }
   });
 
   it("carries all fifteen runtime value exports by name", () => {

@@ -71,6 +71,8 @@
 
 import type { Assignable, Equals, Expect } from "./_assert.js";
 import { MESSAGE_MAX_CHARS, JSON_SCHEMA_TARGET, defineAction, buildCatalog, CatalogValidationError, createConcierge, createBridge, captureSnapshot, offPageResult, createSession } from "../src/index.js";   // ← index.js. NOT types.js. This is the whole point.
+import type { ConsentProfile, FailureOutcome, FailureOutcomeRow, OutcomePresentationReport, OutcomeSink, ReadbackAttestation } from "../src/index.js";
+import type { ConsentProfile as SourceConsentProfile, FailureOutcome as SourceFailureOutcome, FailureOutcomeRow as SourceFailureOutcomeRow, OutcomePresentationReport as SourceOutcomePresentationReport, OutcomeSink as SourceOutcomeSink, ReadbackAttestation as SourceReadbackAttestation } from "../src/types.js";
 
 // --------------------------------------------------------------------------
 // SC-7d — the bound reaches the public entrypoint as a value, not just a type
@@ -121,3 +123,14 @@ type _offPageResultExportedAsValue = Expect<Assignable<typeof offPageResult, (..
 
 /** createSession reaches the public entrypoint as a callable VALUE, not only as a type. */
 type _createSessionExportedAsValue = Expect<Assignable<typeof createSession, (...args: never[]) => unknown>>;
+
+// --------------------------------------------------------------------------
+// Consent evidence and app-outcome contracts are public types only
+// --------------------------------------------------------------------------
+
+type _consentProfileExportedAsType = Expect<Equals<ConsentProfile, SourceConsentProfile>>;
+type _readbackAttestationExportedAsType = Expect<Equals<ReadbackAttestation, SourceReadbackAttestation>>;
+type _failureOutcomeRowExportedAsType = Expect<Equals<FailureOutcomeRow, SourceFailureOutcomeRow>>;
+type _failureOutcomeExportedAsType = Expect<Equals<FailureOutcome, SourceFailureOutcome>>;
+type _outcomePresentationReportExportedAsType = Expect<Equals<OutcomePresentationReport, SourceOutcomePresentationReport>>;
+type _outcomeSinkExportedAsType = Expect<Equals<OutcomeSink, SourceOutcomeSink>>;

@@ -30,6 +30,14 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 const DIST_URL = new URL("../dist/index.js", import.meta.url);
 const DIST_PATH = fileURLToPath(DIST_URL);
+const TYPE_ONLY_CONSENT_EXPORTS = [
+  "ConsentProfile",
+  "ReadbackAttestation",
+  "FailureOutcomeRow",
+  "FailureOutcome",
+  "OutcomePresentationReport",
+  "OutcomeSink",
+] as const;
 
 beforeAll(() => {
   if (!existsSync(DIST_PATH)) {
@@ -41,6 +49,14 @@ beforeAll(() => {
 });
 
 describe("the built artifact still carries every value export", () => {
+  it("keeps consent evidence and outcome contracts out of the runtime namespace", async () => {
+    const m = await import(DIST_URL.href);
+
+    for (const name of TYPE_ONLY_CONSENT_EXPORTS) {
+      expect(Object.hasOwn(m, name)).toBe(false);
+    }
+  });
+
   it("MESSAGE_MAX_CHARS reaches dist/index.js as a value, at 180", async () => {
     const m = await import(DIST_URL.href);
     expect(m.MESSAGE_MAX_CHARS).toBe(180);
