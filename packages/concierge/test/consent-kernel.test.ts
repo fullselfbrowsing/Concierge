@@ -66,13 +66,18 @@ function createKernel({
   profile = RELAYED_PROFILE,
   reviewHandler = () => successful("Reviewed."),
   reviewName = "review",
+  reviewSchema,
 } = {}) {
   const reviewEntries = [];
   const gatedEntries = new Map();
-  const review = action(reviewName, (ctx) => {
-    reviewEntries.push(ctx);
-    return reviewHandler(ctx);
-  });
+  const review = action(
+    reviewName,
+    (ctx) => {
+      reviewEntries.push(ctx);
+      return reviewHandler(ctx);
+    },
+    reviewSchema === undefined ? {} : { schema: reviewSchema },
+  );
   const gated = gates.map((gate) => {
     const entries = [];
     gatedEntries.set(gate.name, entries);
@@ -943,6 +948,121 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
         }),
       ).toMatchObject({ ok: true });
     }
+  });
+
+  it("K25 — accessor-backed consent configuration is captured before runtime dispatch", async () => {
+    let requires = "reviewA";
+    let bindTo = "response";
+    let comparator = () => true;
+    let minGrade = "none";
+    let onMissing = {
+      reason: "consent_required",
+      message: "Use the captured review first.",
+    };
+    const policy = {};
+    Object.defineProperties(policy, {
+      bindTo: { enumerable: true, get: () => bindTo },
+      minGrade: { enumerable: true, get: () => minGrade },
+      onMissing: { enumerable: true, get: () => onMissing },
+      requires: { enumerable: true, get: () => requires },
+      snapshotEquality: { enumerable: true, get: () => comparator },
+    });
+
+    const entries = [];
+    const concierge = createConcierge({
+      stages: [
+        {
+          id: "active",
+          match: () => true,
+          actions: [
+            action("reviewA", () => successful("Reviewed A.")),
+            action("reviewB", () => successful("Reviewed B.")),
+            action(
+              "confirm",
+              (ctx) => {
+                entries.push(ctx);
+                return successful("Confirmed.");
+              },
+              { consent: policy },
+            ),
+          ],
+        },
+      ],
+      consentProfile: RELAYED_PROFILE,
+    });
+
+    requires = "reviewB";
+    bindTo = "userTurn";
+    comparator = () => false;
+    minGrade = "attested";
+    onMissing = {
+      reason: "consent_required",
+      message: "MUTATED POLICY MUST NOT BE OBSERVED",
+    };
+
+    await concierge.dispatch(ACTIVE_CONTEXT, "reviewA", { amount: 41 }, {
+      callId: "captured-policy-review",
+      responseId: "captured-policy-review-response",
+      userTurnId: "captured-policy-review-turn",
+      deferUntilDelivered(effect) {
+        effect({
+          responseId: "captured-policy-review-response",
+          outcome: "completed",
+        });
+      },
+    });
+    expect(
+      await concierge.dispatch(ACTIVE_CONTEXT, "confirm", {}, {
+        callId: "captured-policy-confirm",
+        responseId: "captured-policy-confirm-response",
+        userTurnId: "captured-policy-review-turn",
+      }),
+    ).toMatchObject({ ok: true });
+    expect(entries).toHaveLength(1);
+
+    expect(
+      await concierge.dispatch(ACTIVE_CONTEXT, "confirm", {}, {
+        callId: "captured-policy-second-confirm",
+        responseId: "captured-policy-second-response",
+        userTurnId: "captured-policy-review-turn",
+      }),
+    ).toEqual({
+      ok: false,
+      reason: "consent_required",
+      message: "Use the captured review first.",
+    });
+  });
+
+  it("K26 — validated-output detachment failure still invalidates an older armed review", async () => {
+    const hostileOutput = {};
+    Object.defineProperty(hostileOutput, "amount", {
+      enumerable: true,
+      get() {
+        throw new Error("VALIDATED_OUTPUT_SECRET");
+      },
+    });
+    const reviewSchema = schema((value) => ({
+      value: value.failDetachment === true ? hostileOutput : value,
+    }));
+    const { concierge, gatedEntries } = createKernel({ reviewSchema });
+    await armReview(concierge, {
+      callId: "older-valid-review",
+      responseId: "older-valid-response",
+    });
+
+    expect(
+      await dispatchReview(concierge, {
+        args: { failDetachment: true },
+        callId: "replacement-detachment-failure",
+        responseId: "replacement-response",
+      }),
+    ).toMatchObject({ ok: false, reason: "invalid_args" });
+    expect(
+      await dispatchGate(concierge, "confirm", {
+        callId: "confirm-after-detachment-failure",
+      }),
+    ).toMatchObject({ ok: false, reason: "consent_required" });
+    expect(gatedEntries.get("confirm")).toHaveLength(0);
   });
 });
 

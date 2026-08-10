@@ -81,6 +81,7 @@ import {
   readHostScheduler,
   warnHost,
 } from "./host.js";
+import { USER_CANCELLED, USER_DECLINED } from "./types.js";
 import type { ArgumentValidation, CommitWaitOutcome } from "./dispatch.js";
 import type { InvocationValueSnapshot } from "./dispatch.js";
 import type { Catalog, CatalogEntry } from "./catalog.js";
@@ -91,6 +92,7 @@ import type {
   Bridge,
   Concierge,
   ConciergeConfig,
+  ConsentAck,
   ConsentGrade,
   ConsentPolicy,
   ConsentProfile,
@@ -151,10 +153,12 @@ type ConsentGeneration =
   | (ConsentGenerationBase & { readonly status: "reviewing" })
   | (ConsentGenerationBase & { readonly status: "pendingDelivery" })
   | (ConsentGenerationBase & {
-      readonly achievedGrade: Exclude<ConsentGrade, "none">;
+      readonly achievedGrade: Exclude<ConsentGrade, "none" | "attested">;
       readonly status: "armed";
     })
-  | (ConsentGenerationBase & { readonly status: "gradeUnavailable" });
+  | (ConsentGenerationBase & {
+      readonly status: "declined" | "dismissed" | "gradeUnavailable";
+    });
 
 /** A consent grade represents measured evidence only when it is not `none`. */
 function isMeasuredConsentGrade(
@@ -168,6 +172,194 @@ function relayedGradeWithin(ceiling: ConsentGrade): ConsentGrade {
   return consentGradeRank(ceiling) >= consentGradeRank("relayed")
     ? "relayed"
     : ceiling;
+}
+
+/** Clamp every runtime policy to the inherent delivered evidence floor. */
+function effectiveConsentMinimum(requested: ConsentGrade | undefined): ConsentGrade {
+  const declared: ConsentGrade = requested ?? "delivered";
+  return consentGradeRank(declared) < consentGradeRank("delivered")
+    ? "delivered"
+    : declared;
+}
+
+/** Whether confirm belongs to a real boundary after the stored review. */
+function hasFreshConsentBoundary(
+  policy: ConsentPolicy<unknown>,
+  review: ConsentGenerationBase,
+  confirm: InvocationMeta,
+  profile: ConsentProfile,
+): boolean {
+  if (policy.bindTo === "userTurn") {
+    const confirmTurnId: string = confirm.userTurnId ?? "";
+    return profile.userTurnIdentity === "human-attested" &&
+      review.userTurnId.length > 0 &&
+      confirmTurnId.length > 0 &&
+      review.userTurnId !== confirmTurnId;
+  }
+
+  if (policy.bindTo !== "response") {
+    return false;
+  }
+
+  const confirmResponseId: string = confirm.responseId ?? "";
+  return review.responseId.length > 0 &&
+    confirmResponseId.length > 0 &&
+    review.responseId !== confirmResponseId;
+}
+
+/**
+ * Strict graph comparison for values produced by snapshot normalization.
+ * Unsupported exotic leaves compare only by identity through the Object.is arm.
+ */
+function strictSnapshotEquality(left: unknown, right: unknown): boolean {
+  return compareSnapshotValues(
+    left,
+    right,
+    new WeakMap<object, object>(),
+    new WeakMap<object, object>(),
+  );
+}
+
+function compareSnapshotValues(
+  left: unknown,
+  right: unknown,
+  leftToRight: WeakMap<object, object>,
+  rightToLeft: WeakMap<object, object>,
+): boolean {
+  if (Object.is(left, right)) {
+    return true;
+  }
+  if (
+    typeof left !== "object" ||
+    left === null ||
+    typeof right !== "object" ||
+    right === null
+  ) {
+    return false;
+  }
+
+  if (leftToRight.has(left) || rightToLeft.has(right)) {
+    return leftToRight.get(left) === right && rightToLeft.get(right) === left;
+  }
+
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+      return false;
+    }
+    leftToRight.set(left, right);
+    rightToLeft.set(right, left);
+    for (let index = 0; index < left.length; index += 1) {
+      if ((index in left) !== (index in right)) {
+        return false;
+      }
+      if (
+        index in left &&
+        !compareSnapshotValues(
+          left[index],
+          right[index],
+          leftToRight,
+          rightToLeft,
+        )
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  if (left instanceof Date || right instanceof Date) {
+    return left instanceof Date &&
+      right instanceof Date &&
+      Object.is(left.getTime(), right.getTime());
+  }
+
+  if (left instanceof Map || right instanceof Map) {
+    if (!(left instanceof Map) || !(right instanceof Map) || left.size !== right.size) {
+      return false;
+    }
+    leftToRight.set(left, right);
+    rightToLeft.set(right, left);
+    const rightEntries = right.entries();
+    for (const [leftKey, leftValue] of left) {
+      const rightEntry = rightEntries.next();
+      if (
+        rightEntry.done ||
+        !compareSnapshotValues(
+          leftKey,
+          rightEntry.value[0],
+          leftToRight,
+          rightToLeft,
+        ) ||
+        !compareSnapshotValues(
+          leftValue,
+          rightEntry.value[1],
+          leftToRight,
+          rightToLeft,
+        )
+      ) {
+        return false;
+      }
+    }
+    return rightEntries.next().done === true;
+  }
+
+  if (left instanceof Set || right instanceof Set) {
+    if (!(left instanceof Set) || !(right instanceof Set) || left.size !== right.size) {
+      return false;
+    }
+    leftToRight.set(left, right);
+    rightToLeft.set(right, left);
+    const rightValues = right.values();
+    for (const leftValue of left) {
+      const rightValue = rightValues.next();
+      if (
+        rightValue.done ||
+        !compareSnapshotValues(
+          leftValue,
+          rightValue.value,
+          leftToRight,
+          rightToLeft,
+        )
+      ) {
+        return false;
+      }
+    }
+    return rightValues.next().done === true;
+  }
+
+  const leftPrototype: object | null = Object.getPrototypeOf(left);
+  const rightPrototype: object | null = Object.getPrototypeOf(right);
+  const leftIsRecord: boolean =
+    leftPrototype === null || leftPrototype === Object.prototype;
+  const rightIsRecord: boolean =
+    rightPrototype === null || rightPrototype === Object.prototype;
+  if (!leftIsRecord || !rightIsRecord || leftPrototype !== rightPrototype) {
+    return false;
+  }
+
+  const leftKeys: readonly string[] = Object.keys(left);
+  const rightKeys: readonly string[] = Object.keys(right);
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+  leftToRight.set(left, right);
+  rightToLeft.set(right, left);
+  const leftRecord = left as Record<string, unknown>;
+  const rightRecord = right as Record<string, unknown>;
+  for (const key of leftKeys) {
+    if (
+      !Object.hasOwn(rightRecord, key) ||
+      !compareSnapshotValues(
+        leftRecord[key],
+        rightRecord[key],
+        leftToRight,
+        rightToLeft,
+      )
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /** Read every consent-related config seam once at the factory boundary. */
@@ -245,21 +437,54 @@ function snapshotInvocationMeta(
   }
 }
 
+/** Convert a consent declaration and its authored fallback into fixed data. */
+function snapshotConsentPolicy(
+  policy: NonNullable<AnyActionDefinition["consent"]>,
+): NonNullable<AnyActionDefinition["consent"]> {
+  const snapshotEquality = policy.snapshotEquality;
+  const minGrade: ConsentGrade | undefined = policy.minGrade;
+  const declaredMissing = policy.onMissing;
+  const onMissing = declaredMissing === undefined
+    ? undefined
+    : Object.freeze(
+        declaredMissing.reason === undefined
+          ? { message: declaredMissing.message }
+          : {
+              message: declaredMissing.message,
+              reason: declaredMissing.reason,
+            },
+      );
+
+  return Object.freeze({
+    requires: policy.requires,
+    bindTo: policy.bindTo,
+    ...(snapshotEquality === undefined ? {} : { snapshotEquality }),
+    ...(minGrade === undefined ? {} : { minGrade }),
+    ...(onMissing === undefined ? {} : { onMissing }),
+  });
+}
+
 /** Convert mutable effect hints and action accessors into fixed data properties. */
 function snapshotAction(action: AnyActionDefinition): AnyActionDefinition {
   try {
-    const snapshot: AnyActionDefinition = { ...action };
-    if (snapshot.effects === undefined) {
-      return snapshot;
+    let snapshot: AnyActionDefinition = { ...action };
+    if (snapshot.effects !== undefined) {
+      snapshot = {
+        ...snapshot,
+        effects: Object.freeze({
+          readOnly: snapshot.effects.readOnly === true,
+          destructive: snapshot.effects.destructive === true,
+          idempotent: snapshot.effects.idempotent === true,
+        }),
+      };
     }
-    return {
-      ...snapshot,
-      effects: Object.freeze({
-        readOnly: snapshot.effects.readOnly === true,
-        destructive: snapshot.effects.destructive === true,
-        idempotent: snapshot.effects.idempotent === true,
-      }),
-    };
+    if (snapshot.consent !== undefined) {
+      snapshot = {
+        ...snapshot,
+        consent: snapshotConsentPolicy(snapshot.consent),
+      };
+    }
+    return snapshot;
   } catch {
     throw new TypeError(
       "Invalid Concierge configuration: an action's effects could not be read.",
@@ -688,13 +913,13 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       : authoredResult(false, declared.message, declared.reason);
   }
 
-  /** Capture the active bridge early without replacing its later live resolve. */
-  function captureReviewSnapshot(
+  /** Detach one already-resolved bridge without reading its registry again. */
+  function captureResolvedSnapshot(
     index: number | null,
+    bridge: Bridge | null,
   ): Readonly<Record<string, unknown>> {
     const stage: ConciergeConfig["stages"][number] | undefined =
       index === null ? undefined : stages[index];
-    const bridge: Bridge | null = stage === undefined ? null : resolveBridge(stage);
     const bridgeId: string = stage?.bridge?.id ?? stage?.id ?? "cross-stage";
     return Object.freeze(
       captureSnapshot(
@@ -703,6 +928,16 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         capturedConsent.normalizeSnapshot,
       ),
     );
+  }
+
+  /** Capture the active bridge early without replacing its later live resolve. */
+  function captureReviewSnapshot(
+    index: number | null,
+  ): Readonly<Record<string, unknown>> {
+    const stage: ConciergeConfig["stages"][number] | undefined =
+      index === null ? undefined : stages[index];
+    const bridge: Bridge | null = stage === undefined ? null : resolveBridge(stage);
+    return captureResolvedSnapshot(index, bridge);
   }
 
   /** Arm one owned pending generation from a completed delivery report. */
@@ -739,10 +974,44 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       return;
     }
 
+    let observedAct: unknown;
+    try {
+      const attestation: unknown = report.attestation;
+      if (attestation !== undefined) {
+        if (typeof attestation !== "object" || attestation === null) {
+          closeConsentGeneration(reviewName, pending.generation);
+          return;
+        }
+        observedAct = (attestation as { readonly act?: unknown }).act;
+        if (
+          observedAct !== "confirmed" &&
+          observedAct !== "declined" &&
+          observedAct !== "dismissed"
+        ) {
+          closeConsentGeneration(reviewName, pending.generation);
+          return;
+        }
+      }
+    } catch {
+      closeConsentGeneration(reviewName, pending.generation);
+      return;
+    }
+
+    if (observedAct === "declined" || observedAct === "dismissed") {
+      consentGenerations?.set(
+        reviewName,
+        Object.freeze({ ...pending, status: observedAct }),
+      );
+      return;
+    }
+
     const achievedGrade: ConsentGrade = relayedGradeWithin(
       capturedConsent.profile.consentGrade,
     );
-    if (!isMeasuredConsentGrade(achievedGrade)) {
+    if (
+      !isMeasuredConsentGrade(achievedGrade) ||
+      achievedGrade === "attested"
+    ) {
       consentGenerations?.set(
         reviewName,
         Object.freeze({ ...pending, status: "gradeUnavailable" }),
@@ -1003,6 +1272,12 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       );
     }
 
+    const replacesReviewAuthority: boolean = reviewNames.has(name);
+    if (replacesReviewAuthority) {
+      // Validation is the freshness boundary. Every later failure stays closed.
+      consentGenerations?.delete(name);
+    }
+
     const validatedSnapshot: InvocationValueSnapshot = snapshotInvocationValue(
       validation.value,
       true,
@@ -1018,7 +1293,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     let reviewingGeneration:
       | (ConsentGenerationBase & { readonly status: "reviewing" })
       | null = null;
-    if (reviewNames.has(name)) {
+    if (replacesReviewAuthority) {
       nextConsentGeneration += 1n;
       reviewingGeneration = Object.freeze({
         generation: nextConsentGeneration,
@@ -1103,12 +1378,14 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       );
     }
 
+    let consentAck: ConsentAck<unknown, unknown> | undefined;
     const policy: ConsentPolicy<unknown> | undefined = entry.action.consent;
     if (policy !== undefined) {
+      const reviewName: string = policy.requires;
       const owned: ConsentGeneration | undefined =
-        consentGenerations?.get(policy.requires);
+        consentGenerations?.get(reviewName);
       if (owned?.status === "gradeUnavailable") {
-        consentGenerations?.delete(policy.requires);
+        closeConsentGeneration(reviewName, owned.generation);
         closeOwnedReview();
         return authoredResult(
           false,
@@ -1116,12 +1393,44 @@ export function createConcierge(config: ConciergeConfig): Concierge {
           "grade_unavailable",
         );
       }
+      if (owned?.status === "declined" || owned?.status === "dismissed") {
+        closeConsentGeneration(reviewName, owned.generation);
+        closeOwnedReview();
+        return owned.status === "declined" ? USER_DECLINED : USER_CANCELLED;
+      }
       if (owned?.status !== "armed") {
         closeOwnedReview();
         return missingConsentResult(policy);
       }
+
+      if (
+        !hasFreshConsentBoundary(
+          policy,
+          owned,
+          meta,
+          capturedConsent.profile,
+        )
+      ) {
+        closeOwnedReview();
+        return missingConsentResult(policy);
+      }
+
       if (!isMeasuredConsentGrade(owned.achievedGrade)) {
-        consentGenerations?.delete(policy.requires);
+        closeConsentGeneration(reviewName, owned.generation);
+        closeOwnedReview();
+        return authoredResult(
+          false,
+          "The available consent evidence is not strong enough for this action.",
+          "grade_unavailable",
+        );
+      }
+      const minimumGrade: ConsentGrade = effectiveConsentMinimum(
+        policy.minGrade,
+      );
+      if (
+        consentGradeRank(owned.achievedGrade) < consentGradeRank(minimumGrade)
+      ) {
+        closeConsentGeneration(reviewName, owned.generation);
         closeOwnedReview();
         return authoredResult(
           false,
@@ -1130,8 +1439,57 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         );
       }
 
+      let snapshotsMatch: boolean = false;
+      try {
+        const currentSnapshot: Readonly<Record<string, unknown>> =
+          captureResolvedSnapshot(index, bridge);
+        const comparator: ConsentPolicy<unknown>["snapshotEquality"] =
+          policy.snapshotEquality;
+        snapshotsMatch = comparator === undefined
+          ? strictSnapshotEquality(owned.snapshot, currentSnapshot)
+          : comparator(owned.snapshot, currentSnapshot) === true;
+      } catch {
+        snapshotsMatch = false;
+      }
+      if (!snapshotsMatch) {
+        closeConsentGeneration(reviewName, owned.generation);
+        closeOwnedReview();
+        return authoredResult(
+          false,
+          "The reviewed state changed before this action could run.",
+          "consent_stale",
+        );
+      }
+
+      // A consumer comparator may synchronously abort while it evaluates.
+      if (isAborted(signal)) {
+        closeOwnedReview();
+        return authoredResult(
+          false,
+          "The action was cancelled before it ran.",
+          "aborted",
+        );
+      }
+
+      const stillOwned: ConsentGeneration | undefined =
+        consentGenerations?.get(reviewName);
+      if (
+        stillOwned?.status !== "armed" ||
+        stillOwned.generation !== owned.generation
+      ) {
+        closeOwnedReview();
+        return missingConsentResult(policy);
+      }
+
       // Authority is one-shot across every action sharing this review name.
-      consentGenerations?.delete(policy.requires);
+      closeConsentGeneration(reviewName, owned.generation);
+      consentAck = Object.freeze({
+        grade: owned.achievedGrade,
+        payload: owned.payload,
+        responseId: owned.responseId,
+        snapshot: owned.snapshot,
+        userTurnId: owned.userTurnId,
+      });
     }
 
     let handlerReturn: unknown;
@@ -1140,7 +1498,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         args: validatedSnapshot.value,
         bridge,
         meta,
-        ack: undefined,
+        ack: consentAck,
       });
     } catch {
       closeOwnedReview();
