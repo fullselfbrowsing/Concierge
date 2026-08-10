@@ -371,6 +371,41 @@ function stage(id: string, match: unknown, actions: unknown[], bridge?: unknown)
     : { id, match, actions, bridge };
 }
 
+const DELIVERED_PROFILE = {
+  consentGrade: "delivered",
+  userTurnIdentity: "none",
+};
+
+const ATTESTED_PROFILE = {
+  consentGrade: "attested",
+  userTurnIdentity: "human-attested",
+};
+
+const PRESENT_READBACK = async () => ({
+  hash: "concierge-construction",
+  alg: "SHA-256",
+  canonicalization: "JCS",
+  canonical: new Uint8Array(),
+});
+
+const DIGEST = {
+  async digest() {
+    return new ArrayBuffer(0);
+  },
+};
+
+function privateConsentProfile(concierge) {
+  const symbols = Object.getOwnPropertySymbols(concierge);
+  expect(symbols).toHaveLength(1);
+  const descriptor = Object.getOwnPropertyDescriptor(concierge, symbols[0]);
+  expect(descriptor).toMatchObject({
+    enumerable: false,
+    writable: false,
+    configurable: false,
+  });
+  return descriptor.value;
+}
+
 // The canonical two-stage config, built fresh per case because `beforeEach`
 // clears the contract registry and because STG-04's whole subject is the
 // INSTANCE-LOCAL memo — a shared instance across cases would let one case's
@@ -653,6 +688,7 @@ describe("CAT-03 — a consent policy may name a CROSS-STAGE action, which only 
         ]),
       ],
       crossStage: [declare("signOut", zodEmptyObject)],
+      consentProfile: DELIVERED_PROFILE,
     });
 
     expect(concierge.catalogFor({ pathname: "/x" }).map((t) => t.name)).toEqual([
@@ -671,8 +707,226 @@ describe("CAT-03 — a consent policy may name a CROSS-STAGE action, which only 
           ]),
         ],
         crossStage: [declare("signOut", zodEmptyObject)],
+        consentProfile: DELIVERED_PROFILE,
       }),
     ).toThrow(CatalogValidationError);
+  });
+});
+
+describe("CAT-04 — createConcierge captures one private factory-local consent profile", () => {
+  function attestedActions() {
+    return [
+      declare("review", zodObject),
+      declare("confirm", zodObject, {
+        consent: {
+          requires: "review",
+          bindTo: "response",
+          minGrade: "attested",
+        },
+      }),
+    ];
+  }
+
+  it("S27 — caller mutation cannot change the detached frozen private profile", () => {
+    const supplied = {
+      consentGrade: "delivered",
+      userTurnIdentity: "none",
+    };
+    const concierge = createConcierge({
+      stages: [
+        stage("active", () => true, [
+          declare("review", zodObject),
+          declare("confirm", zodObject, {
+            consent: { requires: "review", bindTo: "response" },
+          }),
+        ]),
+      ],
+      consentProfile: supplied,
+    });
+
+    const captured = privateConsentProfile(concierge);
+    expect(captured).toEqual(DELIVERED_PROFILE);
+    expect(captured).not.toBe(supplied);
+    expect(Object.isFrozen(captured)).toBe(true);
+
+    supplied.consentGrade = "none";
+    supplied.userTurnIdentity = "human-attested";
+    expect(captured).toEqual(DELIVERED_PROFILE);
+  });
+
+  it("S28 — interleaved factories retain different profiles without sharing authority", () => {
+    const first = createConcierge({
+      stages: [stage("first", () => true, [])],
+      consentProfile: DELIVERED_PROFILE,
+    });
+    const second = createConcierge({
+      stages: [stage("second", () => true, attestedActions())],
+      consentProfile: ATTESTED_PROFILE,
+      presentReadback: PRESENT_READBACK,
+      digest: DIGEST,
+    });
+
+    const firstProfile = privateConsentProfile(first);
+    const secondProfile = privateConsentProfile(second);
+    expect(firstProfile).toEqual(DELIVERED_PROFILE);
+    expect(secondProfile).toEqual(ATTESTED_PROFILE);
+    expect(firstProfile).not.toBe(secondProfile);
+    expect(privateConsentProfile(first)).toBe(firstProfile);
+  });
+
+  it("S29 — absence becomes frozen none/none while the public handle stays five-key and unfrozen", () => {
+    const concierge = createConcierge({
+      stages: [stage("active", () => true, [declare("ungated", zodObject)])],
+    });
+
+    expect(privateConsentProfile(concierge)).toEqual({
+      consentGrade: "none",
+      userTurnIdentity: "none",
+    });
+    expect(Object.keys(concierge)).toEqual([
+      "dispatch",
+      "dispatchBatch",
+      "catalogFor",
+      "stageFor",
+      "explain",
+    ]);
+    expect("consentProfile" in concierge).toBe(false);
+    expect(Object.isFrozen(concierge)).toBe(false);
+  });
+
+  it("S30 — profile and evidence getters are captured exactly once before the flat build", () => {
+    const reads = {
+      consentProfile: 0,
+      presentReadback: 0,
+      digest: 0,
+      normalizeSnapshot: 0,
+    };
+    const config = {
+      stages: [stage("active", () => true, attestedActions())],
+      get consentProfile() {
+        reads.consentProfile += 1;
+        return ATTESTED_PROFILE;
+      },
+      get presentReadback() {
+        reads.presentReadback += 1;
+        return PRESENT_READBACK;
+      },
+      get digest() {
+        reads.digest += 1;
+        return DIGEST;
+      },
+      get normalizeSnapshot() {
+        reads.normalizeSnapshot += 1;
+        return (value) => value;
+      },
+    };
+
+    const concierge = createConcierge(config);
+    expect(privateConsentProfile(concierge)).toEqual(ATTESTED_PROFILE);
+    expect(reads).toEqual({
+      consentProfile: 1,
+      presentReadback: 1,
+      digest: 1,
+      normalizeSnapshot: 1,
+    });
+  });
+
+  it("S31 — invalid, accessor-backed, throwing, and exotic profiles fail with one fixed safe error", () => {
+    const expected =
+      "Invalid Concierge configuration: consentProfile must contain data-only consentGrade and userTurnIdentity fields with supported values.";
+    const secret = "PROFILE-SECRET-MUST-NOT-ECHO";
+    let accessorReads = 0;
+    const accessorProfile = {
+      get consentGrade() {
+        accessorReads += 1;
+        throw new Error(secret);
+      },
+      userTurnIdentity: "none",
+    };
+    const throwingProxy = new Proxy({}, {
+      getOwnPropertyDescriptor() {
+        throw new Error(secret);
+      },
+    });
+
+    for (const profile of [
+      { consentGrade: "unknown", userTurnIdentity: "none" },
+      accessorProfile,
+      throwingProxy,
+      new Date(0),
+    ]) {
+      let caught;
+      try {
+        createConcierge({ stages: [], consentProfile: profile });
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(TypeError);
+      expect(caught.message).toBe(expected);
+      expect(caught.message).not.toContain(secret);
+    }
+    expect(accessorReads).toBe(0);
+  });
+
+  it("S32 — attested construction reports each missing seam and succeeds only with both", () => {
+    const base = {
+      stages: [stage("active", () => true, attestedActions())],
+      consentProfile: ATTESTED_PROFILE,
+    };
+
+    let missingBoth;
+    try {
+      createConcierge(base);
+    } catch (error) {
+      missingBoth = error;
+    }
+    expect(missingBoth.issues.map((issue) => issue.code)).toEqual([
+      "readback_presenter_missing",
+      "digest_missing",
+    ]);
+
+    let missingDigest;
+    try {
+      createConcierge({ ...base, presentReadback: PRESENT_READBACK });
+    } catch (error) {
+      missingDigest = error;
+    }
+    expect(missingDigest.issues.map((issue) => issue.code)).toEqual([
+      "digest_missing",
+    ]);
+
+    const complete = createConcierge({
+      ...base,
+      presentReadback: PRESENT_READBACK,
+      digest: DIGEST,
+    });
+    expect(complete.catalogFor({}).map((tool) => tool.name)).toEqual([
+      "review",
+      "confirm",
+    ]);
+  });
+
+  it("S33 — construction emits each action schema exactly once through one catalog build", () => {
+    let emissions = 0;
+    const schema = {
+      "~standard": {
+        version: 1,
+        vendor: "one-flat-build",
+        validate: (value) => ({ value }),
+        jsonSchema: {
+          input() {
+            emissions += 1;
+            return { type: "object" };
+          },
+        },
+      },
+    };
+
+    const concierge = createConcierge({
+      stages: [stage("active", () => true, [declare("only", schema)])],
+    });
+    expect(emissions).toBe(1);
+    expect(concierge.catalogFor({}).map((tool) => tool.name)).toEqual(["only"]);
   });
 });
 

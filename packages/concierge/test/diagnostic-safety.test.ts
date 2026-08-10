@@ -9,6 +9,10 @@ const KEY = Symbol.for("@fullselfbrowsing/concierge.contract");
 const HOSTILE_SUBJECT =
   `quote"\\newline\nreturn\ransi\u001b\u009bline\u2028paragraph\u2029bidi\u202e` +
   "x".repeat(300);
+const DELIVERED_PROFILE = {
+  consentGrade: "delivered",
+  userTurnIdentity: "none",
+};
 
 let buildCatalog;
 let captureSnapshot;
@@ -234,11 +238,14 @@ it("encodes catalog build-error action subjects while preserving structured valu
 it("encodes consent targets in catalog messages while preserving raw issue text", () => {
   let error;
   try {
-    buildCatalog([
-      action("confirm", () => ({ ok: true, message: "unused" }), {
-        consent: { requires: HOSTILE_SUBJECT },
-      }),
-    ]);
+    buildCatalog(
+      [
+        action("confirm", () => ({ ok: true, message: "unused" }), {
+          consent: { requires: HOSTILE_SUBJECT },
+        }),
+      ],
+      { consentProfile: DELIVERED_PROFILE },
+    );
   } catch (caught) {
     error = caught;
   }
@@ -250,4 +257,56 @@ it("encodes consent targets in catalog messages while preserving raw issue text"
   expect(lines).toHaveLength(2);
   expectEncodedSubject(lines[1], "consent_target_missing");
   expect(lines[1].length).toBeLessThan(900);
+});
+
+it("contains hostile consent-profile accessors and proxy traps behind fixed prose", () => {
+  const secret = "PROFILE-DIAGNOSTIC-SECRET-MUST-NOT-ECHO";
+  const expected =
+    "Invalid Concierge configuration: consentProfile must contain data-only consentGrade and userTurnIdentity fields with supported values.";
+  let nestedReads = 0;
+  const accessorProfile = {
+    get consentGrade() {
+      nestedReads += 1;
+      throw new Error(secret);
+    },
+    userTurnIdentity: "none",
+  };
+  const throwingProxy = new Proxy({}, {
+    getOwnPropertyDescriptor() {
+      throw new Error(secret);
+    },
+  });
+
+  for (const profile of [accessorProfile, throwingProxy]) {
+    let caught;
+    try {
+      createConcierge({ stages: [], consentProfile: profile });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(TypeError);
+    expect(caught.message).toBe(expected);
+    expect(caught.message).not.toContain(secret);
+  }
+  expect(nestedReads).toBe(0);
+
+  let outerReads = 0;
+  const config = { stages: [] };
+  Object.defineProperty(config, "consentProfile", {
+    enumerable: true,
+    get() {
+      outerReads += 1;
+      throw new Error(secret);
+    },
+  });
+  let outerError;
+  try {
+    createConcierge(config);
+  } catch (error) {
+    outerError = error;
+  }
+  expect(outerReads).toBe(1);
+  expect(outerError).toBeInstanceOf(TypeError);
+  expect(outerError.message).toBe(expected);
+  expect(outerError.message).not.toContain(secret);
 });
