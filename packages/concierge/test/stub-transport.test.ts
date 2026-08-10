@@ -395,3 +395,221 @@ it("[U08] keeps the no-I/O fixture outside production source and package exports
   for (const token of forbiddenTokens) expect(fixtureSource).not.toContain(token);
   expect(fixtureSource).not.toMatch(new RegExp("fetch\\s*\\("));
 });
+
+it("[T-08-02/T-08-06] keeps delivery lifecycle controls beside the exact six-key transport", () => {
+  const stub = createStubTransport({
+    capabilities: COMMAND_PALETTE_CAPABILITIES,
+    initialStatus: "connected",
+  });
+  const observedReports = [];
+  const firstReport = {
+    responseId: "review-response",
+    outcome: "completed",
+    readbackHash: "a".repeat(64),
+    attestation: {
+      act: "confirmed",
+      userTurnId: "human-turn-two",
+      readbackHash: "a".repeat(64),
+    },
+  };
+
+  stub.deferUntilDelivered((report) => {
+    observedReports.push(report);
+  });
+  expect(stub.deliveryCallbackCount()).toBe(1);
+
+  stub.emitDelivery(0, firstReport);
+  firstReport.outcome = "interrupted";
+  firstReport.attestation.act = "declined";
+  stub.emitDelivery(0, {
+    responseId: "review-response",
+    outcome: "interrupted",
+  });
+
+  expect(Object.keys(stub.transport)).toEqual([
+    "capabilities",
+    "status",
+    "setTools",
+    "onStatusChange",
+    "onToolBatch",
+    "respond",
+  ]);
+  expect(Object.keys(stub).sort()).toEqual([
+    "catalogHistory",
+    "deferUntilDelivered",
+    "deliveryCallbackCount",
+    "deliveryHistory",
+    "emitBatch",
+    "emitDelivery",
+    "emitStatus",
+    "eventHistory",
+    "outcomeHistory",
+    "presentOutcome",
+    "responseHistory",
+    "subscriberCounts",
+    "successfulOutcomeHistory",
+    "successfulResponseHistory",
+    "transport",
+  ]);
+  expect("deferUntilDelivered" in stub.transport).toBe(false);
+  expect("emitDelivery" in stub.transport).toBe(false);
+  expect("presentOutcome" in stub.transport).toBe(false);
+  expect(observedReports).toHaveLength(2);
+  expect(observedReports[0]).toBe(firstReport);
+
+  const deliveries = stub.deliveryHistory();
+  expect(deliveries).toEqual([
+    {
+      sequence: 1,
+      deliveryIndex: 0,
+      report: {
+        responseId: "review-response",
+        outcome: "completed",
+        readbackHash: "a".repeat(64),
+        attestation: {
+          act: "confirmed",
+          userTurnId: "human-turn-two",
+          readbackHash: "a".repeat(64),
+        },
+      },
+    },
+    {
+      sequence: 2,
+      deliveryIndex: 0,
+      report: {
+        responseId: "review-response",
+        outcome: "interrupted",
+      },
+    },
+  ]);
+  expect(Object.isFrozen(deliveries)).toBe(true);
+  expect(Object.isFrozen(deliveries[0])).toBe(true);
+  expect(Object.isFrozen(deliveries[0].report)).toBe(true);
+  expect(Object.isFrozen(deliveries[0].report.attestation)).toBe(true);
+  expect(() => deliveries.push({})).toThrow(TypeError);
+  expect(() => {
+    deliveries[0].report.attestation.act = "dismissed";
+  }).toThrow(TypeError);
+});
+
+it("[T-08-08/T-08-10] records outcome and response attempts before sync and async failures", async () => {
+  const stub = createStubTransport({
+    capabilities: CONVERSATIONAL_CAPABILITIES,
+    outcomeBehaviors: ["completed", "interrupted", "throw", "reject"],
+    failures: {
+      respondAt: [2],
+      respondRejectAt: [3],
+    },
+  });
+  const outcomes = [
+    {
+      failures: [{ callId: "failure-one", reason: "declined", message: "No." }],
+    },
+    {
+      failures: [{ callId: "failure-two", reason: "cancelled", message: "Later." }],
+    },
+    {
+      failures: [{ callId: "failure-three", reason: "aborted", message: "Stopped." }],
+    },
+    {
+      failures: [{ callId: "failure-four", reason: undefined, message: "Failed." }],
+    },
+  ];
+  const results = [
+    { ok: true, message: "Response one." },
+    { ok: false, reason: "declined", message: "Response two." },
+    { ok: false, reason: "cancelled", message: "Response three." },
+  ];
+
+  await expect(stub.presentOutcome(outcomes[0])).resolves.toEqual({
+    outcome: "completed",
+  });
+  stub.transport.respond("response-one", results[0]);
+  await expect(stub.presentOutcome(outcomes[1])).resolves.toEqual({
+    outcome: "interrupted",
+  });
+  expect(() => stub.transport.respond("response-two", results[1])).toThrowError(
+    "Stub transport injected respond failure.",
+  );
+  expect(() => stub.presentOutcome(outcomes[2])).toThrowError(
+    "Stub transport injected outcome failure.",
+  );
+  await expect(stub.transport.respond("response-three", results[2])).rejects.toThrowError(
+    "Stub transport injected respond rejection.",
+  );
+  await expect(stub.presentOutcome(outcomes[3])).rejects.toThrowError(
+    "Stub transport injected outcome rejection.",
+  );
+
+  outcomes[0].failures[0].message = "MUTATED OUTCOME";
+  results[0].message = "MUTATED RESPONSE";
+
+  expect(stub.outcomeHistory().map(({ behavior, sequence }) => ({ behavior, sequence }))).toEqual([
+    { behavior: "completed", sequence: 1 },
+    { behavior: "interrupted", sequence: 3 },
+    { behavior: "throw", sequence: 5 },
+    { behavior: "reject", sequence: 7 },
+  ]);
+  const responses = stub.responseHistory();
+  expect(responses).toEqual([
+    { callId: "response-one", result: { ok: true, message: "Response one." } },
+    {
+      callId: "response-two",
+      result: { ok: false, reason: "declined", message: "Response two." },
+    },
+    {
+      callId: "response-three",
+      result: { ok: false, reason: "cancelled", message: "Response three." },
+    },
+  ]);
+  expect(stub.successfulOutcomeHistory()).toEqual([
+    {
+      failures: [{ callId: "failure-one", reason: "declined", message: "No." }],
+    },
+  ]);
+  const successfulResponses = stub.successfulResponseHistory();
+  expect(successfulResponses).toEqual([
+    { callId: "response-one", result: { ok: true, message: "Response one." } },
+  ]);
+  expect(responses[0].result).not.toBe(results[0]);
+  expect(successfulResponses[0].result).not.toBe(results[0]);
+  expect(Object.isFrozen(responses)).toBe(true);
+  expect(responses.every((response) => Object.isFrozen(response))).toBe(true);
+  expect(responses.every(({ result }) => Object.isFrozen(result))).toBe(true);
+  expect(Object.isFrozen(successfulResponses)).toBe(true);
+  expect(successfulResponses.every((response) => Object.isFrozen(response))).toBe(true);
+  expect(successfulResponses.every(({ result }) => Object.isFrozen(result))).toBe(true);
+  expect(() => responses.push({})).toThrow(TypeError);
+  expect(() => {
+    responses[0].result.message = "REWRITTEN HISTORY";
+  }).toThrow(TypeError);
+  expect(() => {
+    successfulResponses[0].callId = "rewritten-call";
+  }).toThrow(TypeError);
+
+  const events = stub.eventHistory();
+  expect(events.map(({ sequence, type, behavior }) => ({
+    sequence,
+    type,
+    ...(behavior === undefined ? {} : { behavior }),
+  }))).toEqual([
+    { sequence: 1, type: "outcome", behavior: "completed" },
+    { sequence: 2, type: "response", behavior: "completed" },
+    { sequence: 3, type: "outcome", behavior: "interrupted" },
+    { sequence: 4, type: "response", behavior: "throw" },
+    { sequence: 5, type: "outcome", behavior: "throw" },
+    { sequence: 6, type: "response", behavior: "reject" },
+    { sequence: 7, type: "outcome", behavior: "reject" },
+  ]);
+  expect(events[0].outcome.failures[0].message).toBe("No.");
+  expect(events[1].result.message).toBe("Response one.");
+  expect(Object.isFrozen(events)).toBe(true);
+  expect(events.every((event) => Object.isFrozen(event))).toBe(true);
+  expect(Object.isFrozen(events[0].outcome)).toBe(true);
+  expect(Object.isFrozen(events[0].outcome.failures)).toBe(true);
+  expect(Object.isFrozen(events[0].outcome.failures[0])).toBe(true);
+  expect(Object.isFrozen(events[1].result)).toBe(true);
+  expect(() => {
+    events[0].sequence = 99;
+  }).toThrow(TypeError);
+});
