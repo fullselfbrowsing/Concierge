@@ -219,9 +219,9 @@ const REQUIRED_RESEARCH_CONSTRAINTS = Object.freeze([
 ]);
 const REQUIRED_SOURCE_CLASSES = Object.freeze(["GOAL", "REQ", "RESEARCH", "CONTEXT"]);
 const MUTATION_DISTRIBUTION_LEDGER =
-  "15 generation / 14 evidence / 7 capability / 7 outcome / 4 package (`15/14/7/7/4`)";
+  "15 generation / 15 evidence / 7 capability / 7 outcome / 4 package (`15/15/7/7/4`)";
 const MUTATION_OUTCOME_LEDGER =
-  "47/47 green; zero pending, zero escaped, zero failed";
+  "48/48 green; zero pending, zero escaped, zero failed";
 const MUTATION_SHARDS_LEDGER =
   "Bounded to at most four concurrent disposable mutation workers";
 
@@ -779,6 +779,17 @@ const MUTANTS = Object.freeze([
     threats: ["T-08-05"],
     decisions: ["D-08-17"],
   }),
+  runtimeMutant({
+    id: "M-08-E15",
+    group: "evidence",
+    name: "contradictory attested claim falls through to relayed authority",
+    target: "packages/concierge/src/concierge.ts",
+    literalPattern: "    if (hasAttestedClaim && !completeAttestedClaim) {",
+    replacement: "    if (false) {",
+    intendedCaseIds: ["E14"],
+    threats: ["T-08-04", "T-08-05", "T-08-06"],
+    decisions: ["D-08-12"],
+  }),
 
   runtimeMutant({
     id: "M-08-C01",
@@ -1057,7 +1068,7 @@ export const EXPECTED_GENERATION_IDS = Object.freeze(
   ),
 );
 export const EXPECTED_EVIDENCE_IDS = Object.freeze(
-  Array.from({ length: 14 }, (_, index) =>
+  Array.from({ length: 15 }, (_, index) =>
     `M-08-E${String(index + 1).padStart(2, "0")}`,
   ),
 );
@@ -1255,7 +1266,7 @@ function selectorOccurrences(mutant, readSource = (path) => readFileSync(join(RO
 function validateRequiredMappings(mutants) {
   const expectedCounts = Object.freeze({
     generation: 15,
-    evidence: 14,
+    evidence: 15,
     capability: 7,
     outcome: 7,
     package: 4,
@@ -1404,7 +1415,7 @@ function makeRegister() {
     schemaVersion: SCHEMA_VERSION,
     phase: "08-consent-kernel",
     sourceShapeReconciliation:
-      "C07 targets the live rank-comparison/effectiveMinGrade ternary, which is semantically identical to the planned max(delivered, requested) floor.",
+      "C07 targets the live rank-comparison/effectiveMinGrade ternary, which is semantically identical to the planned max(delivered, requested) floor. E15 is the post-review D-08-12 control that resurrects contradictory-attestation downgrade into relayed authority.",
     expectedGenerationIds: EXPECTED_GENERATION_IDS,
     expectedEvidenceIds: EXPECTED_EVIDENCE_IDS,
     expectedCapabilityIds: EXPECTED_CAPABILITY_IDS,
@@ -2697,7 +2708,7 @@ async function runAll(jobs) {
     });
     recordReleaseEvidence(evidence, release);
     console.log(
-      `PASS: 47/47 mutants green with ${jobs} disposable workers; immutable seven-gate release snapshot ${release.revisionDigest}`,
+      `PASS: 48/48 mutants green with ${jobs} disposable workers; immutable seven-gate release snapshot ${release.revisionDigest}`,
     );
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -2970,7 +2981,7 @@ function validateApproval(validationText, registerDigestValue) {
     throw new Error("validation approval is still pending");
   }
   const approvalPattern = new RegExp(
-    `\\*\\*Approval:\\*\\* approved \\d{4}-\\d{2}-\\d{2} — register ${registerDigestValue}; 47/47 green; seven release gates green`,
+    `\\*\\*Approval:\\*\\* approved \\d{4}-\\d{2}-\\d{2} — register ${registerDigestValue}; 48/48 green; seven release gates green`,
     "u",
   );
   if (!approvalPattern.test(validationText)) {
@@ -3844,9 +3855,9 @@ function selfTest() {
   const initialEvidence = makeInitialEvidence();
   validateEvidenceShape(initialEvidence);
   assert(
-    initialEvidence.rows.length === 47 &&
+    initialEvidence.rows.length === 48 &&
       initialEvidence.rows.every((row) => row.status === "pending"),
-    "refresh fixture must contain exactly 47 pending rows",
+    "refresh fixture must contain exactly 48 pending rows",
   );
   assert(
     JSON.stringify(Object.keys(register.inputHashes).sort()) ===
@@ -3856,7 +3867,7 @@ function selfTest() {
   const definitionDigests = register.mutants.map((mutant) => mutant.definitionDigest);
   const mutantHashes = register.mutants.map((mutant) => mutant.mutantTargetHash);
   assert(
-    new Set(definitionDigests).size === 47 && new Set(mutantHashes).size === 47,
+    new Set(definitionDigests).size === 48 && new Set(mutantHashes).size === 48,
     "every mutant must have a unique definition and mutant-target digest",
   );
   assert(
