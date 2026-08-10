@@ -1,6 +1,6 @@
 ---
 phase: 07-session-and-the-transport-seam
-reviewed: 2026-08-09T21:46:56Z
+reviewed: 2026-08-10T02:44:26Z
 depth: standard
 files_reviewed: 3
 files_reviewed_list:
@@ -17,7 +17,7 @@ status: issues_found
 
 # Phase 7: Code Review Report
 
-**Reviewed:** 2026-08-09T21:46:56Z
+**Reviewed:** 2026-08-10T02:44:26Z
 
 **Depth:** standard
 
@@ -27,53 +27,57 @@ status: issues_found
 
 ## Summary
 
-The exception-drain repair closes the prior CR-01 in its reported scope. `drainTransitions()` now retains the first exact thrown value, continues draining every reentrant transition, performs binding and pump cleanup once, and only then rethrows. Independent built-distribution probes covered multiple queued connected/context transitions, connected-replay getter and callable reentry, secondary replay failures, stop during replay, exact first-error identity, cached stop, dispatch/response cardinality, and diagnostic secrecy. No stranded transition, duplicate drain, or secondary-error replacement was observed.
+The submitted active-authority repair closes both findings from the preceding review in their reported scope. `activeRequestedAuthority` now survives the queue shift, C21 exercises the active C generation across direct/reentrant, supersession, repeated-generation, connected-replay, and stop variants, and M-07-C15 disables only that new branch. C20/M-07-C14 remain separately exact for work admitted while a later request is still queued. Independent reruns killed M-07-C13, M-07-C14, and M-07-C15 with exactly C19, C20, and C21 respectively, each with its sole declared RED marker and a clean restored target.
 
-The requested-authority repair is incomplete. C20 proves the case where C remains in `transitionQueue` while B's boundary emits work. It does not cover work emitted from C's own resolver or capability boundary after C has been shifted out of the queue but before C is confirmed. In that state, `acceptBatch()` still binds the occurrence to confirmed A. This is an authority-isolation defect and remains a release blocker.
+The wider failure-recovery trace exposes a new authority defect. If the current requested transition C throws after queuing a connected replay, the catch clears `activeRequestedAuthority` but leaves the raw requested state at failed C. `processConnected()` then publishes confirmed A while using failed C as the freshness baseline. Work emitted by that replay is initially recorded as unlinked C work. Ordinary completion masks the defect by generically rebinding it to A, so C21 passes; a same-catalog D request or stop inside that replay exposes the wrong identity and cancellation behavior.
 
-| Reviewed closure | Disposition | Independent evidence |
+| Review item | Disposition | Independent evidence |
 |---|---|---|
-| Prior CR-01 — current exception strands queued transition | Closed | Expanded return/throw and replay-reentry probes preserved the first exact failure while every queued transition reached a coherent terminal state. C19 and M-07-C13 are exact for the submitted drain-progress branch. |
-| Prior CR-02 — post-request admission authority | Not closed | The submitted B-boundary/C-queued scenario is repaired, but active C with an empty queue still admits its own boundary-time work as A. |
-| Prior WR-01 — regression and mutation coverage | Partially closed | The register now has exact C19/C20 mutants and internally consistent evidence, but C20/M-07-C14 cannot observe the active-C queue-shift state. |
+| Prior CR-01 — active request loses authority after the queue shift | Closed in submitted scope | The explicit active record at `session.ts:1131-1134` feeds the admission branch at `session.ts:719-722`; the expanded C21 matrix and exact M-07-C15 rerun detect removal of that branch. |
+| Prior WR-01 — missing detector for active C authority | Closed in submitted scope | C21 and M-07-C15 are separate from C20/M-07-C14 and preserve the intended 36-row catalog. |
+| New CR-01 — failed C poisons confirmed-A replay authority | Open | Independent built-artifact same-catalog-D and direct-stop probes reproduce the incorrect C/D ownership described below. |
+| New WR-01 — no detector interrupts the post-failure replay before generic binding | Open | C21 observes an uninterrupted replay; M-07-C15 mutates only the active-request branch and cannot expose stale failed requested state. |
 
-All submitted gates passed: build, package typecheck, catalog 28/28, routing 18/18, lifecycle 21/21, focused C17-C20 4/4, mutation syntax, mutation self-test, `verify all` 35/35, and `verify inputs` 3/3. The 35-row register digest and 68-path release digest recomputed exactly. `verify ledgers` also passed in a disposable detached worktree; its evidence rewrite never touched the live workspace. Those green results do not exercise the counterexample below.
+All mechanical gates passed: the seven-command release gate, 16 test files/330 tests, package build and typecheck, catalog 29/29, routing 18/18, lifecycle 21/21, focused C17-C21 5/5, mutation syntax/self-test, `verify all` 36/36, `verify inputs` for all three protected files, and `verify ledgers` in a disposable detached worktree. The evidence retains register digest `5d9d5b6dc291ab65e99b386c6edd568c16dfdd61cd29c569dabc9a8187761262` and immutable release revision digest `727775bf23ed7364d08ecd248fbc23a6b57fc11fa707b384a4ed7bfe48416e0e`. These green gates are internally consistent but do not exercise the counterexample.
 
-**Advance verdict:** No advance. Security re-audit and formal verification must wait until CR-01 below and its detector gap are fixed, regenerated, and independently re-reviewed.
+**Advance verdict:** No advance. Security re-audit and formal verification must not proceed until CR-01 and WR-01 are fixed, the mutation/release evidence is regenerated, and an independent re-review passes.
 
 ## Narrative Findings (AI reviewer)
 
 ## Critical Issues
 
-### CR-01: The active requested transition loses its authority after the queue shift
+### CR-01: A failed requested context poisons queued confirmed-replay authority
 
 **Classification:** BLOCKER
 
-**File:** `packages/concierge/src/session.ts:708-719, 1098-1117`
+**File:** `packages/concierge/src/session.ts:675-713, 1064-1113, 1140-1148`
 
-**Issue:** `acceptBatch()` treats a request as C-owned only while `transitionQueue.length !== 0`. `drainTransitions()` removes C with `shift()` before calling `processContext(C)`. Consequently, while C's own `catalogFor`, `stageFor`, `transport.capabilities`, or `dynamicCatalog` boundary is executing, the queue can be empty and `publicationPending` can still be false. A synchronous batch emitted at that boundary falls through to the confirmed branch and is immediately bound to A's context and epoch, even though the exact active request is C.
+**Issue:** Consider confirmed A followed by `setContext(C)`. C synchronously queues a `connected` control and then throws. The catch at lines 1140-1148 clears only the active authority record; `requestedContext` and `requestedGeneration` still identify failed C. The queued connected transition then enters `processConnected()`, where the catalog, context, and epoch come from confirmed A, but `authorityGeneration` and `authorityContext` come from failed C. As a result, `publishingContext` is A while the freshness baseline remains C. A batch emitted by `setTools(A)` makes `publicationMatchesRequest` false and falls through at lines 698-706 to an unlinked `unpublished-attempt` stamped with requested C rather than confirmed A.
 
-Built-distribution probes reproduced the defect across all six boundary shapes and return/throw outcomes. Resolver boundaries failed with both same and distinct C catalogs; capability boundaries failed with distinct catalogs, where those reads are reachable. On a successful same-catalog transition, the final stage was C and publications remained `[A]`, yet `inside-c` dispatched live under A and received a response. On a successful distinct-catalog transition, publications were `[A, C]`, but `inside-c` still dispatched under A with an aborted signal rather than under C. When the current C boundary threw, the exact sentinel was rethrown and the session remained at A, but `inside-c` nevertheless dispatched live under A and received a response. C-to-D supersession, repeated C generations, direct stop, and signal-driven stop likewise retained A as the occurrence context instead of the exact C generation.
+If nothing reenters, `bindQueuedOccurrences()` later binds this non-`requested-transition` occurrence to confirmed A and conceals the bad admission state. Two built-distribution probes exposed it before that fallback:
 
-This violates latest-request authority, same-catalog context capture, supersession cancellation, and stop-time context identity. A request can therefore execute against the wrong stage context while every submitted test and mutation row remains green.
+- With a same-catalog `setContext(D)` inside the replay hook, the exact C sentinel was preserved and the session reached D, but the batch that arrived before D was requested dispatched under D with an already-aborted signal. Publications were `[A, A]`; the occurrence should have remained live under A.
+- With direct `stop()` inside the replay hook, the exact C sentinel was preserved and the stage remained A, but the detached occurrence dispatched under failed C with an aborted signal and no response. Publications were `[A, A, empty]`; stop should preserve its true arrival context A while cancelling it.
 
-**Fix:** Preserve an explicit generation-scoped requested-authority record when a reentrant `setContext(C)` establishes C as the owner. Do not infer that ownership solely from whether C is still physically present in `transitionQueue`. The record must survive the `shift()` and remain available during C's resolver/capability boundaries, then be cleared only when that exact generation confirms, is superseded, fails, or stops. `acceptBatch()` should stamp the stored C context/generation in this interval; later binding should make it live only on exact C confirmation and otherwise cancel it under C without falling back to A. Preserve the existing `before-c` behavior for work admitted before C is requested, the single FIFO queue, exact thrown values, and one-time stop detachment.
+This violates coherent failure rollback, confirmed-replay arrival authority, same-catalog identity, and stop-time detachment identity. In less synthetic transports, a call associated with a confirmed catalog can therefore execute against the wrong stage context after a failed context change.
+
+**Fix:** Reconcile the effective requested authority when the exact current context transition fails. If the failed record still matches `requestedContext` and `requestedGeneration`, restore the authority context to `confirmedContext` while preserving a monotonic generation, or model that rollback with a dedicated effective-authority record. Do not overwrite a genuinely newer queued request. `processConnected()` must then use one coherent confirmed-replay authority tuple so work emitted before a nested D request is bound to A immediately; work emitted after the exact D request must follow D. Preserve exact first-error identity, FIFO order, and stop cancellation semantics.
 
 ## Warnings
 
-### WR-01: C20 and M-07-C14 permit a false-green active-C authority regression
+### WR-01: C21 and M-07-C15 allow the post-failure replay defect to remain green
 
 **Classification:** WARNING
 
-**File:** `packages/concierge/test/session-catalog.test.ts:2191-2201, 2467-2481, 2590-2604`; `scripts/phase-07-mutation-battery.mjs:443-461, 1050-1066`
+**File:** `packages/concierge/test/session-catalog.test.ts:3363-3511, 3513-3613`; `scripts/phase-07-mutation-battery.mjs:447-454`
 
-**Issue:** C20 emits `after-c`, `first-c-generation`, and `stop-c` synchronously from B's boundary, immediately after requesting C. At each observation point C is still queued, so the test exercises only the new `transitionQueue.length !== 0` branch. It never emits a batch from C's own boundary after the drain has shifted C out of the queue. M-07-C14 merely disables that same queue-length branch and maps it exclusively to C20. It is therefore exact for the submitted branch but incapable of detecting the missing authority state identified in CR-01. This is why all 35 mutation rows and the release ledger pass despite a built-artifact authority failure.
+**Issue:** C21's throw-mode connected case does emit `connected-replay` after C fails and correctly expects its eventual dispatch under A. However, nothing supersedes or stops during that replay, so the generic binding pass masks the incorrect C-stamped admission. C21's stop matrix stops during active C, not during the confirmed-A replay queued by a failed C transition. M-07-C15 only disables the queue-empty `activeRequestedAuthority` branch, so it cannot detect stale raw requested state after the catch has cleared that record. The existing case and mutant are exact for the prior repair but leave the new failure-recovery seam unprotected.
 
-**Fix:** Add uniquely marked built-distribution regressions that emit from active C after its queue shift. Cover all reachable resolver/capability boundaries, return and exact-throw paths, same/distinct catalogs, C-to-D supersession, repeated C generations, direct/signal stop, FIFO order, stable cancellation identity, finalization count, and response cardinality. Add a separate compiled mutant that removes or substitutes the repaired active-generation authority branch, require only the new case's exact RED marker, then regenerate the mutation register, evidence, release facts, and validation snapshot.
+**Fix:** Add a separately marked regression case for `current C failure -> queued confirmed-A replay -> replay-time batch -> reentrant action before binding`. At minimum, cover same-catalog D supersession and direct/signal stop, asserting exact thrown identity, A arrival context, generation ownership, cancellation state, FIFO dispatch/finalization, response cardinality, publications, and terminal stage. Add a distinct compiled mutant that removes the new failure-reconciliation/effective-authority logic, require only the new case's exact RED marker, and regenerate the register, immutable evidence, release facts, validation ledger, and security handoff.
 
 ---
 
-_Reviewed: 2026-08-09T21:46:56Z_
+_Reviewed: 2026-08-10T02:44:26Z_
 
 _Reviewer: the agent (gsd-code-reviewer)_
 
