@@ -58,6 +58,13 @@ Concierge is being designed around six ideas:
 
 The same action catalog is intended to work with a chat sidebar, voice interface, MCP client, WebMCP, command palette, or a custom agent loop.
 
+## Security Boundary: Client Consent Is Not Server Authorization
+
+> [!WARNING]
+> All client-originated evidence—including client-side consent state, grades, receipts, attestations, delivery callbacks, `ConsentAck` values, and other client assertions—is untrusted input at the server boundary. Even evidence described as human-attested can be forged, replayed, or rebound by a compromised client.
+
+The consent kernel does not authenticate a principal and does not authorize a server action. It cannot independently permit a protected server effect. A `ConsentAck` can improve client UX and preserve audit context, but it is never server authorization. A relying server must independently establish the caller's identity and decide whether that authenticated principal may perform the exact requested action.
+
 ## Status
 
 The repository currently contains:
