@@ -47,14 +47,14 @@
 
 ### Consent
 
-- [ ] **CON-01**: A gated action fails closed when no prior review armed consent
-- [ ] **CON-02**: A gated action fails when invoked in the same user turn as its review, so an agent-generated follow-up cannot self-approve
-- [ ] **CON-03**: Consent arms only after the review response is delivered to the human, never at the moment the review handler returns
-- [ ] **CON-04**: Consent is invalidated when the reviewed snapshot and the snapshot at confirm time differ in any compared field
-- [ ] **CON-05**: Consent is one-shot — a successful confirm, a fresh review, and a snapshot mismatch each destroy it
-- [ ] **CON-06**: An interrupted or truncated delivery does not arm consent
+- [x] **CON-01**: A gated action fails closed when no prior review armed consent
+- [x] **CON-02**: A gated action fails when invoked in the same user turn as its review, so an agent-generated follow-up cannot self-approve
+- [x] **CON-03**: Consent arms only after the review response is delivered to the human, never at the moment the review handler returns
+- [x] **CON-04**: Consent is invalidated when the reviewed snapshot and the snapshot at confirm time differ in any compared field
+- [x] **CON-05**: Consent is one-shot — a successful confirm, a fresh review, and a snapshot mismatch each destroy it
+- [x] **CON-06**: An interrupted or truncated delivery does not arm consent
 - [x] **CON-07**: `ConsentGrade` values name the hop actually measured, and a transport declaring a lower grade cannot satisfy an action requiring a higher one
-- [ ] **CON-08**: The confirm handler receives the exact payload captured at review time, not a payload recomputed at confirm time
+- [x] **CON-08**: The confirm handler receives the exact payload captured at review time, not a payload recomputed at confirm time
 - [x] **CON-09**: An action can distinguish an explicit human refusal from a dismissal, so the agent can choose whether re-offering is appropriate
 - [x] **CON-10**: A failed action's outcome reaches the human as the app composed it, not as the agent reauthored it — the agent cannot narrate a failure in its own words
 
@@ -179,14 +179,14 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | STG-02 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
 | STG-03 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
 | STG-04 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
-| CON-01 | Phase 8 — Consent kernel | Pending |
-| CON-02 | Phase 8 — Consent kernel | Pending |
-| CON-03 | Phase 8 — Consent kernel | Pending |
-| CON-04 | Phase 8 — Consent kernel | Pending |
-| CON-05 | Phase 8 — Consent kernel | Pending |
-| CON-06 | Phase 8 — Consent kernel | Pending |
+| CON-01 | Phase 8 — Consent kernel | Complete |
+| CON-02 | Phase 8 — Consent kernel | Complete |
+| CON-03 | Phase 8 — Consent kernel | Complete |
+| CON-04 | Phase 8 — Consent kernel | Complete |
+| CON-05 | Phase 8 — Consent kernel | Complete |
+| CON-06 | Phase 8 — Consent kernel | Complete |
 | CON-07 | Phase 8 — Consent kernel | Complete |
-| CON-08 | Phase 8 — Consent kernel | Pending |
+| CON-08 | Phase 8 — Consent kernel | Complete |
 | CON-09 | Phase 8 — Consent kernel | Complete |
 | CON-10 | Phase 8 — Consent kernel | Complete |
 | SES-01 | Phase 7 — Session and the transport seam | Complete — C01-C22 plus M-07-C01..C16/M-07-R03..R04 prove start, stage-change, reconnect, latest-wins queued/active/confirmed authority, abandoned-attempt cleanup, current/stale boundary progress, and failed-request reconciliation. |

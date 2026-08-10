@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Completed 08-08-PLAN.md
-last_updated: "2026-08-10T10:02:11.540Z"
+stopped_at: Completed 08-03-PLAN.md
+last_updated: "2026-08-10T10:52:00.296Z"
 last_activity: 2026-08-10
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 73
-  completed_plans: 68
+  completed_plans: 69
   percent: 78
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-10)
 ## Current Position
 
 Phase: 08 (consent-kernel) — EXECUTING
-Plan: 3 of 8
+Plan: 4 of 8
 Status: Ready to execute
 Last activity: 2026-08-10
 
-Progress: [█████████░] 93%
+Progress: [██████████] 95%
 
 ## Performance Metrics
 
@@ -62,6 +62,7 @@ Progress: [█████████░] 93%
 | Phase 08 P01 | 9m | 2 tasks | 10 files |
 | Phase 08 P02 | 17m | 2 tasks | 7 files |
 | Phase 08 P08 | 17m | 2 tasks | 2 files |
+| Phase 08 P03 | 46m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -120,6 +121,7 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 07]: Accessor-superseded publications use current attempt-token ownership for cleanup. — Abort and clear only while the abandoned attempt still owns publication state, preventing stale cleanup from erasing a newer attempt.
 - [Phase 07]: Accessor throws after reentrant supersession are inert abandoned attempts. — Once the getter enqueues the winning context, its later throw cannot become a fatal publication failure or restore obsolete authority.
 - [Phase 07]: Final authority and failure-recovery closure is independently clean, secured, and verified. — C17-C22 and M-07-C10..C16 bind the repaired Session state machine to 37/37 mutation evidence and the 331-test immutable release.
+- [Phase 08]: Default consent snapshot equality is cycle-safe for arrays/plain records/Map/Set, compares Date values by timestamp, and compares unsupported exotic leaves by identity. — This keeps normalized snapshot comparison deterministic while failing closed on values core cannot detach structurally.
 
 ### Pending Todos
 
@@ -148,6 +150,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-10T10:02:11.535Z
-Stopped at: Completed 08-08-PLAN.md
+Last session: 2026-08-10T10:52:00.291Z
+Stopped at: Completed 08-03-PLAN.md
 Resume file: None

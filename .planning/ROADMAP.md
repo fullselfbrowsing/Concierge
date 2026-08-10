@@ -357,7 +357,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 08-03-PLAN.md — Delivery-armed factory-local generation ledger, turn binding, late drift check, runtime none guard, and atomic one-shot ack
+- [x] 08-03-PLAN.md — Delivery-armed factory-local generation ledger, turn binding, late drift check, runtime none guard, and atomic one-shot ack
 - [ ] 08-05-PLAN.md — Pre-effect Session capability dominance and app-owned failed-batch outcome barrier before agent release
 
 **Wave 4** *(blocked on Wave 3 completion)*
@@ -433,5 +433,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Bridge registry and the no-bridge path | 7/7 | Complete   | 2026-07-31 |
 | 6. Dispatcher | 8/8 | Complete   | 2026-08-07 |
 | 7. Session and the transport seam | 7/7 | Complete    | 2026-08-10 |
-| 8. Consent kernel | 3/8 | In Progress|  |
+| 8. Consent kernel | 4/8 | In Progress|  |
 | 9. React and Svelte adapters | 0/TBD | Not started | - |
