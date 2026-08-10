@@ -49,13 +49,16 @@
  * `dispatchBatch`, and returns each result through the transport. Its frozen
  * handle also exposes current-stage observation and an awaitable stop drain.
  *
- * Stated plainly so this is not oversold: Session does not implement consent,
- * telemetry, or framework lifecycle adapters. Consent policy remains a later
- * runtime layer, and React, Vue, and Svelte integrations remain separate
- * adapter packages. `defineStage` is **not planned**: a stage needs no identity
- * mechanism, a plain `StageDefinition` object literal already typechecks, and
- * the unforgeable bridge identity that would have justified it belongs to
- * `createBridge`. See the roadmap in the repository README.
+ * The public contract now includes immutable consent capability, observation,
+ * delivery, and app-authored failure-outcome seams. Stated plainly so this is
+ * not oversold: the current Session does not yet invoke that outcome presenter,
+ * and dispatch does not yet enforce a consent policy. Those runtime layers,
+ * telemetry, and framework lifecycle adapters remain separate work. React,
+ * Vue, and Svelte integrations remain separate adapter packages. `defineStage`
+ * is **not planned**: a stage needs no identity mechanism, a plain
+ * `StageDefinition` object literal already typechecks, and the unforgeable
+ * bridge identity that would have justified it belongs to `createBridge`. See
+ * the roadmap in the repository README.
  */
 
 export type {
@@ -69,14 +72,20 @@ export type {
   AbandonReason,
   FailureReason,
   ReasonCode,
+  FailureOutcomeRow,
+  FailureOutcome,
+  OutcomePresentationReport,
+  OutcomeSink,
   // Invocation
   InvocationMeta,
   ActionHandler,
   // Consent
   ConsentGrade,
+  ConsentProfile,
   ConsentPolicy,
   ConsentAck,
   DeliveryReport,
+  ReadbackAttestation,
   SnapshotNormalizer,
   Readback,
   ReadbackReceipt,
