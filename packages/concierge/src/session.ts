@@ -22,8 +22,11 @@ import {
 } from "./consent-profile.js";
 import { warnHost } from "./host.js";
 import type {
+  ActionResult,
   AbortSignalLike,
   EmittedTool,
+  FailureOutcome,
+  FailureOutcomeRow,
   OutcomeSink,
   Session,
   SessionConfig,
@@ -179,6 +182,45 @@ function captureTransportCapabilities(value: unknown): TransportCapabilities {
     throw new TypeError(START_ERROR);
   }
   return snapshotTransportCapabilities(descriptor.value);
+}
+
+type DispatchRow = Readonly<{
+  callId: string;
+  result: ActionResult;
+}>;
+
+/** Copy only app-authored failure prose into one detached, frozen batch view. */
+function failureOutcomeFor(
+  rows: ReadonlyArray<DispatchRow>,
+): FailureOutcome | null {
+  const failures: FailureOutcomeRow[] = [];
+  for (const row of rows) {
+    const result: ActionResult = row.result;
+    if (result.ok !== false) continue;
+    failures.push(Object.freeze({
+      callId: row.callId,
+      reason: result.reason,
+      message: result.message,
+    }));
+  }
+  if (failures.length === 0) return null;
+  return Object.freeze({ failures: Object.freeze(failures) });
+}
+
+/** Accept only an own data completion claim without invoking report accessors. */
+function outcomePresentationCompleted(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  try {
+    const prototype: object | null = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) return false;
+    const descriptor: PropertyDescriptor | undefined =
+      Object.getOwnPropertyDescriptor(value, "outcome");
+    return descriptor !== undefined &&
+      "value" in descriptor &&
+      descriptor.value === "completed";
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -592,6 +634,23 @@ export function createSession(config: SessionConfig): Session {
         binding.context,
         envelopeFor(work),
       );
+      if (!allowResponses || lifecycle !== "active") return;
+      const failureOutcome: FailureOutcome | null = failureOutcomeFor(rows);
+      if (!allowResponses || lifecycle !== "active") return;
+      if (failureOutcome !== null) {
+        let completed: boolean = false;
+        try {
+          const report: unknown = await presentOutcome(failureOutcome);
+          completed = outcomePresentationCompleted(report);
+        } catch {
+          completed = false;
+        }
+        if (!completed) {
+          diagnose("outcome_presentation_failed");
+          return;
+        }
+        if (!allowResponses || lifecycle !== "active") return;
+      }
       for (const row of rows) {
         if (!allowResponses || lifecycle !== "active") break;
         try {
