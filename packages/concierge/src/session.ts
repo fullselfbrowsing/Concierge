@@ -80,6 +80,11 @@ interface ConnectedTransition {
 
 type Transition = ContextTransition | ConnectedTransition;
 
+interface RequestedContextAuthority {
+  readonly generation: number;
+  readonly context: StageContext;
+}
+
 interface CatalogEpoch {
   readonly catalog: ReadonlyArray<EmittedTool>;
   readonly work: Set<QueuedOccurrence>;
@@ -135,6 +140,7 @@ export function createSession(config: SessionConfig): Session {
   let requestedGeneration: number = 0;
   let transitionDraining: boolean = false;
   const transitionQueue: Transition[] = [];
+  let activeRequestedAuthority: RequestedContextAuthority | null = null;
 
   let confirmedContext: StageContext | null = null;
   let confirmedGeneration: number | null = null;
@@ -710,6 +716,10 @@ export function createSession(config: SessionConfig): Session {
         arrivalAuthority = "requested-transition";
         arrivalContext = requestedContext;
         arrivalGeneration = requestedGeneration;
+      } else if (activeRequestedAuthority !== null) {
+        arrivalAuthority = "requested-transition";
+        arrivalContext = activeRequestedAuthority.context;
+        arrivalGeneration = activeRequestedAuthority.generation;
       } else {
         arrivalContext = confirmedContext;
         arrivalEpoch = confirmedEpoch;
@@ -816,6 +826,7 @@ export function createSession(config: SessionConfig): Session {
     resolveStopPromise = resolve;
     lifecycle = "stopped";
     requestedGeneration += 1;
+    activeRequestedAuthority = null;
     publicationAttemptToken += 1;
     transitionQueue.splice(0);
     publicationPending = false;
@@ -913,6 +924,12 @@ export function createSession(config: SessionConfig): Session {
     confirmedCatalog = resolved.catalog;
     confirmedEpoch = epoch;
     currentStage = resolved.stage;
+    if (
+      activeRequestedAuthority?.generation === record.generation &&
+      activeRequestedAuthority.context === record.context
+    ) {
+      activeRequestedAuthority = null;
+    }
 
     if (
       lifecycle === "active" &&
@@ -1105,9 +1122,29 @@ export function createSession(config: SessionConfig): Session {
         const transition: Transition | undefined = transitionQueue.shift();
         if (transition === undefined) break;
         try {
-          if (transition.kind === "context") processContext(transition);
-          else processConnected();
+          if (transition.kind === "context") {
+            if (
+              lifecycle === "active" &&
+              transition.context !== null &&
+              isCurrent(transition)
+            ) {
+              activeRequestedAuthority = {
+                generation: transition.generation,
+                context: transition.context,
+              };
+            }
+            processContext(transition);
+          } else {
+            processConnected();
+          }
         } catch (failure) {
+          if (
+            transition.kind === "context" &&
+            activeRequestedAuthority?.generation === transition.generation &&
+            activeRequestedAuthority.context === transition.context
+          ) {
+            activeRequestedAuthority = null;
+          }
           if (firstFailure === null) firstFailure = { value: failure };
         }
       }
@@ -1132,6 +1169,7 @@ export function createSession(config: SessionConfig): Session {
 
   function setContext(context: StageContext): void {
     if (lifecycle !== "active") throw new Error(STOPPED_ERROR);
+    activeRequestedAuthority = null;
     requestedContext = context;
     const generation: number = ++requestedGeneration;
     abortSupersededUnlinkedAdmissions(generation);

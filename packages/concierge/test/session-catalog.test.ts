@@ -2248,7 +2248,13 @@ it("[C20] binds boundary-time admissions to the exact requested authority", asyn
             dispatches.push({
               aborted,
               authority:
-                context === a ? "a" : context === c ? "c" : "other",
+                context === a
+                  ? "a"
+                  : context === b
+                    ? "b"
+                    : context === c
+                      ? "c"
+                      : "other",
               callId,
               stableSignal: signal === batch.signal,
             });
@@ -2388,8 +2394,8 @@ it("[C20] binds boundary-time admissions to the exact requested authority", asyn
         diagnosticCodes: [],
         dispatches: [
           {
-            aborted: catalogMode === "distinct",
-            authority: "a",
+            aborted: true,
+            authority: "b",
             callId: "before-c",
             stableSignal: true,
           },
@@ -2408,11 +2414,11 @@ it("[C20] binds boundary-time admissions to the exact requested authority", asyn
         ],
         events: expectedEvents,
         finalizations: ["before-c", "after-c", "later-c"],
-        handlerEntries: catalogMode === "distinct" ? 2 : 3,
+        handlerEntries: 2,
         mode,
         publications: catalogMode === "same" ? ["a"] : ["a", "c"],
         responses: [
-          { cancelled: catalogMode === "distinct", callId: "before-c" },
+          { cancelled: true, callId: "before-c" },
           { cancelled: false, callId: "after-c" },
           { cancelled: false, callId: "later-c" },
         ],
@@ -2663,6 +2669,948 @@ it("[C20] binds boundary-time admissions to the exact requested authority", asyn
       subscribers: { status: 0, batch: 0 },
     });
   }
+});
+
+it("[C21] retains active requested authority after the transition queue shift", async () => {
+  const marker = "[RED:C21:active-request-generation-authority]";
+  requireFactory("[SMOKE:C21:create-session-factory]");
+
+  const trackedBatch = (callId, records, onAdd) => {
+    const listeners = new Set();
+    const counts = { additions: 0, callId, removals: 0 };
+    records.sourceCounts.push(counts);
+    const signal = Object.freeze({
+      aborted: false,
+      addEventListener(type, listener) {
+        if (type !== "abort") return;
+        counts.additions += 1;
+        listeners.add(listener);
+        if (onAdd !== undefined) onAdd();
+      },
+      removeEventListener(type, listener) {
+        if (type !== "abort" || !listeners.delete(listener)) return;
+        counts.removals += 1;
+        records.finalizations.push(callId);
+        records.events.push(`finalize:${callId}`);
+      },
+    });
+    return Object.freeze({ ...toolBatch([callId]), signal });
+  };
+
+  const boundaryVariants = [
+    ...[
+      "catalogFor-property",
+      "catalogFor-call",
+      "stageFor-property",
+      "stageFor-call",
+    ].flatMap((boundary) =>
+      ["return", "throw"].flatMap((mode) =>
+        ["distinct", "same"].map((catalogMode) => ({
+          boundary,
+          catalogMode,
+          mode,
+        })),
+      ),
+    ),
+    ...["capabilities", "dynamicCatalog"].flatMap((boundary) =>
+      ["return", "throw"].map((mode) => ({
+        boundary,
+        catalogMode: "distinct",
+        mode,
+      })),
+    ),
+  ];
+  const matrix = [];
+
+  for (const { boundary, catalogMode, mode } of boundaryVariants) {
+    const a = { name: "a" };
+    const c = { name: "c" };
+    const catalogA = Object.freeze([]);
+    const catalogC = catalogMode === "same" ? catalogA : Object.freeze([]);
+    const base = controlledTransport();
+    const diagnostics = [];
+    const dispatches = [];
+    const records = { events: [], finalizations: [], sourceCounts: [] };
+    const stageEvents = [];
+    const secret = `PRIVATE-C21-${boundary}-${mode}-${catalogMode}`;
+    const sentinel = Object.freeze({ secret });
+    let boundaryEntries = 0;
+    let catalogForReads = 0;
+    let dynamicCatalogReads = 0;
+    let session;
+    let stageForReads = 0;
+    let transportCapabilityReads = 0;
+
+    const enterBoundary = (value) => {
+      boundaryEntries += 1;
+      base.emitBatch(trackedBatch("inside-c", records));
+      if (mode === "throw") throw sentinel;
+      return value;
+    };
+    const catalogFor = (context) => {
+      if (context === c && boundary === "catalogFor-call") {
+        return enterBoundary(catalogC);
+      }
+      if (context === a) return catalogA;
+      if (context === c) return catalogC;
+      throw new Error("unknown context");
+    };
+    const stageFor = (context) => {
+      if (context === c && boundary === "stageFor-call") {
+        return enterBoundary("c");
+      }
+      return context.name;
+    };
+    const concierge = {
+      get catalogFor() {
+        catalogForReads += 1;
+        if (boundary === "catalogFor-property" && catalogForReads === 2) {
+          return enterBoundary(catalogFor);
+        }
+        return catalogFor;
+      },
+      get stageFor() {
+        stageForReads += 1;
+        if (boundary === "stageFor-property" && stageForReads === 2) {
+          return enterBoundary(stageFor);
+        }
+        return stageFor;
+      },
+      async dispatchBatch(context, batch) {
+        const callId = batch.calls[0].callId;
+        const signal = batch.signal;
+        const abortedAtEntry = signal.aborted;
+        dispatches.push({
+          abortedAtEntry,
+          callId,
+          context,
+          signal,
+          stableSignal: signal === batch.signal,
+        });
+        records.events.push(`dispatch:${callId}`);
+        return Object.freeze([
+          resultRow(
+            callId,
+            abortedAtEntry
+              ? {
+                  ok: false,
+                  reason: "aborted",
+                  message: "The action was cancelled before it ran.",
+                }
+              : undefined,
+          ),
+        ]);
+      },
+      dispatch: () => Promise.resolve({ ok: false, message: "unused" }),
+      explain: () => ({ stage: null, stages: [], catalog: [] }),
+    };
+    const capabilities = Object.freeze({
+      ...CONVERSATIONAL_CAPABILITIES,
+      get dynamicCatalog() {
+        dynamicCatalogReads += 1;
+        if (boundary === "dynamicCatalog" && dynamicCatalogReads === 1) {
+          return enterBoundary(true);
+        }
+        return true;
+      },
+    });
+    const transport = Object.freeze({
+      get capabilities() {
+        transportCapabilityReads += 1;
+        if (boundary === "capabilities" && transportCapabilityReads === 1) {
+          return enterBoundary(capabilities);
+        }
+        return capabilities;
+      },
+      get status() {
+        return base.transport.status;
+      },
+      setTools(tools) {
+        base.transport.setTools(tools);
+      },
+      onStatusChange(callback) {
+        return base.transport.onStatusChange(callback);
+      },
+      onToolBatch(callback) {
+        return base.transport.onToolBatch(callback);
+      },
+      respond(callId, result) {
+        records.events.push(`respond:${callId}`);
+        base.transport.respond(callId, result);
+      },
+    });
+    session = createSession({
+      concierge,
+      transport,
+      initialContext: a,
+      onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+    });
+    session.onStageChange((stage) => stageEvents.push(stage));
+
+    base.emitBatch(trackedBatch("pre-c", records));
+    let thrownValue;
+    try {
+      session.setContext(c);
+    } catch (failure) {
+      thrownValue = failure;
+    }
+    base.emitBatch(trackedBatch("later", records));
+    await flushMicrotasks();
+
+    matrix.push({
+      boundary,
+      boundaryEntries,
+      callerCaughtExact: thrownValue === sentinel,
+      catalogMode,
+      diagnosticCodes: diagnostics.map((diagnostic) => diagnostic.code),
+      dispatches: dispatches.map((entry) => ({
+        abortedAtEntry: entry.abortedAtEntry,
+        authority:
+          entry.context === a ? "a" : entry.context === c ? "c" : "other",
+        callId: entry.callId,
+        finalAborted: entry.signal.aborted,
+        stableSignal: entry.stableSignal,
+      })),
+      events: records.events,
+      finalizations: records.finalizations,
+      mode,
+      publications: base.publications.map((catalog) =>
+        catalog === catalogA ? "a" : catalog === catalogC ? "c" : "other",
+      ),
+      responses: base.responses.map((response) => ({
+        cancelled: response.result.reason === "aborted",
+        callId: response.callId,
+      })),
+      sentinelDiagnosticLeak: JSON.stringify(diagnostics).includes(secret),
+      sourceCounts: records.sourceCounts,
+      stage: session.stage(),
+      stageEvents,
+    });
+    await session.stop();
+  }
+
+  const orderedEvents = ["pre-c", "inside-c", "later"].flatMap((callId) => [
+    `dispatch:${callId}`,
+    `respond:${callId}`,
+    `finalize:${callId}`,
+  ]);
+  expect(matrix, marker).toEqual(
+    boundaryVariants.map(({ boundary, catalogMode, mode }) => {
+      const succeeds = mode === "return";
+      const replacesCatalog = succeeds && catalogMode === "distinct";
+      return {
+        boundary,
+        boundaryEntries: 1,
+        callerCaughtExact: !succeeds,
+        catalogMode,
+        diagnosticCodes: [],
+        dispatches: [
+          {
+            abortedAtEntry: false,
+            authority: "a",
+            callId: "pre-c",
+            finalAborted: replacesCatalog,
+            stableSignal: true,
+          },
+          {
+            abortedAtEntry: !succeeds,
+            authority: "c",
+            callId: "inside-c",
+            finalAborted: !succeeds,
+            stableSignal: true,
+          },
+          {
+            abortedAtEntry: false,
+            authority: succeeds ? "c" : "a",
+            callId: "later",
+            finalAborted: false,
+            stableSignal: true,
+          },
+        ],
+        events: orderedEvents,
+        finalizations: ["pre-c", "inside-c", "later"],
+        mode,
+        publications: replacesCatalog ? ["a", "c"] : ["a"],
+        responses: [
+          { cancelled: false, callId: "pre-c" },
+          { cancelled: !succeeds, callId: "inside-c" },
+          { cancelled: false, callId: "later" },
+        ],
+        sentinelDiagnosticLeak: false,
+        sourceCounts: ["pre-c", "inside-c", "later"].map((callId) => ({
+          additions: 1,
+          callId,
+          removals: 1,
+        })),
+        stage: succeeds ? "c" : "a",
+        stageEvents: succeeds ? ["c"] : [],
+      };
+    }),
+  );
+
+  const reentrant = [];
+  for (const mode of ["return", "throw"]) {
+    for (const catalogMode of ["distinct", "same"]) {
+      const a = { name: "a" };
+      const b = { name: "b" };
+      const c = { name: "c" };
+      const catalogA = Object.freeze([]);
+      const catalogB = Object.freeze([]);
+      const catalogC = catalogMode === "same" ? catalogA : Object.freeze([]);
+      const base = controlledTransport();
+      const diagnostics = [];
+      const dispatches = [];
+      const records = { events: [], finalizations: [], sourceCounts: [] };
+      const sentinel = Object.freeze({ secret: `PRIVATE-C21-REENTRANT-${mode}-${catalogMode}` });
+      let session;
+      const concierge = conciergeDouble(
+        [
+          { context: a, catalog: catalogA, stage: "a" },
+          { context: b, catalog: catalogB, stage: "b" },
+          { context: c, catalog: catalogC, stage: "c" },
+        ],
+        async (context, batch) => {
+          const callId = batch.calls[0].callId;
+          const signal = batch.signal;
+          dispatches.push({
+            aborted: signal.aborted,
+            authority: context === a ? "a" : context === c ? "c" : "other",
+            callId,
+            stableSignal: signal === batch.signal,
+          });
+          records.events.push(`dispatch:${callId}`);
+          return Object.freeze([
+            resultRow(
+              callId,
+              signal.aborted
+                ? {
+                    ok: false,
+                    reason: "aborted",
+                    message: "The action was cancelled before it ran.",
+                  }
+                : undefined,
+            ),
+          ]);
+        },
+      );
+      const baseCatalogFor = concierge.catalogFor;
+      const boundaryConcierge = {
+        ...concierge,
+        catalogFor(context) {
+          if (context === b) session.setContext(c);
+          if (context === c) {
+            base.emitBatch(trackedBatch("active-c", records));
+            if (mode === "throw") throw sentinel;
+          }
+          return Reflect.apply(baseCatalogFor, concierge, [context]);
+        },
+      };
+      const transport = Object.freeze({
+        ...base.transport,
+        respond(callId, result) {
+          records.events.push(`respond:${callId}`);
+          base.transport.respond(callId, result);
+        },
+      });
+      session = createSession({
+        concierge: boundaryConcierge,
+        transport,
+        initialContext: a,
+        onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+      });
+
+      let thrownValue;
+      try {
+        session.setContext(b);
+      } catch (failure) {
+        thrownValue = failure;
+      }
+      base.emitBatch(trackedBatch("later", records));
+      await flushMicrotasks();
+      reentrant.push({
+        callerCaughtExact: thrownValue === sentinel,
+        catalogMode,
+        diagnosticCodes: diagnostics.map((diagnostic) => diagnostic.code),
+        dispatches,
+        events: records.events,
+        finalizations: records.finalizations,
+        mode,
+        publications: base.publications.map((catalog) =>
+          catalog === catalogA ? "a" : catalog === catalogC ? "c" : "other",
+        ),
+        responses: base.responses.map((response) => ({
+          cancelled: response.result.reason === "aborted",
+          callId: response.callId,
+        })),
+        sentinelDiagnosticLeak: JSON.stringify(diagnostics).includes(sentinel.secret),
+        sourceCounts: records.sourceCounts,
+        stage: session.stage(),
+      });
+      await session.stop();
+    }
+  }
+  expect(reentrant, marker).toEqual(
+    ["return", "throw"].flatMap((mode) =>
+      ["distinct", "same"].map((catalogMode) => {
+        const succeeds = mode === "return";
+        return {
+          callerCaughtExact: !succeeds,
+          catalogMode,
+          diagnosticCodes: [],
+          dispatches: [
+            {
+              aborted: !succeeds,
+              authority: "c",
+              callId: "active-c",
+              stableSignal: true,
+            },
+            {
+              aborted: false,
+              authority: succeeds ? "c" : "a",
+              callId: "later",
+              stableSignal: true,
+            },
+          ],
+          events: ["active-c", "later"].flatMap((callId) => [
+            `dispatch:${callId}`,
+            `respond:${callId}`,
+            `finalize:${callId}`,
+          ]),
+          finalizations: ["active-c", "later"],
+          mode,
+          publications:
+            succeeds && catalogMode === "distinct" ? ["a", "c"] : ["a"],
+          responses: [
+            { cancelled: !succeeds, callId: "active-c" },
+            { cancelled: false, callId: "later" },
+          ],
+          sentinelDiagnosticLeak: false,
+          sourceCounts: ["active-c", "later"].map((callId) => ({
+            additions: 1,
+            callId,
+            removals: 1,
+          })),
+          stage: succeeds ? "c" : "a",
+        };
+      }),
+    ),
+  );
+
+  const supersessionA = { name: "a" };
+  const supersessionC = { name: "c" };
+  const supersessionD = { name: "d" };
+  const supersessionCatalogA = Object.freeze([]);
+  const supersessionCatalogC = Object.freeze([]);
+  const supersessionCatalogD = Object.freeze([]);
+  const supersessionBase = controlledTransport();
+  const supersessionDispatches = [];
+  const supersessionRecords = { events: [], finalizations: [], sourceCounts: [] };
+  let supersessionSession;
+  const supersessionConcierge = conciergeDouble(
+    [
+      { context: supersessionA, catalog: supersessionCatalogA, stage: "a" },
+      { context: supersessionC, catalog: supersessionCatalogC, stage: "c" },
+      { context: supersessionD, catalog: supersessionCatalogD, stage: "d" },
+    ],
+    async (context, batch) => {
+      const callId = batch.calls[0].callId;
+      const signal = batch.signal;
+      supersessionDispatches.push({
+        aborted: signal.aborted,
+        authority:
+          context === supersessionC
+            ? "c"
+            : context === supersessionD
+              ? "d"
+              : "other",
+        callId,
+        stableSignal: signal === batch.signal,
+      });
+      supersessionRecords.events.push(`dispatch:${callId}`);
+      return Object.freeze([
+        resultRow(
+          callId,
+          signal.aborted
+            ? {
+                ok: false,
+                reason: "aborted",
+                message: "The action was cancelled before it ran.",
+              }
+            : undefined,
+        ),
+      ]);
+    },
+  );
+  const supersessionCatalogFor = supersessionConcierge.catalogFor;
+  const supersessionBoundaryConcierge = {
+    ...supersessionConcierge,
+    catalogFor(context) {
+      if (context === supersessionC) {
+        supersessionBase.emitBatch(
+          trackedBatch("c-before-d", supersessionRecords),
+        );
+        supersessionSession.setContext(supersessionD);
+        supersessionBase.emitBatch(
+          trackedBatch("after-d-request", supersessionRecords),
+        );
+      }
+      return Reflect.apply(supersessionCatalogFor, supersessionConcierge, [context]);
+    },
+  };
+  const supersessionTransport = Object.freeze({
+    ...supersessionBase.transport,
+    respond(callId, result) {
+      supersessionRecords.events.push(`respond:${callId}`);
+      supersessionBase.transport.respond(callId, result);
+    },
+  });
+  supersessionSession = createSession({
+    concierge: supersessionBoundaryConcierge,
+    transport: supersessionTransport,
+    initialContext: supersessionA,
+  });
+  supersessionSession.setContext(supersessionC);
+  supersessionBase.emitBatch(trackedBatch("later-d", supersessionRecords));
+  await flushMicrotasks();
+
+  const repeatedA = { name: "a" };
+  const repeatedC = { name: "c" };
+  const repeatedCatalogA = Object.freeze([]);
+  const repeatedCatalogC = Object.freeze([]);
+  const repeatedBase = controlledTransport();
+  const repeatedDispatches = [];
+  const repeatedRecords = { events: [], finalizations: [], sourceCounts: [] };
+  let repeatedCalls = 0;
+  let repeatedSession;
+  const repeatedConcierge = conciergeDouble(
+    [
+      { context: repeatedA, catalog: repeatedCatalogA, stage: "a" },
+      { context: repeatedC, catalog: repeatedCatalogC, stage: "c" },
+    ],
+    async (context, batch) => {
+      const callId = batch.calls[0].callId;
+      const signal = batch.signal;
+      repeatedDispatches.push({
+        aborted: signal.aborted,
+        authorityIsC: context === repeatedC,
+        callId,
+        stableSignal: signal === batch.signal,
+      });
+      repeatedRecords.events.push(`dispatch:${callId}`);
+      return Object.freeze([
+        resultRow(
+          callId,
+          signal.aborted
+            ? {
+                ok: false,
+                reason: "aborted",
+                message: "The action was cancelled before it ran.",
+              }
+            : undefined,
+        ),
+      ]);
+    },
+  );
+  const repeatedCatalogFor = repeatedConcierge.catalogFor;
+  const repeatedBoundaryConcierge = {
+    ...repeatedConcierge,
+    catalogFor(context) {
+      if (context === repeatedC) {
+        repeatedCalls += 1;
+        repeatedBase.emitBatch(
+          trackedBatch(`c-generation-${repeatedCalls}`, repeatedRecords),
+        );
+        if (repeatedCalls === 1) repeatedSession.setContext(repeatedC);
+      }
+      return Reflect.apply(repeatedCatalogFor, repeatedConcierge, [context]);
+    },
+  };
+  const repeatedTransport = Object.freeze({
+    ...repeatedBase.transport,
+    respond(callId, result) {
+      repeatedRecords.events.push(`respond:${callId}`);
+      repeatedBase.transport.respond(callId, result);
+    },
+  });
+  repeatedSession = createSession({
+    concierge: repeatedBoundaryConcierge,
+    transport: repeatedTransport,
+    initialContext: repeatedA,
+  });
+  repeatedSession.setContext(repeatedC);
+  await flushMicrotasks();
+
+  expect(
+    {
+      repeated: {
+        calls: repeatedCalls,
+        dispatches: repeatedDispatches,
+        events: repeatedRecords.events,
+        finalizations: repeatedRecords.finalizations,
+        publications: repeatedBase.publications.map((catalog) =>
+          catalog === repeatedCatalogA
+            ? "a"
+            : catalog === repeatedCatalogC
+              ? "c"
+              : "other",
+        ),
+        responses: repeatedBase.responses.map((response) => ({
+          cancelled: response.result.reason === "aborted",
+          callId: response.callId,
+        })),
+        sourceCounts: repeatedRecords.sourceCounts,
+        stage: repeatedSession.stage(),
+      },
+      supersession: {
+        dispatches: supersessionDispatches,
+        events: supersessionRecords.events,
+        finalizations: supersessionRecords.finalizations,
+        publications: supersessionBase.publications.map((catalog) =>
+          catalog === supersessionCatalogA
+            ? "a"
+            : catalog === supersessionCatalogD
+              ? "d"
+              : "other",
+        ),
+        responses: supersessionBase.responses.map((response) => ({
+          cancelled: response.result.reason === "aborted",
+          callId: response.callId,
+        })),
+        sourceCounts: supersessionRecords.sourceCounts,
+        stage: supersessionSession.stage(),
+      },
+    },
+    marker,
+  ).toEqual({
+    repeated: {
+      calls: 2,
+      dispatches: [
+        {
+          aborted: true,
+          authorityIsC: true,
+          callId: "c-generation-1",
+          stableSignal: true,
+        },
+        {
+          aborted: false,
+          authorityIsC: true,
+          callId: "c-generation-2",
+          stableSignal: true,
+        },
+      ],
+      events: ["c-generation-1", "c-generation-2"].flatMap((callId) => [
+        `dispatch:${callId}`,
+        `respond:${callId}`,
+        `finalize:${callId}`,
+      ]),
+      finalizations: ["c-generation-1", "c-generation-2"],
+      publications: ["a", "c"],
+      responses: [
+        { cancelled: true, callId: "c-generation-1" },
+        { cancelled: false, callId: "c-generation-2" },
+      ],
+      sourceCounts: ["c-generation-1", "c-generation-2"].map((callId) => ({
+        additions: 1,
+        callId,
+        removals: 1,
+      })),
+      stage: "c",
+    },
+    supersession: {
+      dispatches: [
+        {
+          aborted: true,
+          authority: "c",
+          callId: "c-before-d",
+          stableSignal: true,
+        },
+        {
+          aborted: false,
+          authority: "d",
+          callId: "after-d-request",
+          stableSignal: true,
+        },
+        {
+          aborted: false,
+          authority: "d",
+          callId: "later-d",
+          stableSignal: true,
+        },
+      ],
+      events: ["c-before-d", "after-d-request", "later-d"].flatMap(
+        (callId) => [
+          `dispatch:${callId}`,
+          `respond:${callId}`,
+          `finalize:${callId}`,
+        ],
+      ),
+      finalizations: ["c-before-d", "after-d-request", "later-d"],
+      publications: ["a", "d"],
+      responses: [
+        { cancelled: true, callId: "c-before-d" },
+        { cancelled: false, callId: "after-d-request" },
+        { cancelled: false, callId: "later-d" },
+      ],
+      sourceCounts: ["c-before-d", "after-d-request", "later-d"].map(
+        (callId) => ({ additions: 1, callId, removals: 1 }),
+      ),
+      stage: "d",
+    },
+  });
+  await supersessionSession.stop();
+  await repeatedSession.stop();
+
+  const connected = [];
+  for (const mode of ["return", "throw"]) {
+    const a = { name: "a" };
+    const c = { name: "c" };
+    const catalogA = Object.freeze([]);
+    const catalogC = Object.freeze([]);
+    const base = controlledTransport();
+    const diagnostics = [];
+    const dispatches = [];
+    const records = { events: [], finalizations: [], sourceCounts: [] };
+    const sentinel = Object.freeze({ secret: `PRIVATE-C21-CONNECTED-${mode}` });
+    let session;
+    const concierge = conciergeDouble(
+      [
+        { context: a, catalog: catalogA, stage: "a" },
+        { context: c, catalog: catalogC, stage: "c" },
+      ],
+      async (context, batch) => {
+        const callId = batch.calls[0].callId;
+        const signal = batch.signal;
+        dispatches.push({
+          aborted: signal.aborted,
+          authority: context === a ? "a" : context === c ? "c" : "other",
+          callId,
+          stableSignal: signal === batch.signal,
+        });
+        records.events.push(`dispatch:${callId}`);
+        return Object.freeze([
+          resultRow(
+            callId,
+            signal.aborted
+              ? {
+                  ok: false,
+                  reason: "aborted",
+                  message: "The action was cancelled before it ran.",
+                }
+              : undefined,
+          ),
+        ]);
+      },
+    );
+    const catalogFor = concierge.catalogFor;
+    const boundaryConcierge = {
+      ...concierge,
+      catalogFor(context) {
+        if (context === c) {
+          base.emitBatch(trackedBatch("active-c", records));
+          base.emitStatus("connected");
+          if (mode === "throw") throw sentinel;
+        }
+        return Reflect.apply(catalogFor, concierge, [context]);
+      },
+    };
+    base.setSetToolsHook((_tools, count) => {
+      const replayCount = mode === "return" ? 3 : 2;
+      if (count === replayCount) {
+        base.emitBatch(trackedBatch("connected-replay", records));
+      }
+    });
+    const transport = Object.freeze({
+      ...base.transport,
+      respond(callId, result) {
+        records.events.push(`respond:${callId}`);
+        base.transport.respond(callId, result);
+      },
+    });
+    session = createSession({
+      concierge: boundaryConcierge,
+      transport,
+      initialContext: a,
+      onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+    });
+    let thrownValue;
+    try {
+      session.setContext(c);
+    } catch (failure) {
+      thrownValue = failure;
+    }
+    base.emitBatch(trackedBatch("later", records));
+    await flushMicrotasks();
+    connected.push({
+      callerCaughtExact: thrownValue === sentinel,
+      diagnosticCodes: diagnostics.map((diagnostic) => diagnostic.code),
+      dispatches,
+      events: records.events,
+      finalizations: records.finalizations,
+      mode,
+      publications: base.publications.map((catalog) =>
+        catalog === catalogA ? "a" : catalog === catalogC ? "c" : "other",
+      ),
+      responses: base.responses.map((response) => ({
+        cancelled: response.result.reason === "aborted",
+        callId: response.callId,
+      })),
+      sentinelDiagnosticLeak: JSON.stringify(diagnostics).includes(sentinel.secret),
+      sourceCounts: records.sourceCounts,
+      stage: session.stage(),
+    });
+    await session.stop();
+  }
+  expect(connected, marker).toEqual(
+    ["return", "throw"].map((mode) => {
+      const succeeds = mode === "return";
+      return {
+        callerCaughtExact: !succeeds,
+        diagnosticCodes: [],
+        dispatches: [
+          {
+            aborted: !succeeds,
+            authority: "c",
+            callId: "active-c",
+            stableSignal: true,
+          },
+          {
+            aborted: false,
+            authority: succeeds ? "c" : "a",
+            callId: "connected-replay",
+            stableSignal: true,
+          },
+          {
+            aborted: false,
+            authority: succeeds ? "c" : "a",
+            callId: "later",
+            stableSignal: true,
+          },
+        ],
+        events: ["active-c", "connected-replay", "later"].flatMap(
+          (callId) => [
+            `dispatch:${callId}`,
+            `respond:${callId}`,
+            `finalize:${callId}`,
+          ],
+        ),
+        finalizations: ["active-c", "connected-replay", "later"],
+        mode,
+        publications: succeeds ? ["a", "c", "c"] : ["a", "a"],
+        responses: [
+          { cancelled: !succeeds, callId: "active-c" },
+          { cancelled: false, callId: "connected-replay" },
+          { cancelled: false, callId: "later" },
+        ],
+        sentinelDiagnosticLeak: false,
+        sourceCounts: ["active-c", "connected-replay", "later"].map(
+          (callId) => ({ additions: 1, callId, removals: 1 }),
+        ),
+        stage: succeeds ? "c" : "a",
+      };
+    }),
+  );
+
+  const stopped = [];
+  for (const stopMode of ["direct", "signal-accessor"]) {
+    const a = { name: "a" };
+    const c = { name: "c" };
+    const catalogA = Object.freeze([]);
+    const catalogC = Object.freeze([]);
+    const base = controlledTransport();
+    const dispatches = [];
+    const records = { events: [], finalizations: [], sourceCounts: [] };
+    let drain;
+    let session;
+    const concierge = conciergeDouble(
+      [
+        { context: a, catalog: catalogA, stage: "a" },
+        { context: c, catalog: catalogC, stage: "c" },
+      ],
+      async (context, batch) => {
+        const callId = batch.calls[0].callId;
+        const signal = batch.signal;
+        dispatches.push({
+          aborted: signal.aborted,
+          authorityIsC: context === c,
+          callId,
+          stableSignal: signal === batch.signal,
+        });
+        records.events.push(`dispatch:${callId}`);
+        return Object.freeze([resultRow(callId)]);
+      },
+    );
+    const catalogFor = concierge.catalogFor;
+    const boundaryConcierge = {
+      ...concierge,
+      catalogFor(context) {
+        if (context === c) {
+          base.emitBatch(
+            trackedBatch(
+              "stop-c",
+              records,
+              stopMode === "signal-accessor"
+                ? () => {
+                    drain = session.stop();
+                  }
+                : undefined,
+            ),
+          );
+          if (stopMode === "direct") drain = session.stop();
+        }
+        return Reflect.apply(catalogFor, concierge, [context]);
+      },
+    };
+    const transport = Object.freeze({
+      ...base.transport,
+      respond(callId, result) {
+        records.events.push(`respond:${callId}`);
+        base.transport.respond(callId, result);
+      },
+    });
+    session = createSession({
+      concierge: boundaryConcierge,
+      transport,
+      initialContext: a,
+    });
+    session.setContext(c);
+    if (drain === undefined) throw new Error("C21 stop did not reenter");
+    await drain;
+    stopped.push({
+      dispatches,
+      events: records.events,
+      finalizations: records.finalizations,
+      publicationCount: base.publications.length,
+      responses: base.responses.length,
+      sameDrain: session.stop() === drain,
+      sourceCounts: records.sourceCounts,
+      stage: session.stage(),
+      stopMode,
+      subscribers: base.subscriberCounts(),
+    });
+  }
+  expect(stopped, marker).toEqual(
+    ["direct", "signal-accessor"].map((stopMode) => ({
+      dispatches: [
+        {
+          aborted: true,
+          authorityIsC: true,
+          callId: "stop-c",
+          stableSignal: true,
+        },
+      ],
+      events: ["dispatch:stop-c", "finalize:stop-c"],
+      finalizations: ["stop-c"],
+      publicationCount: 2,
+      responses: 0,
+      sameDrain: true,
+      sourceCounts: [
+        { additions: 1, callId: "stop-c", removals: 1 },
+      ],
+      stage: "a",
+      stopMode,
+      subscribers: { status: 0, batch: 0 },
+    })),
+  );
 });
 
 it("preserves connected replay occurrence authority across getter reentry", async () => {
