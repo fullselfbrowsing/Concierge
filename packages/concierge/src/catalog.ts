@@ -64,7 +64,16 @@ import {
 } from "./host.js";
 import { JSON_SCHEMA_TARGET, emitSchema, vendorOf } from "./json-schema.js";
 import type { JsonSchemaTarget, SchemaEmission } from "./json-schema.js";
-import type { AnyActionDefinition, JsonSchemaObject } from "./types.js";
+import { CONSENT_GRADE_ORDER } from "./types.js";
+import type {
+  AnyActionDefinition,
+  ConsentGrade,
+  ConsentProfile,
+  DigestLike,
+  JsonSchemaObject,
+  ReadbackSink,
+  TurnIdentityProvenance,
+} from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Issues — the build-failing channel
@@ -106,7 +115,11 @@ export type CatalogIssueCode =
   | "schema_root_not_object"
   | "redaction_missing"
   | "consent_target_missing"
-  | "consent_self_reference";
+  | "consent_self_reference"
+  | "consent_grade_unavailable"
+  | "user_turn_identity_unavailable"
+  | "readback_presenter_missing"
+  | "digest_missing";
 
 /**
  * One build-failing problem, as structured fields.
@@ -134,6 +147,10 @@ export interface CatalogIssue {
   readonly code: CatalogIssueCode;
   readonly action: string;
   readonly vendor?: string | undefined;
+  /** Machine-readable capability required by consent construction checks. */
+  readonly required?: string | undefined;
+  /** Machine-readable capability the application actually declared. */
+  readonly declared?: string | undefined;
   readonly problem: string;
   readonly fix: string;
 }
@@ -375,6 +392,9 @@ export interface Catalog<Name extends string = string> {
 export interface BuildCatalogOptions {
   readonly jsonSchemaTarget?: JsonSchemaTarget | undefined;
   readonly onDiagnostic?: ((diagnostic: CatalogDiagnostic) => void) | undefined;
+  readonly consentProfile?: ConsentProfile | undefined;
+  readonly presentReadback?: ReadbackSink | undefined;
+  readonly digest?: DigestLike | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -514,6 +534,122 @@ function consentRequiresOf(action: AnyActionDefinition): unknown {
 
   const policy: PropertyBag = consent as PropertyBag;
   return Object.hasOwn(policy, "requires") ? policy["requires"] : undefined;
+}
+
+interface ConsentCapabilityRequirements {
+  readonly effectiveMinGrade: ConsentGrade;
+  readonly bindTo: unknown;
+}
+
+interface CatalogConsentEvidence {
+  readonly consentGrade: ConsentGrade;
+  readonly userTurnIdentity: TurnIdentityProvenance;
+  readonly hasPresenter: boolean;
+  readonly hasDigest: boolean;
+}
+
+function isConsentGrade(value: unknown): value is ConsentGrade {
+  return typeof value === "string" &&
+    (CONSENT_GRADE_ORDER as readonly string[]).includes(value);
+}
+
+function isTurnIdentityProvenance(
+  value: unknown,
+): value is TurnIdentityProvenance {
+  return value === "none" ||
+    value === "agent-forgeable" ||
+    value === "human-attested";
+}
+
+function gradeRank(grade: ConsentGrade): number {
+  return CONSENT_GRADE_ORDER.indexOf(grade);
+}
+
+/**
+ * Capture only the policy members needed by capability validation.
+ *
+ * Every read is contained because JavaScript callers can supply accessors and
+ * proxies even though the public declaration type contains plain data. A
+ * failed or malformed minimum never weakens the inherent human-in-loop floor:
+ * it is treated as delivered and no hostile value is interpolated into an
+ * issue.
+ */
+function consentCapabilityRequirementsOf(
+  action: AnyActionDefinition,
+): ConsentCapabilityRequirements | undefined {
+  try {
+    const view: PropertyBag = action as unknown as PropertyBag;
+    if (!Object.hasOwn(view, "consent")) {
+      return undefined;
+    }
+
+    const consent: unknown = view["consent"];
+    if (typeof consent !== "object" || consent === null) {
+      return undefined;
+    }
+
+    const policy: PropertyBag = consent as PropertyBag;
+    const requestedValue: unknown = Object.hasOwn(policy, "minGrade")
+      ? policy["minGrade"]
+      : undefined;
+    const requested: ConsentGrade = isConsentGrade(requestedValue)
+      ? requestedValue
+      : "delivered";
+    const effectiveMinGrade: ConsentGrade = gradeRank(requested) <
+        gradeRank("delivered")
+      ? "delivered"
+      : requested;
+    const bindTo: unknown = Object.hasOwn(policy, "bindTo")
+      ? policy["bindTo"]
+      : undefined;
+
+    return { effectiveMinGrade, bindTo };
+  } catch {
+    return {
+      effectiveMinGrade: "delivered",
+      bindTo: undefined,
+    };
+  }
+}
+
+function hasCallableDigest(value: unknown): boolean {
+  if ((typeof value !== "object" && typeof value !== "function") || value === null) {
+    return false;
+  }
+  try {
+    return typeof (value as PropertyBag)["digest"] === "function";
+  } catch {
+    return false;
+  }
+}
+
+/** Capture construction evidence once so each action sees one stable ceiling. */
+function captureCatalogConsentEvidence(
+  options: BuildCatalogOptions | undefined,
+): CatalogConsentEvidence {
+  try {
+    const profile: ConsentProfile | undefined = options?.consentProfile;
+    const declaredGrade: unknown = profile?.consentGrade;
+    const declaredProvenance: unknown = profile?.userTurnIdentity;
+    const presenter: unknown = options?.presentReadback;
+    const digest: unknown = options?.digest;
+
+    return {
+      consentGrade: isConsentGrade(declaredGrade) ? declaredGrade : "none",
+      userTurnIdentity: isTurnIdentityProvenance(declaredProvenance)
+        ? declaredProvenance
+        : "none",
+      hasPresenter: typeof presenter === "function",
+      hasDigest: hasCallableDigest(digest),
+    };
+  } catch {
+    return {
+      consentGrade: "none",
+      userTurnIdentity: "none",
+      hasPresenter: false,
+      hasDigest: false,
+    };
+  }
 }
 
 /**
@@ -885,6 +1021,8 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
   assertSingleInstance();
 
   const target: JsonSchemaTarget = options?.jsonSchemaTarget ?? JSON_SCHEMA_TARGET;
+  const consentEvidence: CatalogConsentEvidence =
+    captureCatalogConsentEvidence(options);
 
   const issues: CatalogIssue[] = [];
   const diagnostics: CatalogDiagnostic[] = [];
@@ -991,6 +1129,73 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
         problem: "its schema accepts arguments but it declares no `redact` policy, so nothing states whether those arguments may reach telemetry.",
         fix: 'add `redact: "drop"` to the declaration, or a projection function if some arguments are safe to record.',
       });
+    }
+
+    const consentRequirements: ConsentCapabilityRequirements | undefined =
+      consentCapabilityRequirementsOf(action);
+    if (consentRequirements !== undefined) {
+      const { effectiveMinGrade, bindTo } = consentRequirements;
+
+      if (
+        gradeRank(effectiveMinGrade) > gradeRank(consentEvidence.consentGrade)
+      ) {
+        issues.push({
+          code: "consent_grade_unavailable",
+          action: action.name,
+          required: effectiveMinGrade,
+          declared: consentEvidence.consentGrade,
+          problem:
+            `it requires consent grade "${effectiveMinGrade}", but the declared ` +
+            `application profile provides only "${consentEvidence.consentGrade}", so the gate cannot arm honestly.`,
+          fix:
+            `set \`consentProfile.consentGrade\` to at least "${effectiveMinGrade}" only when the app can prove that grade, ` +
+            "or reduce the action's `consent.minGrade` without going below the inherent delivered floor.",
+        });
+      }
+
+      if (
+        bindTo === "userTurn" &&
+        consentEvidence.userTurnIdentity !== "human-attested"
+      ) {
+        issues.push({
+          code: "user_turn_identity_unavailable",
+          action: action.name,
+          required: "human-attested",
+          declared: consentEvidence.userTurnIdentity,
+          problem:
+            "it binds consent to a user turn, but the declared application profile cannot prove that the turn came from an explicit human act.",
+          fix:
+            "set `consentProfile.userTurnIdentity` to \"human-attested\" only for an identity derived from an act the agent cannot perform, or use response binding if that weaker boundary is acceptable.",
+        });
+      }
+
+      if (effectiveMinGrade === "attested") {
+        if (!consentEvidence.hasPresenter) {
+          issues.push({
+            code: "readback_presenter_missing",
+            action: action.name,
+            required: "callable presentReadback",
+            declared: "missing or non-callable",
+            problem:
+              "it requires attested consent, but no callable app-owned readback presenter is configured, so the raw payload cannot be presented independently of the agent.",
+            fix:
+              "configure a callable `presentReadback` that renders the exact review payload and returns its receipt.",
+          });
+        }
+
+        if (!consentEvidence.hasDigest) {
+          issues.push({
+            code: "digest_missing",
+            action: action.name,
+            required: "callable digest",
+            declared: "missing or non-callable",
+            problem:
+              "it requires attested consent, but no injected SHA-256 digest capability is configured, so core cannot verify the readback receipt.",
+            fix:
+              "configure `digest` with a callable SHA-256 `digest` method, such as the platform SubtleCrypto implementation.",
+          });
+        }
+      }
     }
 
     // CAT-05 — reports, never blocks. One diagnostic per action, each named.
