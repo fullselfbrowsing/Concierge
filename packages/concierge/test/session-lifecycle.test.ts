@@ -14,6 +14,7 @@ const KEY = Symbol.for("@fullselfbrowsing/concierge.contract");
 const START_ERROR = "The session could not start.";
 const STOPPED_ERROR = "This session has stopped.";
 const PRIVATE_SENTINEL = "PRIVATE-SESSION-LIFECYCLE-SENTINEL";
+const COMPLETED_OUTCOME = Object.freeze({ outcome: "completed" });
 
 const DIAGNOSTIC_MESSAGES = Object.freeze({
   catalog_publish_failed:
@@ -33,6 +34,8 @@ const DIAGNOSTIC_MESSAGES = Object.freeze({
     "A batch cancellation signal failed; the batch was treated as cancelled.",
   batch_without_context:
     "A batch arrived before session context was set and was ignored.",
+  outcome_presentation_failed:
+    "The application could not present the failed outcome; no result was released.",
 });
 
 const CONTEXT_A = Object.freeze({ page: "alpha" });
@@ -42,7 +45,7 @@ const CATALOG_A = Object.freeze([]);
 const CATALOG_B = Object.freeze([]);
 const CATALOG_C = Object.freeze([]);
 
-let createSession;
+let createRuntimeSession;
 
 beforeAll(async () => {
   if (!existsSync(DIST_PATH)) {
@@ -52,8 +55,15 @@ beforeAll(async () => {
   }
 
   const artifact = await import(DIST_URL.href);
-  createSession = artifact.createSession;
+  createRuntimeSession = artifact.createSession;
 });
+
+function createSession(config) {
+  return createRuntimeSession({
+    presentOutcome: () => Promise.resolve(COMPLETED_OUTCOME),
+    ...config,
+  });
+}
 
 beforeEach(() => {
   delete (globalThis as Record<symbol, unknown>)[KEY];
@@ -1663,4 +1673,81 @@ it("[L16] uses the exact default warning and survives missing or throwing consol
       `concierge: [stage_listener_failed] ${DIAGNOSTIC_MESSAGES.stage_listener_failed}`,
     ],
   });
+});
+
+it("[L19] finalizes an interrupted outcome occurrence and runs its FIFO successor", async () => {
+  const marker = "[RED:L19:interrupted-outcome-local-failure]";
+  const events = [];
+  const diagnostics = [];
+  const successorFinished = deferred();
+  let outcomeCalls = 0;
+  const transport = controlledTransport({
+    respond({ callId }) {
+      events.push(`respond:${callId}`);
+      if (callId === "successor") successorFinished.resolve();
+    },
+  });
+  const session = createSession({
+    concierge: conciergeDouble({
+      async dispatchBatch(_context, batch) {
+        events.push(`dispatch:${batch.responseId}`);
+        return batch.responseId === "interrupted"
+          ? [
+              Object.freeze({
+                callId: "interrupted",
+                result: Object.freeze({
+                  ok: false,
+                  reason: "cancelled",
+                  message: "The application authored this failure.",
+                }),
+              }),
+            ]
+          : [row("successor")];
+      },
+    }),
+    transport: transport.transport,
+    initialContext: CONTEXT_A,
+    onDiagnostic(diagnostic) {
+      diagnostics.push(diagnostic);
+      events.push(`diagnostic:${diagnostic.code}`);
+    },
+    presentOutcome() {
+      outcomeCalls += 1;
+      events.push("outcome:interrupted");
+      return Promise.resolve(Object.freeze({ outcome: "interrupted" }));
+    },
+  });
+
+  transport.emitBatch(toolBatch("interrupted"));
+  transport.emitBatch(toolBatch("successor"));
+  await successorFinished.promise;
+
+  expect(
+    {
+      diagnostics,
+      events,
+      outcomeCalls,
+      responseIds: transport.responses.map(({ callId }) => callId),
+      subscribers: transport.subscriberCounts(),
+    },
+    marker,
+  ).toEqual({
+    diagnostics: [
+      {
+        code: "outcome_presentation_failed",
+        message: DIAGNOSTIC_MESSAGES.outcome_presentation_failed,
+      },
+    ],
+    events: [
+      "dispatch:interrupted",
+      "outcome:interrupted",
+      "diagnostic:outcome_presentation_failed",
+      "dispatch:successor",
+      "respond:successor",
+    ],
+    outcomeCalls: 1,
+    responseIds: ["successor"],
+    subscribers: { status: 1, batch: 1 },
+  });
+  await session.stop();
 });

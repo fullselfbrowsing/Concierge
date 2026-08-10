@@ -10,9 +10,10 @@ const DIST_PATH = fileURLToPath(DIST_URL);
 const KEY = Symbol.for("@fullselfbrowsing/concierge.contract");
 const CONTEXT = Object.freeze({ page: "routing" });
 const CATALOG = Object.freeze([]);
+const COMPLETED_OUTCOME = Object.freeze({ outcome: "completed" });
 
 let createConcierge;
-let createSession;
+let createRuntimeSession;
 
 beforeAll(async () => {
   if (!existsSync(DIST_PATH)) {
@@ -23,8 +24,15 @@ beforeAll(async () => {
 
   const artifact = await import(DIST_URL.href);
   createConcierge = artifact.createConcierge;
-  createSession = artifact.createSession;
+  createRuntimeSession = artifact.createSession;
 });
+
+function createSession(config) {
+  return createRuntimeSession({
+    presentOutcome: () => Promise.resolve(COMPLETED_OUTCOME),
+    ...config,
+  });
+}
 
 beforeEach(() => {
   delete (globalThis as Record<symbol, unknown>)[KEY];
