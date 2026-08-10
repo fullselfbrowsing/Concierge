@@ -65,6 +65,59 @@ The same action catalog is intended to work with a chat sidebar, voice interface
 
 The consent kernel does not authenticate a principal and does not authorize a server action. It cannot independently permit a protected server effect. A `ConsentAck` can improve client UX and preserve audit context, but it is never server authorization. A relying server must independently establish the caller's identity and decide whether that authenticated principal may perform the exact requested action.
 
+The client may carry an opaque challenge identifier and a consent assertion to the relying server, but neither is proof. `ConsentAck` values remain untrusted and are not authoritative. An issuance-time authorization decision, a challenge field, or any client assertion cannot substitute for current authorization under server policy.
+
+### Illustrative relying-server challenge lifecycle
+
+This example is illustrative, not production-complete. The relying server creates a high-entropy, server-issued challenge and keeps the authoritative record server-stored; the client only receives its opaque identifier.
+
+```typescript
+async function issueServerChallenge(request) {
+  const authenticatedPrincipal = await authenticatePrincipal(request);
+  const exactAction = parseExactAction(request);
+  const exactPayload = parseExactPayload(request);
+  const challengeId = serverRandomHighEntropyChallenge();
+
+  await challengeStore.insert({
+    challengeId,
+    principalId: authenticatedPrincipal.id,
+    sessionId: authenticatedPrincipal.sessionId,
+    exactAction,
+    canonicalPayloadDigest: canonicalPayloadDigest(exactPayload),
+    expiresAt: serverClock.now().plus(CHALLENGE_TTL),
+    used: false,
+  });
+
+  return challengeId;
+}
+
+async function redeemServerChallenge(request) {
+  const authenticatedPrincipal = await authenticatePrincipal(request);
+  const challengeId = parseOpaqueChallengeId(request);
+  const exactAction = parseExactAction(request);
+  const exactPayload = parseExactPayload(request);
+
+  await serverDatabase.serializedTransaction(async (transaction) => {
+    const challenge = await transaction.challengeStore.lockAndLoad(challengeId);
+    assertSamePrincipalAndSession(challenge, authenticatedPrincipal);
+    assertExactAction(challenge.exactAction, exactAction);
+    assertCanonicalPayloadDigest(challenge.canonicalPayloadDigest, canonicalPayloadDigest(exactPayload));
+    assertFresh(challenge.expiresAt, serverClock.now());
+    assertUnused(challenge);
+    await authorizeUnderCurrentPolicy(authenticatedPrincipal, exactAction);
+    await performGuardedEffect(transaction, authenticatedPrincipal, exactAction, exactPayload);
+    await transaction.challengeStore.burn(challenge.challengeId);
+    await transaction.commit();
+  });
+}
+```
+
+Each redemption independently authenticates the current principal and locks the server record before comparing the principal and session, exact action, canonical payload digest, expiry, and unused state. A client-invented or unknown challenge must be rejected. A wrong principal or session must be rejected. A changed action or changed payload must be rejected. An expired challenge must be rejected, and a replay of a used challenge must be rejected.
+
+`authorizeUnderCurrentPolicy` must reject rather than return when the authenticated principal cannot perform the exact action. Any authorization denial or error must abort the operation with no effect. Keeping that check immediately beside the guarded effect prevents a cached issuance decision or client value from becoming authority.
+
+Concurrency control must serialize redemption so two requests cannot both pass the unused check. The guarded effect, challenge burn, and commit belong to one atomic server-owned operation, with the effect before the burn. For an effect that cannot participate directly in the transaction, use an equivalent serialized idempotency or transactional-outbox protocol; the effect should be idempotent for crash recovery.
+
 ## Status
 
 The repository currently contains:
