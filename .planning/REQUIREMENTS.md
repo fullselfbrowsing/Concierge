@@ -189,10 +189,10 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | CON-08 | Phase 8 — Consent kernel | Pending |
 | CON-09 | Phase 8 — Consent kernel | Pending |
 | CON-10 | Phase 8 — Consent kernel | Pending |
-| SES-01 | Phase 7 — Session and the transport seam | Complete — C01-C17 plus M-07-C01..C10/M-07-R03..R04 prove start, stage-change, reconnect, latest-wins publication authority, abandoned-attempt cleanup, reconciliation, and publication admission behavior. |
-| SES-02 | Phase 7 — Session and the transport seam | Complete — C11-C17/J01-J06/J15-J18 plus M-07-C05/C06/C09, M-07-C10, and M-07-R01/R06/R07/R08/R09 prove one FIFO dispatch occurrence and one stable response attempt per call, including the exact later C batch after accessor-abandoned publication cleanup. |
+| SES-01 | Phase 7 — Session and the transport seam | Complete — C01-C22 plus M-07-C01..C16/M-07-R03..R04 prove start, stage-change, reconnect, latest-wins queued/active/confirmed authority, abandoned-attempt cleanup, current/stale boundary progress, and failed-request reconciliation. |
+| SES-02 | Phase 7 — Session and the transport seam | Complete — C11-C22/J01-J06/J15-J18 plus M-07-C05/C06/C09..C16 and M-07-R01/R06/R07/R08/R09 prove one FIFO dispatch occurrence and one stable response attempt per call, including progress across accessor supersession, boundary failure, requested-generation changes, and confirmed replay. |
 | SES-03 | Phase 7 — Session and the transport seam | Complete — J07-J18 plus M-07-R02..R05/R09 prove arrival identity, lazy envelope forwarding, delivery-hook preservation, signal composition, and direct-dispatch parity. |
-| SES-04 | Phase 7 — Session and the transport seam | Complete — C07-C14 and L01-L16 plus M-07-C07..C09/M-07-L02/L07/M-07-D02 prove stop-first invalidation, cleanup, cancellation, reentrancy containment, and no post-stop output. |
+| SES-04 | Phase 7 — Session and the transport seam | Complete — C07-C22 and L01-L18 plus M-07-C07..C16/M-07-L02/L07/M-07-D02 prove stop-first invalidation, exact queued/unresolved detachment, cleanup, cancellation identity, reentrancy containment, and no post-stop output. |
 | TRN-01 | Phase 1 — Type surface completion | Complete |
 | TRN-02 | Phase 7 — Session and the transport seam | Partial — Phase 7 delivers U01-U08 reusable no-network fixture and Session seam/package proof; Phase 8 must reuse this exact fixture to exercise the consent kernel before TRN-02 can be Complete. |
 | TRN-03 | Phase 8 — Consent kernel | Pending |
