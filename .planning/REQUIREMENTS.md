@@ -85,7 +85,7 @@
 - [x] **SEC-01**: Redaction is required at declaration time for any action with a non-empty schema, and an unspecified policy defaults to dropping arguments
 - [x] **SEC-02**: Telemetry never carries thrown error messages, only error class names
 - [ ] **SEC-03**: The action registry is frozen after catalog build, so a handler cannot be replaced at runtime by third-party page script
-- [ ] **SEC-04**: Documentation states, with a worked example, that client-side consent is an assertion the server must re-verify
+- [x] **SEC-04**: Documentation states, with a worked example, that client-side consent is an assertion the server must re-verify
 - [x] **SEC-05**: An action that reads attacker-controllable content declares it, and catalog build reports an action that does so without a consent policy
 - [x] **SEC-06**: `ActionResult.message` is sanitized before it leaves the dispatcher — control characters stripped, whitespace collapsed, and length capped
 
@@ -205,7 +205,7 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | SEC-01 | Phase 3 — Action declaration and build-time validation | Complete |
 | SEC-02 | Phase 6 — Dispatcher | Complete structurally — the TypeScript AST audit parses all 11 production files and proves Phase 6 defines no telemetry/onTelemetry/onError channel or emission and no bound exception forwarding path. R34…R36 prove at runtime that handler exception text reaches neither `ActionResult` nor console; M-06-S25 kills exception echo. |
 | SEC-03 | Phase 4 — Stages, catalog assembly, and explain() | Pending overall under Phase 4's recorded consumer-supplied `jsonSchema` getter carve-out. Phase 6 completes the dispatch-side lookup proof without remapping the requirement: R09/R10 execute zero handlers for `__proto__`/`constructor`, and M-06-S15 kills a prototype-bearing lookup. |
-| SEC-04 | Phase 8 — Consent kernel | Pending |
+| SEC-04 | Phase 8 — Consent kernel | Complete |
 | SEC-05 | Phase 3 — Action declaration and build-time validation | Complete |
 | SEC-06 | Phase 6 — Dispatcher | Complete — R47…R51 prove C0/C1 replacement, whitespace normalization, the shared length cap, surrogate-pair preservation, and fresh sanitized constants; M-06-S30…S33 kill every sanitizer boundary. |
 | PKG-01 | Phase 2 — Packaging, build, and release | Complete |
