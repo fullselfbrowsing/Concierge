@@ -165,14 +165,15 @@ function declare(name: string, schema: unknown, extra: Record<string, unknown> =
 // `expect(...).toThrow(CatalogValidationError)` proves the throw; it cannot
 // reach `.issues`. Both halves are needed, so the throw is asserted separately
 // and the error is captured here for the structured assertions.
-function catchBuild(actions: unknown[], options?: unknown) {
+function catchBuild(actions: unknown[], options?: unknown, marker?: string) {
   try {
     buildCatalog(actions, options);
   } catch (error) {
     return error;
   }
   throw new Error(
-    "buildCatalog returned instead of throwing — every assertion below this " +
+    `${marker === undefined ? "" : `${marker}: `}` +
+      "buildCatalog returned instead of throwing — every assertion below this " +
       "point depends on the throw, so a silent pass would be a false green.",
   );
 }
@@ -876,7 +877,7 @@ describe("CAT-04 and TRN-03 — consent capability failures aggregate during the
       ["confirmOmitted", { bindTo: "response" }],
       ["confirmExplicitNone", { bindTo: "response", minGrade: "none" }],
     ]) {
-      const error = catchBuild([review(), gated(name, policy)]);
+      const error = catchBuild([review(), gated(name, policy)], undefined, marker);
 
       expect(error.issues, marker).toHaveLength(1);
       expect(error.issues[0]).toMatchObject({
@@ -925,6 +926,7 @@ describe("CAT-04 and TRN-03 — consent capability failures aggregate during the
     const grade = catchBuild(
       [review(), gated("confirmRelayed", { bindTo: "response", minGrade: "relayed" })],
       { consentProfile: DELIVERED_PROFILE },
+      marker,
     );
     expect(grade.issues, marker).toHaveLength(1);
     expect(grade.issues[0]).toMatchObject({
@@ -943,6 +945,7 @@ describe("CAT-04 and TRN-03 — consent capability failures aggregate during the
             userTurnIdentity: provenance,
           },
         },
+        marker,
       );
 
       expect(error.issues, marker).toHaveLength(1);

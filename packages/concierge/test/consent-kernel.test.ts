@@ -1493,6 +1493,7 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
       {
         label: "review-turn-reused",
         expectedReason: "consent_required",
+        confirmOptions: { userTurnId: "review-turn" },
         evidence: (hash) => confirmedEvidence(hash, {
           attestation: {
             ...confirmedEvidence(hash).attestation,
@@ -1534,7 +1535,10 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
         variant.evidence(flow.hash),
       );
       await flushEvidence();
-      const result = await flow.confirm({ callId: `confirm-${variant.label}` });
+      const result = await flow.confirm({
+        callId: `confirm-${variant.label}`,
+        ...variant.confirmOptions,
+      });
       expect(result, `${marker}:${variant.label}`).toMatchObject({
         ok: false,
         reason: variant.expectedReason,
