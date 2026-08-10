@@ -177,6 +177,29 @@ function catchBuild(actions: unknown[], options?: unknown) {
   );
 }
 
+const DELIVERED_PROFILE = Object.freeze({
+  consentGrade: "delivered",
+  userTurnIdentity: "none",
+});
+
+const ATTESTED_PROFILE = Object.freeze({
+  consentGrade: "attested",
+  userTurnIdentity: "human-attested",
+});
+
+const PRESENT_READBACK = async () => ({
+  hash: "catalog-only",
+  alg: "SHA-256",
+  canonicalization: "JCS",
+  canonical: new Uint8Array(),
+});
+
+const DIGEST = {
+  async digest() {
+    return new ArrayBuffer(0);
+  },
+};
+
 describe("CAT-01 — one declaration derives the catalog, and there is no second registry", () => {
   it("C1 — two declarations produce names in order, byName lookups, and the emitted parameters", () => {
     // The ONLY input is this array. There is no register() call, no decorator
@@ -634,9 +657,13 @@ describe("CAT-03 — a consent policy naming an action that does not exist fails
       ];
     }
 
-    expect(() => buildCatalog(typoDeclarations())).toThrow(CatalogValidationError);
+    expect(() =>
+      buildCatalog(typoDeclarations(), { consentProfile: DELIVERED_PROFILE }),
+    ).toThrow(CatalogValidationError);
 
-    const error = catchBuild(typoDeclarations());
+    const error = catchBuild(typoDeclarations(), {
+      consentProfile: DELIVERED_PROFILE,
+    });
 
     expect(error.issues).toHaveLength(1);
     expect(error.issues[0].code).toBe("consent_target_missing");
@@ -678,11 +705,17 @@ describe("CAT-03 — a consent policy naming an action that does not exist fails
       ];
     }
 
-    expect(() => buildCatalog(selfReferentialDeclaration())).toThrow(
+    expect(() =>
+      buildCatalog(selfReferentialDeclaration(), {
+        consentProfile: DELIVERED_PROFILE,
+      }),
+    ).toThrow(
       CatalogValidationError,
     );
 
-    const error = catchBuild(selfReferentialDeclaration());
+    const error = catchBuild(selfReferentialDeclaration(), {
+      consentProfile: DELIVERED_PROFILE,
+    });
 
     expect(error.issues).toHaveLength(1);
     expect(error.issues[0].code).toBe("consent_self_reference");
@@ -737,13 +770,19 @@ describe("CAT-03 — a consent policy naming an action that does not exist fails
       ];
     }
 
-    expect(() => buildCatalog(forwardReferenceDeclarations())).not.toThrow();
+    expect(() =>
+      buildCatalog(forwardReferenceDeclarations(), {
+        consentProfile: DELIVERED_PROFILE,
+      }),
+    ).not.toThrow();
 
     // And something POSITIVE about the result. "Did not throw" is satisfied by a
     // `buildCatalog` that was never called, by one that returned early, and by
     // one whose rule was deleted outright; asserting the derived names in
     // declaration order means the build actually ran and produced this catalog.
-    const catalog = buildCatalog(forwardReferenceDeclarations());
+    const catalog = buildCatalog(forwardReferenceDeclarations(), {
+      consentProfile: DELIVERED_PROFILE,
+    });
     expect(catalog.names).toEqual(["confirm", "review"]);
     expect(catalog.entries).toHaveLength(2);
 
@@ -775,11 +814,17 @@ describe("CAT-03 — a consent policy naming an action that does not exist fails
       ];
     }
 
-    expect(() => buildCatalog(fourFaultsIncludingAConsentTypo())).toThrow(
+    expect(() =>
+      buildCatalog(fourFaultsIncludingAConsentTypo(), {
+        consentProfile: DELIVERED_PROFILE,
+      }),
+    ).toThrow(
       CatalogValidationError,
     );
 
-    const error = catchBuild(fourFaultsIncludingAConsentTypo());
+    const error = catchBuild(fourFaultsIncludingAConsentTypo(), {
+      consentProfile: DELIVERED_PROFILE,
+    });
 
     // The number is the requirement, and it is asserted before anything about
     // contents for the reason C4 states: a `buildCatalog` that short-circuits on
@@ -810,6 +855,202 @@ describe("CAT-03 — a consent policy naming an action that does not exist fails
       new Set(["confirm", "stringRoot", "noHatch", "unredacted"]),
     );
     expect(new Set(error.issues.map((issue) => issue.action)).size).toBe(4);
+  });
+});
+
+describe("CAT-04 and TRN-03 — consent capability failures aggregate during the flat build", () => {
+  function review() {
+    return declare("review", zodObject, { redact: "drop" });
+  }
+
+  function gated(name: string, policy: Record<string, unknown>) {
+    return declare(name, zodObject, {
+      redact: "drop",
+      consent: { requires: "review", ...policy },
+    });
+  }
+
+  it("C27 — the absent profile rejects omitted and explicit-none minimums at the inherent delivered floor", () => {
+    for (const [name, policy] of [
+      ["confirmOmitted", { bindTo: "response" }],
+      ["confirmExplicitNone", { bindTo: "response", minGrade: "none" }],
+    ]) {
+      const error = catchBuild([review(), gated(name, policy)]);
+
+      expect(error.issues).toHaveLength(1);
+      expect(error.issues[0]).toMatchObject({
+        code: "consent_grade_unavailable",
+        action: name,
+        required: "delivered",
+        declared: "none",
+      });
+      expect(error.issues[0].fix).toContain("consentProfile.consentGrade");
+    }
+
+    const ungated = buildCatalog([review()]);
+    expect(ungated.names).toEqual(["review"]);
+  });
+
+  it("C28 — a delivered profile accepts both floor forms and a stronger profile accepts a stronger request", () => {
+    const delivered = buildCatalog(
+      [
+        review(),
+        gated("confirmOmitted", { bindTo: "response" }),
+        gated("confirmExplicitNone", {
+          bindTo: "response",
+          minGrade: "none",
+        }),
+      ],
+      { consentProfile: DELIVERED_PROFILE },
+    );
+
+    expect(delivered.names).toEqual([
+      "review",
+      "confirmOmitted",
+      "confirmExplicitNone",
+    ]);
+
+    const stronger = buildCatalog(
+      [review(), gated("confirmRelayed", { bindTo: "response", minGrade: "relayed" })],
+      { consentProfile: ATTESTED_PROFILE },
+    );
+    expect(stronger.byName["confirmRelayed"].action.consent.minGrade).toBe(
+      "relayed",
+    );
+  });
+
+  it("C29 — grade and both untrustworthy user-turn provenances fail independently", () => {
+    const grade = catchBuild(
+      [review(), gated("confirmRelayed", { bindTo: "response", minGrade: "relayed" })],
+      { consentProfile: DELIVERED_PROFILE },
+    );
+    expect(grade.issues).toHaveLength(1);
+    expect(grade.issues[0]).toMatchObject({
+      code: "consent_grade_unavailable",
+      action: "confirmRelayed",
+      required: "relayed",
+      declared: "delivered",
+    });
+
+    for (const provenance of ["none", "agent-forgeable"]) {
+      const error = catchBuild(
+        [review(), gated(`confirm-${provenance}`, { bindTo: "userTurn" })],
+        {
+          consentProfile: {
+            consentGrade: "delivered",
+            userTurnIdentity: provenance,
+          },
+        },
+      );
+
+      expect(error.issues).toHaveLength(1);
+      expect(error.issues[0]).toMatchObject({
+        code: "user_turn_identity_unavailable",
+        action: `confirm-${provenance}`,
+        required: "human-attested",
+        declared: provenance,
+      });
+    }
+  });
+
+  it("C30 — every action sharing one review contributes its own ordered grade issue", () => {
+    const error = catchBuild([
+      review(),
+      gated("confirmFirst", { bindTo: "response" }),
+      gated("confirmSecond", { bindTo: "response", minGrade: "none" }),
+      gated("confirmThird", { bindTo: "response", minGrade: "relayed" }),
+    ]);
+
+    expect(error.issues.map((issue) => [issue.code, issue.action])).toEqual([
+      ["consent_grade_unavailable", "confirmFirst"],
+      ["consent_grade_unavailable", "confirmSecond"],
+      ["consent_grade_unavailable", "confirmThird"],
+    ]);
+  });
+
+  it("C31 — attested requests independently require the presenter and digest seams", () => {
+    const actions = [
+      review(),
+      gated("confirmAttested", { bindTo: "response", minGrade: "attested" }),
+    ];
+
+    const bothMissing = catchBuild(actions, {
+      consentProfile: ATTESTED_PROFILE,
+    });
+    expect(bothMissing.issues.map((issue) => issue.code)).toEqual([
+      "readback_presenter_missing",
+      "digest_missing",
+    ]);
+    expect(bothMissing.issues.every((issue) => issue.action === "confirmAttested"))
+      .toBe(true);
+
+    const digestOnly = catchBuild(actions, {
+      consentProfile: ATTESTED_PROFILE,
+      digest: DIGEST,
+    });
+    expect(digestOnly.issues.map((issue) => issue.code)).toEqual([
+      "readback_presenter_missing",
+    ]);
+
+    const presenterOnly = catchBuild(actions, {
+      consentProfile: ATTESTED_PROFILE,
+      presentReadback: PRESENT_READBACK,
+    });
+    expect(presenterOnly.issues.map((issue) => issue.code)).toEqual([
+      "digest_missing",
+    ]);
+
+    const complete = buildCatalog(actions, {
+      consentProfile: ATTESTED_PROFILE,
+      presentReadback: PRESENT_READBACK,
+      digest: DIGEST,
+    });
+    expect(complete.names).toEqual(["review", "confirmAttested"]);
+  });
+
+  it("C32 — one gated action reports every independent fault alongside an existing catalog fault", () => {
+    const error = catchBuild([
+      review(),
+      gated("confirmEverything", {
+        bindTo: "userTurn",
+        minGrade: "attested",
+      }),
+      declare("stringRoot", zodStringRoot, { redact: "drop" }),
+    ]);
+
+    expect(error.issues.map((issue) => [issue.code, issue.action])).toEqual([
+      ["consent_grade_unavailable", "confirmEverything"],
+      ["user_turn_identity_unavailable", "confirmEverything"],
+      ["readback_presenter_missing", "confirmEverything"],
+      ["digest_missing", "confirmEverything"],
+      ["schema_root_not_object", "stringRoot"],
+    ]);
+    expect(error).toBeInstanceOf(CatalogValidationError);
+  });
+
+  it("C33 — non-callable attested seams produce fixed diagnostics without echoing values", () => {
+    const secret = "CATALOG-SECRET-MUST-NOT-ECHO";
+    const error = catchBuild(
+      [
+        review(),
+        gated("confirmAttested", {
+          bindTo: "response",
+          minGrade: "attested",
+        }),
+      ],
+      {
+        consentProfile: ATTESTED_PROFILE,
+        presentReadback: { secret },
+        digest: { secret },
+      },
+    );
+
+    expect(error.issues.map((issue) => issue.code)).toEqual([
+      "readback_presenter_missing",
+      "digest_missing",
+    ]);
+    expect(error.message).not.toContain(secret);
+    expect(JSON.stringify(error.issues)).not.toContain(secret);
   });
 });
 

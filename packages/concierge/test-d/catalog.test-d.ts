@@ -86,10 +86,20 @@
 // object-literal freshness is not reached for.
 
 import type { Assignable, Equals, Expect, Not } from "./_assert.js";
-import type { CatalogEntry, CatalogIssueCode } from "../src/catalog.js";
+import type {
+  BuildCatalogOptions,
+  CatalogEntry,
+  CatalogIssue,
+  CatalogIssueCode,
+} from "../src/catalog.js";
 import { buildCatalog } from "../src/catalog.js";
 import { defineAction } from "../src/define-action.js";
-import type { StandardSchemaV1 } from "../src/types.js";
+import type {
+  ConsentProfile,
+  DigestLike,
+  ReadbackSink,
+  StandardSchemaV1,
+} from "../src/types.js";
 
 // --------------------------------------------------------------------------
 // Fixtures — every one local, none exported, none annotated
@@ -320,7 +330,21 @@ type _entryMembersAreReadonly = Expect<Equals<CatalogEntry, Readonly<CatalogEntr
 // and `_declaredNamesAreNotWidenedToString` are two lines rather than one.
 
 /** The exact membership. `Equals` and NOT `Assignable`, and that choice is the entire value of the line: `Expect<Assignable<"consent_target_missing", CatalogIssueCode>>` stays GREEN when the alias is widened to `string`, because a literal is assignable to `string` — so the one-directional spelling passes on precisely the regression worth guarding. `_entryMembersAreReadonly` above makes the same argument one level down. This also goes red on any member added, removed or renamed, which is deliberate: Phase 8 is scheduled to add a third consent code (`consentRequiresOf`'s residual paragraph), and that addition must move this line rather than slip past it. */
-type _catalogIssueCodeIsExactlySixMembers = Expect<Equals<CatalogIssueCode, "duplicate_action_name" | "schema_not_emittable" | "schema_root_not_object" | "redaction_missing" | "consent_target_missing" | "consent_self_reference">>;
+type _catalogIssueCodeIsExactlyTenMembers = Expect<Equals<CatalogIssueCode, "duplicate_action_name" | "schema_not_emittable" | "schema_root_not_object" | "redaction_missing" | "consent_target_missing" | "consent_self_reference" | "consent_grade_unavailable" | "user_turn_identity_unavailable" | "readback_presenter_missing" | "digest_missing">>;
 
 /** The union is CLOSED, not merely containing those six — a plausible near-miss code is rejected. Today this is the widening detector from the opposite direction: under `CatalogIssueCode = string` the literal becomes assignable and this line goes red, independently of the `Equals` above. It is a near-miss rather than an arbitrary string so it doubles as a name pin: if Phase 8 spells its third consent code this way, this is what goes red and sends the author to the line that needs updating. */
 type _catalogIssueCodeIsClosed = Expect<Not<Assignable<"consent_missing", CatalogIssueCode>>>;
+
+/** Phase 8 construction evidence extends the one catalog-options object rather than introducing a second build path. */
+type _buildCatalogOptionKeys = Expect<Equals<keyof BuildCatalogOptions, "jsonSchemaTarget" | "onDiagnostic" | "consentProfile" | "presentReadback" | "digest">>;
+
+/** EOPT-safe options accept values copied from optional ConciergeConfig fields without conditionally rebuilding the options object. */
+type _buildCatalogOptionsAdmitExplicitUndefined = Expect<Assignable<{ consentProfile: undefined; presentReadback: undefined; digest: undefined }, BuildCatalogOptions>>;
+
+/** The construction evidence retains the public capability types rather than widening them to unknown callbacks or records. */
+type _buildCatalogConsentProfileType = Expect<Equals<BuildCatalogOptions["consentProfile"], ConsentProfile | undefined>>;
+type _buildCatalogPresenterType = Expect<Equals<BuildCatalogOptions["presentReadback"], ReadbackSink | undefined>>;
+type _buildCatalogDigestType = Expect<Equals<BuildCatalogOptions["digest"], DigestLike | undefined>>;
+
+/** New consent issues carry machine-readable required and declared values alongside the existing actionable prose. */
+type _catalogIssueCapabilityFields = Expect<Equals<Pick<CatalogIssue, "required" | "declared">, { readonly required?: string | undefined; readonly declared?: string | undefined }>>;
