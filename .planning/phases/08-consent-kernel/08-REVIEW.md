@@ -1,118 +1,107 @@
 ---
 phase: 08-consent-kernel
-reviewed: 2026-08-10T15:30:45Z
+reviewed: 2026-08-10T16:17:00Z
+iteration: 2
+review_base: 5e8e9da
+review_head: 7fc77ec33b8c13d865803a66ac0988223e88620e
 depth: standard
-files_reviewed: 32
+files_reviewed: 15
 files_reviewed_list:
+  - .planning/REQUIREMENTS.md
+  - .planning/phases/08-consent-kernel/08-07-SUMMARY.md
+  - .planning/phases/08-consent-kernel/08-MUTATION-EVIDENCE.json
+  - .planning/phases/08-consent-kernel/08-MUTATION-REGISTER.json
+  - .planning/phases/08-consent-kernel/08-SECURITY.md
+  - .planning/phases/08-consent-kernel/08-VALIDATION.md
   - README.md
-  - packages/concierge/src/catalog.ts
   - packages/concierge/src/concierge.ts
-  - packages/concierge/src/consent-evidence.ts
-  - packages/concierge/src/consent-profile.ts
   - packages/concierge/src/index.ts
-  - packages/concierge/src/session.ts
   - packages/concierge/src/types.ts
-  - packages/concierge/test-d/catalog.test-d.ts
-  - packages/concierge/test-d/consent.test-d.ts
-  - packages/concierge/test-d/exports.test-d.ts
-  - packages/concierge/test-d/session.test-d.ts
-  - packages/concierge/test-d/stub-transport.test-d.ts
-  - packages/concierge/test-d/transport.test-d.ts
-  - packages/concierge/test/artifact.test.ts
   - packages/concierge/test/catalog.test.ts
-  - packages/concierge/test/concierge.test.ts
   - packages/concierge/test/consent-kernel.test.ts
-  - packages/concierge/test/diagnostic-safety.test.ts
-  - packages/concierge/test/export-surface.test.ts
-  - packages/concierge/test/fixtures/probe.ts
-  - packages/concierge/test/fixtures/stub-transport.ts
   - packages/concierge/test/readback-canonicalization.test.ts
   - packages/concierge/test/readme-security.test.ts
-  - packages/concierge/test/session-catalog.test.ts
-  - packages/concierge/test/session-consent.test.ts
-  - packages/concierge/test/session-lifecycle.test.ts
-  - packages/concierge/test/session-routing.test.ts
-  - packages/concierge/test/single-instance.test.ts
-  - packages/concierge/test/stub-transport.test.ts
-  - scripts/pack-install-check.sh
   - scripts/phase-08-mutation-battery.mjs
 findings:
-  critical: 1
-  warning: 2
+  critical: 0
+  warning: 0
   info: 0
-  total: 3
-status: issues_found
+  total: 0
+status: clean
 ---
 
-# Phase 8: Code Review Report
+# Phase 8: Code Review Report — Iteration 2
 
-**Reviewed:** 2026-08-10T15:30:45Z
+**Reviewed:** 2026-08-10T16:17:00Z
 **Depth:** standard
-**Files Reviewed:** 32
-**Status:** issues_found
+**Remediation range:** `5e8e9da..7fc77ec33b8c13d865803a66ac0988223e88620e`
+**Files Reviewed:** 15
+**Status:** clean
 
 ## Narrative Findings (AI reviewer)
 
-The consent kernel fails closed on many individual proof checks, but contradictory attestation data can still be silently downgraded into usable relayed authority. The mutation harness also overstates its failure-fingerprint proof, and the public source documentation still describes the newly implemented runtime as absent.
+The current remediation resolves all three iteration-1 findings. Contradictory attempted attestation is terminal rather than downgraded, mutation kill credit now depends on a marker observed in the actual assertion failure, and the public documentation accurately describes the implemented pre-alpha runtime. Focused runtime, mutation, release, and ledger checks found no new Critical or Warning issue.
 
 ## Summary
 
-One BLOCKER finding affects authorization correctness and must be fixed before shipping. Two WARNING findings affect validation reliability and public contract accuracy. The targeted E12 test was executed during review; it passes while demonstrating the contradictory-attestation fail-open described in CR-01.
+All reviewed files meet the Phase 8 correctness, security, and review-harness requirements. No open issues remain from this review. The historical findings and their resolution evidence are retained below for audit continuity.
 
-## Critical Issues
+## Resolution and Re-review Evidence
 
-### CR-01 [BLOCKER]: Contradictory attestation is downgraded into usable relayed authority
+### Historical CR-01 — RESOLVED: contradictory attestation downgrade
 
-**File:** `/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/src/concierge.ts:1042-1101`
+**Original file:** `/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/src/concierge.ts:1042-1101` at iteration 1
 
-**Reproduction:** `/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/consent-kernel.test.ts:1948-1981`
+**Original issue:** A delivery carrying incomplete or contradictory attested fields could fail the attested conjunction but remain armed as relayed authority. A relayed sibling gate could then consume the corrupted shared review generation.
 
-**Issue:** `observeReviewDelivery` initializes `achievedGrade` to `relayed` before checking the attested tuple. If a delivery contains an attestation/readback claim but that claim has no verified receipt, a mismatched report hash, a mismatched attestation hash, an empty/reused confirming turn, or another failed attested cross-check, the condition merely fails and the occurrence is armed at `relayed`. This violates D-08-12's fail-closed rule for contradictory evidence. The existing E12 test is a concrete public-API reproduction: it submits `confirmedEvidence("claim")` without any presented readback or receipt, then executes the gated handler and receives a relayed ack. The targeted test passes with that behavior. A more serious shared-review variant exists when one sibling action requires `attested` and another requires `relayed`: malformed attested evidence that cannot authorize the first action can still be consumed by the relayed sibling to perform its effect.
+**Resolution:** Current `/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/src/concierge.ts:1039-1056` distinguishes a clean delivery with no higher-grade claim from an attempted attested claim. If either `readbackHash` or `attestation` is supplied, the complete receipt/profile/hash/act/turn conjunction must succeed; otherwise the shared generation is closed before any grade is armed. A completed report with both higher-grade fields absent remains valid relayed evidence, preserving the intended clean downgrade semantics.
 
-Completely absent higher-grade claims may validly produce relayed evidence. The defect is accepting a *present but incomplete or contradictory* higher-grade claim as if it were absent.
+**Re-review evidence:** E12 now supplies a completed delivery with no attested fields and proves a relayed ack without invoking readback presentation or digest. E14 recreates a review shared by attested and relayed gates and covers missing attestation, missing report hash, mismatched report hash, mismatched attestation hash, empty confirming turn, and reused review turn; both sibling handlers remain unentered for every variant. Focused Vitest execution passed E02, E12, and E14 (3 passed, 44 skipped). Fresh disposable preflights killed M-08-E15 and M-08-E06 with byte-identical restoration.
 
-**Fix:** Branch explicitly on whether the delivery contains any higher-grade claim. Preserve the relayed path only when both `readbackHash` and `attestation` are absent. When either is present, require the complete verified tuple and close the generation on every mismatch before arming it. For example:
+### Historical WR-01 — RESOLVED: manufactured mutation fingerprints
 
-```typescript
-const hasAttestedClaim =
-  delivery.readbackHash !== undefined || delivery.attestation !== undefined;
+**Original file:** `/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/scripts/phase-08-mutation-battery.mjs:1899-1932` at iteration 1
 
-if (!hasAttestedClaim) {
-  achievedGrade = relayedGradeWithin(capturedConsent.profile.consentGrade);
-} else {
-  if (!completeAttestedTupleMatches(claimed, delivery, capturedConsent.profile)) {
-    closeConsentGeneration(reviewName, claimed.generation);
-    return;
-  }
-  // Re-digest, re-check ownership, then assign the attested fields.
-  achievedGrade = "attested";
-}
-```
+**Original issue:** The harness manufactured the observed marker from the mutant id, so an unrelated failure in the selected named test could receive kill credit.
 
-Rewrite E12 to use a completed delivery with no higher-grade fields, and add a regression where a review shared by attested and relayed gates receives each malformed hash/turn variant and neither handler is entered.
+**Resolution:** Current `/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/scripts/phase-08-mutation-battery.mjs:236-250,1933-1970` sources one stable marker from the detector test and extracts the observed marker only from Vitest's actual `failureMessages`. Zero, duplicate, unrelated, or mismatched markers fail the detector. The self-test at lines 3810-3852 positively accepts a real marker and negatively rejects the correct case id failing with an unrelated message.
 
-## Warnings
+The catalog helper at `/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/test/catalog.test.ts:165-179` now carries the source-owned marker into its unexpected-success throw, so no-throw mutants still produce an attributable assertion failure. The E06 detector sets the confirm turn to the reused review turn, ensuring removal of the distinct-turn check reaches the forbidden success path rather than failing later for an unrelated boundary. Fresh preflights for M-08-C01 and M-08-E06 both earned one named detector kill and restored their targets exactly.
 
-### WR-01 [WARNING]: Mutation failure fingerprints are manufactured instead of observed
+**Re-review evidence:** `node scripts/phase-08-mutation-battery.mjs self-test` passed all fingerprint negative controls and live selector checks. `verify all` reported 48/48 green. The register and evidence each contain 48 unique ordered ids/rows; all rows are green, and the persisted M-08-C01, M-08-E06, and M-08-E15 fingerprints match their distinct source-owned C27, E02, and E14 markers with no infrastructure errors.
 
-**File:** `/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/scripts/phase-08-mutation-battery.mjs:1899-1932`
+### Historical WR-02 — RESOLVED: stale public runtime documentation
 
-**Issue:** `runtimeFailureFingerprint` never derives a marker from `failureMessages`. For every failed assertion it unconditionally inserts `failureMarkerForMutant(mutant.id)`, which is the same value the verifier expects. Consequently the advertised marker fingerprint is tautological: any single failure inside the selected named test, including an unrelated assertion failure, is recorded as the intended mutant marker and can receive kill credit. Exact case selection is useful, but it does not prove which behavior in a multi-assertion test failed.
+**Original files:** `/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/src/index.ts:6-10,52-56`; `/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/src/types.ts:1798-1806`; `/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/README.md:20-21,121-135` at iteration 1
 
-**Fix:** Put a stable per-mutant marker in the detector assertion's actual failure text and parse that marker from `failureMessages`, or compare a normalized failure-message digest/signature recorded in the immutable register. Never synthesize the observed marker from the mutant currently being run. Add a self-test in which the correct named case fails for an unrelated message and verify that the detector rejects it.
+**Original issue:** Public source documentation claimed the runtime, outcome presentation, and consent enforcement were not implemented.
 
-### WR-02 [WARNING]: Shipped documentation falsely says the implemented runtime and consent gate do not exist
+**Resolution:** The root README now identifies the unpublished pre-alpha runtime and its catalog, bridge, dispatcher, Session, consent, and outcome-presentation capabilities while retaining the no-production-support and server-authorization warnings. The package barrel and `Concierge` interface now describe direct consent enforcement and Session outcome presentation accurately. Searches found none of the superseded statements.
 
-**File:** `/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/src/index.ts:6-10,52-56`
+## Focused Checks
 
-**Also affected:** `/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/packages/concierge/src/types.ts:1798-1806`; `/Users/lakshman/conductor/workspaces/concierge-v1/ljubljana/README.md:20-21,121-135`
+- `pnpm exec vitest run packages/concierge/test/consent-kernel.test.ts --testNamePattern='(?:E02|E12|E14)\\s+—' --reporter=verbose` — passed: 3/3 selected.
+- `node scripts/phase-08-mutation-battery.mjs self-test` — passed marker negative controls and every live named selector.
+- `node scripts/phase-08-mutation-battery.mjs preflight M-08-E15` — killed by E14; restored exactly.
+- `node scripts/phase-08-mutation-battery.mjs preflight M-08-E06` — killed by E02; restored exactly.
+- `node scripts/phase-08-mutation-battery.mjs preflight M-08-C01` — killed by C27 through the marked catalog helper; restored exactly.
+- `node scripts/phase-08-mutation-battery.mjs verify all` — passed: 48/48 green.
+- `node scripts/phase-08-mutation-battery.mjs verify ledgers` — passed the mutation, protected-input, immutable-release, task, security, and requirement ledger checks; the release snapshot reports 20 files and 428/428 runtime tests.
+- `git diff --check 5e8e9da..HEAD` — passed.
 
-**Issue:** The package barrel says Session does not invoke the outcome presenter and dispatch does not enforce consent, the `Concierge` interface says consent gating is not implemented by the handle, and the repository README says there is no runtime. All three statements are false in the reviewed implementation. These comments are part of the shipped declaration/source documentation and materially misstate the security boundary and supported behavior to integrators.
+## Historical Iteration 1 Record
 
-**Fix:** Update the barrel and interface documentation to describe direct consent enforcement and mandatory outcome presentation accurately. Update repository status/roadmap text to list the implemented catalog, dispatcher, bridge, session, and consent runtime while retaining the pre-alpha and no-production-integration warning where appropriate.
+Iteration 1 reviewed 32 files at standard depth on 2026-08-10T15:30:45Z and reported one BLOCKER plus two WARNINGs:
+
+1. **CR-01 [BLOCKER] — contradictory attestation was downgraded into usable relayed authority.** The original E12 test demonstrated the fail-open with `confirmedEvidence("claim")`; the required fix was to separate completely absent higher-grade claims from incomplete or contradictory attempted tuples and to cover the shared-gate path.
+2. **WR-01 [WARNING] — mutation failure fingerprints were manufactured instead of observed.** The required fix was to parse a stable marker from actual failure output and reject an unrelated failure in the correct named case.
+3. **WR-02 [WARNING] — shipped documentation falsely said the implemented runtime and consent gate did not exist.** The required fix was to describe the implemented pre-alpha runtime without overstating production readiness.
+
+All three historical findings are resolved by the commits in this iteration's review range. They are not counted in the current frontmatter totals.
 
 ---
 
-_Reviewed: 2026-08-10T15:30:45Z_
+_Reviewed: 2026-08-10T16:17:00Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: standard_
+_Iteration: 2_
