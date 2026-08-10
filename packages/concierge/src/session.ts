@@ -8,21 +8,31 @@
  * without ever confirming the superseded context that published it.
  *
  * All mutable state is factory-local. The module remains safe to evaluate on a
- * server and deliberately contains no DOM, timer, network, consent, or vendor
- * vocabulary.
+ * server and deliberately contains no DOM, timer, network, or vendor vocabulary.
+ * Its narrow consent role is the session trust boundary: validate the actual
+ * transport capability and capture the app-owned outcome presenter. Consent
+ * authority and occurrence evidence remain owned by Concierge.
  */
 
 import { assertSingleInstance } from "./contract.js";
+import {
+  consentProfileOf,
+  profileDominates,
+  snapshotConsentProfile,
+} from "./consent-profile.js";
 import { warnHost } from "./host.js";
 import type {
   AbortSignalLike,
   EmittedTool,
+  OutcomeSink,
   Session,
   SessionConfig,
   SessionDiagnostic,
   SessionDiagnosticCode,
   StageContext,
   ToolBatch,
+  Transport,
+  TransportCapabilities,
   TransportStatus,
 } from "./types.js";
 
@@ -123,6 +133,54 @@ interface QueuedOccurrence {
   pendingAttemptToken: number | null;
 }
 
+function ownDataValue(value: object, key: keyof TransportCapabilities): unknown {
+  const descriptor: PropertyDescriptor | undefined =
+    Object.getOwnPropertyDescriptor(value, key);
+  if (descriptor === undefined || !("value" in descriptor)) {
+    throw new TypeError(START_ERROR);
+  }
+  return descriptor.value;
+}
+
+/** Snapshot all four required capability fields without invoking accessors. */
+function snapshotTransportCapabilities(value: unknown): TransportCapabilities {
+  if (typeof value !== "object" || value === null) {
+    throw new TypeError(START_ERROR);
+  }
+
+  const prototype: object | null = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new TypeError(START_ERROR);
+  }
+
+  const profile = snapshotConsentProfile(value);
+  const parallelCalls: unknown = ownDataValue(value, "parallelCalls");
+  const dynamicCatalog: unknown = ownDataValue(value, "dynamicCatalog");
+  if (typeof parallelCalls !== "boolean" || typeof dynamicCatalog !== "boolean") {
+    throw new TypeError(START_ERROR);
+  }
+
+  return Object.freeze({
+    consentGrade: profile.consentGrade,
+    userTurnIdentity: profile.userTurnIdentity,
+    parallelCalls,
+    dynamicCatalog,
+  });
+}
+
+/** Read only an own data capability value from the transport boundary. */
+function captureTransportCapabilities(value: unknown): TransportCapabilities {
+  if (typeof value !== "object" || value === null) {
+    throw new TypeError(START_ERROR);
+  }
+  const descriptor: PropertyDescriptor | undefined =
+    Object.getOwnPropertyDescriptor(value, "capabilities");
+  if (descriptor === undefined || !("value" in descriptor)) {
+    throw new TypeError(START_ERROR);
+  }
+  return snapshotTransportCapabilities(descriptor.value);
+}
+
 /**
  * Create one hot Session and synchronously publish its initial catalog.
  *
@@ -133,9 +191,27 @@ interface QueuedOccurrence {
 export function createSession(config: SessionConfig): Session {
   assertSingleInstance();
 
-  const concierge: SessionConfig["concierge"] = config.concierge;
-  const transport: SessionConfig["transport"] = config.transport;
-  const onDiagnostic: SessionConfig["onDiagnostic"] = config.onDiagnostic;
+  let concierge!: SessionConfig["concierge"];
+  let transport!: Transport;
+  let onDiagnostic!: SessionConfig["onDiagnostic"];
+  let presentOutcome!: OutcomeSink;
+  let actualCapabilities!: TransportCapabilities;
+  try {
+    concierge = config.concierge;
+    transport = config.transport;
+    const outcomeCandidate: unknown = config.presentOutcome;
+    if (typeof outcomeCandidate !== "function") {
+      throw new TypeError(START_ERROR);
+    }
+    presentOutcome = outcomeCandidate as OutcomeSink;
+    actualCapabilities = captureTransportCapabilities(transport);
+    if (!profileDominates(actualCapabilities, consentProfileOf(concierge))) {
+      throw new TypeError(START_ERROR);
+    }
+    onDiagnostic = config.onDiagnostic;
+  } catch {
+    throw new Error(START_ERROR);
+  }
 
   let lifecycle: Lifecycle = "starting";
   let requestedContext: StageContext | null = null;
@@ -1001,17 +1077,7 @@ export function createSession(config: SessionConfig): Session {
     }
 
     if (publishedCatalog !== null) {
-      const capabilities = captureCurrent(
-        record,
-        (): typeof transport.capabilities => transport.capabilities,
-      );
-      if (capabilities === null) return;
-      const dynamicCatalog = captureCurrent(
-        record,
-        (): boolean => capabilities.value.dynamicCatalog,
-      );
-      if (dynamicCatalog === null) return;
-      if (dynamicCatalog.value === false) {
+      if (actualCapabilities.dynamicCatalog === false) {
         currentStage = resolved.stage;
         stopNow();
         throw new Error(FIXED_CATALOG_ERROR);

@@ -849,32 +849,24 @@ it("skips a stale stage resolver after catalog resolution enqueues newer context
   await session.stop();
 });
 
-it("skips a stale fixed-capability branch after its getter enqueues newer context", async () => {
-  const marker = "[REGRESSION:capability-getter-reentry-latest-wins]";
+it("uses the detached construction capability after caller mutation", async () => {
+  const marker = "[REGRESSION:detached-capability-snapshot]";
   const a = { name: "a" };
   const b = { name: "b" };
-  const c = { name: "c" };
   const catalogA = Object.freeze([]);
   const catalogB = Object.freeze([]);
   const concierge = conciergeDouble(
     [
       { context: a, catalog: catalogA, stage: "a" },
       { context: b, catalog: catalogB, stage: "b" },
-      { context: c, catalog: catalogA, stage: "c" },
     ],
     async () => Object.freeze([]),
   );
   const base = controlledTransport();
-  let capabilityReads = 0;
-  let session;
-  const capabilities = Object.freeze({
+  const capabilities = {
     ...CONVERSATIONAL_CAPABILITIES,
-    get dynamicCatalog() {
-      capabilityReads += 1;
-      session.setContext(c);
-      return false;
-    },
-  });
+    dynamicCatalog: true,
+  };
   const transport = Object.freeze({
     capabilities,
     get status() {
@@ -893,7 +885,8 @@ it("skips a stale fixed-capability branch after its getter enqueues newer contex
       base.transport.respond(callId, result);
     },
   });
-  session = createSession({ concierge, transport, initialContext: a });
+  const session = createSession({ concierge, transport, initialContext: a });
+  capabilities.dynamicCatalog = false;
 
   let errorMessage;
   try {
@@ -904,7 +897,6 @@ it("skips a stale fixed-capability branch after its getter enqueues newer contex
 
   expect(
     {
-      capabilityReads,
       errorMessage,
       history: base.publications,
       stage: session.stage(),
@@ -912,10 +904,9 @@ it("skips a stale fixed-capability branch after its getter enqueues newer contex
     },
     marker,
   ).toEqual({
-    capabilityReads: 1,
     errorMessage: undefined,
-    history: [catalogA],
-    stage: "c",
+    history: [catalogA, catalogB],
+    stage: "b",
     subscribers: { status: 1, batch: 1 },
   });
   await session.stop();
@@ -1686,7 +1677,7 @@ it("[C17] clears a publication abandoned by setTools accessor reentry", async ()
   }
 });
 
-it("[C18] suppresses stale resolver and capability boundaries while C progresses", async () => {
+it("[C18] suppresses stale resolver boundaries while C progresses", async () => {
   const marker = "[RED:C18:stale-boundary-progress]";
   requireFactory("[SMOKE:C18:create-session-factory]");
   const boundaries = [
@@ -1694,8 +1685,6 @@ it("[C18] suppresses stale resolver and capability boundaries while C progresses
     "catalogFor-call",
     "stageFor-property",
     "stageFor-call",
-    "capabilities",
-    "dynamicCatalog",
   ];
   const observations = [];
 
@@ -1719,14 +1708,11 @@ it("[C18] suppresses stale resolver and capability boundaries while C progresses
         const dispatches = [];
         const stageEvents = [];
         let catalogForReads = 0;
-        let dynamicCatalogReads = 0;
         let handlerEntries = 0;
         let session;
         let stageForReads = 0;
         let staleCallableInvocations = 0;
         let staleContinuationEffects = 0;
-        let staleStructuralReads = 0;
-        let transportCapabilityReads = 0;
         const sentinel = `PRIVATE-C18-${boundary}-${mode}-${catalogMode}`;
 
         const supersede = (value) => {
@@ -1790,34 +1776,8 @@ it("[C18] suppresses stale resolver and capability boundaries while C progresses
           dispatch: () => Promise.resolve({ ok: false, message: "unused" }),
           explain: () => ({ stage: null, stages: [], catalog: [] }),
         };
-        const liveCapabilities = Object.freeze({
-          ...CONVERSATIONAL_CAPABILITIES,
-          get dynamicCatalog() {
-            dynamicCatalogReads += 1;
-            if (boundary === "dynamicCatalog" && dynamicCatalogReads === 1) {
-              return supersede(false);
-            }
-            return true;
-          },
-        });
-        const staleCapabilities = Object.freeze({
-          ...CONVERSATIONAL_CAPABILITIES,
-          get dynamicCatalog() {
-            staleStructuralReads += 1;
-            return false;
-          },
-        });
         const transport = Object.freeze({
-          get capabilities() {
-            transportCapabilityReads += 1;
-            if (
-              boundary === "capabilities" &&
-              transportCapabilityReads === 1
-            ) {
-              return supersede(staleCapabilities);
-            }
-            return liveCapabilities;
-          },
+          capabilities: CONVERSATIONAL_CAPABILITIES,
           get status() {
             return base.transport.status;
           },
@@ -1883,7 +1843,6 @@ it("[C18] suppresses stale resolver and capability boundaries while C progresses
           stageEvents,
           staleCallableInvocations,
           staleContinuationEffects,
-          staleStructuralReads,
         });
         await session.stop();
       }
@@ -1917,7 +1876,6 @@ it("[C18] suppresses stale resolver and capability boundaries while C progresses
           stageEvents: ["c"],
           staleCallableInvocations: 0,
           staleContinuationEffects: 0,
-          staleStructuralReads: 0,
         };
       }),
     ),
@@ -1925,7 +1883,7 @@ it("[C18] suppresses stale resolver and capability boundaries while C progresses
   expect(observations, marker).toEqual(expected);
 });
 
-it("[C19] drains queued connected replay before rethrowing a current boundary value", async () => {
+it("[C19] drains queued connected replay before rethrowing a current resolver value", async () => {
   const marker = "[RED:C19:current-exception-drain-progress]";
   requireFactory("[SMOKE:C19:create-session-factory]");
   const boundaries = [
@@ -1933,8 +1891,6 @@ it("[C19] drains queued connected replay before rethrowing a current boundary va
     "catalogFor-call",
     "stageFor-property",
     "stageFor-call",
-    "capabilities",
-    "dynamicCatalog",
   ];
   const observations = [];
 
@@ -1958,10 +1914,8 @@ it("[C19] drains queued connected replay before rethrowing a current boundary va
     const sentinel = Object.freeze({ secret });
     let boundaryEntries = 0;
     let catalogForReads = 0;
-    let dynamicCatalogReads = 0;
     let session;
     let stageForReads = 0;
-    let transportCapabilityReads = 0;
 
     const queueConnectedAndThrow = () => {
       boundaryEntries += 1;
@@ -2012,24 +1966,8 @@ it("[C19] drains queued connected replay before rethrowing a current boundary va
       dispatch: () => Promise.resolve({ ok: false, message: "unused" }),
       explain: () => ({ stage: null, stages: [], catalog: [] }),
     };
-    const liveCapabilities = Object.freeze({
-      ...CONVERSATIONAL_CAPABILITIES,
-      get dynamicCatalog() {
-        dynamicCatalogReads += 1;
-        if (boundary === "dynamicCatalog" && dynamicCatalogReads === 1) {
-          queueConnectedAndThrow();
-        }
-        return true;
-      },
-    });
     const transport = Object.freeze({
-      get capabilities() {
-        transportCapabilityReads += 1;
-        if (boundary === "capabilities" && transportCapabilityReads === 1) {
-          queueConnectedAndThrow();
-        }
-        return liveCapabilities;
-      },
+      capabilities: CONVERSATIONAL_CAPABILITIES,
       get status() {
         return base.transport.status;
       },
@@ -2136,8 +2074,6 @@ it("[C20] binds boundary-time admissions to the exact requested authority", asyn
     "catalogFor-call",
     "stageFor-property",
     "stageFor-call",
-    "capabilities",
-    "dynamicCatalog",
   ];
 
   const trackedBatch = (callId, finalizations, sourceCounts, events) => {
@@ -2188,14 +2124,11 @@ it("[C20] binds boundary-time admissions to the exact requested authority", asyn
         const sentinel = Object.freeze({ secret });
         let boundaryEntries = 0;
         let catalogForReads = 0;
-        let dynamicCatalogReads = 0;
         let handlerEntries = 0;
         let session;
         let stageForReads = 0;
         let staleCallableInvocations = 0;
         let staleContinuationEffects = 0;
-        let staleStructuralReads = 0;
-        let transportCapabilityReads = 0;
 
         const requestC = (value) => {
           boundaryEntries += 1;
@@ -2282,34 +2215,8 @@ it("[C20] binds boundary-time admissions to the exact requested authority", asyn
           dispatch: () => Promise.resolve({ ok: false, message: "unused" }),
           explain: () => ({ stage: null, stages: [], catalog: [] }),
         };
-        const liveCapabilities = Object.freeze({
-          ...CONVERSATIONAL_CAPABILITIES,
-          get dynamicCatalog() {
-            dynamicCatalogReads += 1;
-            if (boundary === "dynamicCatalog" && dynamicCatalogReads === 1) {
-              return requestC(false);
-            }
-            return true;
-          },
-        });
-        const staleCapabilities = Object.freeze({
-          ...CONVERSATIONAL_CAPABILITIES,
-          get dynamicCatalog() {
-            staleStructuralReads += 1;
-            return false;
-          },
-        });
         const transport = Object.freeze({
-          get capabilities() {
-            transportCapabilityReads += 1;
-            if (
-              boundary === "capabilities" &&
-              transportCapabilityReads === 1
-            ) {
-              return requestC(staleCapabilities);
-            }
-            return liveCapabilities;
-          },
+          capabilities: CONVERSATIONAL_CAPABILITIES,
           get status() {
             return base.transport.status;
           },
@@ -2379,7 +2286,6 @@ it("[C20] binds boundary-time admissions to the exact requested authority", asyn
           stageEvents,
           staleCallableInvocations,
           staleContinuationEffects,
-          staleStructuralReads,
         });
         await session.stop();
       }
@@ -2441,7 +2347,6 @@ it("[C20] binds boundary-time admissions to the exact requested authority", asyn
         stageEvents: ["c"],
         staleCallableInvocations: 0,
         staleContinuationEffects: 0,
-        staleStructuralReads: 0,
       })),
     ),
   );
@@ -2721,13 +2626,6 @@ it("[C21] retains active requested authority after the transition queue shift", 
         })),
       ),
     ),
-    ...["capabilities", "dynamicCatalog"].flatMap((boundary) =>
-      ["return", "throw"].map((mode) => ({
-        boundary,
-        catalogMode: "distinct",
-        mode,
-      })),
-    ),
   ];
   const matrix = [];
 
@@ -2745,10 +2643,8 @@ it("[C21] retains active requested authority after the transition queue shift", 
     const sentinel = Object.freeze({ secret });
     let boundaryEntries = 0;
     let catalogForReads = 0;
-    let dynamicCatalogReads = 0;
     let session;
     let stageForReads = 0;
-    let transportCapabilityReads = 0;
 
     const enterBoundary = (value) => {
       boundaryEntries += 1;
@@ -2813,24 +2709,8 @@ it("[C21] retains active requested authority after the transition queue shift", 
       dispatch: () => Promise.resolve({ ok: false, message: "unused" }),
       explain: () => ({ stage: null, stages: [], catalog: [] }),
     };
-    const capabilities = Object.freeze({
-      ...CONVERSATIONAL_CAPABILITIES,
-      get dynamicCatalog() {
-        dynamicCatalogReads += 1;
-        if (boundary === "dynamicCatalog" && dynamicCatalogReads === 1) {
-          return enterBoundary(true);
-        }
-        return true;
-      },
-    });
     const transport = Object.freeze({
-      get capabilities() {
-        transportCapabilityReads += 1;
-        if (boundary === "capabilities" && transportCapabilityReads === 1) {
-          return enterBoundary(capabilities);
-        }
-        return capabilities;
-      },
+      capabilities: CONVERSATIONAL_CAPABILITIES,
       get status() {
         return base.transport.status;
       },
