@@ -6,7 +6,16 @@
 // most, and it is the easiest one to produce by accident. Wiring this is not
 // cleanup; it is the difference between CI meaning something and not.
 
+import { svelte as createSveltePlugin } from "@sveltejs/vite-plugin-svelte";
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
+
+function svelte({ hot }: { readonly hot: boolean }) {
+  return createSveltePlugin({
+    configFile: false,
+    compilerOptions: { hmr: hot },
+  });
+}
 
 // ---------------------------------------------------------------------------
 // The line that looks wrong and is right: typecheck mode stays OFF
@@ -41,9 +50,9 @@ import { defineConfig } from "vitest/config";
 // into tsdown and having its runes pre-bundled.
 //
 // The runner has no such hazard — a test runner does not decide what ships —
-// so it is centralized here as one shared project. One runner, per-package
-// builders. The divergence is intentional; do not "consolidate" either half
-// toward the other.
+// so it is centralized here with explicit, non-overlapping projects. One
+// runner, per-package builders. The divergence is intentional; do not
+// "consolidate" either half toward the other.
 
 // ---------------------------------------------------------------------------
 // An accepted, named limitation: `packages/concierge/test/` is in NO
@@ -86,7 +95,34 @@ export default defineConfig({
         test: {
           name: "node",
           environment: "node",
-          include: ["packages/*/test/**/*.test.ts"],
+          include: ["packages/concierge/test/**/*.test.ts"],
+        },
+      },
+      {
+        test: {
+          name: "node-artifact-ssr",
+          environment: "node",
+          include: [
+            "packages/concierge-react/test/artifact.test.ts",
+            "packages/concierge-svelte/test/artifact.test.ts",
+            "examples/adapter-ssr/test/ssr.test.ts",
+          ],
+        },
+      },
+      {
+        plugins: [react()],
+        test: {
+          name: "react-lifecycle",
+          environment: "jsdom",
+          include: ["packages/concierge-react/test/lifecycle.test.tsx"],
+        },
+      },
+      {
+        plugins: [svelte({ hot: false })],
+        test: {
+          name: "svelte-lifecycle",
+          environment: "jsdom",
+          include: ["packages/concierge-svelte/test/lifecycle.test.ts"],
         },
       },
     ],
