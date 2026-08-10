@@ -406,7 +406,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 09-02-PLAN.md — Bounded React package, peer, build, type, and artifact skeleton
+- [x] 09-02-PLAN.md — Bounded React package, peer, build, type, and artifact skeleton
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -486,4 +486,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Dispatcher | 8/8 | Complete   | 2026-08-07 |
 | 7. Session and the transport seam | 7/7 | Complete    | 2026-08-10 |
 | 8. Consent kernel | 8/8 | Complete | 2026-08-10 |
-| 9. React and Svelte adapters | 1/13 | In Progress|  |
+| 9. React and Svelte adapters | 2/13 | In Progress|  |

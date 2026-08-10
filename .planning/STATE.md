@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Completed 09-01-PLAN.md
-last_updated: "2026-08-10T19:04:51.691Z"
+stopped_at: Completed 09-02-PLAN.md
+last_updated: "2026-08-10T19:20:53.471Z"
 last_activity: 2026-08-10
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 86
-  completed_plans: 74
-  percent: 86
+  completed_plans: 75
+  percent: 87
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-10)
 ## Current Position
 
 Phase: 09 (react-and-svelte-adapters) — EXECUTING
-Plan: 2 of 13
+Plan: 3 of 13
 Status: Ready to execute
 Last activity: 2026-08-10
 
-Progress: [█████████░] 86%
+Progress: [█████████░] 87%
 
 ## Performance Metrics
 
@@ -69,6 +69,7 @@ Progress: [█████████░] 86%
 | Phase 08 P06 | 38m | 2 tasks | 5 files |
 | Phase 08 P07 | 1h 29m | 3 tasks | 9 files |
 | Phase 09 P01 | 19m | 2 tasks | 5 files |
+| Phase 09 P02 | 12m | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -142,6 +143,8 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 08]: Phase closure is executable: requirements, D-08-01..23, canonical threats, research constraints, source coverage, package boundaries, and the ASVS audit must agree with current mutation and release evidence.
 - [Phase 09]: Verify the initial RED state from its persisted hashes after the live tree begins changing. — Keeps later GREEN transitions from rewriting or reinterpreting the eleven-ID baseline.
 - [Phase 09]: Translate the locked Svelte hot:false test configuration to vite-plugin-svelte 7.2 compilerOptions.hmr. — Preserves the planned semantics without config diagnostics corrupting Vitest JSON evidence.
+- [Phase 09]: Keep core external and declare it as workspace:^ peer plus workspace:* development link, never as a runtime dependency. — This preserves one canonical singleton while still enabling local adapter development.
+- [Phase 09]: Apply the use-client directive through tsdown's fileName banner callback only for dist/client.js, leaving the package root server-safe. — The callback makes directive placement explicit without contaminating the inert root entry.
 
 ### Pending Todos
 
@@ -170,6 +173,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-10T19:04:51.685Z
-Stopped at: Completed 09-01-PLAN.md
+Last session: 2026-08-10T19:20:53.466Z
+Stopped at: Completed 09-02-PLAN.md
 Resume file: None
