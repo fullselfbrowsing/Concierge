@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
   "phase": "08-consent-kernel",
-  "sourceShapeReconciliation": "C07 targets the live rank-comparison/effectiveMinGrade ternary, which is semantically identical to the planned max(delivered, requested) floor.",
+  "sourceShapeReconciliation": "C07 targets the live rank-comparison/effectiveMinGrade ternary, which is semantically identical to the planned max(delivered, requested) floor. E15 is the post-review D-08-12 control that resurrects contradictory-attestation downgrade into relayed authority.",
   "expectedGenerationIds": [
     "M-08-G01",
     "M-08-G02",
@@ -33,7 +33,8 @@
     "M-08-E11",
     "M-08-E12",
     "M-08-E13",
-    "M-08-E14"
+    "M-08-E14",
+    "M-08-E15"
   ],
   "expectedCapabilityIds": [
     "M-08-C01",
@@ -89,6 +90,7 @@
     "M-08-E12",
     "M-08-E13",
     "M-08-E14",
+    "M-08-E15",
     "M-08-C01",
     "M-08-C02",
     "M-08-C03",
@@ -113,7 +115,7 @@
     "packages/concierge/package.json": "5ed9d24829c2ac5bdcf69b57d4f4b503c226cee33f474ad07536521fec4112e4",
     "pnpm-lock.yaml": "0e29065f823200f9bdb2284bdef721003f525f68fa60a2810046b1a7f720e0d4"
   },
-  "registerDigest": "7d22004c31980aa946f21b01b2ffb5c27bae46f6bd2b089bf8c4027b8441da2d",
+  "registerDigest": "7d38c388e0918f2f2e4c1f06bebc7768c084ea116df24cacff7b7a3cafe9f244",
   "mutants": [
     {
       "id": "M-08-G01",
@@ -138,12 +140,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "K03",
-          "marker": "[RED:M-08-G01]"
+          "marker": "[RED:K03:synchronous-delivery-pending-ownership]"
         }
       ],
       "definitionDigest": "60533f7798f0c5f833b154ecbd162d12282409f9bda71da73388ae41c325545d",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "695731dc301b1c74acdecfb283fbea45c8e3133fbe69eefcf4d6384241d3d5b6"
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "2a72371f9ad9912fcf22d9e2bb6d834794dbbba20ae250d133fab9f3a47dfa45"
     },
     {
       "id": "M-08-G02",
@@ -168,12 +170,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "K04",
-          "marker": "[RED:M-08-G02]"
+          "marker": "[RED:K04:interrupted-delivery-closes-authority]"
         }
       ],
       "definitionDigest": "be0283a7a153a7518d613bc4021c7ed4f450384fca8fa948ec00fccf17558a6d",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "39722d4b7af92c11d887fdd00429d7c37dd77e54aa51ba737d746a92896bff7f"
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "6f186f1a8aa909cbe6819c9823a5b1bb8170e8526debfb2fabe598456ec294f4"
     },
     {
       "id": "M-08-G03",
@@ -199,12 +201,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "E10",
-          "marker": "[RED:M-08-G03]"
+          "marker": "[RED:E10:late-superseded-delivery-inert]"
         }
       ],
       "definitionDigest": "edce7c6a1811b1863ecd9615540d9861da1bf7fbec110528a42cceafd4f8363c",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "d7a66985b71090538364686b59c0aac917dacc860d436f9e86160d33df7d294f"
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "613893cce40aaacea6c6bf03e19a1afb800a36813a44741517186581b6d0177e"
     },
     {
       "id": "M-08-G04",
@@ -230,12 +232,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "K07",
-          "marker": "[RED:M-08-G04]"
+          "marker": "[RED:K07:delivery-response-ownership]"
         }
       ],
       "definitionDigest": "2ace63d17620ffdd3276085f2262fa7e90e92fcc47faa13363918e0a44abd765",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "64a3e58f9e17677e17acc8fe27d1f8a8a24016a5892f53390a397a85b61b44a8"
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "da1ea9da0b325b32ad145fdae30695692685f7d266aa573905030f481c64a909"
     },
     {
       "id": "M-08-G05",
@@ -260,12 +262,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "E09",
-          "marker": "[RED:M-08-G05]"
+          "marker": "[RED:E09:single-delivery-verification-owner]"
         }
       ],
       "definitionDigest": "8e7ed9b02986c1327b4fd9381f80f591c6a9c81abab29bb72653df064ba3fc2f",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "83729921b2188cc8f2e4b455ddee0af9a7ec391efcffb08fb897a981044a7751"
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "369459d54a77b02a76d66418797e56679de528b80154e54f1aaaa0cd5d10138d"
     },
     {
       "id": "M-08-G06",
@@ -290,12 +292,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "K14",
-          "marker": "[RED:M-08-G06]"
+          "marker": "[RED:K14:fresh-human-turn-boundary]"
         }
       ],
       "definitionDigest": "37443df176aecf9541a55ebeea4ffa3f09e14ff902c3456b8434d27430e0d377",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "7942aca45994caab6b0d401f2483ab9677d24a559074abb5e91fd479c05f4ff4"
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "42b5b0c3b6d56333d89bd53633f51b6d0ae8e6ad554d61cca80c29a7f8ae7d96"
     },
     {
       "id": "M-08-G07",
@@ -321,12 +323,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "K26",
-          "marker": "[RED:M-08-G07]"
+          "marker": "[RED:K26:fresh-review-invalidates-older-authority]"
         }
       ],
       "definitionDigest": "097bf17d3caeee4152d4169acd2d627fd514426b8179d35868449245f6480cc0",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "ffc354f2c4a7924916aa8e3b4cca67c85946beb719e1a8fec541d22ac06388cd"
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "b7861d8a2cd70a9f3d63f09d5c029840aef93a048df21719749e1f6856ae9683"
     },
     {
       "id": "M-08-G08",
@@ -351,12 +353,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "K17",
-          "marker": "[RED:M-08-G08]"
+          "marker": "[RED:K17:late-snapshot-drift-destroys-authority]"
         }
       ],
       "definitionDigest": "0c9a9858df500ad80c884ea869c5fe3f97132c262da7f6fdce1eb86870573512",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "44c87801781f67de18597ad601464e4d972a66ce3fc833907e597cbcbe3c9b9a"
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "5cad98e9176bb3b1e9c9c1a2ef1a405a20ab491860a0304d0cf60c66a4a8c80d"
     },
     {
       "id": "M-08-G09",
@@ -382,12 +384,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "K18",
-          "marker": "[RED:M-08-G09]"
+          "marker": "[RED:K18:throwing-snapshot-comparator-fails-closed]"
         }
       ],
       "definitionDigest": "a3de866a0d38831fa1977d837979e26813c5bf9d86a0e91d1f0d021739408c67",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "ab606bf0071ac0d607d0968375e729c1550611dec5588a9023f25c721db17d2e"
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "1fab4663c30a9207fcfa41e21972240ff8d55f229b68e50f1daca7c1eabc8ce4"
     },
     {
       "id": "M-08-G10",
@@ -412,12 +414,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "K20",
-          "marker": "[RED:M-08-G10]"
+          "marker": "[RED:K20:snapshot-mismatch-destroys-authority]"
         }
       ],
       "definitionDigest": "fa6eb4089264d62e1ca0d8f68eeda5d658f278377467a85cf86628db7e10c6fa",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "ec826c134838eddbfcbcc8e955537702033414b552cf40b460ebb14b626eeb32"
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "ce0d09e8ce762210c89094fc78dcc57d6e046e3e156f78e1a73f1f1ce9f870a0"
     },
     {
       "id": "M-08-G11",
@@ -442,12 +444,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "K21",
-          "marker": "[RED:M-08-G11]"
+          "marker": "[RED:K21:ack-reuses-reviewed-payload]"
         }
       ],
       "definitionDigest": "b8f1f82eae0202cbea1bfdca4edc4048e1588099c9d864fda22504d7599f4cc8",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "c42aea37608baca20032d7c13ce0f378177cef91be981886f4cef8492dee6ffd"
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "d7b6cf95f7a8dd7746de0f925a7cbde6e268d9c2fa110928e251c00fd5b1da27"
     },
     {
       "id": "M-08-G12",
@@ -472,12 +474,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "K22",
-          "marker": "[RED:M-08-G12]"
+          "marker": "[RED:K22:one-shot-consumption-before-handler]"
         }
       ],
       "definitionDigest": "55e269e6f99115660bbc7e2d5e37e16b68525dca6005e8121897202266c6a7fe",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "2d59884b2a1081fc4cc8056aa2b15743130cdfa65b35de0a8716b2742b735306"
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "bd209742ec0f22cd49e22fd6d041d9dd6c27c65a6fd60ff1b86cab74b2b26ddc"
     },
     {
       "id": "M-08-G13",
@@ -502,12 +504,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "K24",
-          "marker": "[RED:M-08-G13]"
+          "marker": "[RED:K24:decline-dismiss-terminal-one-shot]"
         }
       ],
       "definitionDigest": "f3cbc7c882466283b7cf528133bd7cb5c8ea35f58ebdf8c545a2b6c11ecd4e14",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "fbfb4d9e4f722f837648058e9763f022765c1717505a17c592e6569c17c924a1"
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "be090ceab29538aff713c3b5dade386426c3066ac6a4a807837b3c72796feb45"
     },
     {
       "id": "M-08-G14",
@@ -532,12 +534,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "K24",
-          "marker": "[RED:M-08-G14]"
+          "marker": "[RED:K24:decline-dismiss-terminal-one-shot]"
         }
       ],
       "definitionDigest": "8a78bdec7252e0e1ad8462565a0fad3f1418325b697b08365e406bc5b281f6de",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "e994d3c8da11bb5b36c18fa96703e75c259aa54382c8e90e75d8c3bf3466fc34"
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "97a9fd4bcf68a9db428060374b5e754d26e16c7eb6ba277424d217479d370225"
     },
     {
       "id": "M-08-G15",
@@ -563,16 +565,16 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "N01",
-          "marker": "[RED:M-08-G15]"
+          "marker": "[RED:N01:omitted-minimum-rejects-none-grade]"
         },
         {
           "caseId": "N02",
-          "marker": "[RED:M-08-G15]"
+          "marker": "[RED:N02:explicit-none-rejects-none-grade]"
         }
       ],
       "definitionDigest": "b5f39cbe9be109a205966aefbe27c5cc9131419fd6c1bd6e25a5979f37377314",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "a30f6587590aa4bf81acbd7efb84ea7c1333060982c8dbdc5e331c76b9c2d95e"
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "f822f62f39409bae0b0a4c34ed02b870c395fcd8f0fd8ba9b960056dd12fb571"
     },
     {
       "id": "M-08-E01",
@@ -597,7 +599,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "J11",
-          "marker": "[RED:M-08-E01]"
+          "marker": "[RED:J11:receipt-claim-verification]"
         }
       ],
       "definitionDigest": "f60cc79d190af432da4088c2eb932342d1bb343027c9cda57f0e4e968664d876",
@@ -627,7 +629,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "J11",
-          "marker": "[RED:M-08-E02]"
+          "marker": "[RED:J11:receipt-claim-verification]"
         }
       ],
       "definitionDigest": "d8d82f124fa860a363f7e31f7f69a0503ecd883f0d93422bf0daf54f480bca0b",
@@ -658,12 +660,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "E02",
-          "marker": "[RED:M-08-E03]"
+          "marker": "[RED:E02:complete-attested-delivery-tuple]"
         }
       ],
       "definitionDigest": "ac320fb0fbdc7cd0b4104115b2a8c5d6843cf8ddee2153efab04d63990f6f775",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "a25ab10f3886f957d78c75c155950fd5a057e6081b4b2bb9835423dea0b3e177"
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "bac32c72f634ddf6cf8a2a80ea953a9d5a19c0579461d42cd6a9662d561d49c8"
     },
     {
       "id": "M-08-E04",
@@ -689,20 +691,20 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "E02",
-          "marker": "[RED:M-08-E04]"
+          "marker": "[RED:E02:complete-attested-delivery-tuple]"
         }
       ],
       "definitionDigest": "e5f38c75bbac5eef4483f3d742a91ada756283c9d4cb55bf52cef5d9190f44f4",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "ada2723548c6fb86abd081b191c794c34e3b195890d005e19458eb54c17699f1"
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "125459bb1ca2139e41b53f77e1d127dc5f9761d6a57ba512a7df495de16a4e2f"
     },
     {
       "id": "M-08-E05",
       "group": "evidence",
-      "name": "unknown non-confirmed attestation act bypasses invalidation",
+      "name": "unknown attestation act is accepted as confirmed",
       "target": "packages/concierge/src/concierge.ts",
-      "literalPattern": "      observedAct !== \"confirmed\" &&",
-      "replacement": "      false &&",
+      "literalPattern": "      observedAct === \"confirmed\" &&",
+      "replacement": "      typeof observedAct === \"string\" &&",
       "detectorKind": "vitest",
       "threats": [
         "T-08-06"
@@ -719,12 +721,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "E02",
-          "marker": "[RED:M-08-E05]"
+          "marker": "[RED:E02:complete-attested-delivery-tuple]"
         }
       ],
-      "definitionDigest": "47872cccf27f3d8c3451c6ccf627ac5fc707f995b4002dba7a1c5f53199e51b0",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "9ae8970df42212731d84fe4fccd4b265551c11af08f33afe52384928b3a0c793"
+      "definitionDigest": "1d35005b018028bd9fc331d54f97393b5008d866b88a6b2df53252b3c7eb3428",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "920e3584d15a3d48aa012b46874ac0287b7f3511054bb5a7f714f121e916ce34"
     },
     {
       "id": "M-08-E06",
@@ -749,12 +751,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "E02",
-          "marker": "[RED:M-08-E06]"
+          "marker": "[RED:E02:complete-attested-delivery-tuple]"
         }
       ],
       "definitionDigest": "cb6721c14dca6791cc28f6eb927bab01a95f17eb69d61ff728b8e61cda7535a3",
-      "originalTargetHash": "dc8cc43015ea81c22aa5ec018df77813c5918a7598607202f805c3fb79c79a64",
-      "mutantTargetHash": "9b45bd484a3e1321921957bc28014db8e07c852ba4b89610d373523f7363dcd2"
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "28695a3e8e1482950e148c44e7c8d04a64ff21c29dd32ccbee194e3dfd450980"
     },
     {
       "id": "M-08-E07",
@@ -779,7 +781,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "J09",
-          "marker": "[RED:M-08-E07]"
+          "marker": "[RED:J09:lone-surrogate-rejection]"
         }
       ],
       "definitionDigest": "255ddec027ad5986ba862fb93096cb74efe3abcdb96d9ace56b65fe7aa4acf4e",
@@ -809,7 +811,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "J06",
-          "marker": "[RED:M-08-E08]"
+          "marker": "[RED:J06:non-finite-and-non-json-rejection]"
         }
       ],
       "definitionDigest": "2dd0146f78ae1ef9cf4004d71f1f785363c3bb48b8e545c60d513fe1407fcf46",
@@ -839,7 +841,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "J07",
-          "marker": "[RED:M-08-E09]"
+          "marker": "[RED:J07:alias-and-cycle-rejection]"
         }
       ],
       "definitionDigest": "ce8cac26997868f0698b24f6368519efc261faa24529d939a787c76ae8e12b20",
@@ -869,7 +871,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "J08",
-          "marker": "[RED:M-08-E10]"
+          "marker": "[RED:J08:accessor-and-exotic-rejection]"
         }
       ],
       "definitionDigest": "ffc9edd042e7d88c6d43e01c7c478d5d3824d8b2a9c152eca05c3bf4f357beb7",
@@ -899,7 +901,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "J08",
-          "marker": "[RED:M-08-E11]"
+          "marker": "[RED:J08:accessor-and-exotic-rejection]"
         }
       ],
       "definitionDigest": "40b0ae9c57f8749541824404539d38984d1686e6683c43752f2b187844d96144",
@@ -929,7 +931,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "J04",
-          "marker": "[RED:M-08-E12]"
+          "marker": "[RED:J04:four-byte-utf8-scalar]"
         }
       ],
       "definitionDigest": "c55ba03e6678a1564a586c465ed7352b3b8bbbf04c596408720516e68b0a948f",
@@ -959,7 +961,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "J02",
-          "marker": "[RED:M-08-E13]"
+          "marker": "[RED:J02:utf16-property-order]"
         }
       ],
       "definitionDigest": "aa89e692a13270072eaa3ea34c16ca5596967e98b0bd2009e4233454333512ce",
@@ -989,12 +991,44 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "J03",
-          "marker": "[RED:M-08-E14]"
+          "marker": "[RED:J03:negative-zero-number-spelling]"
         }
       ],
       "definitionDigest": "10c4f1251f7bd2f448baf33a624f5a17af144f045871316f51a8ddc466fc89dd",
       "originalTargetHash": "db1c4ed04cfeba558d83737e5c5fe8d51d38933c648aa40e3be282ec69560c38",
       "mutantTargetHash": "6bc359fa11eaaf9aa49f55471ad45ff51794d12eadacb2cd2d281c8fadcfeb2c"
+    },
+    {
+      "id": "M-08-E15",
+      "group": "evidence",
+      "name": "contradictory attested claim falls through to relayed authority",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "    if (hasAttestedClaim && !completeAttestedClaim) {",
+      "replacement": "    if (false) {",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-04",
+        "T-08-05",
+        "T-08-06"
+      ],
+      "decisions": [
+        "D-08-12"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "E14"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "E14",
+          "marker": "[RED:E14:contradictory-attestation-closes-shared-generation]"
+        }
+      ],
+      "definitionDigest": "aee0520644ece90c58ce7b544e167ae243bb55249d2861c60878f849d3ffdcb3",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "f0ee121b310c61aa52c5423740c9dd75d1d2de98c568fc4646f9a53e77d1813e"
     },
     {
       "id": "M-08-C01",
@@ -1019,7 +1053,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "C27",
-          "marker": "[RED:M-08-C01]"
+          "marker": "[RED:C27:consent-grade-floor-enforcement]"
         }
       ],
       "definitionDigest": "6ed24deaeb0f3395a498ac5e610b14e223358c4dd91864b31dd9eed11e2827f3",
@@ -1049,7 +1083,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "C29",
-          "marker": "[RED:M-08-C02]"
+          "marker": "[RED:C29:captured-grade-and-provenance-validation]"
         }
       ],
       "definitionDigest": "cbac846a228c882634f52a40130fbf5e0bd371da893c9bd12423d9de1348644f",
@@ -1079,7 +1113,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "C29",
-          "marker": "[RED:M-08-C03]"
+          "marker": "[RED:C29:captured-grade-and-provenance-validation]"
         }
       ],
       "definitionDigest": "e65318ac73fb15377a38b2288c6a9d71d8c290c60695de8081e0bb0028722dce",
@@ -1109,7 +1143,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "C29",
-          "marker": "[RED:M-08-C04]"
+          "marker": "[RED:C29:captured-grade-and-provenance-validation]"
         }
       ],
       "definitionDigest": "28faa51763a8bc0d9435347fe4750425785a3a55abd41db9d274e9853e52e334",
@@ -1139,7 +1173,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "S02",
-          "marker": "[RED:M-08-C05]"
+          "marker": "[RED:S02:weaker-profile-pre-effect]"
         }
       ],
       "definitionDigest": "05e3565e14677552540fe444bc6fb77ecd689bdbe20763813a0d54affe81939e",
@@ -1170,7 +1204,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "S02",
-          "marker": "[RED:M-08-C06]"
+          "marker": "[RED:S02:weaker-profile-pre-effect]"
         }
       ],
       "definitionDigest": "e215a9f6a82611f858336dd1212b4eb3940e92554689b44cb0a2161c7aed674e",
@@ -1200,7 +1234,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "C27",
-          "marker": "[RED:M-08-C07]"
+          "marker": "[RED:C27:consent-grade-floor-enforcement]"
         }
       ],
       "definitionDigest": "cd182443b0aac24f3765e713a5cea66809ab87dba755468ffd36f11d9c3514c1",
@@ -1230,7 +1264,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "S06",
-          "marker": "[RED:M-08-O01]"
+          "marker": "[RED:S06:frozen-outcome-before-response]"
         }
       ],
       "definitionDigest": "6bdf57c444bd694d61b30ffbdce3bb54c0afbcc72c95f372dc6953090c233fda",
@@ -1260,7 +1294,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "S06",
-          "marker": "[RED:M-08-O02]"
+          "marker": "[RED:S06:frozen-outcome-before-response]"
         }
       ],
       "definitionDigest": "5c74bd0c063d6a19e17a2211df74e12658c015ae40a8ac7bf58019334c479a07",
@@ -1291,7 +1325,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "S07",
-          "marker": "[RED:M-08-O03]"
+          "marker": "[RED:S07:outcome-failure-matrix]"
         }
       ],
       "definitionDigest": "928779149210d8dd5ecc829bad56706de9af93fa5aabaede74f3638a3d681ce8",
@@ -1321,7 +1355,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "J04",
-          "marker": "[RED:M-08-O04]"
+          "marker": "[RED:J04:response-throw-no-retry]"
         }
       ],
       "definitionDigest": "fc8ba36ef747d3e4e11583ae81d1ecc1be539ccffe7653592fc97ce4302c68c1",
@@ -1351,7 +1385,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "S07",
-          "marker": "[RED:M-08-O05]"
+          "marker": "[RED:S07:outcome-failure-matrix]"
         }
       ],
       "definitionDigest": "9eee28cc1dc58aa0fa09c937160fb105b92d4fe30e7ce90818984a77f050e8c6",
@@ -1381,7 +1415,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "S07",
-          "marker": "[RED:M-08-O06]"
+          "marker": "[RED:S07:outcome-failure-matrix]"
         }
       ],
       "definitionDigest": "5e6670738ec3d1152ea9759de7e8e692ac827af02fdc37b547bf3031bf1e826d",
@@ -1411,7 +1445,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "S05",
-          "marker": "[RED:M-08-O07]"
+          "marker": "[RED:S05:all-success-bypass]"
         }
       ],
       "definitionDigest": "3c857b4f299f172ecfe840d379513606af6ae6c971b3cfc49c807aff15adc9ce",
@@ -1441,12 +1475,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "U08",
-          "marker": "[RED:M-08-P01]"
+          "marker": "[RED:U08:test-only-boundary]"
         }
       ],
       "definitionDigest": "465f858c80ec6d52f83c6d99f5a186b2a2bd7a09213f4a9bc07bf0db769bfab6",
-      "originalTargetHash": "c8bd7d7301276b1e74e0a649d8acfb20a7f914f9f7308aa3e0bd4e63ea0a4b2a",
-      "mutantTargetHash": "eee261d36322b0424cbbe53f6f5e2bb17b198d91b196dadbfc00d81378fddaa9"
+      "originalTargetHash": "1d4897a4bef0c5b3893fc1c7461e9217bd74467a2c863907877c3ba3441402cd",
+      "mutantTargetHash": "055fe4f84d60455a82a6e724c3509e287407ac14f2798113bdd156e5c16a556e"
     },
     {
       "id": "M-08-P02",
@@ -1471,7 +1505,7 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "P02",
-          "marker": "[RED:M-08-P02]"
+          "marker": "[RED:P01:stub-tarball-exclusion]"
         }
       ],
       "definitionDigest": "8e0dd53ea870290d3d0fc07920e6d9113cbc0372e6f8ad5c89f56f71da6d6ec4",
@@ -1501,12 +1535,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "P03",
-          "marker": "[RED:M-08-P03]"
+          "marker": "[RED:P03:client-consent-is-not-server-authority]"
         }
       ],
       "definitionDigest": "53f070d81049ae2176e1fc94cdb6262a89d9ffc5053933b074e4756c953d22a5",
-      "originalTargetHash": "3f5281a7f20c899cc86b5aa345193d5e7d6ed136d5ceecbdfcdbfa6de3f4f4c8",
-      "mutantTargetHash": "ed353a61e964310ef131ed0b6d44ed017d5067a10de2426e7083d00176a4281f"
+      "originalTargetHash": "3ce510c1b048b3e79ffb48f19d8a4600f1f35025f4a2c1c6b41d0a27c8444be0",
+      "mutantTargetHash": "692bcee425a706e40663153ea9486fae573f5e0c3c2764a697ee0e9e318c5491"
     },
     {
       "id": "M-08-P04",
@@ -1531,12 +1565,12 @@
       "expectedFailureFingerprint": [
         {
           "caseId": "P04",
-          "marker": "[RED:M-08-P04]"
+          "marker": "[RED:P04:current-policy-reauthorization-order]"
         }
       ],
       "definitionDigest": "0f566c6c7de024098b1c4f556c5f94d33b4a04455dfc6814590d822a1e744880",
-      "originalTargetHash": "3f5281a7f20c899cc86b5aa345193d5e7d6ed136d5ceecbdfcdbfa6de3f4f4c8",
-      "mutantTargetHash": "d8b6b3274c42913223436d36dbe69ba88758bbe620afcda26cecbc0f5dc8921c"
+      "originalTargetHash": "3ce510c1b048b3e79ffb48f19d8a4600f1f35025f4a2c1c6b41d0a27c8444be0",
+      "mutantTargetHash": "12838117a3de36bd4a00fdaed54842095fe34799021147d285bb442c4622a7c3"
     }
   ]
 }
