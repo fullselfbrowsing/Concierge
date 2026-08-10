@@ -342,8 +342,37 @@ Plans:
   5. An explicit refusal is distinguishable from a dismissal, so the agent knows whether re-offering is appropriate — and the documentation shows, with a worked example, that all of this is a client-side assertion the server must independently re-verify. (CON-09, SEC-04)
   6. When an action fails, the human is told what the app said, not what the agent decided to say about it — the agent cannot substitute its own narration for a failure. (CON-10)
 
-**Plans**: TBD
-**Research**: **Yes — research before planning.** No prior art exists for any of it: graded consent with build-time transport mismatch, user-turn binding, snapshot-equality invalidation, and delivery-armed consent were each checked against five shipping competitors and two specs and found absent. The design also moved during research — the grade semantics were invalidated mid-flight — so the readback sink, turn classification, and turn classification are proposals rather than validated mechanisms.
+**Plans**: 8 plans across 6 waves. The public contracts land first; catalog/profile gates and the independent SEC-04 documentation track follow in Wave 2; the runtime kernel and Session barrier converge through the reusable stub before one mutation/security/release closure.
+
+Plans:
+
+**Wave 1**
+
+- [ ] 08-01-PLAN.md — Immutable consent profile, readback attestation, app-outcome, diagnostic, export, and strict-consumer contracts
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 08-02-PLAN.md — Frozen profile capture, inherent non-none consent floor, aggregated CAT-04/TRN-03 gates, and attested seam validation
+- [ ] 08-08-PLAN.md — Root README client-assertion warning and ordered server challenge, reauthorization, effect, burn, and commit example
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 08-03-PLAN.md — Delivery-armed factory-local generation ledger, turn binding, late drift check, runtime none guard, and atomic one-shot ack
+- [ ] 08-05-PLAN.md — Pre-effect Session capability dominance and app-owned failed-batch outcome barrier before agent release
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 08-04-PLAN.md — Strict JCS/UTF-8 receipt verification, retained bytes, presenter ownership checks, and separate human attestation
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 08-06-PLAN.md — Exact Phase 7 stub extension and full no-network consent/outcome matrix, including interrupted delivery followed by a genuine new turn
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 08-07-PLAN.md — Non-vacuous mutation battery, ASVS audit, package/foreign/release gates, live ledgers, and requirement closure
+
+**Research**: Completed 2026-08-10 — `08-RESEARCH.md`; implementation analogs are mapped in `08-PATTERNS.md`, and `08-VALIDATION.md` defines the Nyquist/security contract.
 **Notes**: This is the milestone's reason to exist. Criterion 2 is the single most important test in the project — the interrupt-partway case defeats receipt and satisfies turn-freshness simultaneously, and it is not modality-specific: a dismissed surface, a navigation away, and a disconnect all produce it. Criterion 5's second half is a deliberate statement of the kernel's honest limit; SEC-04 is documentation because server verification is v2, and overstating what the client half proves is the failure mode this milestone is built to avoid. The `attested` open decision that previously blocked part of this phase is resolved: grades are modality-free, and `attested` requires an app-rendered raw-payload surface plus an observed act bound to its hash.
 
 **Added 2026-07-27 from the Phase 1 discussion.** Three implementation items now land here rather than being discovered here:
