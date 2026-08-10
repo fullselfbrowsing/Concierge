@@ -68,7 +68,7 @@
 ### Transport
 
 - [x] **TRN-01**: A transport is defined entirely by an interface with no vendor event names in core
-- [ ] **TRN-02**: A stub transport with configurable capabilities exercises the full consent kernel without any network or WebRTC
+- [x] **TRN-02**: A stub transport with configurable capabilities exercises the full consent kernel without any network or WebRTC
 - [x] **TRN-03**: A transport that cannot derive turn identity is prevented from being used with `bindTo: "userTurn"`
 - [x] **TRN-04**: Concierge is usable with no transport at all, driven directly from an application's own agent loop
 - [x] **TRN-05**: A transport declares the *provenance* of its turn identity, not merely whether it has one, and a transport whose turn identity can be minted by the agent's own output cannot satisfy the strongest user-turn binding
@@ -157,7 +157,7 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | CAT-01 | Phase 3 — Action declaration and build-time validation; **closed by Phase 4 — Stages, catalog assembly, and explain()** | Complete — Phase 3 shipped 4/5 derived artifacts; the fifth, `per-stage catalogs`, ships as `createConcierge().catalogFor` (plan 04-03, exported and implemented). Evidence: 04-05 S1/S2 |
 | CAT-02 | Phase 3 — Action declaration and build-time validation | Complete |
 | CAT-03 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
-| CAT-04 | Phase 8 — Consent kernel | Complete |
+| CAT-04 | Phase 8 — Consent kernel | Complete — 08-02 C27-C29 enforce the inherent delivered floor and aggregate grade/provenance/seam faults; M-08-C01/C04/C07 independently kill floor and capability regressions. |
 | CAT-05 | Phase 3 — Action declaration and build-time validation | Complete |
 | CAT-06 | Phase 3 — Action declaration and build-time validation | Complete |
 | CAT-07 | Phase 3 — Action declaration and build-time validation | Complete |
@@ -179,25 +179,25 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | STG-02 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
 | STG-03 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
 | STG-04 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
-| CON-01 | Phase 8 — Consent kernel | Complete |
-| CON-02 | Phase 8 — Consent kernel | Complete |
-| CON-03 | Phase 8 — Consent kernel | Complete |
-| CON-04 | Phase 8 — Consent kernel | Complete |
-| CON-05 | Phase 8 — Consent kernel | Complete |
-| CON-06 | Phase 8 — Consent kernel | Complete |
-| CON-07 | Phase 8 — Consent kernel | Complete |
-| CON-08 | Phase 8 — Consent kernel | Complete |
-| CON-09 | Phase 8 — Consent kernel | Complete |
-| CON-10 | Phase 8 — Consent kernel | Complete |
+| CON-01 | Phase 8 — Consent kernel | Complete — 08-03 K01 and the 08-06 public fixture flow fail closed without a review; M-08-G01 proves the ledger guard is load-bearing. |
+| CON-02 | Phase 8 — Consent kernel | Complete — 08-03 K14 rejects same or forgeable boundaries while preserving a later genuine turn; M-08-G06 kills the boundary bypass. |
+| CON-03 | Phase 8 — Consent kernel | Complete — 08-03 K03-K08 arm only from an owned completed delivery; M-08-G01..G04 kill review-return, interrupted, stale, and ownership defects. |
+| CON-04 | Phase 8 — Consent kernel | Complete — 08-03 K17-K20 compare a late detached snapshot and destroy on mismatch or throw; M-08-G07..G10 discriminate the boundary. |
+| CON-05 | Phase 8 — Consent kernel | Complete — 08-03 K09/K12/K17/K22-K26 prove fresh-review replacement, shared one-shot authority, consume-before-handler, and terminal destruction; the corresponding G mutants are green. |
+| CON-06 | Phase 8 — Consent kernel | Complete — 08-03 K04 and the 08-06 interrupted-delivery then genuine-new-turn flagship stay closed; M-08-G02 removes that guard and is killed. |
+| CON-07 | Phase 8 — Consent kernel | Complete — 08-02 through 08-05 enforce capability ceilings, the delivered floor, runtime none guard, occurrence-derived grades, and actual-transport dominance; M-08-G15, C01/C04..C07, and E12 are green. |
+| CON-08 | Phase 8 — Consent kernel | Complete — 08-03 K21 proves the frozen ack reuses the exact validated review payload object; M-08-G11 kills recomputation. |
+| CON-09 | Phase 8 — Consent kernel | Complete — 08-03 K24 and 08-04 E04 preserve exact declined versus cancelled outcomes and never arm; M-08-G13/G14 and E05/E06 are green. |
+| CON-10 | Phase 8 — Consent kernel | Complete — 08-05 S05-S07/J04 await one immutable app-authored outcome before response, withhold interrupted rows, and never retry; M-08-O01..O07 are green. |
 | SES-01 | Phase 7 — Session and the transport seam | Complete — C01-C22 plus M-07-C01..C16/M-07-R03..R04 prove start, stage-change, reconnect, latest-wins queued/active/confirmed authority, abandoned-attempt cleanup, current/stale boundary progress, and failed-request reconciliation. |
 | SES-02 | Phase 7 — Session and the transport seam | Complete — C11-C22/J01-J06/J15-J18 plus M-07-C05/C06/C09..C16 and M-07-R01/R06/R07/R08/R09 prove one FIFO dispatch occurrence and one stable response attempt per call, including progress across accessor supersession, boundary failure, requested-generation changes, and confirmed replay. |
 | SES-03 | Phase 7 — Session and the transport seam | Complete — J07-J18 plus M-07-R02..R05/R09 prove arrival identity, lazy envelope forwarding, delivery-hook preservation, signal composition, and direct-dispatch parity. |
 | SES-04 | Phase 7 — Session and the transport seam | Complete — C07-C22 and L01-L18 plus M-07-C07..C16/M-07-L02/L07/M-07-D02 prove stop-first invalidation, exact queued/unresolved detachment, cleanup, cancellation identity, reentrancy containment, and no post-stop output. |
 | TRN-01 | Phase 1 — Type surface completion | Complete |
-| TRN-02 | Phase 7 — Session and the transport seam | Partial — Phase 7 delivers U01-U08 reusable no-network fixture and Session seam/package proof; Phase 8 must reuse this exact fixture to exercise the consent kernel before TRN-02 can be Complete. |
-| TRN-03 | Phase 8 — Consent kernel | Complete |
+| TRN-02 | Phase 7 — Session and the transport seam; closed by Phase 8 — Consent kernel | Complete — 08-06 extends the exact Phase 7 six-key fixture with sibling-only delivery, attestation, outcome, and ordering controls and drives the full public kernel without network; M-08-P01/P02 plus the foreign tarball gate prove it remains test-only. |
+| TRN-03 | Phase 8 — Consent kernel | Complete — 08-02 C29 and 08-05 S02 reject missing or weak human-turn provenance at build and actual-session boundaries; M-08-C02/C03/C05/C06 are green. |
 | TRN-04 | Phase 6 — Dispatcher | Complete — R19 drives one action and Q14 drives a batch directly from an application loop without constructing a Transport; the complete 62-row mutation register remains green. |
-| TRN-05 | Phase 1 — Type surface completion | Complete |
+| TRN-05 | Phase 1 — Type surface completion; runtime proof in Phase 8 — Consent kernel | Complete — 08-05 S02 proves the actual captured transport provenance must dominate the Concierge profile before subscription, publication, or batch effects; M-08-C05/C06 kill runtime dominance defects. |
 | ADP-01 | Phase 9 — React and Svelte adapters | Pending |
 | ADP-02 | Phase 9 — React and Svelte adapters | Pending |
 | ADP-03 | Phase 9 — React and Svelte adapters | Pending |
@@ -205,7 +205,7 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | SEC-01 | Phase 3 — Action declaration and build-time validation | Complete |
 | SEC-02 | Phase 6 — Dispatcher | Complete structurally — the TypeScript AST audit parses all 11 production files and proves Phase 6 defines no telemetry/onTelemetry/onError channel or emission and no bound exception forwarding path. R34…R36 prove at runtime that handler exception text reaches neither `ActionResult` nor console; M-06-S25 kills exception echo. |
 | SEC-03 | Phase 4 — Stages, catalog assembly, and explain() | Pending overall under Phase 4's recorded consumer-supplied `jsonSchema` getter carve-out. Phase 6 completes the dispatch-side lookup proof without remapping the requirement: R09/R10 execute zero handlers for `__proto__`/`constructor`, and M-06-S15 kills a prototype-bearing lookup. |
-| SEC-04 | Phase 8 — Consent kernel | Complete |
+| SEC-04 | Phase 8 — Consent kernel | Complete — 08-08 root README P03/P04 tests require untrusted-client wording and current-policy exact-action reauthorization immediately before the guarded effect; M-08-P03/P04 are green. |
 | SEC-05 | Phase 3 — Action declaration and build-time validation | Complete |
 | SEC-06 | Phase 6 — Dispatcher | Complete — R47…R51 prove C0/C1 replacement, whitespace normalization, the shared length cap, surrogate-pair preservation, and fresh sanitized constants; M-06-S30…S33 kill every sanitizer boundary. |
 | PKG-01 | Phase 2 — Packaging, build, and release | Complete |

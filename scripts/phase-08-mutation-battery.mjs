@@ -29,6 +29,7 @@ const PHASE_DIRECTORY = join(
 const REGISTER_PATH = join(PHASE_DIRECTORY, "08-MUTATION-REGISTER.json");
 const EVIDENCE_PATH = join(PHASE_DIRECTORY, "08-MUTATION-EVIDENCE.json");
 const VALIDATION_PATH = join(PHASE_DIRECTORY, "08-VALIDATION.md");
+const SECURITY_PATH = join(PHASE_DIRECTORY, "08-SECURITY.md");
 const REQUIREMENTS_PATH = join(ROOT, ".planning/REQUIREMENTS.md");
 const CORE_PACKAGE_DIRECTORY = join(ROOT, "packages/concierge");
 const BUILD_MARKER = "Build complete";
@@ -188,6 +189,34 @@ const REQUIRED_REQUIREMENT_IDS = Object.freeze([
   "TRN-05",
   "SEC-04",
 ]);
+const REQUIRED_DECISION_IDS = Object.freeze(
+  Array.from({ length: 23 }, (_, index) =>
+    `D-08-${String(index + 1).padStart(2, "0")}`,
+  ),
+);
+const CANONICAL_THREAT_MEANINGS = Object.freeze({
+  "T-08-01": "The agent self-approves in the review response or a forgeable turn",
+  "T-08-02": "Review return or partial delivery arms authority",
+  "T-08-03": "Reviewed payload or app state drifts before confirm",
+  "T-08-04": "Capability declaration is mistaken for achieved proof",
+  "T-08-05": "Receipt/hash is forged or canonicalization collides",
+  "T-08-06": "A delivery hash is mistaken for a human act",
+  "T-08-07": "Retry or reentrancy arms/consumes more than once",
+  "T-08-08": "The model rewrites app failure prose",
+  "T-08-09": "Client assertion is treated as server authorization",
+  "T-08-10": "Hostile callbacks/objects leak secrets or escape",
+});
+const REQUIRED_RESEARCH_CONSTRAINTS = Object.freeze([
+  "lazy-factory-ledger",
+  "strict-jcs-utf8",
+  "retained-canonical-bytes",
+  "profile-capability-ceilings",
+  "actual-transport-dominance",
+  "immutable-outcome-barrier",
+  "exact-phase7-fixture",
+  "dependency-and-package-boundary",
+]);
+const REQUIRED_SOURCE_CLASSES = Object.freeze(["GOAL", "REQ", "RESEARCH", "CONTEXT"]);
 const MUTATION_DISTRIBUTION_LEDGER =
   "15 generation / 14 evidence / 7 capability / 7 outcome / 4 package (`15/14/7/7/4`)";
 const MUTATION_OUTCOME_LEDGER =
@@ -2845,6 +2874,51 @@ function parseTwoColumnRows(markdown, label) {
   return rows;
 }
 
+function parseCoverageRows(markdown, heading, expectedHeader) {
+  const section = markdownSection(markdown, heading);
+  const rows = new Map();
+  let sawHeader = false;
+  for (const line of section.split(/\r?\n/u)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) continue;
+    const cells = trimmed.slice(1, -1).split("|").map((cell) => cell.trim());
+    if (cells.every((cell) => /^:?-+:?$/u.test(cell))) continue;
+    if (!sawHeader) {
+      if (JSON.stringify(cells) !== JSON.stringify(expectedHeader)) {
+        throw new Error(`${heading} has an invalid table header`);
+      }
+      sawHeader = true;
+      continue;
+    }
+    if (cells.length !== expectedHeader.length || cells.some((cell) => cell === "")) {
+      throw new Error(`${heading} contains an incomplete row`);
+    }
+    if (rows.has(cells[0])) throw new Error(`${heading} contains duplicate row ${cells[0]}`);
+    rows.set(cells[0], cells.slice(1));
+  }
+  if (!sawHeader) throw new Error(`${heading} is missing its table`);
+  return rows;
+}
+
+function requireExactCoverageKeys(rows, expectedKeys, label) {
+  if (JSON.stringify([...rows.keys()]) !== JSON.stringify(expectedKeys)) {
+    throw new Error(`${label} row keys are missing, reordered, or extra`);
+  }
+}
+
+function requirementCheckboxAndTrace(requirementsText, requirementId) {
+  if (!new RegExp(`^- \\[x\\] \\*\\*${requirementId}\\*\\*:`, "mu").test(requirementsText)) {
+    throw new Error(`${requirementId}: requirement checkbox is not complete`);
+  }
+  const traceRow = requirementsText
+    .split(/\r?\n/u)
+    .find((line) => line.startsWith(`| ${requirementId} |`));
+  if (traceRow === undefined || !/\|\s*Complete(?:\s|—|\|)/u.test(traceRow)) {
+    throw new Error(`${requirementId}: traceability row is not complete`);
+  }
+  return traceRow;
+}
+
 function requireExactRows(rows, expectedRows, label) {
   const observedKeys = [...rows.keys()];
   const expectedKeys = [...expectedRows.keys()];
@@ -2923,7 +2997,7 @@ function validateLedgerSkeleton(validationText, release = undefined) {
   }
 }
 
-function validateFinalLedgers(validationText, requirementsText, evidence) {
+function validateFinalLedgers(validationText, securityText, requirementsText, evidence) {
   validateReleaseEvidenceShape(evidence.release, { required: true });
   const release = evidence.release;
   validateLedgerSkeleton(validationText, release);
@@ -2953,29 +3027,22 @@ function validateFinalLedgers(validationText, requirementsText, evidence) {
   if (/^- \[ \]/mu.test(signoffSection)) {
     throw new Error("validation sign-off still contains pending rows");
   }
-  for (const requirementId of ["SES-01", "SES-02", "SES-03", "SES-04"]) {
-    if (!new RegExp(`- \\[x\\] \\*\\*${requirementId}\\*\\*`, "u").test(requirementsText)) {
-      throw new Error(`${requirementId}: requirement checkbox is not complete`);
-    }
-    const traceRow = requirementsText
-      .split(/\r?\n/u)
-      .find((line) => line.startsWith(`| ${requirementId} |`));
-    if (traceRow === undefined || !traceRow.includes("Complete")) {
-      throw new Error(`${requirementId}: traceability row is not complete`);
-    }
+  const requirementRows = parseCoverageRows(
+    validationText,
+    "Requirement Coverage",
+    ["Requirement", "Summary", "Detector", "Mutant", "Release fact"],
+  );
+  requireExactCoverageKeys(requirementRows, REQUIRED_REQUIREMENT_IDS, "Requirement Coverage");
+  for (const requirementId of REQUIRED_REQUIREMENT_IDS) {
+    requirementCheckboxAndTrace(requirementsText, requirementId);
   }
-  if (!/- \[ \] \*\*TRN-02\*\*/u.test(requirementsText)) {
-    throw new Error("TRN-02 must remain unchecked");
+  const trn02Trace = requirementCheckboxAndTrace(requirementsText, "TRN-02");
+  if (!trn02Trace.includes("08-06") || !trn02Trace.includes("M-08-")) {
+    throw new Error("TRN-02 traceability must cite current Phase 8 fixture/runtime and mutation proof");
   }
-  const transportTrace = requirementsText
-    .split(/\r?\n/u)
-    .find((line) => line.startsWith("| TRN-02 |"));
-  if (
-    transportTrace === undefined ||
-    !transportTrace.includes(PHASE_8_HANDOFF) ||
-    /\|\s*Complete(?:\s|\|)/u.test(transportTrace)
-  ) {
-    throw new Error("TRN-02 must retain the exact pending Phase 8 consent-kernel handoff");
+  const trn05Trace = requirementCheckboxAndTrace(requirementsText, "TRN-05");
+  if (!trn05Trace.includes("08-05") || !trn05Trace.includes("M-08-")) {
+    throw new Error("TRN-05 traceability must cite current Phase 8 runtime and mutation proof");
   }
   if (!validationText.includes(evidence.registerDigest)) {
     throw new Error("validation ledger omits the immutable register digest");
@@ -3045,6 +3112,106 @@ function validateFinalLedgers(validationText, requirementsText, evidence) {
     ]),
     "Measured Release Evidence",
   );
+
+  const decisionRows = parseCoverageRows(
+    validationText,
+    "Decision Coverage",
+    ["Decision", "Summary", "Detector", "Mutant", "Release fact"],
+  );
+  requireExactCoverageKeys(decisionRows, REQUIRED_DECISION_IDS, "Decision Coverage");
+
+  const threatRows = parseCoverageRows(
+    validationText,
+    "Threat Coverage",
+    ["Threat", "Canonical meaning", "Summary", "Detector", "Mutant", "Release fact"],
+  );
+  requireExactCoverageKeys(threatRows, Object.keys(CANONICAL_THREAT_MEANINGS), "Threat Coverage");
+  for (const [threatId, meaning] of Object.entries(CANONICAL_THREAT_MEANINGS)) {
+    if (threatRows.get(threatId)?.[0] !== meaning) {
+      throw new Error(`${threatId}: validation canonical threat meaning conflicts`);
+    }
+  }
+  if (!threatRows.get("T-08-04")?.join(" ").includes("inherent delivered floor and runtime none guard")) {
+    throw new Error("T-08-04: coverage omits the inherent delivered floor and runtime none guard");
+  }
+  if (!threatRows.get("T-08-09")?.join(" ").includes("current-policy exact-action reauthorization immediately before effect")) {
+    throw new Error("T-08-09: coverage omits current-policy exact-action reauthorization immediately before effect");
+  }
+
+  const researchRows = parseCoverageRows(
+    validationText,
+    "Research Constraint Coverage",
+    ["Constraint", "Summary", "Detector", "Mutant", "Release fact"],
+  );
+  requireExactCoverageKeys(researchRows, REQUIRED_RESEARCH_CONSTRAINTS, "Research Constraint Coverage");
+
+  const sourceRows = parseCoverageRows(
+    validationText,
+    "Source Coverage Audit",
+    ["Source", "Planned items", "Evidence", "Unplanned"],
+  );
+  requireExactCoverageKeys(sourceRows, REQUIRED_SOURCE_CLASSES, "Source Coverage Audit");
+  for (const sourceClass of REQUIRED_SOURCE_CLASSES) {
+    if (sourceRows.get(sourceClass)?.[2] !== "0") {
+      throw new Error(`${sourceClass}: source coverage has unplanned items`);
+    }
+  }
+
+  if (!/^status: secured$/mu.test(securityText) ||
+      !/^standard: OWASP ASVS Level 1$/mu.test(securityText) ||
+      !/^block_on: high$/mu.test(securityText) ||
+      !/^threats_total: 11$/mu.test(securityText) ||
+      !/^threats_mitigated: 11$/mu.test(securityText) ||
+      !/^threats_open: 0$/mu.test(securityText)) {
+    throw new Error("security audit frontmatter is incomplete or uses the wrong standard");
+  }
+  if (!securityText.includes(`register_digest: ${evidence.registerDigest}`) ||
+      !securityText.includes(`release_revision: ${release.revisionDigest}`)) {
+    throw new Error("security audit is stale relative to mutation or release evidence");
+  }
+  const securityRows = parseCoverageRows(
+    securityText,
+    "Threat Dispositions",
+    ["Threat", "Severity", "Canonical meaning", "Live control", "Negative evidence", "Disposition", "Residual"],
+  );
+  requireExactCoverageKeys(
+    securityRows,
+    [...Object.keys(CANONICAL_THREAT_MEANINGS), "T-08-SC"],
+    "Threat Dispositions",
+  );
+  for (const [threatId, meaning] of Object.entries(CANONICAL_THREAT_MEANINGS)) {
+    const row = securityRows.get(threatId);
+    if (row?.[0] !== "High" || row[1] !== meaning || row[4] !== "Mitigated") {
+      throw new Error(`${threatId}: high threat is not independently mapped and mitigated`);
+    }
+  }
+  const supplyChainRow = securityRows.get("T-08-SC");
+  if (supplyChainRow?.[0] !== "High" || supplyChainRow[4] !== "Mitigated") {
+    throw new Error("T-08-SC: supply-chain threat is not mitigated");
+  }
+
+  const byId = new Map(evidence.rows.map((row) => [row.id, row]));
+  for (const id of ["M-08-C07", "M-08-G15", "M-08-P02", "M-08-P04"]) {
+    const row = byId.get(id);
+    if (row?.status !== "green" || row.compiled !== true || row.killed !== true || row.testsRan < 1) {
+      throw new Error(`${id}: required closing evidence is absent or red`);
+    }
+  }
+  if (byId.get("M-08-P02")?.packagePreconditionSatisfied !== true) {
+    throw new Error("M-08-P02: package-only detector did not satisfy its package precondition");
+  }
+  for (const id of ["M-08-P03", "M-08-P04"]) {
+    if (byId.get(id)?.target !== "README.md") {
+      throw new Error(`${id}: SEC-04 mutation must target the root README`);
+    }
+  }
+  const readme = readFileSync(join(ROOT, "README.md"), "utf8");
+  if (!readme.includes("client-side consent state") || !readme.includes("never server authorization")) {
+    throw new Error("root README omits the client-assertion authorization warning");
+  }
+  if (!/await authorizeUnderCurrentPolicy\(authenticatedPrincipal, exactAction\);\n\s*await performGuardedEffect\(transaction, authenticatedPrincipal, exactAction, exactPayload\);/u.test(readme)) {
+    throw new Error("root README does not reauthorize the authenticated principal for the exact action immediately before effect");
+  }
 }
 
 function verifyNamedCasesAndWaveFiles({
@@ -3065,6 +3232,7 @@ function verifyNamedCasesAndWaveFiles({
     if (!pathExists(path)) throw new Error(`Wave 0 file is missing: ${path}`);
   }
   for (const mutant of MUTANTS) {
+    if (mutant.detectorKind === "package") continue;
     if (selectorOccurrences(mutant, readSource) < mutant.intendedCaseIds.length) {
       throw new Error(`${mutant.id}: a registered named detector is missing from its live test file`);
     }
@@ -3246,8 +3414,9 @@ function verifyLedgers() {
     const release = runReleaseGates(directory);
     recordReleaseEvidence(evidence, release);
     const validation = readFileSync(VALIDATION_PATH, "utf8");
+    const security = readFileSync(SECURITY_PATH, "utf8");
     const requirements = readFileSync(REQUIREMENTS_PATH, "utf8");
-    validateFinalLedgers(validation, requirements, evidence);
+    validateFinalLedgers(validation, security, requirements, evidence);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
