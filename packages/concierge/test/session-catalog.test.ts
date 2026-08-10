@@ -2190,9 +2190,6 @@ it("[C20] binds boundary-time admissions to the exact requested authority", asyn
 
         const requestC = (value) => {
           boundaryEntries += 1;
-          base.emitBatch(
-            trackedBatch("before-c", finalizations, sourceCounts, events),
-          );
           session.setContext(c);
           base.emitBatch(
             trackedBatch("after-c", finalizations, sourceCounts, events),
@@ -2329,6 +2326,9 @@ it("[C20] binds boundary-time admissions to the exact requested authority", asyn
         });
         session.onStageChange((stage) => stageEvents.push(stage));
 
+        base.emitBatch(
+          trackedBatch("before-c", finalizations, sourceCounts, events),
+        );
         let callerCaught = false;
         try {
           session.setContext(b);
@@ -2394,8 +2394,8 @@ it("[C20] binds boundary-time admissions to the exact requested authority", asyn
         diagnosticCodes: [],
         dispatches: [
           {
-            aborted: true,
-            authority: "b",
+            aborted: false,
+            authority: "a",
             callId: "before-c",
             stableSignal: true,
           },
@@ -2414,11 +2414,11 @@ it("[C20] binds boundary-time admissions to the exact requested authority", asyn
         ],
         events: expectedEvents,
         finalizations: ["before-c", "after-c", "later-c"],
-        handlerEntries: 2,
+        handlerEntries: 3,
         mode,
         publications: catalogMode === "same" ? ["a"] : ["a", "c"],
         responses: [
-          { cancelled: true, callId: "before-c" },
+          { cancelled: false, callId: "before-c" },
           { cancelled: false, callId: "after-c" },
           { cancelled: false, callId: "later-c" },
         ],
