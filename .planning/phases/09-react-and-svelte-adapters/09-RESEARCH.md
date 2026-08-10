@@ -136,7 +136,7 @@ Do not use Astro's experimental Container API as the primary gate. A normal buil
 
 Enforce at most 150 authored nonblank, non-comment production lines per adapter. Explicitly enumerate production source; exclude generated dist/declarations/maps, tests, fixtures, config, metadata, docs, blanks, and comment-only lines. Emit package, measured lines/files, and limit.
 
-Also reject loops, timers/schedulers, retry/dedupe caches, queues, stage/catalog matching, consent transitions, transport routing, or copied result sanitation. Test the counter itself with an added production file/over-limit negative control; otherwise moving logic to an uncounted file defeats ADP-03.
+Also reject every loop statement form (`for`, `for..in`, `for..of`, `while`, and `do..while`), timers/schedulers, retry/dedupe caches, queues, stage/catalog matching, consent transitions, transport routing, or copied result sanitation. Parse every enumerated `.ts`, `.tsx`, and `.svelte.ts` production file with the installed TypeScript compiler and reject `ForStatement`, `ForInStatement`, `ForOfStatement`, `WhileStatement`, and `DoStatement`; rune calls are ordinary TypeScript call/property-access syntax at this stage. The gate must run one isolated negative control for each of the five loop syntax kinds, plus an added production file and an over-limit file. Regex-only loop scanning is insufficient because comments and strings create both false positives and bypasses.
 
 Treat the limit as a design boundary, not permission to compress unreadable logic. If an adapter needs more, identify which responsibility belongs in core.
 
@@ -174,17 +174,86 @@ Sampling:
 
 All behaviors are automatable. No visual QA, external account, or human-only check is required.
 
+## Resolved Implementation Choices
+
+The three former open questions are resolved before planning; execution must implement these choices rather than spike alternatives.
+
+### React directive preservation
+
+Use the installed `tsdown@0.22.14` `banner` callback, whose local declaration is `ChunkAddonFunction = (ctx: { format; fileName }) => ChunkAddonObject | string | undefined`. Configure both `src/index.ts` and `src/client.tsx` as entries and set:
+
+```ts
+banner: ({ fileName }) =>
+  fileName === "client.js" || fileName.endsWith("/client.js")
+    ? '"use client";'
+    : undefined,
+```
+
+The source client module also begins with the directive. The artifact test must inspect the packed `dist/client.js` first statement, prove the directive occurs exactly once, and prove `dist/index.js` and core's entry do not contain it. Do not split the build into two cleaning configs and do not depend on incidental directive retention by the transform.
+
+### Generic Svelte snapshot normalizer
+
+Svelte 5.56.8 declares `$state.snapshot<T>(state: T): Snapshot<T>`, while core intentionally exposes `SnapshotNormalizer = <T>(value: T) => T`. Reconcile those declarations without `as`, `any`, `structuredClone`, or an identity fallback by using one generic overload and an `unknown` implementation signature in `client.svelte.ts`:
+
+```ts
+export function svelteSnapshotNormalizer<T>(value: T): T;
+export function svelteSnapshotNormalizer(value: unknown): unknown {
+  return $state.snapshot(value);
+}
+
+const _normalizerContract: SnapshotNormalizer = svelteSnapshotNormalizer;
+```
+
+The overload preserves core's public same-shape capability contract; the implementation calls the compiler intrinsic directly. Package-local `svelte-check` and the exact-tarball real-rune consumer both compile this spelling. The latter is the behavioral authority: review plus completed delivery captures the detached value, a nested mutation moves the live getter, and confirm returns exactly `consent_stale` with zero consequential handler entries.
+
+### Svelte and Vitest routing
+
+Keep the current core Node project DOM-free by narrowing it to `packages/concierge/test/**/*.test.ts`. Add three explicit projects in root `vitest.config.ts`:
+
+- `node-artifact-ssr`, environment `node`, with an exact include list for `packages/concierge-react/test/artifact.test.ts`, `packages/concierge-svelte/test/artifact.test.ts`, and `examples/adapter-ssr/test/ssr.test.ts`;
+- `react-lifecycle`, environment `jsdom`, React Vite plugin, exact include `packages/concierge-react/test/lifecycle.test.tsx`;
+- `svelte-lifecycle`, environment `jsdom`, `svelte({ hot: false })`, exact include `packages/concierge-svelte/test/lifecycle.test.ts` (which imports the owning `Harness.svelte`).
+
+Task commands use Vitest's JSON reporter and reject `success !== true`, `numTotalTestSuites <= 0`, `numTotalTests <= 0`, or an empty `testResults` array. No project uses `passWithNoTests`, no lifecycle file matches the Node projects, and no Jest-only CLI flag is used.
+
+## Package Legitimacy Audit
+
+Every new install is a known official framework/tooling package. Exact development pins come from refreshed registry metadata; public peers remain the ranges stated above.
+
+| Package | Registry/version | Legitimacy evidence | Status |
+|---|---|---|---|
+| `react`, `react-dom` | npm `19.2.8` | Official React runtime packages and matching release line | `[VERIFIED]` |
+| `@types/react`, `@types/react-dom` | npm `19.2.18`, `19.2.4` | DefinitelyTyped packages used by the official React TypeScript ecosystem | `[VERIFIED]` |
+| `@testing-library/react` | npm `16.3.2` | Official Testing Library React adapter | `[VERIFIED]` |
+| `jsdom` | npm `29.1.1` | Established jsdom package used only by lifecycle test projects | `[VERIFIED]` |
+| `vite` | npm `8.1.5` | Official Vite build/test substrate required by both framework plugins | `[VERIFIED]` |
+| `@vitejs/plugin-react` | npm `5.2.0` | Official Vite React plugin | `[VERIFIED]` |
+| `svelte` | npm `5.56.8` | Official Svelte runtime/compiler; packed declarations inspected for `$state.snapshot` | `[VERIFIED]` |
+| `@sveltejs/package` | npm `2.5.8` | Official Svelte library packager, already cataloged by the workspace | `[VERIFIED]` |
+| `@sveltejs/vite-plugin-svelte` | npm `7.2.0` | Official Svelte Vite plugin | `[VERIFIED]` |
+| `@testing-library/svelte` | npm `5.4.2` | Official Testing Library Svelte adapter | `[VERIFIED]` |
+| `svelte-check` | npm `4.7.5` | Official Svelte checker | `[VERIFIED]` |
+| `astro`, `@astrojs/react`, `@astrojs/svelte`, `@astrojs/check` | npm `7.2.0`, `6.0.2`, `9.0.1`, `0.9.10` | Official Astro runtime and first-party integrations/checker | `[VERIFIED]` |
+| `typescript` | npm root `7.0.2`; local Svelte/Astro `6.0.3` | Official compiler; split pins honor declared peer ranges | `[VERIFIED]` |
+| `tsdown`, `publint`, `@arethetypeswrong/cli`, `vitest` | existing pinned workspace versions | Already installed and exercised by prior release gates | `[VERIFIED]` |
+
 ## Suggested Plan Decomposition
 
-1. Contracts/RED gates and package/config skeletons.
-2. React adapter, StrictMode/latest-value/SSR, and artifact proof.
-3. Svelte adapter, local TS6 toolchain, lifecycle/native normalizer, and artifact proof.
-4. Astro example with shared catalog and normal SSR evidence.
-5. Three-tarball consumer with TS7, one core, real `$state`, and mismatch.
-6. Budget plus seven immutable deliberate defects and release evidence.
-7. CI/release/docs/requirements/security closure.
+1. Root RED baseline, exact Vitest routing, and shared test dependencies.
+2. React package/build skeleton and peer/toolchain lock.
+3. Svelte package/build skeleton and local TypeScript 6 lock; close with the exact reduced post-skeleton RED set.
+4. React implementation, lifecycle tests, types, and packed artifact contract.
+5. Svelte implementation, compiled lifecycle tests, overload-based normalizer, and packed artifact contract.
+6. Astro manifest/config/toolchain/lockfile only.
+7. Astro shared catalog, two real islands, normal build, and repeated fresh-process SSR.
+8. Exact three-tarball consumer: tar linting, TS7 declarations, one core, SSR, real `$state` consent drift, and both literal mismatch probes.
+9. Exact source enumeration, independent 150-line budgets, forbidden responsibilities, and five loop-form negative controls.
+10. Canonical root/package documentation.
+11. Root commands and CI/release workflow wiring.
+12. Immutable R1/R2/S1/SSR1/B1/P1/C1 mutation infrastructure without final evidence generation.
+13. Terminal Phase 8 snapshot verification, Phase 09 mutation/release evidence generation, security/validation closure, and drift-rejecting verify-only rerun.
 
-React and Svelte land in the same phase after shared RED contracts, never as separate phases. Tarball/final evidence depends on both.
+Plans 4 and 5 run in parallel after the three serial routing/skeleton plans. Astro configuration and the budget gate also run in parallel; documentation and mutation infrastructure run in parallel after the package proof. No mutation/release evidence is generated until the terminal plan, after every source, manifest, README, and workflow edit.
 
 ## Risks and Mitigations
 
@@ -203,13 +272,7 @@ React and Svelte land in the same phase after shared RED contracts, never as sep
 
 ## Open Questions
 
-No user decision is required. Resolve these with small RED spikes inside plans:
-
-- whether tsdown preserves a hand-written client directive for two React entries without a banner;
-- the generic spelling assigning `$state.snapshot` to `SnapshotNormalizer` without an unsafe cast;
-- whether Svelte source tests are most reliable in root Vitest projects or an owning-package Vite config.
-
-Each is deterministic and does not alter scope.
+None. Directive preservation, the generic `$state.snapshot` normalizer spelling, and Svelte test routing are resolved above with implementation-ready configuration and commands grounded in the installed tsdown/Vitest declarations and the packed Svelte 5.56.8 type declaration.
 
 ---
 

@@ -396,8 +396,60 @@ CON-10's mechanism sits at the Phase 7 session seam — the session owns `onTool
   4. Core imports and constructs during a server render under a metaframework with no DOM global touched at module scope, demonstrated by one example app that exercises both adapters against the same catalog. (ADP-04)
   5. Two adapters resolving core independently are proven to share one instance **through the published tarball**, and a deliberate version mismatch fails loudly rather than silently splitting the bridge registry, the dedup window, and the consent kernel. Phase 2 proved this with two synthetic workspace fixtures; this is the first phase where the collision is real, and the first where `assertSingleInstance` runs on a path a user reaches. (PKG-04; carried from 02-VERIFICATION.md finding W5)
 
-**Plans**: TBD
-**Research**: Light — `svelte-package` coexisting with the primary bundler in one workspace was not tested by anyone during research, and pre-bundling runes produces an adapter that compiles and is silently non-reactive.
+**Plans**: 13 plans across **10 waves**. Root RED/routing and the two package skeletons land serially; React and Svelte implementation then proceed in parallel. Astro configuration precedes normal SSR, budget enforcement runs beside it, and exact-tarball, documentation, workflow, mutation-infrastructure, and terminal immutable-evidence waves close the phase in dependency order.
+
+Plans:
+
+**Wave 1**
+
+- [ ] 09-01-PLAN.md — Reproducible eleven-failure RED baseline plus exact root test routing
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 09-02-PLAN.md — Bounded React package, peer, build, type, and artifact skeleton
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 09-03-PLAN.md — Bounded Svelte package/toolchain skeleton and exact eleven-to-eight RED transition
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 09-04-PLAN.md — Thin React context/client adapter with StrictMode, late-value, cleanup, SSR, and artifact proof
+- [ ] 09-05-PLAN.md — Thin native Svelte context/effect adapter with real `$state.snapshot` and artifact proof
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 09-06-PLAN.md — Astro manifest, integrations, TypeScript domain, and lockfile before example source
+- [ ] 09-09-PLAN.md — Exact adapter source discovery, 150-line budgets, AST responsibility checks, and all loop negatives
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 09-07-PLAN.md — Normal Astro SSR harness using both adapters and one shared catalog across fresh renders
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 09-08-PLAN.md — Exact three-tarball declarations, singleton, server, Svelte consent-drift, and mismatch proof
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [ ] 09-10-PLAN.md — Canonical adapter APIs, ownership/security boundaries, Astro proof, and release documentation
+- [ ] 09-12-PLAN.md — Immutable compiled mutation register and runner without premature final evidence
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
+- [ ] 09-11-PLAN.md — Positive-count adapter gates wired into existing CI and release workflows
+
+**Wave 10** *(blocked on Wave 9 completion)*
+
+- [ ] 09-13-PLAN.md — Terminal mutation, release, validation, security, and Phase 8-preservation evidence
+
+**Cross-cutting constraints:**
+
+- Adapters receive an existing `Concierge` and `BridgeRegistry`; catalog, dispatch, session, consent, transport, scheduling, matching, and retry logic remain in core.
+- Framework and singleton claims are proven through built entries and exact tarballs; source-only imports and workspace-link convergence receive no credit.
+- Phase 9 evidence is generated only after every release input is stable and must preserve the sealed Phase 8 register, evidence, validation, security, and verification bytes.
+
+**Research**: Completed 2026-08-10 — `09-RESEARCH.md`; framework/compiler choices and formerly open directive, normalizer, test-routing, and loop-audit questions are resolved, closest live analogs are mapped in `09-PATTERNS.md`, and `09-VALIDATION.md` defines the Nyquist/security contract.
 **Notes**: Both adapters ship in the same phase, never React first. Building React-first and porting later produces a hooks-shaped core, and by the time the second adapter arrives, fixing core is a breaking change. Svelte specifically, because it is the only choice that surfaces the `$state` proxy consent defect. The React adapter owns its ref-mirroring rather than telling apps to maintain refs — React is the sole framework where a syntactically identical getter is semantically wrong. No UI-design pass is warranted here despite the React/Svelte/component keywords: these are headless framework bindings and a throwaway example harness, with no interface being designed.
 
 ## Notes on Departures from the Researched Structure
@@ -434,4 +486,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Dispatcher | 8/8 | Complete   | 2026-08-07 |
 | 7. Session and the transport seam | 7/7 | Complete    | 2026-08-10 |
 | 8. Consent kernel | 8/8 | Complete | 2026-08-10 |
-| 9. React and Svelte adapters | 0/TBD | Not started | - |
+| 9. React and Svelte adapters | 0/13 | Ready to execute | - |
