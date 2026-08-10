@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -214,6 +215,124 @@ async function flushMicrotasks() {
   for (let index = 0; index < 5; index += 1) {
     await Promise.resolve();
   }
+}
+
+function evidenceUtf8(value) {
+  return new Uint8Array(Buffer.from(value, "utf8"));
+}
+
+function evidenceView(value) {
+  return value instanceof ArrayBuffer
+    ? new Uint8Array(value)
+    : new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+}
+
+function evidenceHash(bytes) {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+function evidenceDigest(bytes) {
+  const digest = createHash("sha256").update(bytes).digest();
+  return digest.buffer.slice(
+    digest.byteOffset,
+    digest.byteOffset + digest.byteLength,
+  );
+}
+
+function immediateEvidenceDigest() {
+  const calls = [];
+  return {
+    calls,
+    async digest(algorithm, data) {
+      const bytes = new Uint8Array(evidenceView(data));
+      calls.push({ algorithm, bytes });
+      return evidenceDigest(bytes);
+    },
+  };
+}
+
+function deferredValue() {
+  let resolve;
+  let reject;
+  const promise = new Promise((onResolve, onReject) => {
+    resolve = onResolve;
+    reject = onReject;
+  });
+  return { promise, reject, resolve };
+}
+
+async function flushEvidence() {
+  for (let index = 0; index < 12; index += 1) {
+    await Promise.resolve();
+  }
+}
+
+function createAttestedKernel({
+  digest = immediateEvidenceDigest(),
+  policy = {},
+  presentReadback,
+  reviewHandler,
+} = {}) {
+  const canonical = evidenceUtf8('{"payload":{"amount":41}}');
+  const hash = evidenceHash(canonical);
+  const readbacks = [];
+  const presenter = presentReadback ?? (async () => ({
+    alg: "SHA-256",
+    canonical,
+    canonicalization: "JCS",
+    hash,
+  }));
+  const built = createKernel({
+    config: {
+      digest,
+      async presentReadback(readback) {
+        readbacks.push(readback);
+        return presenter(readback);
+      },
+    },
+    gates: [
+      {
+        name: "confirm",
+        policy: { minGrade: "attested", ...policy },
+      },
+    ],
+    profile: {
+      consentGrade: "attested",
+      userTurnIdentity: "human-attested",
+    },
+    reviewHandler,
+  });
+  const delivery = deliveryHarness();
+
+  return {
+    ...built,
+    canonical,
+    delivery,
+    digest,
+    hash,
+    readbacks,
+    confirm(options = {}) {
+      return dispatchGate(built.concierge, "confirm", options);
+    },
+    review(options = {}) {
+      return dispatchReview(built.concierge, {
+        deferUntilDelivered: delivery.hook,
+        ...options,
+      });
+    },
+  };
+}
+
+function confirmedEvidence(hash, overrides = {}) {
+  return {
+    readbackHash: hash,
+    attestation: {
+      act: "confirmed",
+      readbackHash: hash,
+      userTurnId: "confirm-turn",
+    },
+    ...overrides,
+  };
 }
 
 async function armReview(concierge, options = {}) {
@@ -1182,5 +1301,578 @@ describe("CON-07 — achieved none cannot arm after an isolated catalog-floor by
 
     expect(await dispatchGate(concierge)).toMatchObject({ ok: true });
     expect(gatedEntries.get("confirm")).toHaveLength(1);
+  });
+});
+
+describe("CON-07/09 — attested authority requires one complete owned evidence occurrence", () => {
+  it("E01 — presents one frozen Readback whose payload is the stored handler argument", async () => {
+    const flow = createAttestedKernel();
+    const original = { amount: 41 };
+
+    expect(await flow.review({ args: original })).toMatchObject({ ok: true });
+    expect(flow.readbacks).toHaveLength(1);
+    expect(flow.reviewEntries).toHaveLength(1);
+    const readback = flow.readbacks[0];
+    expect(Object.isFrozen(readback)).toBe(true);
+    expect(Object.isFrozen(readback.payload)).toBe(true);
+    expect(readback.payload).toBe(flow.reviewEntries[0].args);
+    expect(readback.payload).not.toBe(original);
+
+    flow.delivery.report(
+      0,
+      "review-response",
+      "completed",
+      confirmedEvidence(flow.hash),
+    );
+    await flushEvidence();
+    expect(await flow.confirm()).toMatchObject({ ok: true });
+    const entries = flow.gatedEntries.get("confirm");
+    expect(entries).toHaveLength(1);
+    expect(entries[0].ack).toMatchObject({
+      grade: "attested",
+      readbackHash: flow.hash,
+    });
+    expect(entries[0].ack.payload).toBe(readback.payload);
+    expect(await flow.confirm({ callId: "second-confirm" })).toMatchObject({
+      ok: false,
+      reason: "consent_required",
+    });
+    expect(flow.readbacks).toHaveLength(1);
+  });
+
+  it("E02 — removing or changing any delivery proof component cannot release attested", async () => {
+    const variants = [
+      {
+        label: "missing-attestation",
+        expectedReason: "grade_unavailable",
+        evidence: (hash) => ({ readbackHash: hash }),
+      },
+      {
+        label: "missing-report-hash",
+        expectedReason: "grade_unavailable",
+        evidence: (hash) => ({
+          attestation: confirmedEvidence(hash).attestation,
+        }),
+      },
+      {
+        label: "wrong-report-hash",
+        expectedReason: "grade_unavailable",
+        evidence: (hash) => confirmedEvidence(hash, {
+          readbackHash: "0".repeat(64),
+        }),
+      },
+      {
+        label: "wrong-attestation-hash",
+        expectedReason: "grade_unavailable",
+        evidence: (hash) => confirmedEvidence(hash, {
+          attestation: {
+            ...confirmedEvidence(hash).attestation,
+            readbackHash: "0".repeat(64),
+          },
+        }),
+      },
+      {
+        label: "empty-confirming-turn",
+        expectedReason: "grade_unavailable",
+        evidence: (hash) => confirmedEvidence(hash, {
+          attestation: {
+            ...confirmedEvidence(hash).attestation,
+            userTurnId: "",
+          },
+        }),
+      },
+      {
+        label: "review-turn-reused",
+        expectedReason: "grade_unavailable",
+        evidence: (hash) => confirmedEvidence(hash, {
+          attestation: {
+            ...confirmedEvidence(hash).attestation,
+            userTurnId: "review-turn",
+          },
+        }),
+      },
+      {
+        label: "unknown-act",
+        expectedReason: "consent_required",
+        evidence: (hash) => confirmedEvidence(hash, {
+          attestation: {
+            ...confirmedEvidence(hash).attestation,
+            act: "approved",
+          },
+        }),
+      },
+      {
+        label: "interrupted",
+        expectedReason: "consent_required",
+        outcome: "interrupted",
+        evidence: (hash) => confirmedEvidence(hash),
+      },
+      {
+        label: "wrong-response",
+        expectedReason: "consent_required",
+        responseId: "other-response",
+        evidence: (hash) => confirmedEvidence(hash),
+      },
+    ];
+
+    for (const variant of variants) {
+      const flow = createAttestedKernel();
+      expect(await flow.review(), variant.label).toMatchObject({ ok: true });
+      flow.delivery.report(
+        0,
+        variant.responseId ?? "review-response",
+        variant.outcome ?? "completed",
+        variant.evidence(flow.hash),
+      );
+      await flushEvidence();
+      const result = await flow.confirm({ callId: `confirm-${variant.label}` });
+      expect(result, variant.label).toMatchObject({
+        ok: false,
+        reason: variant.expectedReason,
+      });
+      expect(flow.gatedEntries.get("confirm"), variant.label).toHaveLength(0);
+    }
+  });
+
+  it("E03 — presenter throw, rejection, and malformed receipt close without leaking", async () => {
+    const canonical = evidenceUtf8('{"payload":{"amount":41}}');
+    const cases = [
+      () => {
+        throw new Error("PRESENTER_THROW_SECRET");
+      },
+      () => Promise.reject(new Error("PRESENTER_REJECT_SECRET")),
+      async () => ({
+        alg: "SHA-256",
+        canonical,
+        canonicalization: "JCS",
+      }),
+    ];
+
+    for (const [index, presentReadback] of cases.entries()) {
+      const flow = createAttestedKernel({ presentReadback });
+      const review = await flow.review({ callId: `failed-presenter-${index}` });
+      expect(review).toMatchObject({ ok: true });
+      expect(JSON.stringify(review)).not.toContain("PRESENTER_");
+      expect(flow.readbacks).toHaveLength(1);
+      expect(flow.delivery.registrations).toBe(0);
+      expect(await flow.confirm({ callId: `closed-${index}` })).toMatchObject({
+        ok: false,
+        reason: "consent_required",
+      });
+    }
+  });
+
+  it("E04 — verified decline and dismissal remain exact terminal one-shot outcomes", async () => {
+    for (const terminal of [
+      { act: "declined", expected: USER_DECLINED },
+      { act: "dismissed", expected: USER_CANCELLED },
+    ]) {
+      const flow = createAttestedKernel();
+      await flow.review({ callId: `${terminal.act}-review` });
+      flow.delivery.report(0, "review-response", "completed", {
+        readbackHash: flow.hash,
+        attestation: {
+          act: terminal.act,
+          readbackHash: flow.hash,
+          userTurnId: `${terminal.act}-turn`,
+        },
+      });
+      expect(
+        await flow.confirm({ callId: `${terminal.act}-confirm` }),
+      ).toBe(terminal.expected);
+      expect(
+        await flow.confirm({ callId: `${terminal.act}-again` }),
+      ).toMatchObject({ ok: false, reason: "consent_required" });
+      expect(flow.gatedEntries.get("confirm")).toHaveLength(0);
+    }
+  });
+
+  it("E04b — initial digest throw and rejection close without delivery or leakage", async () => {
+    const cases = [
+      {
+        label: "throw",
+        digest() {
+          throw new Error("INITIAL_DIGEST_THROW_SECRET");
+        },
+      },
+      {
+        label: "reject",
+        digest() {
+          return Promise.reject(new Error("INITIAL_DIGEST_REJECT_SECRET"));
+        },
+      },
+    ];
+
+    for (const candidate of cases) {
+      const flow = createAttestedKernel({ digest: candidate });
+      const review = await flow.review({ callId: `initial-${candidate.label}` });
+      expect(review).toMatchObject({ ok: true });
+      expect(JSON.stringify(review)).not.toContain("INITIAL_DIGEST_");
+      expect(flow.delivery.registrations).toBe(0);
+      const closed = await flow.confirm({ callId: `closed-${candidate.label}` });
+      expect(closed).toMatchObject({
+        ok: false,
+        reason: "consent_required",
+      });
+      expect(JSON.stringify(closed)).not.toContain("INITIAL_DIGEST_");
+    }
+  });
+
+  it("E05 — supersession during presenter await discards late completion", async () => {
+    const canonical = evidenceUtf8('{"payload":{"amount":41}}');
+    const hash = evidenceHash(canonical);
+    const firstReceipt = deferredValue();
+    let presenterCalls = 0;
+    const flow = createAttestedKernel({
+      presentReadback() {
+        presenterCalls += 1;
+        return presenterCalls === 1
+          ? firstReceipt.promise
+          : Promise.resolve({
+              alg: "SHA-256",
+              canonical,
+              canonicalization: "JCS",
+              hash,
+            });
+      },
+    });
+
+    const first = flow.review({
+      callId: "presenter-first",
+      responseId: "presenter-first-response",
+    });
+    await flushEvidence();
+    expect(presenterCalls).toBe(1);
+    expect(
+      await flow.review({
+        callId: "presenter-second",
+        responseId: "presenter-second-response",
+      }),
+    ).toMatchObject({ ok: true });
+    expect(flow.delivery.registrations).toBe(1);
+
+    firstReceipt.resolve({
+      alg: "SHA-256",
+      canonical,
+      canonicalization: "JCS",
+      hash,
+    });
+    expect(await first).toMatchObject({ ok: true });
+    expect(flow.delivery.registrations).toBe(1);
+    flow.delivery.report(
+      0,
+      "presenter-second-response",
+      "completed",
+      confirmedEvidence(hash),
+    );
+    await flushEvidence();
+    expect(await flow.confirm()).toMatchObject({ ok: true });
+  });
+
+  it("E06 — supersession during presentation digest discards late verification", async () => {
+    const blockedDigest = deferredValue();
+    const calls = [];
+    const digest = {
+      digest(algorithm, data) {
+        const bytes = new Uint8Array(evidenceView(data));
+        calls.push({ algorithm, bytes });
+        return calls.length === 1
+          ? blockedDigest.promise
+          : Promise.resolve(evidenceDigest(bytes));
+      },
+    };
+    const flow = createAttestedKernel({ digest });
+
+    const first = flow.review({
+      callId: "digest-first",
+      responseId: "digest-first-response",
+    });
+    await flushEvidence();
+    expect(calls).toHaveLength(1);
+    await flow.review({
+      callId: "digest-second",
+      responseId: "digest-second-response",
+    });
+    expect(flow.delivery.registrations).toBe(1);
+
+    blockedDigest.resolve(evidenceDigest(calls[0].bytes));
+    expect(await first).toMatchObject({ ok: true });
+    expect(flow.delivery.registrations).toBe(1);
+    flow.delivery.report(
+      0,
+      "digest-second-response",
+      "completed",
+      confirmedEvidence(flow.hash),
+    );
+    await flushEvidence();
+    expect(await flow.confirm()).toMatchObject({ ok: true });
+  });
+
+  it("E07 — supersession during delivery digest cannot overwrite the new generation", async () => {
+    const blockedDeliveryDigest = deferredValue();
+    const calls = [];
+    const digest = {
+      digest(algorithm, data) {
+        const bytes = new Uint8Array(evidenceView(data));
+        calls.push({ algorithm, bytes });
+        return calls.length === 2
+          ? blockedDeliveryDigest.promise
+          : Promise.resolve(evidenceDigest(bytes));
+      },
+    };
+    const flow = createAttestedKernel({ digest });
+    await flow.review({
+      callId: "delivery-first",
+      responseId: "delivery-first-response",
+    });
+    flow.delivery.report(
+      0,
+      "delivery-first-response",
+      "completed",
+      confirmedEvidence(flow.hash),
+    );
+    await flushEvidence();
+    expect(calls).toHaveLength(2);
+
+    await flow.review({
+      callId: "delivery-second",
+      responseId: "delivery-second-response",
+    });
+    expect(flow.delivery.registrations).toBe(2);
+    blockedDeliveryDigest.resolve(evidenceDigest(calls[1].bytes));
+    await flushEvidence();
+    expect(await flow.confirm({ callId: "new-still-pending" })).toMatchObject({
+      ok: false,
+      reason: "consent_required",
+    });
+
+    flow.delivery.report(
+      1,
+      "delivery-second-response",
+      "completed",
+      confirmedEvidence(flow.hash),
+    );
+    await flushEvidence();
+    expect(await flow.confirm()).toMatchObject({ ok: true });
+  });
+
+  it("E08 — a delivery re-digest failure destroys rather than downgrades authority", async () => {
+    let digestCalls = 0;
+    const digest = {
+      digest(_algorithm, data) {
+        digestCalls += 1;
+        return digestCalls === 1
+          ? Promise.resolve(evidenceDigest(evidenceView(data)))
+          : Promise.reject(new Error("DELIVERY_DIGEST_SECRET"));
+      },
+    };
+    const flow = createAttestedKernel({ digest });
+    await flow.review();
+    flow.delivery.report(
+      0,
+      "review-response",
+      "completed",
+      confirmedEvidence(flow.hash),
+    );
+    await flushEvidence();
+
+    const result = await flow.confirm();
+    expect(result).toMatchObject({
+      ok: false,
+      reason: "consent_required",
+    });
+    expect(JSON.stringify(result)).not.toContain("DELIVERY_DIGEST_SECRET");
+    expect(flow.gatedEntries.get("confirm")).toHaveLength(0);
+  });
+
+  it("E09 — one callback claims delivery verification before its digest await", async () => {
+    const firstDigest = deferredValue();
+    const firstCalls = [];
+    const duplicateDigest = {
+      digest(algorithm, data) {
+        const bytes = new Uint8Array(evidenceView(data));
+        firstCalls.push({ algorithm, bytes });
+        return firstCalls.length === 2
+          ? firstDigest.promise
+          : Promise.resolve(evidenceDigest(bytes));
+      },
+    };
+    const duplicateFlow = createAttestedKernel({ digest: duplicateDigest });
+    await duplicateFlow.review();
+    const confirmed = {
+      responseId: "review-response",
+      outcome: "completed",
+      ...confirmedEvidence(duplicateFlow.hash),
+    };
+    duplicateFlow.delivery.callbacks[0](confirmed);
+    duplicateFlow.delivery.callbacks[0](confirmed);
+    await flushEvidence();
+    expect(firstCalls).toHaveLength(2);
+    firstDigest.resolve(evidenceDigest(firstCalls[1].bytes));
+    await flushEvidence();
+    expect(await duplicateFlow.confirm()).toMatchObject({ ok: true });
+
+    const racedDigest = deferredValue();
+    const racedCalls = [];
+    const racedFlow = createAttestedKernel({
+      digest: {
+        digest(algorithm, data) {
+          const bytes = new Uint8Array(evidenceView(data));
+          racedCalls.push({ algorithm, bytes });
+          return racedCalls.length === 2
+            ? racedDigest.promise
+            : Promise.resolve(evidenceDigest(bytes));
+        },
+      },
+    });
+    await racedFlow.review();
+    racedFlow.delivery.callbacks[0]({
+      responseId: "review-response",
+      outcome: "completed",
+      ...confirmedEvidence(racedFlow.hash),
+    });
+    racedFlow.delivery.callbacks[0]({
+      responseId: "review-response",
+      outcome: "completed",
+      readbackHash: racedFlow.hash,
+      attestation: {
+        act: "declined",
+        readbackHash: racedFlow.hash,
+        userTurnId: "decline-race-turn",
+      },
+    });
+    racedDigest.resolve(evidenceDigest(racedCalls[1].bytes));
+    await flushEvidence();
+    expect(await racedFlow.confirm()).toMatchObject({ ok: true });
+    expect(racedCalls).toHaveLength(2);
+  });
+
+  it("E10 — a late old delivery callback stays inert after fresh-review supersession", async () => {
+    const flow = createAttestedKernel();
+    await flow.review({
+      callId: "late-first",
+      responseId: "late-first-response",
+    });
+    await flow.review({
+      callId: "late-second",
+      responseId: "late-second-response",
+    });
+    expect(flow.delivery.registrations).toBe(2);
+    expect(flow.digest.calls).toHaveLength(2);
+    flow.delivery.report(
+      0,
+      "late-first-response",
+      "completed",
+      confirmedEvidence(flow.hash),
+    );
+    await flushEvidence();
+    expect(flow.digest.calls).toHaveLength(2);
+    expect(await flow.confirm({ callId: "late-old-confirm" })).toMatchObject({
+      ok: false,
+      reason: "consent_required",
+    });
+    flow.delivery.report(
+      1,
+      "late-second-response",
+      "completed",
+      confirmedEvidence(flow.hash),
+    );
+    await flushEvidence();
+    expect(flow.digest.calls).toHaveLength(3);
+    expect(await flow.confirm()).toMatchObject({ ok: true });
+  });
+
+  it("E11 — delivery claims are snapshotted before the re-digest await", async () => {
+    const blocked = deferredValue();
+    const calls = [];
+    const flow = createAttestedKernel({
+      digest: {
+        digest(algorithm, data) {
+          const bytes = new Uint8Array(evidenceView(data));
+          calls.push({ algorithm, bytes });
+          return calls.length === 2
+            ? blocked.promise
+            : Promise.resolve(evidenceDigest(bytes));
+        },
+      },
+    });
+    await flow.review();
+    const attestation = {
+      act: "confirmed",
+      readbackHash: flow.hash,
+      userTurnId: "confirm-turn",
+    };
+    const report = {
+      responseId: "review-response",
+      outcome: "completed",
+      readbackHash: flow.hash,
+      attestation,
+    };
+    flow.delivery.callbacks[0](report);
+    await flushEvidence();
+    report.responseId = "mutated-response";
+    report.outcome = "interrupted";
+    report.readbackHash = "0".repeat(64);
+    attestation.act = "declined";
+    attestation.readbackHash = "0".repeat(64);
+    attestation.userTurnId = "mutated-turn";
+    blocked.resolve(evidenceDigest(calls[1].bytes));
+    await flushEvidence();
+    expect(await flow.confirm()).toMatchObject({ ok: true });
+  });
+
+  it("E12 — an attested ceiling alone produces only relayed evidence", async () => {
+    let presenterCalls = 0;
+    const digest = immediateEvidenceDigest();
+    const delivery = deliveryHarness();
+    const built = createKernel({
+      config: {
+        digest,
+        async presentReadback() {
+          presenterCalls += 1;
+          throw new Error("CAPABILITY_MUST_NOT_RUN");
+        },
+      },
+      gates: [
+        {
+          name: "confirm",
+          policy: { minGrade: "relayed" },
+        },
+      ],
+      profile: {
+        consentGrade: "attested",
+        userTurnIdentity: "human-attested",
+      },
+    });
+    await dispatchReview(built.concierge, {
+      deferUntilDelivered: delivery.hook,
+    });
+    delivery.report(0, "review-response", "completed", confirmedEvidence("claim"));
+    const result = await dispatchGate(built.concierge);
+    expect(result).toMatchObject({ ok: true });
+    expect(presenterCalls).toBe(0);
+    expect(digest.calls).toHaveLength(0);
+    const ack = built.gatedEntries.get("confirm")[0].ack;
+    expect(ack.grade).toBe("relayed");
+    expect(ack).not.toHaveProperty("readbackHash");
+  });
+
+  it("E13 — a wrong confirming turn fails without consuming the valid attested ack", async () => {
+    const flow = createAttestedKernel();
+    await flow.review();
+    flow.delivery.report(
+      0,
+      "review-response",
+      "completed",
+      confirmedEvidence(flow.hash),
+    );
+    await flushEvidence();
+    expect(
+      await flow.confirm({
+        callId: "wrong-turn-confirm",
+        userTurnId: "other-human-turn",
+      }),
+    ).toMatchObject({ ok: false, reason: "consent_required" });
+    expect(await flow.confirm()).toMatchObject({ ok: true });
   });
 });
