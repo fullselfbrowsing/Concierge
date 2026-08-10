@@ -75,10 +75,10 @@
 
 ### Adapters
 
-- [ ] **ADP-01**: A React adapter provides the instance in component scope and registers handlers and bridges with mount/unmount cleanup that survives StrictMode double-mount
-- [ ] **ADP-02**: A Svelte adapter does the same, supplying `$state.snapshot` as the snapshot normalizer
-- [ ] **ADP-03**: Each adapter's source stays within the stated size budget, enforced by a test that fails when logic leaks out of core
-- [ ] **ADP-04**: Core imports cleanly in a server render under a metaframework, with no DOM globals touched at module scope
+- [x] **ADP-01**: A React adapter provides the instance in component scope and registers handlers and bridges with mount/unmount cleanup that survives StrictMode double-mount
+- [x] **ADP-02**: A Svelte adapter does the same, supplying `$state.snapshot` as the snapshot normalizer
+- [x] **ADP-03**: Each adapter's source stays within the stated size budget, enforced by a test that fails when logic leaks out of core
+- [x] **ADP-04**: Core imports cleanly in a server render under a metaframework, with no DOM globals touched at module scope
 
 ### Security
 
@@ -198,10 +198,10 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | TRN-03 | Phase 8 — Consent kernel | Complete — 08-02 C29 and 08-05 S02 reject missing or weak human-turn provenance at build and actual-session boundaries; M-08-C02/C03/C05/C06 are green. |
 | TRN-04 | Phase 6 — Dispatcher | Complete — R19 drives one action and Q14 drives a batch directly from an application loop without constructing a Transport; the complete 62-row mutation register remains green. |
 | TRN-05 | Phase 1 — Type surface completion; runtime proof in Phase 8 — Consent kernel | Complete — 08-05 S02 proves the actual captured transport provenance must dominate the Concierge profile before subscription, publication, or batch effects; M-08-C05/C06 kill runtime dominance defects. |
-| ADP-01 | Phase 9 — React and Svelte adapters | Pending |
-| ADP-02 | Phase 9 — React and Svelte adapters | Pending |
-| ADP-03 | Phase 9 — React and Svelte adapters | Pending |
-| ADP-04 | Phase 9 — React and Svelte adapters | Pending |
+| ADP-01 | Phase 9 — React and Svelte adapters | Complete |
+| ADP-02 | Phase 9 — React and Svelte adapters | Complete |
+| ADP-03 | Phase 9 — React and Svelte adapters | Complete |
+| ADP-04 | Phase 9 — React and Svelte adapters | Complete |
 | SEC-01 | Phase 3 — Action declaration and build-time validation | Complete |
 | SEC-02 | Phase 6 — Dispatcher | Complete structurally — the TypeScript AST audit parses all 11 production files and proves Phase 6 defines no telemetry/onTelemetry/onError channel or emission and no bound exception forwarding path. R34…R36 prove at runtime that handler exception text reaches neither `ActionResult` nor console; M-06-S25 kills exception echo. |
 | SEC-03 | Phase 4 — Stages, catalog assembly, and explain() | Pending overall under Phase 4's recorded consumer-supplied `jsonSchema` getter carve-out. Phase 6 completes the dispatch-side lookup proof without remapping the requirement: R09/R10 execute zero handlers for `__proto__`/`constructor`, and M-06-S15 kills a prototype-bearing lookup. |
