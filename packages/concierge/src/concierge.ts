@@ -171,6 +171,7 @@ interface ConsentGenerationBase {
 type ConsentGeneration =
   | (ConsentGenerationBase & { readonly status: "reviewing" })
   | (ConsentGenerationBase & { readonly status: "pendingDelivery" })
+  | (ConsentGenerationBase & { readonly status: "verifyingDelivery" })
   | (ConsentGenerationBase & {
       readonly achievedGrade: Exclude<ConsentGrade, "none">;
       readonly status: "armed";
@@ -998,6 +999,12 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       return;
     }
 
+    const claimed = Object.freeze({
+      ...pending,
+      status: "verifyingDelivery" as const,
+    });
+    consentGenerations?.set(reviewName, claimed);
+
     const deliverySnapshot = snapshotDeliveryEvidence(report);
     if (!deliverySnapshot.ok) {
       closeConsentGeneration(reviewName, pending.generation);
@@ -1027,7 +1034,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     if (observedAct === "declined" || observedAct === "dismissed") {
       consentGenerations?.set(
         reviewName,
-        Object.freeze({ ...pending, status: observedAct }),
+        Object.freeze({ ...claimed, status: observedAct }),
       );
       return;
     }
@@ -1038,7 +1045,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     let confirmationUserTurnId: string | null = null;
     let readbackHash: string | null = null;
     const attestation = delivery.attestation;
-    const verified: VerifiedReadbackEvidence | null = pending.verifiedReadback;
+    const verified: VerifiedReadbackEvidence | null = claimed.verifiedReadback;
     if (
       verified !== null &&
       consentGradeRank(capturedConsent.profile.consentGrade) >=
@@ -1051,7 +1058,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       attestation.readbackHash === verified.hash &&
       typeof attestation.userTurnId === "string" &&
       attestation.userTurnId.length > 0 &&
-      attestation.userTurnId !== pending.userTurnId
+      attestation.userTurnId !== claimed.userTurnId
     ) {
       const freshHash: string | null = await digestReadback(
         capturedConsent.digest,
@@ -1060,23 +1067,25 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       const stillOwned: ConsentGeneration | undefined =
         consentGenerations?.get(reviewName);
       if (
-        stillOwned?.generation !== pending.generation ||
-        stillOwned.status !== "pendingDelivery" ||
-        stillOwned.responseId !== pending.responseId
+        stillOwned?.generation !== claimed.generation ||
+        stillOwned.status !== "verifyingDelivery" ||
+        stillOwned.responseId !== claimed.responseId
       ) {
         return;
       }
-      if (freshHash === verified.hash) {
-        achievedGrade = "attested";
-        confirmationUserTurnId = attestation.userTurnId;
-        readbackHash = verified.hash;
+      if (freshHash !== verified.hash) {
+        closeConsentGeneration(reviewName, claimed.generation);
+        return;
       }
+      achievedGrade = "attested";
+      confirmationUserTurnId = attestation.userTurnId;
+      readbackHash = verified.hash;
     }
 
     if (!isMeasuredConsentGrade(achievedGrade)) {
       consentGenerations?.set(
         reviewName,
-        Object.freeze({ ...pending, status: "gradeUnavailable" }),
+        Object.freeze({ ...claimed, status: "gradeUnavailable" }),
       );
       return;
     }
@@ -1084,7 +1093,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     consentGenerations?.set(
       reviewName,
       Object.freeze({
-        ...pending,
+        ...claimed,
         achievedGrade,
         confirmationUserTurnId,
         readbackHash,
