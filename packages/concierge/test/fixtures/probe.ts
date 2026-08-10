@@ -64,28 +64,42 @@
 import {
   MESSAGE_MAX_CHARS,
   CONTRACT_VERSION,
+  CONSENT_GRADE_ORDER,
+  USER_CANCELLED,
+  USER_DECLINED,
   assertSingleInstance,
   defineAction,
   buildCatalog,
+  createConcierge,
   createSession,
 } from "@fullselfbrowsing/concierge";
 import type {
   ActionResult,
   Concierge,
   ConsentAck,
+  ConsentGrade,
+  ConsentPolicy,
   ConsentProfile,
+  DeliveryReport,
+  DigestLike,
   FailureOutcome,
   FailureOutcomeRow,
   OutcomePresentationReport,
   OutcomeSink,
+  Readback,
   ReadbackAttestation,
+  ReadbackReceipt,
+  ReadbackSink,
+  ServerChallenge,
   Session,
   SessionConfig,
   SessionDiagnostic,
   SessionDiagnosticCode,
+  SnapshotNormalizer,
   StandardSchemaV1,
   Transport,
   TransportStatus,
+  TurnIdentityProvenance,
 } from "@fullselfbrowsing/concierge";
 
 /**
@@ -121,16 +135,60 @@ export const f: () => void = assertSingleInstance;
  */
 export type ProbeAck = ConsentAck;
 export type ProbeTransport = Transport;
+export type ProbeServerChallenge = ServerChallenge;
 
 /** Consent evidence contracts remain constructible from strict foreign code. */
+export const foreignConsentGrade: ConsentGrade = "attested";
+export const foreignConsentOrder: readonly ConsentGrade[] = CONSENT_GRADE_ORDER;
+export const foreignTurnIdentity: TurnIdentityProvenance = "human-attested";
 export const foreignConsentProfile: ConsentProfile = Object.freeze({
-  consentGrade: "attested",
-  userTurnIdentity: "human-attested",
+  consentGrade: foreignConsentGrade,
+  userTurnIdentity: foreignTurnIdentity,
 });
+export const foreignConsentPolicy: ConsentPolicy<{ amount: number }> =
+  Object.freeze({
+    requires: "reviewPayment",
+    bindTo: "userTurn",
+    snapshotEquality: (
+      left: { amount: number },
+      right: { amount: number },
+    ) => left.amount === right.amount,
+    minGrade: foreignConsentGrade,
+    onMissing: Object.freeze({
+      reason: "grade_unavailable",
+      message: "The available consent evidence is too weak.",
+    }),
+  });
+export const foreignSnapshotNormalizer: SnapshotNormalizer = <T>(value: T): T =>
+  value;
+export const foreignReadback: Readback<{ amount: number }> = Object.freeze({
+  payload: Object.freeze({ amount: 4_180 }),
+  presented: "$41.80",
+});
+export const foreignReadbackReceipt: ReadbackReceipt = Object.freeze({
+  hash: "sha256-probe",
+  alg: "SHA-256",
+  canonicalization: "JCS",
+  canonical: new Uint8Array([1, 2, 3]),
+});
+export const foreignReadbackSink: ReadbackSink = <P>(
+  _readback: Readback<P>,
+): Promise<ReadbackReceipt> => Promise.resolve(foreignReadbackReceipt);
+export const foreignDigest: DigestLike = {
+  digest(_algorithm, data) {
+    return Promise.resolve(new ArrayBuffer(data.byteLength));
+  },
+};
 export const foreignReadbackAttestation: ReadbackAttestation = Object.freeze({
   act: "confirmed",
   userTurnId: "turn-human",
   readbackHash: "hash",
+});
+export const foreignDeliveryReport: DeliveryReport = Object.freeze({
+  responseId: "response-probe",
+  outcome: "completed",
+  readbackHash: foreignReadbackReceipt.hash,
+  attestation: foreignReadbackAttestation,
 });
 export const foreignFailureOutcomeRow: FailureOutcomeRow = Object.freeze({
   callId: "call-failed",
@@ -144,6 +202,8 @@ export const foreignOutcomePresentation: OutcomePresentationReport =
   Object.freeze({ outcome: "completed" });
 export const foreignOutcomeSink: OutcomeSink = (_outcome) =>
   Promise.resolve(foreignOutcomePresentation);
+export const foreignCancelled: ActionResult = USER_CANCELLED;
+export const foreignDeclined: ActionResult = USER_DECLINED;
 
 /**
  * A structural stand-in for a validator. `StandardSchemaV1` is already a
@@ -189,10 +249,11 @@ export const descSlotSurvived: "Probe description." = null as unknown as DescSlo
  * binding at all.
  */
 export const bc: (a: readonly never[]) => unknown = buildCatalog;
+export const conciergeFactory: typeof createConcierge = createConcierge;
 
 /**
- * Phase 7's foreign declaration probe exercises the complete six-member
- * transport seam from a plain object literal. Nothing here imports a test
+ * The foreign declaration probe exercises the complete six-member transport
+ * seam from a plain object literal. Nothing here imports a test
  * helper, DOM declaration, or source path; every annotation resolves through
  * the packed package's public `dist/index.d.ts`.
  */

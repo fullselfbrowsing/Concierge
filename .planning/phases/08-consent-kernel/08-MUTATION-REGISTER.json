@@ -113,7 +113,7 @@
     "packages/concierge/package.json": "5ed9d24829c2ac5bdcf69b57d4f4b503c226cee33f474ad07536521fec4112e4",
     "pnpm-lock.yaml": "0e29065f823200f9bdb2284bdef721003f525f68fa60a2810046b1a7f720e0d4"
   },
-  "registerDigest": "ff3b2f4f6791928cb20b91b807fd992f1dbfbdf838b64f5fc332beee9ab35020",
+  "registerDigest": "7d22004c31980aa946f21b01b2ffb5c27bae46f6bd2b089bf8c4027b8441da2d",
   "mutants": [
     {
       "id": "M-08-G01",
@@ -851,8 +851,8 @@
       "group": "evidence",
       "name": "object accessors are invoked while canonicalizing",
       "target": "packages/concierge/src/consent-evidence.ts",
-      "literalPattern": "    const child: StrictValue | null = snapshotStrictValue(\n      descriptor.value,\n      seen,\n    );\n    if (child === null) {\n      return null;\n    }\n    entries.push({ canonical: child.canonical, key, value: child.value });",
-      "replacement": "    const child: StrictValue | null = snapshotStrictValue(\n      (value as Record<string, unknown>)[key as string],\n      seen,\n    );\n    if (child === null) {\n      return null;\n    }\n    entries.push({ canonical: child.canonical, key, value: child.value });",
+      "literalPattern": "    if (\n      typeof key !== \"string\" ||\n      key === \"toJSON\" ||\n      descriptor === undefined ||\n      !(\"value\" in descriptor) ||\n      descriptor.enumerable !== true ||\n      quoteString(key) === null\n    ) {\n      return null;\n    }\n    const child: StrictValue | null = snapshotStrictValue(\n      descriptor.value,\n      seen,\n    );\n    if (child === null) {\n      return null;\n    }\n    entries.push({ canonical: child.canonical, key, value: child.value });",
+      "replacement": "    if (\n      typeof key !== \"string\" ||\n      key === \"toJSON\" ||\n      descriptor === undefined ||\n      descriptor.enumerable !== true ||\n      quoteString(key) === null\n    ) {\n      return null;\n    }\n    const child: StrictValue | null = snapshotStrictValue(\n      (value as Record<string, unknown>)[key as string],\n      seen,\n    );\n    if (child === null) {\n      return null;\n    }\n    entries.push({ canonical: child.canonical, key, value: child.value });",
       "detectorKind": "vitest",
       "threats": [
         "T-08-10"
@@ -872,9 +872,9 @@
           "marker": "[RED:M-08-E10]"
         }
       ],
-      "definitionDigest": "71c5b180d0f4d973dcb9b05d0d39cae5eafde4332f149ca54df2320f081c8bcc",
+      "definitionDigest": "ffc9edd042e7d88c6d43e01c7c478d5d3824d8b2a9c152eca05c3bf4f357beb7",
       "originalTargetHash": "db1c4ed04cfeba558d83737e5c5fe8d51d38933c648aa40e3be282ec69560c38",
-      "mutantTargetHash": "ed5ed3b36c89e1d177ddd99b1299b068c5cb53969ba4ad0d75bf7ecc1b3a2e36"
+      "mutantTargetHash": "2671e1ad08808e06451c6c841ec12ab4439353692219951594ee26cafb0d9228"
     },
     {
       "id": "M-08-E11",

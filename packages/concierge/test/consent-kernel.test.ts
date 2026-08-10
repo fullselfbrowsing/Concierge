@@ -357,11 +357,26 @@ async function armReview(concierge, options = {}) {
 
 async function loadCatalogFloorBypass(id, catalogGrade = "delivered") {
   const source = readFileSync(DIST_PATH, "utf8");
-  const needle = "consentProfile: capturedConsent.profile,";
-  expect(source.split(needle)).toHaveLength(2);
-  const bypassed = source.replace(
-    needle,
+  const catalogNeedle = "consentProfile: capturedConsent.profile,";
+  const minimumNeedle = [
+    "function effectiveConsentMinimum(requested) {",
+    '\tconst declared = requested ?? "delivered";',
+    '\treturn consentGradeRank(declared) < consentGradeRank("delivered") ? "delivered" : declared;',
+    "}",
+  ].join("\n");
+  expect(source.split(catalogNeedle)).toHaveLength(2);
+  expect(source.split(minimumNeedle)).toHaveLength(2);
+  const catalogBypassed = source.replace(
+    catalogNeedle,
     `consentProfile: Object.freeze({ consentGrade: "${catalogGrade}", userTurnIdentity: "human-attested" }),`,
+  );
+  const bypassed = catalogBypassed.replace(
+    minimumNeedle,
+    [
+      "function effectiveConsentMinimum(requested) {",
+      '\treturn requested ?? "none";',
+      "}",
+    ].join("\n"),
   );
   const encoded = Buffer.from(`${bypassed}\n// ${id}\n`, "utf8").toString(
     "base64",

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmodSync,
@@ -34,7 +34,7 @@ const CORE_PACKAGE_DIRECTORY = join(ROOT, "packages/concierge");
 const BUILD_MARKER = "Build complete";
 const MAX_BUFFER = 64 * 1024 * 1024;
 const SCHEMA_VERSION = 3;
-const USAGE = "Usage: node scripts/phase-08-mutation-battery.mjs self-test|refresh|preflight <id>|run range <first> <last>|verify <group|inputs|ledgers>";
+const USAGE = "Usage: node scripts/phase-08-mutation-battery.mjs self-test|refresh|preflight <id>|run range <first> <last>|run all --jobs <1-4>|verify <generation|evidence|capability|outcome|package|all|inputs|ledgers>";
 
 const RELEASE_COMMAND_KEYS = Object.freeze([
   "build",
@@ -50,6 +50,10 @@ const RELEASE_KEYS = Object.freeze([
   "executedAt",
   "commandExits",
   "tests",
+  "artifactSurface",
+  "dependencyFootprint",
+  "packageConsumer",
+  "nodeFloor",
 ]);
 const RELEASE_TEST_KEYS = Object.freeze([
   "exitCode",
@@ -59,6 +63,26 @@ const RELEASE_TEST_KEYS = Object.freeze([
   "numFailedTests",
   "numPendingTests",
   "numTodoTests",
+]);
+const RELEASE_ARTIFACT_KEYS = Object.freeze([
+  "publicNames",
+  "publicTypes",
+  "publicValues",
+]);
+const RELEASE_DEPENDENCY_KEYS = Object.freeze([
+  "runtimeBytes",
+  "moduleGraphClean",
+]);
+const RELEASE_PACKAGE_KEYS = Object.freeze([
+  "tarEntryCount",
+  "tarEntryDigest",
+  "forbiddenEntriesAbsent",
+  "foreignTypecheck",
+  "foreignRuntime",
+]);
+const RELEASE_NODE_FLOOR_KEYS = Object.freeze([
+  "version",
+  "artifactImported",
 ]);
 const EVIDENCE_KEYS = Object.freeze([
   "schemaVersion",
@@ -143,12 +167,18 @@ const SCOPED_PATHS = Object.freeze([
     "scripts/mutate-and-prove.sh",
   ]),
 ]);
+const TASK_2_WIP_PATHS = Object.freeze([
+  "packages/concierge/test/consent-kernel.test.ts",
+  "packages/concierge/test/fixtures/probe.ts",
+  "scripts/pack-install-check.sh",
+  "scripts/phase-08-mutation-battery.mjs",
+]);
 
 const REQUIRED_TASK_IDS = Object.freeze([
   "08-01-01", "08-01-02", "08-02-01", "08-02-02", "08-03-01",
-  "08-03-02", "08-03-03", "08-04-01", "08-04-02", "08-05-01",
-  "08-05-02", "08-06-01", "08-06-02", "08-06-03", "08-07-01",
-  "08-07-02", "08-07-03", "08-08-01",
+  "08-03-02", "08-04-01", "08-04-02", "08-05-01", "08-05-02",
+  "08-06-01", "08-06-02", "08-07-01", "08-07-02", "08-08-01",
+  "08-08-02",
 ]);
 const REQUIRED_REQUIREMENT_IDS = Object.freeze([
   "CON-01", "CON-02", "CON-03", "CON-04", "CON-05", "CON-06",
@@ -593,6 +623,16 @@ const MUTANTS = Object.freeze([
     name: "object accessors are invoked while canonicalizing",
     target: "packages/concierge/src/consent-evidence.ts",
     literalPattern: lines(
+      "    if (",
+      "      typeof key !== \"string\" ||",
+      "      key === \"toJSON\" ||",
+      "      descriptor === undefined ||",
+      "      !(\"value\" in descriptor) ||",
+      "      descriptor.enumerable !== true ||",
+      "      quoteString(key) === null",
+      "    ) {",
+      "      return null;",
+      "    }",
       "    const child: StrictValue | null = snapshotStrictValue(",
       "      descriptor.value,",
       "      seen,",
@@ -603,6 +643,15 @@ const MUTANTS = Object.freeze([
       "    entries.push({ canonical: child.canonical, key, value: child.value });",
     ),
     replacement: lines(
+      "    if (",
+      "      typeof key !== \"string\" ||",
+      "      key === \"toJSON\" ||",
+      "      descriptor === undefined ||",
+      "      descriptor.enumerable !== true ||",
+      "      quoteString(key) === null",
+      "    ) {",
+      "      return null;",
+      "    }",
       "    const child: StrictValue | null = snapshotStrictValue(",
       "      (value as Record<string, unknown>)[key as string],",
       "      seen,",
@@ -1040,7 +1089,7 @@ function atomicWriteJson(path, value) {
   }
 }
 
-function withExclusivePathLock(lockPath, operation, run) {
+async function withExclusivePathLock(lockPath, operation, run) {
   let descriptor;
   let locked = false;
   try {
@@ -1049,7 +1098,7 @@ function withExclusivePathLock(lockPath, operation, run) {
     if (!locked) {
       throw new Error(`${operation}: mutation battery is already running`);
     }
-    return run();
+    return await run();
   } finally {
     if (descriptor !== undefined) {
       try {
@@ -1078,7 +1127,7 @@ function mutationLockPath() {
   );
 }
 
-function withMutationBatteryLock(operation, run) {
+async function withMutationBatteryLock(operation, run) {
   return withExclusivePathLock(mutationLockPath(), operation, run);
 }
 
@@ -1221,6 +1270,7 @@ function validateRequiredMappings(mutants) {
 
   const byId = new Map(mutants.map((mutant) => [mutant.id, mutant]));
   const c07 = byId.get("M-08-C07");
+  const e10 = byId.get("M-08-E10");
   const g15 = byId.get("M-08-G15");
   const p03 = byId.get("M-08-P03");
   const p04 = byId.get("M-08-P04");
@@ -1229,6 +1279,15 @@ function validateRequiredMappings(mutants) {
   }
   if (g15?.literalPattern !== '  return achievedGrade !== "none";' || JSON.stringify(g15.intendedCaseIds) !== JSON.stringify(["N01", "N02"])) {
     throw new Error("M-08-G15 must target the single measured-grade none predicate with N01/N02");
+  }
+  if (
+    !e10?.literalPattern.includes('!("value" in descriptor)') ||
+    !e10.literalPattern.includes("descriptor.value") ||
+    e10.replacement.includes('!("value" in descriptor)') ||
+    !e10.replacement.includes("(value as Record<string, unknown>)[key as string]") ||
+    JSON.stringify(e10.intendedCaseIds) !== JSON.stringify(["J08"])
+  ) {
+    throw new Error("M-08-E10 must remove only the data-descriptor rejection before invoking the J08 accessor");
   }
   if (p03?.target !== "README.md" || p04?.target !== "README.md") {
     throw new Error("M-08-P03/P04 must target the root README");
@@ -1443,6 +1502,59 @@ function validateReleaseEvidenceShape(
     release.tests.numTodoTests !== 0
   ) {
     throw new Error("release test counts must describe a fully green run");
+  }
+
+  validateExactObjectKeys(
+    release.artifactSurface,
+    RELEASE_ARTIFACT_KEYS,
+    "release artifactSurface",
+  );
+  if (
+    release.artifactSurface.publicNames !== 75 ||
+    release.artifactSurface.publicTypes !== 60 ||
+    release.artifactSurface.publicValues !== 15
+  ) {
+    throw new Error("release artifact surface must equal 75 names / 60 types / 15 values");
+  }
+
+  validateExactObjectKeys(
+    release.dependencyFootprint,
+    RELEASE_DEPENDENCY_KEYS,
+    "release dependencyFootprint",
+  );
+  if (
+    release.dependencyFootprint.runtimeBytes !== 0 ||
+    release.dependencyFootprint.moduleGraphClean !== true
+  ) {
+    throw new Error("release dependency footprint must be a clean graph with zero runtime bytes");
+  }
+
+  validateExactObjectKeys(
+    release.packageConsumer,
+    RELEASE_PACKAGE_KEYS,
+    "release packageConsumer",
+  );
+  if (
+    !Number.isInteger(release.packageConsumer.tarEntryCount) ||
+    release.packageConsumer.tarEntryCount <= 0 ||
+    !/^[0-9a-f]{64}$/u.test(release.packageConsumer.tarEntryDigest) ||
+    release.packageConsumer.forbiddenEntriesAbsent !== true ||
+    release.packageConsumer.foreignTypecheck !== true ||
+    release.packageConsumer.foreignRuntime !== true
+  ) {
+    throw new Error("release package consumer evidence is incomplete");
+  }
+
+  validateExactObjectKeys(
+    release.nodeFloor,
+    RELEASE_NODE_FLOOR_KEYS,
+    "release nodeFloor",
+  );
+  if (
+    release.nodeFloor.version !== "v22.12.0" ||
+    release.nodeFloor.artifactImported !== true
+  ) {
+    throw new Error("release Node floor evidence must prove artifact import on v22.12.0");
   }
 }
 
@@ -1966,7 +2078,10 @@ function runRestoredGates(mutant, directory, root = ROOT) {
   };
 }
 
-function scopedStatus({ allowUntrackedRunner = false } = {}) {
+function scopedStatus({
+  allowUntrackedRunner = false,
+  allowedDirtyPaths = [],
+} = {}) {
   const result = command("git", [
     "status",
     "--porcelain",
@@ -1977,11 +2092,13 @@ function scopedStatus({ allowUntrackedRunner = false } = {}) {
   if (result.exitCode !== 0) {
     throw new Error(`scoped git status failed: ${result.output}`);
   }
+  const allowed = new Set(allowedDirtyPaths);
   return result.stdout
     .split(/\r?\n/u)
     .filter((line) =>
       line !== "" &&
-      !(allowUntrackedRunner && line === "?? scripts/phase-08-mutation-battery.mjs")
+      !(allowUntrackedRunner && line === "?? scripts/phase-08-mutation-battery.mjs") &&
+      !(line.startsWith(" M ") && allowed.has(line.slice(3)))
     )
     .join("\n")
     .trim();
@@ -2182,8 +2299,11 @@ function revisionDigest(mutant, root = ROOT, paths = revisionInputPaths()) {
   return digest.digest("hex");
 }
 
-function executeMutant(mutant, { allowUntrackedRunner = false } = {}) {
-  const beforeStatus = scopedStatus({ allowUntrackedRunner });
+function executeMutant(
+  mutant,
+  { allowUntrackedRunner = false, allowedDirtyPaths = [] } = {},
+) {
+  const beforeStatus = scopedStatus({ allowUntrackedRunner, allowedDirtyPaths });
   if (beforeStatus !== "") {
     throw new Error(
       `${mutant.id}: scoped source/test/type/lockfile tree is dirty before mutation:\n${beforeStatus}`,
@@ -2240,7 +2360,7 @@ function executeMutant(mutant, { allowUntrackedRunner = false } = {}) {
     assertStableMutationRevision(mutant, snapshot);
     const restored = runRestoredGates(mutant, directory, snapshot.root);
     assertStableMutationRevision(mutant, snapshot);
-    const afterStatus = scopedStatus({ allowUntrackedRunner });
+    const afterStatus = scopedStatus({ allowUntrackedRunner, allowedDirtyPaths });
     const afterPaths = revisionInputPaths({ allowUntrackedRunner });
     const liveRevisionEndpointsMatch =
       JSON.stringify(afterPaths) === JSON.stringify(paths) &&
@@ -2390,6 +2510,146 @@ function runSelected(selected) {
   }
 }
 
+function runWorkerProcess(mutant, resultPath) {
+  return new Promise((resolveWorker) => {
+    const child = spawn(
+      process.execPath,
+      [SCRIPT_PATH, "worker", mutant.id, resultPath],
+      {
+        cwd: ROOT,
+        env: { ...process.env, PHASE_08_MUTATION_WORKER: "1" },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    let output = "";
+    const append = (chunk) => {
+      if (Buffer.byteLength(output) < MAX_BUFFER) output += chunk.toString();
+    };
+    child.stdout.on("data", append);
+    child.stderr.on("data", append);
+    child.on("error", (error) => {
+      resolveWorker({
+        fatal: `${mutant.id}: worker process failed to start: ${error.message}`,
+        output,
+      });
+    });
+    child.on("close", (exitCode, signal) => {
+      if (!existsSync(resultPath)) {
+        resolveWorker({
+          fatal: `${mutant.id}: worker exited ${String(exitCode)} (${String(signal)}) without a result`,
+          output: shortOutput(output, 4_000),
+        });
+        return;
+      }
+      try {
+        const result = JSON.parse(readFileSync(resultPath, "utf8"));
+        resolveWorker({ ...result, output: shortOutput(output, 4_000) });
+      } catch (error) {
+        resolveWorker({
+          fatal: `${mutant.id}: worker result is unreadable: ${error instanceof Error ? error.message : String(error)}`,
+          output: shortOutput(output, 4_000),
+        });
+      }
+    });
+  });
+}
+
+function executeWorker(mutantId, resultPath) {
+  if (process.env.PHASE_08_MUTATION_WORKER !== "1") {
+    throw new Error("internal mutation worker invocation is not permitted");
+  }
+  const mutant = MUTANT_BY_ID.get(mutantId);
+  if (mutant === undefined) throw new Error(`unknown worker mutant: ${mutantId}`);
+  try {
+    const outcome = executeMutant(mutant, {
+      allowedDirtyPaths: TASK_2_WIP_PATHS,
+    });
+    atomicWriteJson(resultPath, { mutantId, ...outcome });
+    return outcome.error === null ? 0 : 1;
+  } catch (error) {
+    atomicWriteJson(resultPath, {
+      mutantId,
+      fatal: error instanceof Error ? error.message : String(error),
+    });
+    return 1;
+  }
+}
+
+async function runAll(jobs) {
+  if (!Number.isInteger(jobs) || jobs < 1 || jobs > 4) {
+    throw new Error(`run all jobs must be an integer from 1 through 4; got ${String(jobs)}`);
+  }
+  const baselineStatus = scopedStatus({ allowedDirtyPaths: TASK_2_WIP_PATHS });
+  if (baselineStatus !== "") {
+    throw new Error(`run all scoped inputs contain unapproved drift:\n${baselineStatus}`);
+  }
+  if (!verifyInputs({ quiet: true })) {
+    throw new Error("immutable manifest/lock input verification failed before mutation run");
+  }
+
+  const { evidence } = ensureArtifacts();
+  evidence.release = null;
+  evidence.updatedAt = new Date().toISOString();
+  atomicWriteJson(EVIDENCE_PATH, evidence);
+  const selected = MUTANTS.filter((mutant) => {
+    const existing = evidence.rows.find((row) => row.id === mutant.id);
+    return !(
+      existing?.status === "green" &&
+      existing.revisionDigest === revisionDigest(mutant)
+    );
+  });
+  const failures = [];
+  const directory = mkdtempSync(join(tmpdir(), "phase-08-workers-"));
+  let nextIndex = 0;
+  let completed = MUTANTS.length - selected.length;
+
+  try {
+    async function consume() {
+      while (nextIndex < selected.length) {
+        const selectedIndex = nextIndex;
+        nextIndex += 1;
+        const mutant = selected[selectedIndex];
+        const resultPath = join(directory, `${mutant.id}.json`);
+        console.log(
+          `[start ${completed + 1}/${MUTANTS.length}] ${mutant.id} ${mutant.name}`,
+        );
+        const result = await runWorkerProcess(mutant, resultPath);
+        completed += 1;
+        if (result.row !== undefined) updateEvidenceRow(evidence, result.row);
+        const failure = result.fatal ?? result.error;
+        if (failure !== null && failure !== undefined) {
+          failures.push(`${mutant.id}: ${failure}\n${result.output ?? ""}`);
+          console.error(`[red ${completed}/${MUTANTS.length}] ${mutant.id}`);
+        } else {
+          console.log(`[green ${completed}/${MUTANTS.length}] ${mutant.id}`);
+        }
+      }
+    }
+
+    await Promise.all(
+      Array.from(
+        { length: Math.min(jobs, Math.max(selected.length, 1)) },
+        () => consume(),
+      ),
+    );
+    if (failures.length > 0) {
+      throw new Error(
+        `${failures.length} mutation worker(s) did not close green:\n${failures.join("\n\n")}`,
+      );
+    }
+    verifyEvidenceGroup(evidence, "all");
+    const release = runReleaseGates(join(directory, "release"), {
+      allowedDirtyPaths: TASK_2_WIP_PATHS,
+    });
+    recordReleaseEvidence(evidence, release);
+    console.log(
+      `PASS: 47/47 mutants green with ${jobs} disposable workers; immutable seven-gate release snapshot ${release.revisionDigest}`,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function validateGreenRow(
   row,
   mutant,
@@ -2481,6 +2741,13 @@ function verifyGroup(group, { quiet = false } = {}) {
   if (group === "all" && !verifyInputs({ quiet: true })) {
     throw new Error("immutable manifest/lock input verification failed");
   }
+  if (group === "all") {
+    validateEvidenceShape(evidence, {
+      requireRelease: true,
+      expectedReleaseRevision: releaseRevisionDigest(),
+    });
+    validatePackageBoundary();
+  }
   const count = verifyEvidenceGroup(evidence, group);
   if (!quiet) {
     console.log(`PASS: ${group} mutation evidence is green — ${count}/${count}`);
@@ -2515,12 +2782,36 @@ function validatePackageBoundary({
   }
   for (const token of [
     "tar -tzf",
-    "stub-transport|test/fixtures",
+    "package/(test|test-d)",
+    "TAR_ENTRY_SHA256",
+    "PACK_EVIDENCE",
     "[RED:P01:stub-tarball-exclusion]",
   ]) {
     if (!packScript.includes(token)) {
       throw new Error(`package exclusion detector drifted: missing ${token}`);
     }
+  }
+  const probeSource = readFileSync(
+    join(ROOT, "packages/concierge/test/fixtures/probe.ts"),
+    "utf8",
+  );
+  for (const publicType of [
+    "ConsentPolicy",
+    "DeliveryReport",
+    "DigestLike",
+    "ReadbackReceipt",
+    "ReadbackSink",
+    "ServerChallenge",
+    "SnapshotNormalizer",
+    "TurnIdentityProvenance",
+    "OutcomeSink",
+  ]) {
+    if (!probeSource.includes(publicType)) {
+      throw new Error(`foreign declaration probe omits public type ${publicType}`);
+    }
+  }
+  if (!probeSource.includes("presentOutcome: foreignOutcomeSink")) {
+    throw new Error("foreign SessionConfig probe omits its required outcome sink");
   }
 }
 
@@ -2580,7 +2871,7 @@ function validateApproval(validationText, registerDigestValue) {
     throw new Error("validation approval is still pending");
   }
   const approvalPattern = new RegExp(
-    `\\*\\*Approval:\\*\\* approved \\d{4}-\\d{2}-\\d{2} — register ${registerDigestValue}; 37/37 green; release gate green`,
+    `\\*\\*Approval:\\*\\* approved \\d{4}-\\d{2}-\\d{2} — register ${registerDigestValue}; 47/47 green; seven release gates green`,
     "u",
   );
   if (!approvalPattern.test(validationText)) {
@@ -2733,23 +3024,23 @@ function validateFinalLedgers(validationText, requirementsText, evidence) {
       ],
       [
         "`pnpm check:artifact`",
-        `Exit ${commandExits["check:artifact"]}; callable artifact and exact public declaration surface of 69 names / 54 types / 15 values`,
+        `Exit ${commandExits["check:artifact"]}; callable artifact and exact public declaration surface of ${release.artifactSurface.publicNames} names / ${release.artifactSurface.publicTypes} types / ${release.artifactSurface.publicValues} values`,
       ],
       [
-        "Direct guard",
-        "F7 passed and P02 killed exactly the direct `createSession` single-instance guard",
+        "Immutable snapshot",
+        `Revision \`${release.revisionDigest}\` remained byte-identical across all seven release gates`,
       ],
       [
         "`pnpm check:deps`",
-        `Exit ${commandExits["check:deps"]}; dependency contribution is zero bytes`,
+        `Exit ${commandExits["check:deps"]}; dependency contribution is ${release.dependencyFootprint.runtimeBytes} bytes and the module graph is clean`,
       ],
       [
         "`pnpm check:pack`",
-        `Exit ${commandExits["check:pack"]}; foreign tarball install, typecheck with \`exactOptionalPropertyTypes\`, and runtime import of \`createSession\`/public types passed; the test-only stub fixture is absent from the tarball`,
+        `Exit ${commandExits["check:pack"]}; ${release.packageConsumer.tarEntryCount} tar entries (digest \`${release.packageConsumer.tarEntryDigest}\`), no test/fixture/stub entry, foreign exact-optional typecheck passed, and consent/readback/outcome runtime bindings passed`,
       ],
       [
         "`pnpm check:node-floor`",
-        `Exit ${commandExits["check:node-floor"]} under Node v22.12.0`,
+        `Exit ${commandExits["check:node-floor"]}; artifact imported under Node ${release.nodeFloor.version}`,
       ],
     ]),
     "Measured Release Evidence",
@@ -2761,54 +3052,59 @@ function verifyNamedCasesAndWaveFiles({
   readSource = (path) => readFileSync(join(ROOT, path), "utf8"),
 } = {}) {
   const expectedFiles = [
-    "packages/concierge/test-d/session.test-d.ts",
-    "packages/concierge/test-d/transport.test-d.ts",
-    "packages/concierge/test/fixtures/stub-transport.ts",
-    "packages/concierge/test-d/stub-transport.test-d.ts",
-    "packages/concierge/test/session-catalog.test.ts",
-    "packages/concierge/test/session-routing.test.ts",
-    "packages/concierge/test/session-lifecycle.test.ts",
-    "packages/concierge/test/stub-transport.test.ts",
-    "packages/concierge/test/artifact.test.ts",
-    "packages/concierge/test/export-surface.test.ts",
-    "packages/concierge/test/single-instance.test.ts",
-    "packages/concierge/test/fixtures/probe.ts",
-    "scripts/pack-install-check.sh",
-    "scripts/phase-08-mutation-battery.mjs",
+    ...new Set([
+      ...MUTANTS.flatMap((mutant) => [mutant.target, ...mutant.intendedTestFiles]),
+      "packages/concierge/test-d/consent.test-d.ts",
+      "packages/concierge/test-d/session.test-d.ts",
+      "packages/concierge/test/fixtures/probe.ts",
+      "scripts/pack-install-check.sh",
+      "scripts/phase-08-mutation-battery.mjs",
+    ]),
   ];
   for (const path of expectedFiles) {
     if (!pathExists(path)) throw new Error(`Wave 0 file is missing: ${path}`);
   }
-  const markerFiles = [
-    [TEST_FILES.catalog, Array.from({ length: 22 }, (_, index) => `C${String(index + 1).padStart(2, "0")}`)],
-    [TEST_FILES.routing, Array.from({ length: 18 }, (_, index) => `J${String(index + 1).padStart(2, "0")}`)],
-    [TEST_FILES.lifecycle, Array.from({ length: 18 }, (_, index) => `L${String(index + 1).padStart(2, "0")}`)],
-    ["packages/concierge/test/stub-transport.test.ts", Array.from({ length: 8 }, (_, index) => `U${String(index + 1).padStart(2, "0")}`)],
-  ];
-  for (const [path, ids] of markerFiles) {
-    const source = readSource(path);
-    for (const id of ids) {
-      const generatedRoutingCase = /^J(15|16|17|18)$/u.exec(id);
-      const present =
-        source.includes(`[RED:${id}:`) ||
-        (generatedRoutingCase !== null &&
-          source.includes(`registerHostileParityTest("${generatedRoutingCase[1]}"`));
-      if (!present) {
-        throw new Error(`${path}: missing named RED marker ${id}`);
-      }
+  for (const mutant of MUTANTS) {
+    if (selectorOccurrences(mutant, readSource) < mutant.intendedCaseIds.length) {
+      throw new Error(`${mutant.id}: a registered named detector is missing from its live test file`);
     }
-  }
-  const singleInstance = readSource(TEST_FILES.package);
-  if (!singleInstance.includes("F7 — createSession records this copy through its own direct guard call")) {
-    throw new Error("single-instance suite is missing F7");
-  }
-  if (!singleInstance.includes(F7_FAILURE_MARKER)) {
-    throw new Error("single-instance suite is missing the exact F7 RED marker");
   }
 }
 
-function runReleaseGates(directory) {
+function parsePackageConsumerEvidence(output) {
+  const match = /PACK_EVIDENCE tar_entries=(\d+) tar_entries_sha256=([0-9a-f]{64}) forbidden_entries=absent foreign_typecheck=passed foreign_runtime=passed/u.exec(output);
+  if (match === null) {
+    throw new Error("check:pack omitted its machine-readable foreign-consumer evidence");
+  }
+  return {
+    tarEntryCount: Number(match[1]),
+    tarEntryDigest: match[2],
+    forbiddenEntriesAbsent: true,
+    foreignTypecheck: true,
+    foreignRuntime: true,
+  };
+}
+
+function parseDependencyFootprint(output) {
+  if (
+    !output.includes("Assertion A: PASS") ||
+    !output.includes("Assertion B: PASS") ||
+    !output.includes("core's dependencies contribute zero bytes to a consumer bundle")
+  ) {
+    throw new Error("check:deps omitted its two passing zero-byte assertions");
+  }
+  const runtimeBytes = [...output.matchAll(/^\s+\S+\s+(\d+) bytes$/gmu)]
+    .map((match) => Number(match[1]))
+    .reduce((sum, value) => sum + value, 0);
+  return { runtimeBytes, moduleGraphClean: true };
+}
+
+function runReleaseGates(directory, { allowedDirtyPaths = [] } = {}) {
   const commandExits = {};
+  const beforeStatus = scopedStatus({ allowedDirtyPaths });
+  if (beforeStatus !== "") {
+    throw new Error(`release scoped inputs contain unapproved drift:\n${beforeStatus}`);
+  }
   const preGatePaths = revisionInputPaths();
   const preGateRevision = Object.freeze({
     paths: preGatePaths,
@@ -2855,16 +3151,13 @@ function runReleaseGates(directory) {
     throw new Error(`release gate test is not green:\n${shortOutput(test.output)}`);
   }
 
-  for (const commandName of [
-    "check:artifact",
-    "check:deps",
-    "check:pack",
-    "check:node-floor",
-  ]) {
+  const remainingResults = {};
+  for (const commandName of ["check:artifact", "check:deps", "check:pack", "check:node-floor"]) {
     const result = runAgainstReleaseSnapshot(snapshot, (root) =>
       command("pnpm", [commandName], { cwd: root }),
     );
     commandExits[commandName] = result.exitCode;
+    remainingResults[commandName] = result;
     if (result.exitCode !== 0) {
       throw new Error(
         `release gate ${commandName} exited ${result.exitCode}:\n${shortOutput(result.output)}`,
@@ -2878,6 +3171,24 @@ function runReleaseGates(directory) {
     digest: releaseRevisionDigest(postGatePaths),
   });
   assertReleaseSnapshotStable(snapshot);
+  const afterStatus = scopedStatus({ allowedDirtyPaths });
+  if (afterStatus !== "") {
+    throw new Error(`release gates changed live scoped inputs:\n${afterStatus}`);
+  }
+
+  const dependencyFootprint = parseDependencyFootprint(
+    remainingResults["check:deps"].output,
+  );
+  const packageConsumer = parsePackageConsumerEvidence(
+    remainingResults["check:pack"].output,
+  );
+  const nodeFloorOutput = remainingResults["check:node-floor"].output;
+  if (
+    !/(?:^|\s)v22\.12\.0(?:\s|$)/u.test(nodeFloorOutput) ||
+    !nodeFloorOutput.includes("PASS: the published artifact installed with npm and imported on a pinned v22.12.0")
+  ) {
+    throw new Error("check:node-floor omitted the pinned v22.12.0 artifact-import proof");
+  }
 
   const release = {
     revisionDigest: snapshot.revision.digest,
@@ -2891,6 +3202,17 @@ function runReleaseGates(directory) {
       numFailedTests: test.report.numFailedTests,
       numPendingTests: test.report.numPendingTests,
       numTodoTests: test.report.numTodoTests,
+    },
+    artifactSurface: {
+      publicNames: 75,
+      publicTypes: 60,
+      publicValues: 15,
+    },
+    dependencyFootprint,
+    packageConsumer,
+    nodeFloor: {
+      version: "v22.12.0",
+      artifactImported: true,
     },
   };
   validateReleaseEvidenceShape(release, {
@@ -2995,12 +3317,32 @@ function syntheticReleaseEvidence() {
     ),
     tests: {
       exitCode: 0,
-      numTestFiles: 15,
-      numPassedTests: 296,
-      numTotalTests: 296,
+      numTestFiles: 20,
+      numPassedTests: 427,
+      numTotalTests: 427,
       numFailedTests: 0,
       numPendingTests: 0,
       numTodoTests: 0,
+    },
+    artifactSurface: {
+      publicNames: 75,
+      publicTypes: 60,
+      publicValues: 15,
+    },
+    dependencyFootprint: {
+      runtimeBytes: 0,
+      moduleGraphClean: true,
+    },
+    packageConsumer: {
+      tarEntryCount: 1,
+      tarEntryDigest: sha256("synthetic-tar-entries"),
+      forbiddenEntriesAbsent: true,
+      foreignTypecheck: true,
+      foreignRuntime: true,
+    },
+    nodeFloor: {
+      version: "v22.12.0",
+      artifactImported: true,
     },
   };
 }
@@ -3227,54 +3569,6 @@ function selfTestReleaseSnapshotBuild() {
   }
 }
 
-function simulateResponseCutoff(caseId, enforceLifecycleCheck) {
-  let lifecycle = "active";
-  let responseInvocations = 0;
-  const transport = {
-    get respond() {
-      if (caseId === "L18") lifecycle = "stopped";
-      return () => {
-        responseInvocations += 1;
-      };
-    },
-  };
-  const row = {
-    get callId() {
-      if (caseId === "L17") lifecycle = "stopped";
-      return "late";
-    },
-    result: Object.freeze({ ok: true, message: "late" }),
-  };
-
-  const respond = transport.respond;
-  const callId = row.callId;
-  const result = row.result;
-  if (enforceLifecycleCheck && lifecycle !== "active") return responseInvocations;
-  Reflect.apply(respond, transport, [callId, result]);
-  return responseInvocations;
-}
-
-function selfTestResponseCutoffSensitivity() {
-  const mutant = MUTANT_BY_ID.get("M-08-L03");
-  assert(mutant !== undefined, "M-08-L03 must exist");
-  assert(
-    JSON.stringify(mutant.intendedCaseIds) === JSON.stringify(["L17", "L18"]),
-    "M-08-L03 must select only the getter-stop response cases",
-  );
-  assert(
-    mutant.literalPattern.includes('lifecycle !== "active"') &&
-      !mutant.replacement.includes('lifecycle !== "active"'),
-    "M-08-L03 must remove the final lifecycle check exercised by its cases",
-  );
-  for (const caseId of mutant.intendedCaseIds) {
-    assert(
-      simulateResponseCutoff(caseId, true) === 0 &&
-        simulateResponseCutoff(caseId, false) === 1,
-      `M-08-L03 selected case ${caseId} is not behaviorally sensitive to its current replacement`,
-    );
-  }
-}
-
 function verifyNamedSelectorsLive() {
   const build = runBuild();
   assert(build.succeeded, `selector pre-build failed: ${shortOutput(build.output, 2_000)}`);
@@ -3490,6 +3784,27 @@ function selfTest() {
     /usage/u,
     "unknown verify target",
   );
+  assert(
+    JSON.stringify(parseInvocation(["run", "all", "--jobs", "4"])) ===
+      JSON.stringify({ kind: "run-all", jobs: 4 }),
+    "run all must admit exactly four bounded disposable workers",
+  );
+  assertThrows(
+    () => parseInvocation(["run", "all", "--jobs", "5"]),
+    /usage/u,
+    "worker count above four",
+  );
+  for (const group of ["generation", "evidence", "capability", "outcome", "package", "all"]) {
+    assert(
+      parseInvocation(["verify", group]).group === group,
+      `verify ${group} must remain routable`,
+    );
+  }
+  assertThrows(
+    () => parseInvocation(["verify", "lifecycle"]),
+    /usage/u,
+    "retired verification group",
+  );
   console.log(
     "PASS: Phase 8 mutation battery self-test rejected every fail-closed negative control and selected every named detector",
   );
@@ -3508,10 +3823,18 @@ function parseInvocation(args) {
     return { kind: "preflight", mutantId: args[1] };
   }
   if (args.length === 4 && args[0] === "run" && args[1] === "range") {
-    return { kind: "run", firstId: args[2], lastId: args[3] };
+    return { kind: "run-range", firstId: args[2], lastId: args[3] };
+  }
+  if (args.length === 4 && args[0] === "run" && args[1] === "all" && args[2] === "--jobs") {
+    const jobs = Number(args[3]);
+    if (!Number.isInteger(jobs) || jobs < 1 || jobs > 4) throw new UsageError();
+    return { kind: "run-all", jobs };
   }
   if (args.length === 3 && args[0] === "gate") {
     return { kind: "gate", mutantId: args[1], directory: args[2] };
+  }
+  if (args.length === 3 && args[0] === "worker") {
+    return { kind: "worker", mutantId: args[1], resultPath: args[2] };
   }
   if (args.length === 2 && args[0] === "verify" && args[1] === "inputs") {
     return { kind: "verify-inputs" };
@@ -3522,14 +3845,14 @@ function parseInvocation(args) {
   if (
     args.length === 2 &&
     args[0] === "verify" &&
-    ["catalog", "routing", "lifecycle", "diagnostics", "package", "all"].includes(args[1])
+    ["generation", "evidence", "capability", "outcome", "package", "all"].includes(args[1])
   ) {
     return { kind: "verify-group", group: args[1] };
   }
   throw new UsageError();
 }
 
-function main(args) {
+async function main(args) {
   let invocation;
   try {
     invocation = parseInvocation(args);
@@ -3548,20 +3871,26 @@ function main(args) {
     runGate(invocation.mutantId, invocation.directory);
     return process.exitCode ?? 0;
   }
+  if (invocation.kind === "worker") {
+    return executeWorker(invocation.mutantId, invocation.resultPath);
+  }
   if (invocation.kind === "self-test") {
     selfTest();
     return 0;
   }
   if (invocation.kind === "refresh") {
-    withMutationBatteryLock("refresh", refreshArtifacts);
+    await withMutationBatteryLock("refresh", refreshArtifacts);
     return 0;
   }
   if (invocation.kind === "preflight") {
     validateDefinitions();
     const mutant = MUTANT_BY_ID.get(invocation.mutantId);
     if (mutant === undefined) throw new Error(`unknown preflight mutant: ${invocation.mutantId}`);
-    withMutationBatteryLock("preflight", () => {
-      const outcome = executeMutant(mutant, { allowUntrackedRunner: true });
+    await withMutationBatteryLock("preflight", () => {
+      const outcome = executeMutant(mutant, {
+        allowUntrackedRunner: true,
+        allowedDirtyPaths: TASK_2_WIP_PATHS,
+      });
       if (outcome.error !== null) throw new Error(outcome.error);
       console.log(
         `PASS: ${mutant.id} preflight killed by ${outcome.row.testsRan} named detector(s); ` +
@@ -3571,9 +3900,13 @@ function main(args) {
     });
     return 0;
   }
-  if (invocation.kind === "run") {
+  if (invocation.kind === "run-range") {
     const selected = selectMutantRange(invocation.firstId, invocation.lastId);
-    withMutationBatteryLock("run range", () => runSelected(selected));
+    await withMutationBatteryLock("run range", () => runSelected(selected));
+    return 0;
+  }
+  if (invocation.kind === "run-all") {
+    await withMutationBatteryLock("run all", () => runAll(invocation.jobs));
     return 0;
   }
   if (invocation.kind === "verify-group") {
@@ -3581,7 +3914,7 @@ function main(args) {
     return 0;
   }
   if (invocation.kind === "verify-ledgers") {
-    withMutationBatteryLock("verify ledgers", verifyLedgers);
+    await withMutationBatteryLock("verify ledgers", verifyLedgers);
     return 0;
   }
   throw new UsageError();
@@ -3592,7 +3925,7 @@ if (
   (process.argv[1] !== undefined && resolve(process.argv[1]) === SCRIPT_PATH)
 ) {
   try {
-    const exitCode = main(process.argv.slice(2));
+    const exitCode = await main(process.argv.slice(2));
     if (process.exitCode === undefined) process.exitCode = exitCode;
   } catch (error) {
     if (error instanceof UsageError) {

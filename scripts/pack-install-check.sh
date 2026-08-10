@@ -58,7 +58,9 @@ echo "==> tarball bytes: $(wc -c < "$TGZ" | tr -d ' ')"
 echo "==> tarball entries"
 TAR_ENTRIES="$(tar -tzf "$TGZ")"
 printf '%s\n' "$TAR_ENTRIES"
-if printf '%s\n' "$TAR_ENTRIES" | grep -Eq 'stub-transport|test/fixtures'; then
+TAR_ENTRY_COUNT="$(printf '%s\n' "$TAR_ENTRIES" | sed '/^$/d' | wc -l | tr -d ' ')"
+TAR_ENTRY_SHA256="$(printf '%s\n' "$TAR_ENTRIES" | shasum -a 256 | awk '{print $1}')"
+if printf '%s\n' "$TAR_ENTRIES" | grep -Eq 'stub-transport|(^|/)package/(test|test-d)(/|$)|(^|/)package/fixtures(/|$)|test/fixtures'; then
   echo "FAIL: [RED:P01:stub-tarball-exclusion] tarball contains a test fixture or stub transport" >&2
   exit 1
 fi
@@ -140,7 +142,35 @@ node --input-type=module -e '
   if (typeof m.createSession !== "function") {
     throw new Error("runtime binding erased: createSession is " + typeof m.createSession);
   }
+  if (typeof m.createConcierge !== "function") {
+    throw new Error("runtime binding erased: createConcierge is " + typeof m.createConcierge);
+  }
+  const concierge = m.createConcierge({ stages: [] });
+  if (typeof concierge.dispatch !== "function") {
+    throw new Error("runtime createConcierge did not return a callable artifact");
+  }
+  if (
+    !Object.isFrozen(m.CONSENT_GRADE_ORDER) ||
+    JSON.stringify(m.CONSENT_GRADE_ORDER) !== JSON.stringify(["none", "delivered", "relayed", "attested"])
+  ) {
+    throw new Error("runtime consent grade order is missing, mutable, or reordered");
+  }
+  if (
+    !Object.isFrozen(m.USER_CANCELLED) ||
+    m.USER_CANCELLED.ok !== false ||
+    m.USER_CANCELLED.reason !== "cancelled"
+  ) {
+    throw new Error("runtime USER_CANCELLED contract drifted");
+  }
+  if (
+    !Object.isFrozen(m.USER_DECLINED) ||
+    m.USER_DECLINED.ok !== false ||
+    m.USER_DECLINED.reason !== "declined"
+  ) {
+    throw new Error("runtime USER_DECLINED contract drifted");
+  }
 '
 
 echo "==> wall time: $(( $(date +%s) - START_EPOCH ))s"
+echo "PACK_EVIDENCE tar_entries=$TAR_ENTRY_COUNT tar_entries_sha256=$TAR_ENTRY_SHA256 forbidden_entries=absent foreign_typecheck=passed foreign_runtime=passed"
 echo "PASS: a foreign project installed the tarball, typechecked the shipped declarations, and imported the runtime"
