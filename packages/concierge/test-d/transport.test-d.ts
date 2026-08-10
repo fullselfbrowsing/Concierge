@@ -25,6 +25,7 @@ import type {
   ConsentGrade,
   DeliveryReport,
   InvocationMeta,
+  ReadbackAttestation,
   ToolBatch,
   Transport,
   TransportCapabilities,
@@ -133,6 +134,9 @@ type _deliveryOutcomeIsReadonly = Expect<Equals<Pick<DeliveryReport, "outcome">,
 /** The only route to an `attested` grade. Writable, the hash the ack inherits can be swapped for one describing a payload the human never saw. */
 type _deliveryReadbackHashIsReadonly = Expect<Equals<Pick<DeliveryReport, "readbackHash">, { readonly readbackHash?: string | undefined }>>;
 
+/** Human observation is optional evidence on delivery and remains immutable when present. */
+type _deliveryAttestationIsReadonly = Expect<Equals<Pick<DeliveryReport, "attestation">, { readonly attestation?: ReadbackAttestation | undefined }>>;
+
 /** `TurnIdentityProvenance` exists so the kernel can tell an id the agent could have minted from one it could not; a value upgradable in place from `agent-forgeable` to `human-attested` after declaration carries none of that distinction, and converts a value the kernel is told not to trust into one it is told to trust. */
 type _capsProvenanceIsReadonly = Expect<Equals<Pick<TransportCapabilities, "userTurnIdentity">, { readonly userTurnIdentity: TurnIdentityProvenance }>>;
 
@@ -232,6 +236,7 @@ declare const maybeStr: string | undefined;
 declare const maybeNum: number | undefined;
 declare const maybeSig: AbortSignalLike | undefined;
 declare const maybeHook: ((e: (r: DeliveryReport) => void) => void) | undefined;
+declare const maybeAttestation: ReadbackAttestation | undefined;
 
 /**
  * Five members in one literal, because they fail and pass together. A transport that
@@ -269,6 +274,18 @@ const _deliveryFromReceipt: DeliveryReport = {
   responseId: "r",
   outcome: "completed",
   readbackHash: maybeStr,
+  attestation: maybeAttestation,
+};
+
+/** Observation never relabels an interrupted delivery as completed. */
+const _interruptedWithAttestation: DeliveryReport = {
+  responseId: "r-interrupted",
+  outcome: "interrupted",
+  attestation: {
+    act: "confirmed",
+    userTurnId: "turn-human",
+    readbackHash: "hash",
+  },
 };
 
 /**
@@ -289,4 +306,5 @@ const _batchFromOptionalSources: ToolBatch = {
 void _metaFromOptionalSources;
 void _metaHookFromOptionalSource;
 void _deliveryFromReceipt;
+void _interruptedWithAttestation;
 void _batchFromOptionalSources;

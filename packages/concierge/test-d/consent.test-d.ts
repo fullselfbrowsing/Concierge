@@ -42,11 +42,14 @@ import type { Assignable, Equals, Expect, Not } from "./_assert.js";
 import type {
   ConsentAck,
   ConsentGrade,
+  ConsentProfile,
   DigestLike,
   Readback,
+  ReadbackAttestation,
   ReadbackReceipt,
   ReadbackSink,
   ServerChallenge,
+  TurnIdentityProvenance,
 } from "../src/types.js";
 
 // --------------------------------------------------------------------------
@@ -57,6 +60,40 @@ import type {
 type Booking = { id: string; amount: number };
 
 declare const booking: Booking;
+
+// --------------------------------------------------------------------------
+// Consent capability and observed-act evidence
+// --------------------------------------------------------------------------
+
+/** The declared ceiling contains no transport behavior or runtime evidence. */
+type _consentProfileKeys = Expect<Equals<keyof ConsentProfile, "consentGrade" | "userTurnIdentity">>;
+
+/** Both capability axes are immutable after declaration. */
+type _consentProfileIsReadonly = Expect<Equals<ConsentProfile, { readonly consentGrade: ConsentGrade; readonly userTurnIdentity: TurnIdentityProvenance }>>;
+
+/** An observed act is closed to the three outcomes the consent state machine understands. */
+type _attestationActIsClosed = Expect<Equals<ReadbackAttestation["act"], "confirmed" | "declined" | "dismissed">>;
+
+/** Attestation binds one immutable act and human turn to one immutable readback hash. */
+type _attestationIsExactAndReadonly = Expect<Equals<ReadbackAttestation, { readonly act: "confirmed" | "declined" | "dismissed"; readonly userTurnId: string; readonly readbackHash: string }>>;
+
+/** Arbitrary observations cannot be mistaken for a supported human act. */
+type _attestationRejectsArbitraryAct = Expect<Not<Assignable<{ readonly act: "approved"; readonly userTurnId: string; readonly readbackHash: string }, ReadbackAttestation>>>;
+
+/** The rendered payload itself is immutable through the evidence reference. */
+type _readbackPayloadIsReadonly = Expect<Equals<Pick<Readback<Booking>, "payload">, { readonly payload: Booking }>>;
+
+/** The optional presented text is immutable and accepts a computed absent value under EOPT. */
+type _readbackPresentedIsReadonly = Expect<Equals<Pick<Readback<Booking>, "presented">, { readonly presented?: string | undefined }>>;
+
+declare const maybePresented: string | undefined;
+
+const _readbackFromComputedPresented: Readback<Booking> = {
+  payload: booking,
+  presented: maybePresented,
+};
+
+void _readbackFromComputedPresented;
 
 /**
  * SC-3's declarability half: all four receipt fields, with both literals satisfied.
