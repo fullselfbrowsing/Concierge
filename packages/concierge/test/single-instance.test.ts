@@ -402,7 +402,11 @@ describe(SUITE_TITLE, () => {
       respond: () => {},
     };
 
-    const session = createSession({ concierge, transport });
+    const session = createSession({
+      concierge,
+      transport,
+      presentOutcome: async () => Object.freeze({ outcome: "completed" }),
+    });
     expect(registry[KEY], "[RED:F7:direct-create-session-guard]").toEqual({
       version: CONTRACT_VERSION,
     });

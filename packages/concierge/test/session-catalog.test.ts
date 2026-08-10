@@ -16,6 +16,12 @@ const KEY = Symbol.for("@fullselfbrowsing/concierge.contract");
 let createConcierge;
 let createSession;
 
+const COMPLETED_OUTCOME = Object.freeze({ outcome: "completed" });
+
+function completedOutcome() {
+  return Promise.resolve(COMPLETED_OUTCOME);
+}
+
 beforeAll(async () => {
   if (!existsSync(DIST_PATH)) {
     throw new Error(
@@ -25,7 +31,10 @@ beforeAll(async () => {
 
   const artifact = await import(DIST_URL.href);
   createConcierge = artifact.createConcierge;
-  createSession = artifact.createSession;
+  createSession = (config) => artifact.createSession({
+    presentOutcome: completedOutcome,
+    ...config,
+  });
 });
 
 beforeEach(() => {
