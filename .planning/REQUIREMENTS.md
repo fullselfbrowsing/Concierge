@@ -13,7 +13,7 @@
 - [x] **CAT-01**: Developer declares an action once — name, description, schema, redaction, handler — and the name set, literal union type, per-stage catalogs, emitted JSON Schema, and redaction policy are all derived from that single declaration
 - [x] **CAT-02**: Catalog build throws, naming the offending action, when an action's emitted JSON Schema root is not `type: "object"`
 - [ ] **CAT-03**: Catalog build throws when a `consent.requires` target does not exist in the catalog
-- [ ] **CAT-04**: Catalog build throws when an action's `consent.minGrade` exceeds what the configured transport declares it can promise
+- [x] **CAT-04**: Catalog build throws when an action's `consent.minGrade` exceeds what the configured transport declares it can promise
 - [x] **CAT-05**: Catalog build emits a warning when an action declares `effects.destructive` without a consent policy
 - [x] **CAT-06**: Developer can supply an explicit `jsonSchema` for validators that do not implement Standard JSON Schema, and the catalog uses it in preference to derivation
 - [x] **CAT-07**: Action descriptions are rejected at build time if they are not static string literals available at module scope
@@ -157,7 +157,7 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | CAT-01 | Phase 3 — Action declaration and build-time validation; **closed by Phase 4 — Stages, catalog assembly, and explain()** | Complete — Phase 3 shipped 4/5 derived artifacts; the fifth, `per-stage catalogs`, ships as `createConcierge().catalogFor` (plan 04-03, exported and implemented). Evidence: 04-05 S1/S2 |
 | CAT-02 | Phase 3 — Action declaration and build-time validation | Complete |
 | CAT-03 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
-| CAT-04 | Phase 8 — Consent kernel | Pending |
+| CAT-04 | Phase 8 — Consent kernel | Complete |
 | CAT-05 | Phase 3 — Action declaration and build-time validation | Complete |
 | CAT-06 | Phase 3 — Action declaration and build-time validation | Complete |
 | CAT-07 | Phase 3 — Action declaration and build-time validation | Complete |
