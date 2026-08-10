@@ -366,7 +366,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 08-06-PLAN.md — Exact Phase 7 stub extension and full no-network consent/outcome matrix, including interrupted delivery followed by a genuine new turn
+- [x] 08-06-PLAN.md — Exact Phase 7 stub extension and full no-network consent/outcome matrix, including interrupted delivery followed by a genuine new turn
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
@@ -433,5 +433,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Bridge registry and the no-bridge path | 7/7 | Complete   | 2026-07-31 |
 | 6. Dispatcher | 8/8 | Complete   | 2026-08-07 |
 | 7. Session and the transport seam | 7/7 | Complete    | 2026-08-10 |
-| 8. Consent kernel | 6/8 | In Progress|  |
+| 8. Consent kernel | 7/8 | In Progress|  |
 | 9. React and Svelte adapters | 0/TBD | Not started | - |

@@ -79,14 +79,16 @@ Task and plan IDs are the expected research decomposition. The planner must reco
 | 08-04-02 | 04 | 3 | CON-04, CON-05, CON-08 | T-08-03, T-08-07 | Late snapshot comparison, exact stored payload identity, atomic one-shot consume, ambiguous post-entry destruction | integration + security | same exact consent suite | ❌ W0 | ⬜ pending |
 | 08-05-01 | 05 | 4 | CON-07, CON-09 | T-08-04, T-08-05, T-08-06 | Achieved grades follow occurrence evidence; only matching confirmed attestation yields attested; refusal/dismissal remain distinct | integration + security | consent + canonicalization exact suites | ✅ `consent-kernel.test.ts`, `readback-canonicalization.test.ts` | ✅ green |
 | 08-05-02 | 05 | 4 | CON-01..CON-09 | T-08-01..T-08-07 | State/evidence mutations compile, run named detectors, and are killed non-vacuously | mutation | `node scripts/phase-08-mutation-battery.mjs verify all` | ❌ W0 | ⬜ pending |
-| 08-06-01 | 06 | 4 | CON-07, TRN-03, TRN-05 | T-08-01, T-08-04 | Actual Session transport dominates declaration before subscription/publication/batch effects | integration + security | `pnpm --filter @fullselfbrowsing/concierge build && pnpm exec vitest run packages/concierge/test/session-consent.test.ts` | ❌ W0 | ⬜ pending |
-| 08-06-02 | 06 | 4 | CON-10 | T-08-08, T-08-10 | Stable frozen app rows complete before any agent result; presentation failure emits fixed diagnostic, releases no affected failure, and never retries | integration + concurrency | same exact session-consent suite | ❌ W0 | ⬜ pending |
-| 08-07-01 | 07 | 5 | TRN-02 | T-08-02, T-08-06, T-08-08 | Exact Phase 7 stub gains delivery/attestation/outcome controls and shared ordering history without network or production export | fixture + type + runtime | `pnpm typecheck && pnpm exec vitest run packages/concierge/test/stub-transport.test.ts` | ✅ extend existing | ⬜ pending |
-| 08-07-02 | 07 | 5 | CON-01..CON-10, CAT-04, TRN-02, TRN-03 | T-08-01..T-08-10 | Full fixture-driven kernel, including review -> interrupted delivery -> genuine new turn -> closed confirm | end-to-end | build + consent + session + stub exact suites | ❌ W0 integration cases | ⬜ pending |
+| 08-06-01 | 06 | 4 | CON-07, TRN-03, TRN-05 | T-08-01, T-08-04 | Actual Session transport dominates declaration before subscription/publication/batch effects | integration + security | `pnpm --filter @fullselfbrowsing/concierge build && pnpm exec vitest run packages/concierge/test/session-consent.test.ts` | ✅ `session-consent.test.ts` | ✅ green |
+| 08-06-02 | 06 | 4 | CON-10 | T-08-08, T-08-10 | Stable frozen app rows complete before any agent result; presentation failure emits fixed diagnostic, releases no affected failure, and never retries | integration + concurrency | same exact session-consent suite | ✅ `session-consent.test.ts` | ✅ green |
+| 08-07-01 | 07 | 5 | TRN-02 | T-08-02, T-08-06, T-08-08 | Exact Phase 7 stub gains delivery/attestation/outcome controls and shared ordering history without network or production export | fixture + type + runtime | `pnpm typecheck && pnpm exec vitest run packages/concierge/test/stub-transport.test.ts` | ✅ extended existing fixture | ✅ green |
+| 08-07-02 | 07 | 5 | CON-01..CON-10, CAT-04, TRN-02, TRN-03 | T-08-01..T-08-10 | Full fixture-driven kernel, including review -> interrupted delivery -> genuine new turn -> closed confirm | end-to-end | build + consent + session + stub exact suites | ✅ fixture-driven integration cases | ✅ green |
 | 08-08-01 | 08 | 6 | SEC-04 | T-08-09 | README calls ack a client assertion and demonstrates server-issued/stored challenge, independent checks, single use, effect, and burn | documentation + security | `pnpm exec vitest run packages/concierge/test/readme-security.test.ts` | ❌ W0 | ⬜ pending |
 | 08-08-02 | 08 | 6 | all Phase 8 + TRN-02 | T-08-01..T-08-10 | Release, tarball, foreign consumer, mutation, threat, decision, and requirement ledgers all close on final tree | release + security | mutation battery + full release gate | ✅ gates; battery/ledgers W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+
+Execution reconciliation: the research-decomposition IDs remain stable evidence keys. Actual Plan 08-05 delivered the rows labeled 08-06-01/02, and actual Plan 08-06 delivered the rows labeled 08-07-01/02. Their green status records observed behavior and does not mark roadmap Plan 08-07 complete.
 
 Sampling continuity holds: every proposed task has an automated command, and no three consecutive tasks rely on documentation or manual evidence.
 
@@ -107,12 +109,12 @@ Sampling continuity holds: every proposed task has an automated command, and no 
 
 ## Wave 0 Requirements
 
-- [ ] `packages/concierge/test/readback-canonicalization.test.ts` — official JCS vectors, UTF-8 boundaries, hostile JSON domain, receipt/digest/byte checks.
-- [ ] `packages/concierge/test/consent-kernel.test.ts` — CON-01..09 state machine, exact payload, dedupe, grade, attestation, refusal/dismissal, flagship interrupt case.
-- [ ] `packages/concierge/test/session-consent.test.ts` — capability dominance and CON-10 ordering/failure semantics.
-- [ ] `packages/concierge/test/readme-security.test.ts` — SEC-04 worked-example contract.
-- [ ] Existing `test-d/consent.test-d.ts`, `test-d/transport.test-d.ts`, `test-d/session.test-d.ts`, and export pins extended for new public shapes.
-- [ ] Existing `test/catalog.test.ts`, `test/stub-transport.test.ts`, and `test/fixtures/stub-transport.ts` extended rather than duplicated.
+- [x] `packages/concierge/test/readback-canonicalization.test.ts` — official JCS vectors, UTF-8 boundaries, hostile JSON domain, receipt/digest/byte checks.
+- [x] `packages/concierge/test/consent-kernel.test.ts` — CON-01..09 state machine, exact payload, dedupe, grade, attestation, refusal/dismissal, flagship interrupt case.
+- [x] `packages/concierge/test/session-consent.test.ts` — capability dominance and CON-10 ordering/failure semantics.
+- [x] `packages/concierge/test/readme-security.test.ts` — SEC-04 worked-example contract.
+- [x] Existing `test-d/consent.test-d.ts`, `test-d/transport.test-d.ts`, `test-d/session.test-d.ts`, and export pins extended for new public shapes.
+- [x] Existing `test/catalog.test.ts`, `test/stub-transport.test.ts`, and `test/fixtures/stub-transport.ts` extended rather than duplicated.
 - [ ] `scripts/phase-08-mutation-battery.mjs` plus revision-bound register/evidence and non-vacuous detector checks.
 
 No new test framework or runtime dependency is required. `pnpm-lock.yaml` should remain byte-identical unless an independently justified tool change is approved.

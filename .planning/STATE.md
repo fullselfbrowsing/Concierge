@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-08-10T12:57:01.761Z"
+stopped_at: Completed 08-06-PLAN.md
+last_updated: "2026-08-10T13:43:56.383Z"
 last_activity: 2026-08-10
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 73
-  completed_plans: 71
+  completed_plans: 72
   percent: 78
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-10)
 ## Current Position
 
 Phase: 08 (consent-kernel) — EXECUTING
-Plan: 6 of 8
+Plan: 7 of 8
 Status: Ready to execute
 Last activity: 2026-08-10
 
-Progress: [██████████] 97%
+Progress: [██████████] 99%
 
 ## Performance Metrics
 
@@ -65,6 +65,7 @@ Progress: [██████████] 97%
 | Phase 08 P03 | 46m | 2 tasks | 2 files |
 | Phase 08 P05 | 32m 12s | 2 tasks | 6 files |
 | Phase 08 P04 | 1h 20m | 2 tasks | 4 files |
+| Phase 08 P06 | 38m | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -130,6 +131,9 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 08-04]: Canonical SHA-256 evidence uses lowercase 64-character hex over exact core-retained RFC 8785 bytes.
 - [Phase 08-04]: Capture the digest method and receiver once at construction; caller-owned evidence is descriptor-first and never accessor-driven.
 - [Phase 08-04]: The first owned delivery callback claims verifyingDelivery before report reflection, making duplicate and reentrant reports inert.
+- [Phase 08-06]: Keep every Phase 8 test-driving API on sibling fixture controls so production Transport retains exactly six enumerable keys.
+- [Phase 08-06]: Record delivery, outcome, and response attempts in one monotonic event log while retaining separate successful histories.
+- [Phase 08-06]: Snapshot delivery reports from own data descriptors for history safety, but pass the raw report to production so hostile accessors remain a real kernel test.
 
 ### Pending Todos
 
@@ -158,6 +162,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-10T12:57:01.757Z
-Stopped at: Completed 08-04-PLAN.md
+Last session: 2026-08-10T13:43:56.379Z
+Stopped at: Completed 08-06-PLAN.md
 Resume file: None
