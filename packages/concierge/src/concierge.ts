@@ -1021,16 +1021,6 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     }
 
     const observedAct: unknown = delivery.attestation?.act;
-    if (
-      observedAct !== undefined &&
-      observedAct !== "confirmed" &&
-      observedAct !== "declined" &&
-      observedAct !== "dismissed"
-    ) {
-      closeConsentGeneration(reviewName, pending.generation);
-      return;
-    }
-
     if (observedAct === "declined" || observedAct === "dismissed") {
       consentGenerations?.set(
         reviewName,
@@ -1046,7 +1036,9 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     let readbackHash: string | null = null;
     const attestation = delivery.attestation;
     const verified: VerifiedReadbackEvidence | null = claimed.verifiedReadback;
-    if (
+    const hasAttestedClaim: boolean =
+      delivery.readbackHash !== undefined || attestation !== undefined;
+    const completeAttestedClaim: boolean =
       verified !== null &&
       consentGradeRank(capturedConsent.profile.consentGrade) >=
         consentGradeRank("attested") &&
@@ -1058,8 +1050,20 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       attestation.readbackHash === verified.hash &&
       typeof attestation.userTurnId === "string" &&
       attestation.userTurnId.length > 0 &&
-      attestation.userTurnId !== claimed.userTurnId
-    ) {
+      attestation.userTurnId !== claimed.userTurnId;
+    if (hasAttestedClaim && !completeAttestedClaim) {
+      closeConsentGeneration(reviewName, claimed.generation);
+      return;
+    }
+    if (completeAttestedClaim) {
+      if (
+        verified === null ||
+        attestation === undefined ||
+        typeof attestation.userTurnId !== "string"
+      ) {
+        closeConsentGeneration(reviewName, claimed.generation);
+        return;
+      }
       const freshHash: string | null = await digestReadback(
         capturedConsent.digest,
         verified.canonical,

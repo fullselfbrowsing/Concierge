@@ -423,6 +423,7 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
   });
 
   it("K03 — pending is installed before a synchronous completed callback and then arms", async () => {
+    const marker = "[RED:K03:synchronous-delivery-pending-ownership]";
     let callbackReturned = false;
     const synchronousDelivery = (effect) => {
       effect({ responseId: "review-response", outcome: "completed" });
@@ -437,11 +438,12 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
 
     expect(review).toMatchObject({ ok: true });
     expect(callbackReturned).toBe(true);
-    expect(confirm).toMatchObject({ ok: true });
+    expect(confirm, marker).toMatchObject({ ok: true });
     expect(gatedEntries.get("confirm")).toHaveLength(1);
   });
 
   it("K04 — interrupted delivery never arms", async () => {
+    const marker = "[RED:K04:interrupted-delivery-closes-authority]";
     const delivery = deliveryHarness();
     const { concierge, gatedEntries } = createKernel();
 
@@ -449,7 +451,7 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
     delivery.report(0, "review-response", "interrupted");
     const result = await dispatchGate(concierge);
 
-    expect(result).toMatchObject({ ok: false, reason: "consent_required" });
+    expect(result, marker).toMatchObject({ ok: false, reason: "consent_required" });
     expect(gatedEntries.get("confirm")).toHaveLength(0);
   });
 
@@ -549,6 +551,7 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
   });
 
   it("K07 — a completed report for a different response cannot arm", async () => {
+    const marker = "[RED:K07:delivery-response-ownership]";
     const delivery = deliveryHarness();
     const { concierge, gatedEntries } = createKernel();
 
@@ -556,7 +559,7 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
     delivery.report(0, "different-response");
     const result = await dispatchGate(concierge);
 
-    expect(result).toMatchObject({ ok: false, reason: "consent_required" });
+    expect(result, marker).toMatchObject({ ok: false, reason: "consent_required" });
     expect(gatedEntries.get("confirm")).toHaveLength(0);
   });
 
@@ -741,6 +744,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
   });
 
   it("K14 — user-turn binding requires nonempty human-attested ids and preserves a same-turn review", async () => {
+    const marker = "[RED:K14:fresh-human-turn-boundary]";
     const missingTurnDelivery = deliveryHarness();
     const { concierge, gatedEntries } = createKernel({
       gates: [
@@ -762,6 +766,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
         callId: "after-missing-turn",
         userTurnId: "new-turn",
       }),
+      marker,
     ).toMatchObject({ ok: false, reason: "consent_required" });
 
     await armReview(concierge, {
@@ -775,6 +780,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
         responseId: "later-response",
         userTurnId: "turn-one",
       }),
+      marker,
     ).toMatchObject({ ok: false, reason: "consent_required" });
     expect(gatedEntries.get("confirm")).toHaveLength(0);
     expect(
@@ -827,6 +833,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
   });
 
   it("[T-08-03] K17 — drift introduced during the commit window is detected late and destroys authority", async () => {
+    const marker = "[RED:K17:late-snapshot-drift-destroys-authority]";
     const scheduler = createManualScheduler();
     const state = { amount: 41 };
     const { concierge, gatedEntries } = createKernel({
@@ -848,7 +855,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
     expect(scheduler.pending).toHaveLength(1);
     state.amount = 42;
     scheduler.fireAll();
-    expect(await pending).toMatchObject({ ok: false, reason: "consent_stale" });
+    expect(await pending, marker).toMatchObject({ ok: false, reason: "consent_stale" });
     expect(gatedEntries.get("confirm")).toHaveLength(0);
 
     state.amount = 41;
@@ -864,6 +871,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
   });
 
   it("K18 — a throwing snapshot comparator is contained, stale, and terminal", async () => {
+    const marker = "[RED:K18:throwing-snapshot-comparator-fails-closed]";
     const secret = "SNAPSHOT_COMPARATOR_SECRET";
     const state = { amount: 41 };
     const { concierge, gatedEntries } = createKernel({
@@ -888,7 +896,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
       callId: "after-throwing-comparator",
     });
 
-    expect(stale).toMatchObject({ ok: false, reason: "consent_stale" });
+    expect(stale, marker).toMatchObject({ ok: false, reason: "consent_stale" });
     expect(after).toMatchObject({ ok: false, reason: "consent_required" });
     expect(JSON.stringify([stale, after])).not.toContain(secret);
     expect(gatedEntries.get("confirm")).toHaveLength(0);
@@ -957,6 +965,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
   });
 
   it("K20 — the custom comparator runs once per attempt and false destroys authority", async () => {
+    const marker = "[RED:K20:snapshot-mismatch-destroys-authority]";
     const state = { amount: 41 };
     const comparisons = [];
     let matches = true;
@@ -992,6 +1001,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
       await dispatchGate(concierge, "confirm", {
         callId: "comparator-false-confirm",
       }),
+      marker,
     ).toMatchObject({ ok: false, reason: "consent_stale" });
     expect(comparisons).toHaveLength(2);
     expect(
@@ -1003,6 +1013,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
   });
 
   it("K21 — the frozen ack reuses the exact reviewed payload and stored snapshot references", async () => {
+    const marker = "[RED:K21:ack-reuses-reviewed-payload]";
     const state = { amount: 41 };
     let comparedSnapshot;
     let observedAck;
@@ -1027,7 +1038,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
     await armReview(concierge);
 
     expect(await dispatchGate(concierge)).toMatchObject({ ok: true });
-    expect(observedAck.payload).toBe(reviewEntries[0].args);
+    expect(observedAck.payload, marker).toBe(reviewEntries[0].args);
     expect(observedAck.snapshot).toBe(comparedSnapshot);
     expect(observedAck).toMatchObject({
       grade: "relayed",
@@ -1040,6 +1051,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
   });
 
   it("K22 — authority is consumed before a gated handler can reenter", async () => {
+    const marker = "[RED:K22:one-shot-consumption-before-handler]";
     let concierge;
     let reentrant;
     const built = createKernel({
@@ -1064,7 +1076,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
         callId: "outer-confirm",
       }),
     ).toMatchObject({ ok: true });
-    expect(await reentrant).toMatchObject({
+    expect(await reentrant, marker).toMatchObject({
       ok: false,
       reason: "consent_required",
     });
@@ -1102,6 +1114,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
   });
 
   it("K24 — decline and dismissal surface exact terminal results once and require a fresh review", async () => {
+    const marker = "[RED:K24:decline-dismiss-terminal-one-shot]";
     for (const terminal of [
       {
         act: "declined",
@@ -1137,7 +1150,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
       const first = await dispatchGate(concierge, "confirm", {
         callId: `${terminal.act}-first-confirm`,
       });
-      expect(first).toBe(terminal.constant);
+      expect(first, marker).toBe(terminal.constant);
       expect(first).toEqual(terminal.expected);
       expect(Object.isFrozen(first)).toBe(true);
       expect(
@@ -1244,6 +1257,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
   });
 
   it("K26 — validated-output detachment failure still invalidates an older armed review", async () => {
+    const marker = "[RED:K26:fresh-review-invalidates-older-authority]";
     const hostileOutput = {};
     Object.defineProperty(hostileOutput, "amount", {
       enumerable: true,
@@ -1271,6 +1285,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
       await dispatchGate(concierge, "confirm", {
         callId: "confirm-after-detachment-failure",
       }),
+      marker,
     ).toMatchObject({ ok: false, reason: "consent_required" });
     expect(gatedEntries.get("confirm")).toHaveLength(0);
   });
@@ -1317,16 +1332,18 @@ describe("CON-07 — achieved none cannot arm after an isolated catalog-floor by
   }
 
   it("N01 — an omitted minGrade still cannot arm or enter at achieved none", async () => {
+    const marker = "[RED:N01:omitted-minimum-rejects-none-grade]";
     const { entries, result } = await runNoneFloorProbe("N01", undefined);
 
-    expect(result).toMatchObject({ ok: false, reason: "grade_unavailable" });
+    expect(result, marker).toMatchObject({ ok: false, reason: "grade_unavailable" });
     expect(entries).toHaveLength(0);
   });
 
   it("N02 — an explicit-none minGrade still cannot arm or enter at achieved none", async () => {
+    const marker = "[RED:N02:explicit-none-rejects-none-grade]";
     const { entries, result } = await runNoneFloorProbe("N02", "none");
 
-    expect(result).toMatchObject({ ok: false, reason: "grade_unavailable" });
+    expect(result, marker).toMatchObject({ ok: false, reason: "grade_unavailable" });
     expect(entries).toHaveLength(0);
   });
 
@@ -1432,29 +1449,30 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
   });
 
   it("[T-08-05/T-08-06] E02 — removing or changing any delivery proof component cannot release attested", async () => {
+    const marker = "[RED:E02:complete-attested-delivery-tuple]";
     const variants = [
       {
         label: "missing-attestation",
-        expectedReason: "grade_unavailable",
+        expectedReason: "consent_required",
         evidence: (hash) => ({ readbackHash: hash }),
       },
       {
         label: "missing-report-hash",
-        expectedReason: "grade_unavailable",
+        expectedReason: "consent_required",
         evidence: (hash) => ({
           attestation: confirmedEvidence(hash).attestation,
         }),
       },
       {
         label: "wrong-report-hash",
-        expectedReason: "grade_unavailable",
+        expectedReason: "consent_required",
         evidence: (hash) => confirmedEvidence(hash, {
           readbackHash: "0".repeat(64),
         }),
       },
       {
         label: "wrong-attestation-hash",
-        expectedReason: "grade_unavailable",
+        expectedReason: "consent_required",
         evidence: (hash) => confirmedEvidence(hash, {
           attestation: {
             ...confirmedEvidence(hash).attestation,
@@ -1464,7 +1482,7 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
       },
       {
         label: "empty-confirming-turn",
-        expectedReason: "grade_unavailable",
+        expectedReason: "consent_required",
         evidence: (hash) => confirmedEvidence(hash, {
           attestation: {
             ...confirmedEvidence(hash).attestation,
@@ -1474,7 +1492,7 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
       },
       {
         label: "review-turn-reused",
-        expectedReason: "grade_unavailable",
+        expectedReason: "consent_required",
         evidence: (hash) => confirmedEvidence(hash, {
           attestation: {
             ...confirmedEvidence(hash).attestation,
@@ -1517,7 +1535,7 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
       );
       await flushEvidence();
       const result = await flow.confirm({ callId: `confirm-${variant.label}` });
-      expect(result, variant.label).toMatchObject({
+      expect(result, `${marker}:${variant.label}`).toMatchObject({
         ok: false,
         reason: variant.expectedReason,
       });
@@ -1810,6 +1828,7 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
   });
 
   it("E09 — one callback claims delivery verification before its digest await", async () => {
+    const marker = "[RED:E09:single-delivery-verification-owner]";
     const firstDigest = deferredValue();
     const firstCalls = [];
     const duplicateDigest = {
@@ -1831,7 +1850,7 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
     duplicateFlow.delivery.callbacks[0](confirmed);
     duplicateFlow.delivery.callbacks[0](confirmed);
     await flushEvidence();
-    expect(firstCalls).toHaveLength(2);
+    expect(firstCalls, marker).toHaveLength(2);
     firstDigest.resolve(evidenceDigest(firstCalls[1].bytes));
     await flushEvidence();
     expect(await duplicateFlow.confirm()).toMatchObject({ ok: true });
@@ -1872,6 +1891,7 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
   });
 
   it("E10 — a late old delivery callback stays inert after fresh-review supersession", async () => {
+    const marker = "[RED:E10:late-superseded-delivery-inert]";
     const flow = createAttestedKernel();
     await flow.review({
       callId: "late-first",
@@ -1882,7 +1902,7 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
       responseId: "late-second-response",
     });
     expect(flow.delivery.registrations).toBe(2);
-    expect(flow.digest.calls).toHaveLength(2);
+    expect(flow.digest.calls, marker).toHaveLength(2);
     flow.delivery.report(
       0,
       "late-first-response",
@@ -1890,7 +1910,7 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
       confirmedEvidence(flow.hash),
     );
     await flushEvidence();
-    expect(flow.digest.calls).toHaveLength(2);
+    expect(flow.digest.calls, marker).toHaveLength(2);
     expect(await flow.confirm({ callId: "late-old-confirm" })).toMatchObject({
       ok: false,
       reason: "consent_required",
@@ -1971,7 +1991,7 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
     await dispatchReview(built.concierge, {
       deferUntilDelivered: delivery.hook,
     });
-    delivery.report(0, "review-response", "completed", confirmedEvidence("claim"));
+    delivery.report(0, "review-response", "completed");
     const result = await dispatchGate(built.concierge);
     expect(result).toMatchObject({ ok: true });
     expect(presenterCalls).toBe(0);
@@ -1998,5 +2018,113 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
       }),
     ).toMatchObject({ ok: false, reason: "consent_required" });
     expect(await flow.confirm()).toMatchObject({ ok: true });
+  });
+
+  it("E14 — contradictory attested claims close a review shared by attested and relayed gates", async () => {
+    const marker = "[RED:E14:contradictory-attestation-closes-shared-generation]";
+    const canonical = evidenceUtf8('{"payload":{"amount":41}}');
+    const hash = evidenceHash(canonical);
+    const variants = [
+      {
+        label: "missing-attestation",
+        evidence: { readbackHash: hash },
+      },
+      {
+        label: "missing-report-hash",
+        evidence: { attestation: confirmedEvidence(hash).attestation },
+      },
+      {
+        label: "mismatched-report-hash",
+        evidence: confirmedEvidence(hash, { readbackHash: "0".repeat(64) }),
+      },
+      {
+        label: "mismatched-attestation-hash",
+        evidence: confirmedEvidence(hash, {
+          attestation: {
+            ...confirmedEvidence(hash).attestation,
+            readbackHash: "0".repeat(64),
+          },
+        }),
+      },
+      {
+        label: "empty-confirming-turn",
+        evidence: confirmedEvidence(hash, {
+          attestation: {
+            ...confirmedEvidence(hash).attestation,
+            userTurnId: "",
+          },
+        }),
+      },
+      {
+        label: "reused-review-turn",
+        evidence: confirmedEvidence(hash, {
+          attestation: {
+            ...confirmedEvidence(hash).attestation,
+            userTurnId: "review-turn",
+          },
+        }),
+      },
+    ];
+
+    for (const variant of variants) {
+      const delivery = deliveryHarness();
+      const built = createKernel({
+        config: {
+          digest: immediateEvidenceDigest(),
+          async presentReadback() {
+            return {
+              alg: "SHA-256",
+              canonical,
+              canonicalization: "JCS",
+              hash,
+            };
+          },
+        },
+        gates: [
+          { name: "confirm-attested", policy: { minGrade: "attested" } },
+          { name: "confirm-relayed", policy: { minGrade: "relayed" } },
+        ],
+        profile: {
+          consentGrade: "attested",
+          userTurnIdentity: "human-attested",
+        },
+      });
+      await dispatchReview(built.concierge, {
+        callId: `review-${variant.label}`,
+        deferUntilDelivered: delivery.hook,
+      });
+      delivery.report(
+        0,
+        "review-response",
+        "completed",
+        variant.evidence,
+      );
+      await flushEvidence();
+
+      const relayed = await dispatchGate(
+        built.concierge,
+        "confirm-relayed",
+        { callId: `relayed-${variant.label}` },
+      );
+      const attested = await dispatchGate(
+        built.concierge,
+        "confirm-attested",
+        { callId: `attested-${variant.label}` },
+      );
+      expect(
+        {
+          attested,
+          attestedEntries: built.gatedEntries.get("confirm-attested"),
+          relayed,
+          relayedEntries: built.gatedEntries.get("confirm-relayed"),
+        },
+        `${marker}:${variant.label}`,
+      ).toMatchObject({
+        attested: { ok: false, reason: "consent_required" },
+        attestedEntries: [],
+        relayed: { ok: false, reason: "consent_required" },
+        relayedEntries: [],
+      });
+    }
   });
 });
