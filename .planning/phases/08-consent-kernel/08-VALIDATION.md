@@ -147,7 +147,7 @@ The protected inputs were verified byte-identical before and after the battery:
 
 | Input | Evidence |
 |-------|----------|
-| `package.json` | `a8267855ddf6a25c17610fd690276025536eda71c91d03fd58e3c0a1f24a5fe1` |
+| `package.json` | `a8267855dba9a429225090c505a78c6169415e2978ce6fb8fcdd6b28e18d542a` |
 | `packages/concierge/package.json` | `5ed9d24829c2ac5bdcf69b57d4f4b503c226cee33f474ad07536521fec4112e4` |
 | `pnpm-lock.yaml` | `0e29065f823200f9bdb2284bdef721003f525f68fa60a2810046b1a7f720e0d4` |
 
