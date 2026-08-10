@@ -871,13 +871,14 @@ describe("CAT-04 and TRN-03 — consent capability failures aggregate during the
   }
 
   it("C27 — the absent profile rejects omitted and explicit-none minimums at the inherent delivered floor", () => {
+    const marker = "[RED:C27:consent-grade-floor-enforcement]";
     for (const [name, policy] of [
       ["confirmOmitted", { bindTo: "response" }],
       ["confirmExplicitNone", { bindTo: "response", minGrade: "none" }],
     ]) {
       const error = catchBuild([review(), gated(name, policy)]);
 
-      expect(error.issues).toHaveLength(1);
+      expect(error.issues, marker).toHaveLength(1);
       expect(error.issues[0]).toMatchObject({
         code: "consent_grade_unavailable",
         action: name,
@@ -920,11 +921,12 @@ describe("CAT-04 and TRN-03 — consent capability failures aggregate during the
   });
 
   it("C29 — grade and both untrustworthy user-turn provenances fail independently", () => {
+    const marker = "[RED:C29:captured-grade-and-provenance-validation]";
     const grade = catchBuild(
       [review(), gated("confirmRelayed", { bindTo: "response", minGrade: "relayed" })],
       { consentProfile: DELIVERED_PROFILE },
     );
-    expect(grade.issues).toHaveLength(1);
+    expect(grade.issues, marker).toHaveLength(1);
     expect(grade.issues[0]).toMatchObject({
       code: "consent_grade_unavailable",
       action: "confirmRelayed",
@@ -943,7 +945,7 @@ describe("CAT-04 and TRN-03 — consent capability failures aggregate during the
         },
       );
 
-      expect(error.issues).toHaveLength(1);
+      expect(error.issues, marker).toHaveLength(1);
       expect(error.issues[0]).toMatchObject({
         code: "user_turn_identity_unavailable",
         action: `confirm-${provenance}`,

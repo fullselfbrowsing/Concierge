@@ -175,8 +175,8 @@ async function flushMicrotasks() {
   }
 }
 
-async function completeAttestedDelivery(flow, hash) {
-  expect(flow.deliveryCallbacks).toHaveLength(1);
+async function completeAttestedDelivery(flow, hash, marker) {
+  expect(flow.deliveryCallbacks, marker).toHaveLength(1);
   flow.deliveryCallbacks[0]({
     responseId: "review-response",
     outcome: "completed",
@@ -190,7 +190,7 @@ async function completeAttestedDelivery(flow, hash) {
   await flushMicrotasks();
 }
 
-async function expectCanonicalRelease(payload, canonicalText) {
+async function expectCanonicalRelease(payload, canonicalText, marker) {
   const canonical = utf8(canonicalText);
   const readbacks = [];
   const flow = createFlow({
@@ -201,10 +201,10 @@ async function expectCanonicalRelease(payload, canonicalText) {
     },
   });
 
-  expect(await flow.review()).toMatchObject({ ok: true });
-  await completeAttestedDelivery(flow, hashBytes(canonical));
-  expect(await flow.confirm()).toMatchObject({ ok: true });
-  expect(flow.gateEntries).toHaveLength(1);
+  expect(await flow.review(), marker).toMatchObject({ ok: true });
+  await completeAttestedDelivery(flow, hashBytes(canonical), marker);
+  expect(await flow.confirm(), marker).toMatchObject({ ok: true });
+  expect(flow.gateEntries, marker).toHaveLength(1);
   expect(flow.gateEntries[0].ack).toMatchObject({
     grade: "attested",
     readbackHash: hashBytes(canonical),
@@ -232,6 +232,7 @@ describe("RFC 8785 JCS and hand-written UTF-8 through the public consent flow", 
   });
 
   it("J02 — sorts the RFC property vector by unsigned UTF-16 code units", async () => {
+    const marker = "[RED:J02:utf16-property-order]";
     const payload = {
       "€": "Euro Sign",
       "\r": "Carriage Return",
@@ -244,10 +245,11 @@ describe("RFC 8785 JCS and hand-written UTF-8 through the public consent flow", 
     const expected =
       "{\"payload\":{\"\\r\":\"Carriage Return\",\"1\":\"One\",\"\":\"Control\",\"ö\":\"Latin Small Letter O With Diaeresis\",\"€\":\"Euro Sign\",\"😀\":\"Emoji: Grinning Face\",\"דּ\":\"Hebrew Letter Dalet With Dagesh\"}}";
 
-    await expectCanonicalRelease(payload, expected);
+    await expectCanonicalRelease(payload, expected, marker);
   });
 
   it("J03 — uses ECMAScript finite-number spellings across RFC edge vectors", async () => {
+    const marker = "[RED:J03:negative-zero-number-spelling]";
     const payload = {
       values: [
         0,
@@ -279,16 +281,17 @@ describe("RFC 8785 JCS and hand-written UTF-8 through the public consent flow", 
     const expected =
       "{\"payload\":{\"values\":[0,0,5e-324,-5e-324,1.7976931348623157e+308,-1.7976931348623157e+308,9007199254740992,-9007199254740992,295147905179352830000,9.999999999999997e+22,1e+23,1.0000000000000001e+23,999999999999999700000,999999999999999900000,1e+21,9.999999999999997e-7,0.000001,333333333.3333332,333333333.33333325,333333333.3333333,333333333.3333334,333333333.33333343,-0.0000033333333333333333,1424953923781206.2]}}";
 
-    await expectCanonicalRelease(payload, expected);
+    await expectCanonicalRelease(payload, expected, marker);
   });
 
   it("J04 — minimally escapes strings and hand-encodes one-to-four-byte scalars", async () => {
+    const marker = "[RED:J04:four-byte-utf8-scalar]";
     const text =
       "\u0000\b\t\n\f\r\"\\/\u007f\u0080\u07ff\u0800\uffff\u{1f600}\u{10ffff}";
     const expected =
       "{\"payload\":{\"text\":\"\\u0000\\b\\t\\n\\f\\r\\\"\\\\/\u007f\u0080\u07ff\u0800\uffff\u{1f600}\u{10ffff}\"}}";
 
-    await expectCanonicalRelease({ text }, expected);
+    await expectCanonicalRelease({ text }, expected, marker);
   });
 
   it("J05 — accepts dense arrays plus ordinary and null-prototype records", async () => {
@@ -317,6 +320,7 @@ describe("RFC 8785 JCS and hand-written UTF-8 through the public consent flow", 
 
 describe("strict JSON-domain rejection contains executable and ambiguous values", () => {
   it("J06 — rejects unsupported primitive values, non-finite numbers, and sparse arrays", async () => {
+    const marker = "[RED:J06:non-finite-and-non-json-rejection]";
     const sparse = new Array(2);
     sparse[1] = "present";
     const cases = [
@@ -345,7 +349,7 @@ describe("strict JSON-domain rejection contains executable and ambiguous values"
       });
       const result = await flow.review();
 
-      expect(result, `case ${index}`).toMatchObject({
+      expect(result, `${marker}:case-${index}`).toMatchObject({
         ok: false,
         reason: "invalid_args",
       });
@@ -355,6 +359,7 @@ describe("strict JSON-domain rejection contains executable and ambiguous values"
   });
 
   it("J07 — rejects aliases, cycles, symbols, non-enumerables, and own toJSON", async () => {
+    const marker = "[RED:J07:alias-and-cycle-rejection]";
     const shared = { value: 1 };
     const cycle = { value: 1 };
     cycle.self = cycle;
@@ -383,7 +388,7 @@ describe("strict JSON-domain rejection contains executable and ambiguous values"
         output,
         presentReadback: async () => receiptFor(utf8("unreachable")),
       });
-      expect(await flow.review(), `case ${index}`).toMatchObject({
+      expect(await flow.review(), `${marker}:case-${index}`).toMatchObject({
         ok: false,
         reason: "invalid_args",
       });
@@ -393,6 +398,7 @@ describe("strict JSON-domain rejection contains executable and ambiguous values"
   });
 
   it("J08 — rejects accessors without invoking them and rejects exotic instances", async () => {
+    const marker = "[RED:J08:accessor-and-exotic-rejection]";
     let getterCalls = 0;
     const accessor = {};
     Object.defineProperty(accessor, "secret", {
@@ -409,14 +415,15 @@ describe("strict JSON-domain rejection contains executable and ambiguous values"
         presentReadback: async () => receiptFor(utf8("unreachable")),
       });
       const result = await flow.review();
-      expect(result).toMatchObject({ ok: false, reason: "invalid_args" });
+      expect(result, marker).toMatchObject({ ok: false, reason: "invalid_args" });
       expect(JSON.stringify(result)).not.toContain("GETTER_SECRET");
       expect(flow.reviewEntries).toHaveLength(0);
     }
-    expect(getterCalls).toBe(0);
+    expect(getterCalls, marker).toBe(0);
   });
 
   it("J09 — rejects lone surrogates in values and property names", async () => {
+    const marker = "[RED:J09:lone-surrogate-rejection]";
     for (const output of [
       { text: "high-\ud800" },
       { text: "low-\udc00" },
@@ -427,7 +434,7 @@ describe("strict JSON-domain rejection contains executable and ambiguous values"
         output,
         presentReadback: async () => receiptFor(utf8("unreachable")),
       });
-      expect(await flow.review()).toMatchObject({
+      expect(await flow.review(), marker).toMatchObject({
         ok: false,
         reason: "invalid_args",
       });
@@ -466,6 +473,7 @@ describe("strict JSON-domain rejection contains executable and ambiguous values"
 
 describe("receipt verification retains core-owned bytes and distrusts every claim", () => {
   it("J11 — requires exact literals, canonical bytes, receipt hash, and fresh digest", async () => {
+    const marker = "[RED:J11:receipt-claim-verification]";
     const canonical = utf8("{\"payload\":{\"amount\":41}}");
     const correctHash = hashBytes(canonical);
     const cases = [
@@ -487,7 +495,7 @@ describe("receipt verification retains core-owned bytes and distrusts every clai
 
       expect(await flow.review(), `case ${index}`).toMatchObject({ ok: true });
       expect(presenterCalls, `case ${index}`).toBe(1);
-      expect(flow.deliveryCallbacks, `case ${index}`).toHaveLength(0);
+      expect(flow.deliveryCallbacks, `${marker}:case-${index}`).toHaveLength(0);
       expect(await flow.confirm(`mismatch-${index}`), `case ${index}`).toMatchObject({
         ok: false,
         reason: "consent_required",

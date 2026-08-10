@@ -33,6 +33,7 @@ const SECURITY_PATH = join(PHASE_DIRECTORY, "08-SECURITY.md");
 const REQUIREMENTS_PATH = join(ROOT, ".planning/REQUIREMENTS.md");
 const CORE_PACKAGE_DIRECTORY = join(ROOT, "packages/concierge");
 const BUILD_MARKER = "Build complete";
+const PACKAGE_FAILURE_MARKER = "[RED:P01:stub-tarball-exclusion]";
 const MAX_BUFFER = 64 * 1024 * 1024;
 const SCHEMA_VERSION = 3;
 const USAGE = "Usage: node scripts/phase-08-mutation-battery.mjs self-test|refresh|preflight <id>|run range <first> <last>|run all --jobs <1-4>|verify <generation|evidence|capability|outcome|package|all|inputs|ledgers>";
@@ -232,6 +233,23 @@ function failureMarkerForMutant(id) {
   return `[RED:${id}]`;
 }
 
+function failureMarkerForCase(testFile, caseId) {
+  const source = readFileSync(join(ROOT, testFile), "utf8");
+  const escapedCaseId = caseId.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const matches = [
+    ...source.matchAll(
+      new RegExp(`\\[RED:${escapedCaseId}:[^\\]]+\\]`, "gu"),
+    ),
+  ].map((match) => match[0]);
+  const unique = [...new Set(matches)];
+  if (unique.length !== 1) {
+    throw new Error(
+      `${testFile}: expected exactly one RED marker for ${caseId}, found ${JSON.stringify(unique)}`,
+    );
+  }
+  return unique[0];
+}
+
 function testFileForCase(caseId) {
   if (caseId.startsWith("C")) return TEST_FILES.catalog;
   if (caseId.startsWith("K") || caseId.startsWith("N") || caseId.startsWith("E")) {
@@ -275,10 +293,15 @@ function runtimeMutant({
     intendedTestFiles,
     intendedCaseIds: Object.freeze([...intendedCaseIds]),
     expectedFailureFingerprint: Object.freeze(
-      intendedCaseIds.map((caseId) =>
+      intendedCaseIds.map((caseId, index) =>
         Object.freeze({
           caseId,
-          marker: failureMarkerForMutant(id),
+          marker: detectorKind === "vitest"
+            ? failureMarkerForCase(
+                intendedTestFiles[Math.min(index, intendedTestFiles.length - 1)],
+                caseId,
+              )
+            : PACKAGE_FAILURE_MARKER,
         }),
       ),
     ),
@@ -577,10 +600,10 @@ const MUTANTS = Object.freeze([
   runtimeMutant({
     id: "M-08-E05",
     group: "evidence",
-    name: "unknown non-confirmed attestation act bypasses invalidation",
+    name: "unknown attestation act is accepted as confirmed",
     target: "packages/concierge/src/concierge.ts",
-    literalPattern: "      observedAct !== \"confirmed\" &&",
-    replacement: "      false &&",
+    literalPattern: "      observedAct === \"confirmed\" &&",
+    replacement: "      typeof observedAct === \"string\" &&",
     intendedCaseIds: ["E02"],
     threats: ["T-08-06"],
     decisions: ["D-08-14"],
@@ -1896,7 +1919,7 @@ function exactCaseSet(report, intendedCaseIds, expectedStatus) {
   );
 }
 
-function runtimeFailureFingerprint(report, mutant) {
+function runtimeFailureFingerprint(report) {
   const fingerprint = [];
   const errors = [];
   for (const assertion of report.assertions) {
@@ -1907,10 +1930,14 @@ function runtimeFailureFingerprint(report, mutant) {
     if (messages.length !== 1) {
       errors.push(`${assertion.caseId ?? assertion.title}: failureMessages=${messages.length}`);
     }
-    fingerprint.push({
-      caseId: assertion.caseId,
-      marker: failureMarkerForMutant(mutant.id),
-    });
+    const markers = messages.flatMap((message) => [
+      ...message.matchAll(/\[RED:[A-Z]\d{2}:[^\]]+\]/gu),
+    ].map((match) => match[0]));
+    if (markers.length !== 1) {
+      errors.push(`${assertion.caseId ?? assertion.title}: RED markers=${markers.length}`);
+      continue;
+    }
+    fingerprint.push({ caseId: assertion.caseId, marker: markers[0] });
   }
   fingerprint.sort((left, right) =>
     `${left.caseId}:${left.marker}`.localeCompare(`${right.caseId}:${right.marker}`),
@@ -1919,7 +1946,7 @@ function runtimeFailureFingerprint(report, mutant) {
 }
 
 function exactRuntimeFailureSet(report, mutant) {
-  const observed = runtimeFailureFingerprint(report, mutant);
+  const observed = runtimeFailureFingerprint(report);
   const expected = [...mutant.expectedFailureFingerprint].sort((left, right) =>
     `${left.caseId}:${left.marker}`.localeCompare(`${right.caseId}:${right.marker}`),
   );
@@ -1978,9 +2005,7 @@ function runPackageGate(mutant, directory, build) {
         signal: null,
         output: "package detector skipped because forbidden tar precondition failed",
       };
-  const packMarker = "[RED:P01:stub-tarball-exclusion]";
-  const marker = failureMarkerForMutant(mutant.id);
-  const markerCount = detector.output.split(packMarker).length - 1;
+  const markerCount = detector.output.split(PACKAGE_FAILURE_MARKER).length - 1;
   const detectorSatisfied =
     build.succeeded &&
     packagePreconditionSatisfied &&
@@ -2001,13 +2026,13 @@ function runPackageGate(mutant, directory, build) {
     detectorExit: detector.exitCode,
     detectorOutput: shortOutput(detector.output),
     observedFailureFingerprint: detectorSatisfied
-      ? [{ caseId: "P02", marker }]
+      ? [{ caseId: "P02", marker: PACKAGE_FAILURE_MARKER }]
       : [],
     infrastructureErrors: [],
     detectorSatisfied,
   };
   writeGateResult(directory, gate);
-  if (detectorSatisfied) process.stderr.write(`${marker}\n`);
+  if (detectorSatisfied) process.stderr.write(`${PACKAGE_FAILURE_MARKER}\n`);
   process.exitCode = detectorSatisfied ? 1 : detector.exitCode === 0 ? 0 : 93;
 }
 
@@ -3773,6 +3798,47 @@ function verifyNamedSelectorsLive() {
 
 function selfTest() {
   validateDefinitions();
+  const fingerprintMutant = MUTANT_BY_ID.get("M-08-G01");
+  assert(fingerprintMutant !== undefined, "G01 must exist for fingerprint controls");
+  const fingerprintMarker = fingerprintMutant.expectedFailureFingerprint[0]?.marker;
+  assert(
+    typeof fingerprintMarker === "string",
+    "G01 must declare one immutable failure marker",
+  );
+  const markedFailureReport = {
+    ...unreadableVitestReport(),
+    readable: true,
+    numTestFiles: 1,
+    numFailedTestSuites: 1,
+    numTotalTests: 1,
+    numFailedTests: 1,
+    assertions: [{
+      caseId: "K03",
+      title: "K03 — fingerprint self-test",
+      status: "failed",
+      failureMessages: [`AssertionError: ${fingerprintMarker}: expected false to be true`],
+    }],
+  };
+  assert(
+    exactRuntimeFailureSet(markedFailureReport, fingerprintMutant).satisfied,
+    "an observed source-owned detector marker must satisfy its immutable fingerprint",
+  );
+  const unrelatedFailureReport = clone(markedFailureReport);
+  unrelatedFailureReport.assertions[0].failureMessages = [
+    "AssertionError: unrelated setup expectation failed",
+  ];
+  const unrelatedFingerprint = exactRuntimeFailureSet(
+    unrelatedFailureReport,
+    fingerprintMutant,
+  );
+  assert(
+    !unrelatedFingerprint.satisfied &&
+      unrelatedFingerprint.observed.length === 0 &&
+      unrelatedFingerprint.infrastructureErrors.some((message) =>
+        message.includes("RED markers=0")
+      ),
+    "the correct named case failing for an unrelated message must not receive detector credit",
+  );
   const register = makeRegister();
   validateRegister(register);
   const initialEvidence = makeInitialEvidence();

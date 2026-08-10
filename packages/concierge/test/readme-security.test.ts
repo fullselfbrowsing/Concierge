@@ -86,6 +86,7 @@ function validateRedemptionOrder(example: string): void {
 }
 
 it("states that client consent evidence is untrusted and grants no server authority", () => {
+  const marker = "[RED:P03:client-consent-is-not-server-authority]";
   expect(ROOT_README_PATH.endsWith("/README.md")).toBe(true);
   expect(ROOT_README_PATH.includes("/packages/concierge/README.md")).toBe(false);
 
@@ -101,8 +102,8 @@ it("states that client consent evidence is untrusted and grants no server author
   expect(section).toMatch(/client assertions?/i);
   expect(section).toMatch(/untrusted/i);
 
-  expect(section).toMatch(/does not authenticate/i);
-  expect(section).toMatch(/does not authorize/i);
+  expect(section, marker).toMatch(/does not authenticate/i);
+  expect(section, marker).toMatch(/does not authorize/i);
   expect(section).toMatch(/cannot independently permit[^.]*protected server effect/i);
   expect(section).toMatch(/ConsentAck[^.]*never[^.]*server authorization/i);
 });
@@ -146,18 +147,19 @@ it("guards the ordered server-owned challenge lifecycle", () => {
 });
 
 it("rejects reauthorization removal, bypass, replacement, and reordering", () => {
+  const marker = "[RED:P04:current-policy-reauthorization-order]";
   const rootReadme = readFileSync(ROOT_README_URL, "utf8");
   const example = extractServerExample(extractSecuritySection(rootReadme));
 
-  expect(() => validateRedemptionOrder(example.replace(REAUTHORIZE_LINE, "")))
+  expect(() => validateRedemptionOrder(example.replace(REAUTHORIZE_LINE, "")), marker)
     .toThrow(/current-policy reauthorization/);
   expect(() => validateRedemptionOrder(
     example.replace(REAUTHORIZE_LINE, `if (false) ${REAUTHORIZE_LINE}`),
-  )).toThrow(/current-policy reauthorization/);
+  ), marker).toThrow(/current-policy reauthorization/);
   expect(() => validateRedemptionOrder(
     example.replace(REAUTHORIZE_LINE, "await trustConsentAckAuthorization(request.consentAck);"),
-  )).toThrow(/current-policy reauthorization/);
+  ), marker).toThrow(/current-policy reauthorization/);
   expect(() => validateRedemptionOrder(
     example.replace(`${REAUTHORIZE_LINE}\n    ${EFFECT_LINE}`, `${EFFECT_LINE}\n    ${REAUTHORIZE_LINE}`),
-  )).toThrow(/server lifecycle is out of order|immediately precede/);
+  ), marker).toThrow(/server lifecycle is out of order|immediately precede/);
 });
