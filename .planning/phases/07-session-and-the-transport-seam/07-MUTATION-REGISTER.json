@@ -15,7 +15,8 @@
     "M-07-C11",
     "M-07-C12",
     "M-07-C13",
-    "M-07-C14"
+    "M-07-C14",
+    "M-07-C15"
   ],
   "expectedRoutingIds": [
     "M-07-R01",
@@ -61,6 +62,7 @@
     "M-07-C12",
     "M-07-C13",
     "M-07-C14",
+    "M-07-C15",
     "M-07-R01",
     "M-07-R02",
     "M-07-R03",
@@ -83,7 +85,7 @@
     "M-07-P01",
     "M-07-P02"
   ],
-  "registerDigest": "dbf851cb1e0c0cbfcf9de2502be6b156df42d78d9666cd95db075a85a21563ca",
+  "registerDigest": "5d9d5b6dc291ab65e99b386c6edd568c16dfdd61cd29c569dabc9a8187761262",
   "mutants": [
     {
       "id": "M-07-C01",
@@ -397,8 +399,8 @@
       "group": "catalog",
       "name": "current boundary failure stops before queued connected replay",
       "target": "packages/concierge/src/session.ts",
-      "literalPattern": "        } catch (failure) {\n          if (firstFailure === null) firstFailure = { value: failure };\n        }",
-      "replacement": "        } catch (failure) {\n          if (firstFailure === null) firstFailure = { value: failure };\n          break;\n        }",
+      "literalPattern": "          if (firstFailure === null) firstFailure = { value: failure };",
+      "replacement": "          if (firstFailure === null) firstFailure = { value: failure };\n          break;",
       "detectorKind": "vitest",
       "intendedTestFiles": [
         "packages/concierge/test/session-catalog.test.ts"
@@ -418,8 +420,8 @@
       "group": "catalog",
       "name": "boundary-time requested authority is replaced by confirmed authority",
       "target": "packages/concierge/src/session.ts",
-      "literalPattern": "      if (transitionQueue.length !== 0) {\n        arrivalAuthority = \"requested-transition\";\n        arrivalContext = requestedContext;\n        arrivalGeneration = requestedGeneration;\n      } else {",
-      "replacement": "      if (false && transitionQueue.length !== 0) {\n        arrivalAuthority = \"requested-transition\";\n        arrivalContext = requestedContext;\n        arrivalGeneration = requestedGeneration;\n      } else {",
+      "literalPattern": "      if (transitionQueue.length !== 0) {",
+      "replacement": "      if (false && transitionQueue.length !== 0) {",
       "detectorKind": "vitest",
       "intendedTestFiles": [
         "packages/concierge/test/session-catalog.test.ts"
@@ -431,6 +433,27 @@
         {
           "caseId": "C20",
           "marker": "[RED:C20:post-request-admission-authority]"
+        }
+      ]
+    },
+    {
+      "id": "M-07-C15",
+      "group": "catalog",
+      "name": "active requested-generation authority falls back to confirmed context",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "      } else if (activeRequestedAuthority !== null) {",
+      "replacement": "      } else if (activeRequestedAuthority !== null && false) {",
+      "detectorKind": "vitest",
+      "intendedTestFiles": [
+        "packages/concierge/test/session-catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C21"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C21",
+          "marker": "[RED:C21:active-request-generation-authority]"
         }
       ]
     },
