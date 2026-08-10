@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Completed 08-05-PLAN.md
-last_updated: "2026-08-10T11:33:00.137Z"
+stopped_at: Completed 08-04-PLAN.md
+last_updated: "2026-08-10T12:57:01.761Z"
 last_activity: 2026-08-10
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 73
-  completed_plans: 70
+  completed_plans: 71
   percent: 78
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-10)
 ## Current Position
 
 Phase: 08 (consent-kernel) — EXECUTING
-Plan: 5 of 8
+Plan: 6 of 8
 Status: Ready to execute
 Last activity: 2026-08-10
 
-Progress: [██████████] 96%
+Progress: [██████████] 97%
 
 ## Performance Metrics
 
@@ -64,6 +64,7 @@ Progress: [██████████] 96%
 | Phase 08 P08 | 17m | 2 tasks | 2 files |
 | Phase 08 P03 | 46m | 2 tasks | 2 files |
 | Phase 08 P05 | 32m 12s | 2 tasks | 6 files |
+| Phase 08 P04 | 1h 20m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -126,6 +127,9 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 08]: Capture actual transport capabilities and the outcome sink once at the first effect-free Session boundary, then use the detached capability snapshot for later catalog decisions.
 - [Phase 08]: Treat outcome presentation failure as local to the accepted occurrence so cleanup and genuinely later FIFO work continue without replay.
 - [Phase 08]: Accept completion only from a plain or null-prototype report with an own data outcome field equal to completed; never invoke report outcome accessors.
+- [Phase 08-04]: Canonical SHA-256 evidence uses lowercase 64-character hex over exact core-retained RFC 8785 bytes.
+- [Phase 08-04]: Capture the digest method and receiver once at construction; caller-owned evidence is descriptor-first and never accessor-driven.
+- [Phase 08-04]: The first owned delivery callback claims verifyingDelivery before report reflection, making duplicate and reentrant reports inert.
 
 ### Pending Todos
 
@@ -154,6 +158,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-10T11:33:00.133Z
-Stopped at: Completed 08-05-PLAN.md
+Last session: 2026-08-10T12:57:01.757Z
+Stopped at: Completed 08-04-PLAN.md
 Resume file: None
