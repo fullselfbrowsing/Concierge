@@ -54,11 +54,11 @@ completed: 2026-08-10
 
 ## Accomplishments
 
-- Defined exactly 47 ordered mutations: 15 generation, 14 evidence, 7 capability, 7 outcome, and 4 package defects, with canonical threat and D-08 mappings.
+- Defined the planned 47 ordered mutations, then added post-review M-08-E15 for the newly discovered contradictory-attestation downgrade: 48 current rows comprising 15 generation, 15 evidence, 7 capability, 7 outcome, and 4 package defects.
 - Ran all mutants through at most four disposable workers. Every mutant compiled, selected a nonzero exact named detector, failed with its required fingerprint, was killed, restored byte-identically, passed restored gates, and retained clean live endpoints.
 - Closed the independent inherent-floor proof: C07 removes the catalog delivered floor, while G15 removes the module-private runtime none predicate. Both distinct guards are killed by their intended cases.
 - Expanded the strict foreign-consumer and tarball proof for all public consent/readback/outcome types, exact six-key Transport behavior, runtime bindings, forbidden path absence, and Node v22.12.0.
-- Ran build, typecheck, 427 runtime tests, artifact, dependency, pack, and Node-floor gates from one read-only revision snapshot.
+- Ran build, typecheck, 428 runtime tests, artifact, dependency, pack, and Node-floor gates from one read-only revision snapshot.
 - Wrote a fresh OWASP ASVS Level 1 audit. T-08-01 through T-08-10 and T-08-SC are independently mitigated with explicit residual boundaries and no open high threat.
 - Reconciled all 15 carried/formal requirements, D-08-01..23, T-08-01..10, eight research constraints, and GOAL/REQ/RESEARCH/CONTEXT source coverage. TRN-02 moved from Partial to Complete using the exact Phase 7 fixture; TRN-05 gained current runtime proof.
 
@@ -72,7 +72,7 @@ completed: 2026-08-10
 ## Files Created/Modified
 
 - `scripts/phase-08-mutation-battery.mjs` — Exact register definitions, bounded disposable workers, release snapshot, negative self-tests, and terminal ledger verifier.
-- `.planning/phases/08-consent-kernel/08-MUTATION-REGISTER.json` — Immutable 47-row register with exact source replacements, detectors, threats, decisions, and hashes.
+- `.planning/phases/08-consent-kernel/08-MUTATION-REGISTER.json` — Immutable 48-row register with exact source replacements, assertion-owned detector markers, threats, decisions, and hashes.
 - `.planning/phases/08-consent-kernel/08-MUTATION-EVIDENCE.json` — Full current-revision compile, detector, fingerprint, restoration, and release evidence.
 - `packages/concierge/test/consent-kernel.test.ts` — Strengthens the G15 detector so catalog-floor substitution does not mask the independent runtime none guard.
 - `packages/concierge/test/fixtures/probe.ts` — Exercises every new public consent/readback/outcome type and runtime binding from a foreign package.
@@ -86,7 +86,7 @@ completed: 2026-08-10
 - Package-only P02 is validated by its explicit package precondition and machine-readable pack evidence, not treated as a Vitest name selector.
 - G15 retains the planned single runtime predicate mutation. Its test helper bypasses both catalog defenses only to isolate and prove that the runtime none guard independently closes.
 - E10 removes the data-descriptor rejection and performs the hostile accessor read in one exact compiled replacement, so J08 observes actual accessor execution rather than an earlier fail-closed branch.
-- Any revision-scoped verifier edit invalidates every mutation revision digest. All such edits were completed before the final 47-mutant rerun.
+- Any revision-scoped verifier edit invalidates every mutation revision digest. All such edits were completed before the final 48-mutant rerun.
 
 ## Deviations from Plan
 
@@ -107,12 +107,17 @@ completed: 2026-08-10
 - **Fix:** Replaced it with the independently recomputed hash and reran the complete terminal gate successfully.
 - **Files:** `.planning/phases/08-consent-kernel/08-VALIDATION.md`
 
+**4. [Rule 1 - Security review] Closed contradictory-attestation downgrade and made detector fingerprints observable**
+- **Issue:** Independent review reproduced a shared review whose contradictory attestation could still authorize a relayed sibling, and found that runtime mutation fingerprints were synthesized from the active mutant id rather than parsed from the failing assertion.
+- **Fix:** Attempted higher-grade evidence now requires one complete internally consistent tuple or destroys the generation; E14 covers six shared-gate mismatch forms and M-08-E15 resurrects the exact downgrade. Every Vitest mutation row now matches a stable marker parsed from the actual assertion failure, with a negative self-test rejecting an unrelated failure in the correct named case. Shipped source documentation was also corrected to describe the implemented runtime.
+- **Files:** `packages/concierge/src/concierge.ts`, Phase 8 tests, `scripts/phase-08-mutation-battery.mjs`, `README.md`, `packages/concierge/src/index.ts`, `packages/concierge/src/types.ts`, mutation and closure ledgers
+
 ## Verification
 
-- Mutation register: digest `7d22004c31980aa946f21b01b2ffb5c27bae46f6bd2b089bf8c4027b8441da2d`; exactly 47 rows and 47 unique final revision digests.
-- Mutation outcome: 47/47 green, zero pending/escaped/failed, zero infrastructure errors, exact fingerprints, byte-identical restoration.
-- Release revision: `ddd3bd70822584bb387bb12f27956ff5f10c2611fabfdc4835ea6b6faf4069a1` remained stable across all seven gates.
-- Runtime: 20 files, 427 passed, 427 total, zero failed/pending/todo.
+- Mutation register: digest `7d38c388e0918f2f2e4c1f06bebc7768c084ea116df24cacff7b7a3cafe9f244`; exactly 48 rows and 48 unique final revision digests.
+- Mutation outcome: 48/48 green, zero pending/escaped/failed, zero infrastructure errors, assertion-observed exact fingerprints, byte-identical restoration.
+- Release revision: `0d30400adbe22f900d0d59be40fa35430d505c1234eca07d129f4094e3c0512f` remained stable across all seven gates.
+- Runtime: 20 files, 428 passed, 428 total, zero failed/pending/todo.
 - Artifact: 75 names, 60 types, 15 runtime values.
 - Dependencies: clean module graph and zero runtime dependency bytes.
 - Package: 21 entries, digest `bf8a250bffa403c2523e2ebb4adcb423326360ed6d5cff230b2ddc7fd51cb064`, no test/fixture/stub path, foreign exact-optional typecheck and runtime import green.
@@ -126,7 +131,8 @@ None. The server challenge example is explicitly illustrative documentation beca
 
 ## Issues Encountered
 
-- The first full mutation execution honestly reported 45/47 green. Both escaped rows were detector-reachability problems, not suppressed failures; they were corrected and all 47 rows rerun from a common final revision.
+- The original plan execution honestly reported 45/47 green. Both escaped rows were detector-reachability problems, not suppressed failures; they were corrected and all 47 rows rerun from a common revision.
+- The post-review fingerprint hardening then exposed five catalog mutants failing in an unmarked helper and one wrong-turn mutant made equivalent by corrected terminal semantics. The helper and turn detector were tightened, and all 48 current rows reran green from one final revision.
 - The terminal ledger verifier intentionally rejected the first documentary hash mismatch before closure and passed only after live, register, and evidence values agreed.
 
 ## User Setup Required
