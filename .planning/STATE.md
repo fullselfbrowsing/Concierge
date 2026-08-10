@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Completed 08-03-PLAN.md
-last_updated: "2026-08-10T10:52:00.296Z"
+stopped_at: Completed 08-05-PLAN.md
+last_updated: "2026-08-10T11:33:00.137Z"
 last_activity: 2026-08-10
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 73
-  completed_plans: 69
+  completed_plans: 70
   percent: 78
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-10)
 ## Current Position
 
 Phase: 08 (consent-kernel) — EXECUTING
-Plan: 4 of 8
+Plan: 5 of 8
 Status: Ready to execute
 Last activity: 2026-08-10
 
-Progress: [██████████] 95%
+Progress: [██████████] 96%
 
 ## Performance Metrics
 
@@ -63,6 +63,7 @@ Progress: [██████████] 95%
 | Phase 08 P02 | 17m | 2 tasks | 7 files |
 | Phase 08 P08 | 17m | 2 tasks | 2 files |
 | Phase 08 P03 | 46m | 2 tasks | 2 files |
+| Phase 08 P05 | 32m 12s | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -122,6 +123,9 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 07]: Accessor throws after reentrant supersession are inert abandoned attempts. — Once the getter enqueues the winning context, its later throw cannot become a fatal publication failure or restore obsolete authority.
 - [Phase 07]: Final authority and failure-recovery closure is independently clean, secured, and verified. — C17-C22 and M-07-C10..C16 bind the repaired Session state machine to 37/37 mutation evidence and the 331-test immutable release.
 - [Phase 08]: Default consent snapshot equality is cycle-safe for arrays/plain records/Map/Set, compares Date values by timestamp, and compares unsupported exotic leaves by identity. — This keeps normalized snapshot comparison deterministic while failing closed on values core cannot detach structurally.
+- [Phase 08]: Capture actual transport capabilities and the outcome sink once at the first effect-free Session boundary, then use the detached capability snapshot for later catalog decisions.
+- [Phase 08]: Treat outcome presentation failure as local to the accepted occurrence so cleanup and genuinely later FIFO work continue without replay.
+- [Phase 08]: Accept completion only from a plain or null-prototype report with an own data outcome field equal to completed; never invoke report outcome accessors.
 
 ### Pending Todos
 
@@ -150,6 +154,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-10T10:52:00.291Z
-Stopped at: Completed 08-03-PLAN.md
+Last session: 2026-08-10T11:33:00.133Z
+Stopped at: Completed 08-05-PLAN.md
 Resume file: None
