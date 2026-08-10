@@ -66,6 +66,14 @@ import {
   snapshotConsentProfile,
 } from "./consent-profile.js";
 import {
+  captureDigestCapability,
+  digestReadback,
+  prepareReadback,
+  snapshotDeliveryEvidence,
+  snapshotReadbackReceipt,
+  verifyReadbackReceipt,
+} from "./consent-evidence.js";
+import {
   authoredResult,
   deriveDispatchKey,
   executeDispatchBatch,
@@ -85,6 +93,13 @@ import { USER_CANCELLED, USER_DECLINED } from "./types.js";
 import type { ArgumentValidation, CommitWaitOutcome } from "./dispatch.js";
 import type { InvocationValueSnapshot } from "./dispatch.js";
 import type { Catalog, CatalogEntry } from "./catalog.js";
+import type {
+  DeliveryEvidenceSnapshot,
+  PreparedReadback,
+  PreparedReadbackResult,
+  ReadbackReceiptSnapshotResult,
+  VerifiedReadbackEvidence,
+} from "./consent-evidence.js";
 import type {
   ActionResult,
   AbortSignalLike,
@@ -142,18 +157,22 @@ interface CapturedConsentConfiguration {
 }
 
 interface ConsentGenerationBase {
+  readonly confirmationUserTurnId: string | null;
   readonly generation: bigint;
   readonly payload: unknown;
+  readonly preparedReadback: PreparedReadback | null;
+  readonly readbackHash: string | null;
   readonly responseId: string;
   readonly snapshot: Readonly<Record<string, unknown>>;
   readonly userTurnId: string;
+  readonly verifiedReadback: VerifiedReadbackEvidence | null;
 }
 
 type ConsentGeneration =
   | (ConsentGenerationBase & { readonly status: "reviewing" })
   | (ConsentGenerationBase & { readonly status: "pendingDelivery" })
   | (ConsentGenerationBase & {
-      readonly achievedGrade: Exclude<ConsentGrade, "none" | "attested">;
+      readonly achievedGrade: Exclude<ConsentGrade, "none">;
       readonly status: "armed";
     })
   | (ConsentGenerationBase & {
@@ -189,8 +208,16 @@ function hasFreshConsentBoundary(
   confirm: InvocationMeta,
   profile: ConsentProfile,
 ): boolean {
+  const confirmTurnId: string = confirm.userTurnId ?? "";
+  if (
+    review.confirmationUserTurnId !== null &&
+    (profile.userTurnIdentity !== "human-attested" ||
+      confirmTurnId !== review.confirmationUserTurnId)
+  ) {
+    return false;
+  }
+
   if (policy.bindTo === "userTurn") {
-    const confirmTurnId: string = confirm.userTurnId ?? "";
     return profile.userTurnIdentity === "human-attested" &&
       review.userTurnId.length > 0 &&
       confirmTurnId.length > 0 &&
@@ -375,11 +402,18 @@ function captureConsentConfiguration(
 
   const profile: ConsentProfile = snapshotConsentProfile(rawProfile);
   try {
+    const presentReadback: ConciergeConfig["presentReadback"] =
+      config.presentReadback;
+    const digest: ConciergeConfig["digest"] = captureDigestCapability(
+      config.digest,
+    );
+    const normalizeSnapshot: ConciergeConfig["normalizeSnapshot"] =
+      config.normalizeSnapshot;
     return Object.freeze({
       profile,
-      presentReadback: config.presentReadback,
-      digest: config.digest,
-      normalizeSnapshot: config.normalizeSnapshot,
+      presentReadback,
+      digest,
+      normalizeSnapshot,
     });
   } catch {
     throw new TypeError(
@@ -784,6 +818,14 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         : [entry.action.consent.requires],
     ),
   );
+  const attestedReviewNames: ReadonlySet<string> = new Set(
+    catalog.entries.flatMap((entry) =>
+      entry.action.consent !== undefined &&
+      effectiveConsentMinimum(entry.action.consent.minGrade) === "attested"
+        ? [entry.action.consent.requires]
+        : [],
+    ),
+  );
 
   // One `EmittedTool` per action, built ONCE here and shared by reference into
   // every stage array that contains it. Header constraint 2 is what this
@@ -940,12 +982,12 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     return captureResolvedSnapshot(index, bridge);
   }
 
-  /** Arm one owned pending generation from a completed delivery report. */
-  function observeReviewDelivery(
+  /** Arm one owned pending generation from snapshotted delivery evidence. */
+  async function observeReviewDelivery(
     reviewName: string,
     pending: ConsentGenerationBase & { readonly status: "pendingDelivery" },
     report: DeliveryReport,
-  ): void {
+  ): Promise<void> {
     const current: ConsentGeneration | undefined =
       consentGenerations?.get(reviewName);
     if (
@@ -956,43 +998,28 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       return;
     }
 
-    let deliveredResponseId: unknown;
-    let outcome: unknown;
-    try {
-      deliveredResponseId = report.responseId;
-      outcome = report.outcome;
-    } catch {
+    const deliverySnapshot = snapshotDeliveryEvidence(report);
+    if (!deliverySnapshot.ok) {
       closeConsentGeneration(reviewName, pending.generation);
       return;
     }
+    const delivery: DeliveryEvidenceSnapshot = deliverySnapshot.value;
 
     if (
-      deliveredResponseId !== pending.responseId ||
-      outcome !== "completed"
+      delivery.responseId !== pending.responseId ||
+      delivery.outcome !== "completed"
     ) {
       closeConsentGeneration(reviewName, pending.generation);
       return;
     }
 
-    let observedAct: unknown;
-    try {
-      const attestation: unknown = report.attestation;
-      if (attestation !== undefined) {
-        if (typeof attestation !== "object" || attestation === null) {
-          closeConsentGeneration(reviewName, pending.generation);
-          return;
-        }
-        observedAct = (attestation as { readonly act?: unknown }).act;
-        if (
-          observedAct !== "confirmed" &&
-          observedAct !== "declined" &&
-          observedAct !== "dismissed"
-        ) {
-          closeConsentGeneration(reviewName, pending.generation);
-          return;
-        }
-      }
-    } catch {
+    const observedAct: unknown = delivery.attestation?.act;
+    if (
+      observedAct !== undefined &&
+      observedAct !== "confirmed" &&
+      observedAct !== "declined" &&
+      observedAct !== "dismissed"
+    ) {
       closeConsentGeneration(reviewName, pending.generation);
       return;
     }
@@ -1005,13 +1032,48 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       return;
     }
 
-    const achievedGrade: ConsentGrade = relayedGradeWithin(
+    let achievedGrade: ConsentGrade = relayedGradeWithin(
       capturedConsent.profile.consentGrade,
     );
+    let confirmationUserTurnId: string | null = null;
+    let readbackHash: string | null = null;
+    const attestation = delivery.attestation;
+    const verified: VerifiedReadbackEvidence | null = pending.verifiedReadback;
     if (
-      !isMeasuredConsentGrade(achievedGrade) ||
-      achievedGrade === "attested"
+      verified !== null &&
+      consentGradeRank(capturedConsent.profile.consentGrade) >=
+        consentGradeRank("attested") &&
+      capturedConsent.profile.userTurnIdentity === "human-attested" &&
+      observedAct === "confirmed" &&
+      typeof delivery.readbackHash === "string" &&
+      delivery.readbackHash === verified.hash &&
+      attestation !== undefined &&
+      attestation.readbackHash === verified.hash &&
+      typeof attestation.userTurnId === "string" &&
+      attestation.userTurnId.length > 0 &&
+      attestation.userTurnId !== pending.userTurnId
     ) {
+      const freshHash: string | null = await digestReadback(
+        capturedConsent.digest,
+        verified.canonical,
+      );
+      const stillOwned: ConsentGeneration | undefined =
+        consentGenerations?.get(reviewName);
+      if (
+        stillOwned?.generation !== pending.generation ||
+        stillOwned.status !== "pendingDelivery" ||
+        stillOwned.responseId !== pending.responseId
+      ) {
+        return;
+      }
+      if (freshHash === verified.hash) {
+        achievedGrade = "attested";
+        confirmationUserTurnId = attestation.userTurnId;
+        readbackHash = verified.hash;
+      }
+    }
+
+    if (!isMeasuredConsentGrade(achievedGrade)) {
       consentGenerations?.set(
         reviewName,
         Object.freeze({ ...pending, status: "gradeUnavailable" }),
@@ -1021,7 +1083,13 @@ export function createConcierge(config: ConciergeConfig): Concierge {
 
     consentGenerations?.set(
       reviewName,
-      Object.freeze({ ...pending, achievedGrade, status: "armed" }),
+      Object.freeze({
+        ...pending,
+        achievedGrade,
+        confirmationUserTurnId,
+        readbackHash,
+        status: "armed",
+      }),
     );
   }
 
@@ -1278,10 +1346,25 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       consentGenerations?.delete(name);
     }
 
-    const validatedSnapshot: InvocationValueSnapshot = snapshotInvocationValue(
-      validation.value,
-      true,
-    );
+    let preparedReadback: PreparedReadback | null = null;
+    let validatedSnapshot: InvocationValueSnapshot;
+    if (attestedReviewNames.has(name)) {
+      const prepared: PreparedReadbackResult = prepareReadback(validation.value);
+      if (!prepared.ok) {
+        return authoredResult(
+          false,
+          "The action arguments are invalid.",
+          "invalid_args",
+        );
+      }
+      preparedReadback = prepared.value;
+      validatedSnapshot = {
+        ok: true,
+        value: preparedReadback.readback.payload,
+      };
+    } else {
+      validatedSnapshot = snapshotInvocationValue(validation.value, true);
+    }
     if (!validatedSnapshot.ok) {
       return authoredResult(
         false,
@@ -1296,12 +1379,16 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     if (replacesReviewAuthority) {
       nextConsentGeneration += 1n;
       reviewingGeneration = Object.freeze({
+        confirmationUserTurnId: null,
         generation: nextConsentGeneration,
         payload: validatedSnapshot.value,
+        preparedReadback,
+        readbackHash: null,
         responseId: meta.responseId ?? "",
         snapshot: captureReviewSnapshot(index),
         status: "reviewing",
         userTurnId: meta.userTurnId ?? "",
+        verifiedReadback: null,
       });
       consentGenerations ??= new Map<string, ConsentGeneration>();
       consentGenerations.set(name, reviewingGeneration);
@@ -1424,6 +1511,19 @@ export function createConcierge(config: ConciergeConfig): Concierge {
           "grade_unavailable",
         );
       }
+      if (
+        owned.achievedGrade === "attested" &&
+        (owned.readbackHash === null ||
+          owned.confirmationUserTurnId === null)
+      ) {
+        closeConsentGeneration(reviewName, owned.generation);
+        closeOwnedReview();
+        return authoredResult(
+          false,
+          "The available consent evidence is not strong enough for this action.",
+          "grade_unavailable",
+        );
+      }
       const minimumGrade: ConsentGrade = effectiveConsentMinimum(
         policy.minGrade,
       );
@@ -1483,13 +1583,24 @@ export function createConcierge(config: ConciergeConfig): Concierge {
 
       // Authority is one-shot across every action sharing this review name.
       closeConsentGeneration(reviewName, owned.generation);
-      consentAck = Object.freeze({
-        grade: owned.achievedGrade,
-        payload: owned.payload,
-        responseId: owned.responseId,
-        snapshot: owned.snapshot,
-        userTurnId: owned.userTurnId,
-      });
+      consentAck = Object.freeze(
+        owned.achievedGrade === "attested"
+          ? {
+              grade: owned.achievedGrade,
+              payload: owned.payload,
+              readbackHash: owned.readbackHash as string,
+              responseId: owned.responseId,
+              snapshot: owned.snapshot,
+              userTurnId: owned.userTurnId,
+            }
+          : {
+              grade: owned.achievedGrade,
+              payload: owned.payload,
+              responseId: owned.responseId,
+              snapshot: owned.snapshot,
+              userTurnId: owned.userTurnId,
+            },
+      );
     }
 
     let handlerReturn: unknown;
@@ -1566,9 +1677,63 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       consentGenerations?.get(name);
     if (
       currentReview?.generation !== reviewingGeneration.generation ||
-      currentReview.status !== "reviewing"
+      currentReview.status !== "reviewing" ||
+      currentReview.responseId !== reviewingGeneration.responseId
     ) {
       return normalizedResult;
+    }
+
+    let verifiedReadback: VerifiedReadbackEvidence | null = null;
+    if (reviewingGeneration.preparedReadback !== null) {
+      const presenter = capturedConsent.presentReadback;
+      if (presenter === undefined) {
+        closeOwnedReview();
+        return normalizedResult;
+      }
+      let receipt: unknown;
+      try {
+        receipt = await presenter(reviewingGeneration.preparedReadback.readback);
+      } catch {
+        closeOwnedReview();
+        return normalizedResult;
+      }
+      const afterPresentation: ConsentGeneration | undefined =
+        consentGenerations?.get(name);
+      if (
+        afterPresentation?.generation !== reviewingGeneration.generation ||
+        afterPresentation.status !== "reviewing" ||
+        afterPresentation.responseId !== reviewingGeneration.responseId
+      ) {
+        return normalizedResult;
+      }
+      const receiptSnapshot: ReadbackReceiptSnapshotResult =
+        snapshotReadbackReceipt(receipt);
+      if (!receiptSnapshot.ok) {
+        closeOwnedReview();
+        return normalizedResult;
+      }
+      const freshHash: string | null = await digestReadback(
+        capturedConsent.digest,
+        reviewingGeneration.preparedReadback.canonical,
+      );
+      const afterDigest: ConsentGeneration | undefined =
+        consentGenerations?.get(name);
+      if (
+        afterDigest?.generation !== reviewingGeneration.generation ||
+        afterDigest.status !== "reviewing" ||
+        afterDigest.responseId !== reviewingGeneration.responseId
+      ) {
+        return normalizedResult;
+      }
+      verifiedReadback = verifyReadbackReceipt(
+        reviewingGeneration.preparedReadback,
+        receiptSnapshot.value,
+        freshHash,
+      );
+      if (verifiedReadback === null) {
+        closeOwnedReview();
+        return normalizedResult;
+      }
     }
 
     const deliveryHook: InvocationMeta["deferUntilDelivered"] =
@@ -1584,11 +1749,12 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     const pendingDelivery = Object.freeze({
       ...reviewingGeneration,
       status: "pendingDelivery" as const,
+      verifiedReadback,
     });
     consentGenerations?.set(name, pendingDelivery);
     try {
       deliveryHook((report: DeliveryReport): void => {
-        observeReviewDelivery(name, pendingDelivery, report);
+        void observeReviewDelivery(name, pendingDelivery, report);
       });
     } catch {
       closeConsentGeneration(name, reviewingGeneration.generation);
