@@ -59,8 +59,10 @@
  */
 
 import { buildCatalog, deepFreeze } from "./catalog.js";
+import { captureSnapshot } from "./bridge.js";
 import {
   attachConsentProfile,
+  consentGradeRank,
   snapshotConsentProfile,
 } from "./consent-profile.js";
 import {
@@ -89,7 +91,10 @@ import type {
   Bridge,
   Concierge,
   ConciergeConfig,
+  ConsentGrade,
+  ConsentPolicy,
   ConsentProfile,
+  DeliveryReport,
   EmittedTool,
   Explanation,
   InvocationMeta,
@@ -132,6 +137,37 @@ interface CapturedConsentConfiguration {
   readonly presentReadback: ConciergeConfig["presentReadback"];
   readonly digest: ConciergeConfig["digest"];
   readonly normalizeSnapshot: ConciergeConfig["normalizeSnapshot"];
+}
+
+interface ConsentGenerationBase {
+  readonly generation: bigint;
+  readonly payload: unknown;
+  readonly responseId: string;
+  readonly snapshot: Readonly<Record<string, unknown>>;
+  readonly userTurnId: string;
+}
+
+type ConsentGeneration =
+  | (ConsentGenerationBase & { readonly status: "reviewing" })
+  | (ConsentGenerationBase & { readonly status: "pendingDelivery" })
+  | (ConsentGenerationBase & {
+      readonly achievedGrade: Exclude<ConsentGrade, "none">;
+      readonly status: "armed";
+    })
+  | (ConsentGenerationBase & { readonly status: "gradeUnavailable" });
+
+/** A consent grade represents measured evidence only when it is not `none`. */
+function isMeasuredConsentGrade(
+  achievedGrade: ConsentGrade,
+): achievedGrade is Exclude<ConsentGrade, "none"> {
+  return achievedGrade !== "none";
+}
+
+/** Delivery can prove at most relayed evidence, clipped by the captured ceiling. */
+function relayedGradeWithin(ceiling: ConsentGrade): ConsentGrade {
+  return consentGradeRank(ceiling) >= consentGradeRank("relayed")
+    ? "relayed"
+    : ceiling;
 }
 
 /** Read every consent-related config seam once at the factory boundary. */
@@ -516,6 +552,13 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       digest: capturedConsent.digest,
     },
   );
+  const reviewNames: ReadonlySet<string> = new Set(
+    catalog.entries.flatMap((entry) =>
+      entry.action.consent === undefined
+        ? []
+        : [entry.action.consent.requires],
+    ),
+  );
 
   // One `EmittedTool` per action, built ONCE here and shared by reference into
   // every stage array that contains it. Header constraint 2 is what this
@@ -621,6 +664,97 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   let dispatchSettledAt: Map<string, number> | null = null;
   let dispatchPending: Set<string> | null = null;
   let warnedDispatch: Set<string> | null = null;
+  let consentGenerations: Map<string, ConsentGeneration> | null = null;
+  let nextConsentGeneration: bigint = 0n;
+
+  /** Delete a generation only while the caller still owns its review slot. */
+  function closeConsentGeneration(reviewName: string, generation: bigint): void {
+    const current: ConsentGeneration | undefined =
+      consentGenerations?.get(reviewName);
+    if (current?.generation === generation) {
+      consentGenerations?.delete(reviewName);
+    }
+  }
+
+  /** Return the policy-authored closed result, or core's fixed default. */
+  function missingConsentResult(policy: ConsentPolicy<unknown>): ActionResult {
+    const declared: ConsentPolicy<unknown>["onMissing"] = policy.onMissing;
+    return declared === undefined
+      ? authoredResult(
+          false,
+          "Review this action before confirming it.",
+          "consent_required",
+        )
+      : authoredResult(false, declared.message, declared.reason);
+  }
+
+  /** Capture the active bridge early without replacing its later live resolve. */
+  function captureReviewSnapshot(
+    index: number | null,
+  ): Readonly<Record<string, unknown>> {
+    const stage: ConciergeConfig["stages"][number] | undefined =
+      index === null ? undefined : stages[index];
+    const bridge: Bridge | null = stage === undefined ? null : resolveBridge(stage);
+    const bridgeId: string = stage?.bridge?.id ?? stage?.id ?? "cross-stage";
+    return Object.freeze(
+      captureSnapshot(
+        bridge as Bridge,
+        bridgeId,
+        capturedConsent.normalizeSnapshot,
+      ),
+    );
+  }
+
+  /** Arm one owned pending generation from a completed delivery report. */
+  function observeReviewDelivery(
+    reviewName: string,
+    pending: ConsentGenerationBase & { readonly status: "pendingDelivery" },
+    report: DeliveryReport,
+  ): void {
+    const current: ConsentGeneration | undefined =
+      consentGenerations?.get(reviewName);
+    if (
+      current?.generation !== pending.generation ||
+      current.status !== "pendingDelivery" ||
+      current.responseId !== pending.responseId
+    ) {
+      return;
+    }
+
+    let deliveredResponseId: unknown;
+    let outcome: unknown;
+    try {
+      deliveredResponseId = report.responseId;
+      outcome = report.outcome;
+    } catch {
+      closeConsentGeneration(reviewName, pending.generation);
+      return;
+    }
+
+    if (
+      deliveredResponseId !== pending.responseId ||
+      outcome !== "completed"
+    ) {
+      closeConsentGeneration(reviewName, pending.generation);
+      return;
+    }
+
+    const achievedGrade: ConsentGrade = relayedGradeWithin(
+      capturedConsent.profile.consentGrade,
+    );
+    if (!isMeasuredConsentGrade(achievedGrade)) {
+      consentGenerations?.set(
+        reviewName,
+        Object.freeze({ ...pending, status: "gradeUnavailable" }),
+      );
+      return;
+    }
+
+    consentGenerations?.set(
+      reviewName,
+      Object.freeze({ ...pending, achievedGrade, status: "armed" }),
+    );
+  }
 
   /** Report one runtime dispatch problem per subject and Concierge instance. */
   function warnDispatchOnce(key: string, message: string): void {
@@ -881,9 +1015,33 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       );
     }
 
+    let reviewingGeneration:
+      | (ConsentGenerationBase & { readonly status: "reviewing" })
+      | null = null;
+    if (reviewNames.has(name)) {
+      nextConsentGeneration += 1n;
+      reviewingGeneration = Object.freeze({
+        generation: nextConsentGeneration,
+        payload: validatedSnapshot.value,
+        responseId: meta.responseId ?? "",
+        snapshot: captureReviewSnapshot(index),
+        status: "reviewing",
+        userTurnId: meta.userTurnId ?? "",
+      });
+      consentGenerations ??= new Map<string, ConsentGeneration>();
+      consentGenerations.set(name, reviewingGeneration);
+    }
+
+    const closeOwnedReview = (): void => {
+      if (reviewingGeneration !== null) {
+        closeConsentGeneration(name, reviewingGeneration.generation);
+      }
+    };
+
     const signal: AbortSignalLike | undefined = meta.signal;
 
     if (isAborted(signal)) {
+      closeOwnedReview();
       return authoredResult(
         false,
         "The action was cancelled before it ran.",
@@ -907,6 +1065,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         signal,
       );
       if (wait === "aborted") {
+        closeOwnedReview();
         return authoredResult(
           false,
           "The action was cancelled before it ran.",
@@ -924,6 +1083,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     // Close the interval between a ready scheduler callback and this async
     // continuation entering the handler.
     if (isAborted(signal)) {
+      closeOwnedReview();
       return authoredResult(
         false,
         "The action was cancelled before it ran.",
@@ -935,12 +1095,45 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       index === null ? undefined : stages[index];
     const bridge: Bridge | null = stage === undefined ? null : resolveBridge(stage);
     if (isAborted(signal)) {
+      closeOwnedReview();
       return authoredResult(
         false,
         "The action was cancelled before it ran.",
         "aborted",
       );
     }
+
+    const policy: ConsentPolicy<unknown> | undefined = entry.action.consent;
+    if (policy !== undefined) {
+      const owned: ConsentGeneration | undefined =
+        consentGenerations?.get(policy.requires);
+      if (owned?.status === "gradeUnavailable") {
+        consentGenerations?.delete(policy.requires);
+        closeOwnedReview();
+        return authoredResult(
+          false,
+          "The available consent evidence is not strong enough for this action.",
+          "grade_unavailable",
+        );
+      }
+      if (owned?.status !== "armed") {
+        closeOwnedReview();
+        return missingConsentResult(policy);
+      }
+      if (!isMeasuredConsentGrade(owned.achievedGrade)) {
+        consentGenerations?.delete(policy.requires);
+        closeOwnedReview();
+        return authoredResult(
+          false,
+          "The available consent evidence is not strong enough for this action.",
+          "grade_unavailable",
+        );
+      }
+
+      // Authority is one-shot across every action sharing this review name.
+      consentGenerations?.delete(policy.requires);
+    }
+
     let handlerReturn: unknown;
     try {
       handlerReturn = handler({
@@ -950,6 +1143,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         ack: undefined,
       });
     } catch {
+      closeOwnedReview();
       return authoredResult(
         false,
         "Something went wrong.",
@@ -977,6 +1171,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
             then.call(handlerReturn, resolve, reject);
           });
         } catch {
+          closeOwnedReview();
           return authoredResult(
             false,
             "Something went wrong.",
@@ -986,7 +1181,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       }
     }
 
-    return normalizeActionResult(handlerResult, {
+    const normalizedResult: ActionResult = normalizeActionResult(handlerResult, {
       successReason: (): void => {
         warnDispatchOnce(
           `success-reason:${name}`,
@@ -1000,6 +1195,48 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         );
       },
     });
+
+    if (reviewingGeneration === null) {
+      return normalizedResult;
+    }
+    if (!normalizedResult.ok) {
+      closeOwnedReview();
+      return normalizedResult;
+    }
+
+    const currentReview: ConsentGeneration | undefined =
+      consentGenerations?.get(name);
+    if (
+      currentReview?.generation !== reviewingGeneration.generation ||
+      currentReview.status !== "reviewing"
+    ) {
+      return normalizedResult;
+    }
+
+    const deliveryHook: InvocationMeta["deferUntilDelivered"] =
+      meta.deferUntilDelivered;
+    if (
+      typeof deliveryHook !== "function" ||
+      reviewingGeneration.responseId.length === 0
+    ) {
+      closeOwnedReview();
+      return normalizedResult;
+    }
+
+    const pendingDelivery = Object.freeze({
+      ...reviewingGeneration,
+      status: "pendingDelivery" as const,
+    });
+    consentGenerations?.set(name, pendingDelivery);
+    try {
+      deliveryHook((report: DeliveryReport): void => {
+        observeReviewDelivery(name, pendingDelivery, report);
+      });
+    } catch {
+      closeConsentGeneration(name, reviewingGeneration.generation);
+    }
+
+    return normalizedResult;
   }
 
   /**
