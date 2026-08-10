@@ -24,7 +24,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Bridge registry and the no-bridge path** - Handlers read live app state through getters, and behave honestly when no component is mounted (completed 2026-07-31)
 - [x] **Phase 6: Dispatcher** - A retried, malformed, aborted, or crashing call produces exactly one honest result and never fires an effect twice (completed 2026-08-06; **verification gap closure planned — plans 06-07–06-08**)
 - [x] **Phase 7: Session and the transport seam** - Something owns the loop between catalog and transport, driven by a stub with no network (completed 2026-08-10)
-- [ ] **Phase 8: Consent kernel** - A consequential action runs only when a human, not the agent, confirmed this exact payload
+- [x] **Phase 8: Consent kernel** - A consequential action runs only when a human, not the agent, confirmed this exact payload (completed 2026-08-10)
 - [ ] **Phase 9: React and Svelte adapters** - Two opposite reactivity models drive the same core through adapters small enough to prove no logic leaked out
 
 ## Phase Details
@@ -332,7 +332,7 @@ Plans:
 
 **Goal**: A consequential action runs only when a human — not the agent — confirmed this exact payload, or it does not run.
 **Depends on**: Phase 7 (turn envelope and delivery hook flowing through the session), Phase 4 (buildCatalog, for the grade gate)
-**Requirements**: CON-01, CON-02, CON-03, CON-04, CON-05, CON-06, CON-07, CON-08, CON-09, CON-10, CAT-04, TRN-03, SEC-04
+**Requirements**: CON-01, CON-02, CON-03, CON-04, CON-05, CON-06, CON-07, CON-08, CON-09, CON-10, CAT-04, TRN-03, SEC-04; carried closure/runtime evidence: TRN-02, TRN-05
 **Success Criteria** (what must be TRUE):
 
   1. A gated action with no prior review fails closed, and a review and a confirm inside the same user turn fails — so an agent generating its own follow-up cannot approve itself. (CON-01, CON-02)
@@ -370,7 +370,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 08-07-PLAN.md — Non-vacuous mutation battery, ASVS audit, package/foreign/release gates, live ledgers, and requirement closure
+- [x] 08-07-PLAN.md — Non-vacuous mutation battery, ASVS audit, package/foreign/release gates, live ledgers, and requirement closure
 
 **Research**: Completed 2026-08-10 — `08-RESEARCH.md`; implementation analogs are mapped in `08-PATTERNS.md`, and `08-VALIDATION.md` defines the Nyquist/security contract.
 **Notes**: This is the milestone's reason to exist. Criterion 2 is the single most important test in the project — the interrupt-partway case defeats receipt and satisfies turn-freshness simultaneously, and it is not modality-specific: a dismissed surface, a navigation away, and a disconnect all produce it. Criterion 5's second half is a deliberate statement of the kernel's honest limit; SEC-04 is documentation because server verification is v2, and overstating what the client half proves is the failure mode this milestone is built to avoid. The `attested` open decision that previously blocked part of this phase is resolved: grades are modality-free, and `attested` requires an app-rendered raw-payload surface plus an observed act bound to its hash.
@@ -433,5 +433,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Bridge registry and the no-bridge path | 7/7 | Complete   | 2026-07-31 |
 | 6. Dispatcher | 8/8 | Complete   | 2026-08-07 |
 | 7. Session and the transport seam | 7/7 | Complete    | 2026-08-10 |
-| 8. Consent kernel | 7/8 | In Progress|  |
+| 8. Consent kernel | 8/8 | Complete | 2026-08-10 |
 | 9. React and Svelte adapters | 0/TBD | Not started | - |

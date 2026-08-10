@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
-status: executing
-stopped_at: Completed 08-06-PLAN.md
-last_updated: "2026-08-10T13:43:56.383Z"
+status: ready_to_plan
+stopped_at: Phase 8 complete (8/8) — ready to discuss Phase 9
+last_updated: "2026-08-10T15:13:00.000Z"
 last_activity: 2026-08-10
 progress:
   total_phases: 9
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 73
-  completed_plans: 72
-  percent: 78
+  completed_plans: 73
+  percent: 89
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-10)
 
 **Core value:** An agent can take a consequential action in a real app — and it is structurally guaranteed that a human, not the agent, confirmed this specific payload, or the action does not run.
-**Current focus:** Phase 08 — consent-kernel
+**Current focus:** Phase 9 — React and Svelte adapters
 
 ## Current Position
 
-Phase: 08 (consent-kernel) — EXECUTING
-Plan: 7 of 8
-Status: Ready to execute
+Phase: 9
+Plan: Not started
+Status: Ready to plan
 Last activity: 2026-08-10
 
-Progress: [██████████] 99%
+Progress: [█████████░] 89%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 23
+- Total plans completed: 31
 - Average duration: —
 - Total execution time: —
 
@@ -46,6 +46,7 @@ Progress: [██████████] 99%
 |-------|-------|-------|----------|
 | 06 | 8 | - | - |
 | 7 | 7 | - | - |
+| 8 | 8 | 5h 28m | 41m |
 
 **Recent Trend:**
 
@@ -66,6 +67,7 @@ Progress: [██████████] 99%
 | Phase 08 P05 | 32m 12s | 2 tasks | 6 files |
 | Phase 08 P04 | 1h 20m | 2 tasks | 4 files |
 | Phase 08 P06 | 38m | 2 tasks | 5 files |
+| Phase 08 P07 | 1h 29m | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -134,6 +136,9 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 08-06]: Keep every Phase 8 test-driving API on sibling fixture controls so production Transport retains exactly six enumerable keys.
 - [Phase 08-06]: Record delivery, outcome, and response attempts in one monotonic event log while retaining separate successful histories.
 - [Phase 08-06]: Snapshot delivery reports from own data descriptors for history safety, but pass the raw report to production so hostile accessors remain a real kernel test.
+- [Phase 08-07]: Credit mutation evidence only after compile, a nonzero exact named detector and fingerprint, byte-identical snapshot restoration, restored green gates, and current live endpoints all agree.
+- [Phase 08-07]: Treat package-only mutations as explicit package preconditions rather than Vitest selectors, and bind all final evidence to one revision after verifier edits settle.
+- [Phase 08]: Phase closure is executable: requirements, D-08-01..23, canonical threats, research constraints, source coverage, package boundaries, and the ASVS audit must agree with current mutation and release evidence.
 
 ### Pending Todos
 
@@ -162,6 +167,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-10T13:43:56.379Z
-Stopped at: Completed 08-06-PLAN.md
+Last session: 2026-08-10T15:13:00.000Z
+Stopped at: Phase 8 complete (8/8) — ready to discuss Phase 9
 Resume file: None
