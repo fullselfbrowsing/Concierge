@@ -3,10 +3,19 @@ import { fileURLToPath } from "node:url";
 
 import { beforeAll, beforeEach, expect, it } from "vitest";
 
+import { createStubTransport } from "./fixtures/stub-transport.js";
+
 const DIST_URL = new URL("../dist/index.js", import.meta.url);
 const DIST_PATH = fileURLToPath(DIST_URL);
 const KEY = Symbol.for("@fullselfbrowsing/concierge.contract");
 const COMPLETED_OUTCOME = Object.freeze({ outcome: "completed" });
+const PUBLIC_FLOW_CONTEXT = Object.freeze({ pathname: "/consent-flow" });
+const PUBLIC_FLOW_CAPABILITIES = Object.freeze({
+  consentGrade: "relayed",
+  userTurnIdentity: "human-attested",
+  parallelCalls: true,
+  dynamicCatalog: true,
+});
 
 let createConcierge;
 let createSession;
@@ -49,6 +58,129 @@ function conciergeFor(consentProfile) {
 
 function runtimeBatch(responseId) {
   return Object.freeze({ responseId, calls: Object.freeze([]) });
+}
+
+function publicFlowSchema() {
+  return {
+    "~standard": {
+      version: 1,
+      vendor: "concierge-session-consent-public-flow",
+      validate: (value) => ({ value }),
+    },
+  };
+}
+
+function publicFlowAction(name, handler, extra = {}) {
+  return {
+    name,
+    description: `the ${name} public-flow action`,
+    schema: publicFlowSchema(),
+    jsonSchema: { type: "object" },
+    redact: "drop",
+    effects: { readOnly: true },
+    handler,
+    ...extra,
+  };
+}
+
+function publicFlowCall(callId, name, args = {}, outputIndex = 0) {
+  return Object.freeze({
+    callId,
+    name,
+    arguments: JSON.stringify(args),
+    outputIndex,
+  });
+}
+
+function publicFlowBatch({
+  calls,
+  deferUntilDelivered,
+  responseId,
+  userTurnId,
+}) {
+  return Object.freeze({
+    responseId,
+    userTurnId,
+    calls: Object.freeze([...calls]),
+    ...(deferUntilDelivered === undefined ? {} : { deferUntilDelivered }),
+  });
+}
+
+async function waitForPublicFlow(predicate, label) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if (predicate()) return;
+    await Promise.resolve();
+  }
+  throw new Error(`Public-flow fixture did not reach ${label}.`);
+}
+
+function fixtureBackedPublicSession({ outcomeBehaviors = [] } = {}) {
+  const reviewEntries = [];
+  const confirmEntries = [];
+  const diagnostics = [];
+  const stub = createStubTransport({
+    capabilities: PUBLIC_FLOW_CAPABILITIES,
+    initialStatus: "connected",
+    outcomeBehaviors,
+  });
+  const concierge = createConcierge({
+    stages: [
+      {
+        id: "consent-flow",
+        match: (context) => context.pathname === PUBLIC_FLOW_CONTEXT.pathname,
+        actions: [
+          publicFlowAction("review", (context) => {
+            reviewEntries.push(context);
+            return { ok: true, message: "Reviewed by the application." };
+          }),
+          publicFlowAction(
+            "confirm",
+            (context) => {
+              confirmEntries.push(context);
+              return { ok: true, message: "Confirmed by the application." };
+            },
+            {
+              consent: {
+                requires: "review",
+                bindTo: "userTurn",
+                minGrade: "relayed",
+              },
+            },
+          ),
+          publicFlowAction("success", () => ({
+            ok: true,
+            message: "The application succeeded.",
+          })),
+          publicFlowAction("fail", () => ({
+            ok: false,
+            reason: "declined",
+            message: "The application refused the operation.",
+          })),
+        ],
+      },
+    ],
+    consentProfile: {
+      consentGrade: "relayed",
+      userTurnIdentity: "human-attested",
+    },
+  });
+  const session = createSession({
+    concierge,
+    transport: stub.transport,
+    initialContext: PUBLIC_FLOW_CONTEXT,
+    presentOutcome: stub.presentOutcome,
+    onDiagnostic(diagnostic) {
+      diagnostics.push(diagnostic);
+    },
+  });
+
+  return Object.freeze({
+    confirmEntries,
+    diagnostics,
+    reviewEntries,
+    session,
+    stub,
+  });
 }
 
 function runtimeSession({ dispatchBatch, onDiagnostic, presentOutcome, respond }) {
@@ -794,4 +926,224 @@ it("[S07] fails closed once for hostile outcome presentation and keeps FIFO live
       responseIds: [`${name}:later`],
     })),
   });
+});
+
+it("[T-08-01/T-08-02/T-08-03/T-08-04/T-08-05/T-08-06/T-08-07] releases one exact reviewed payload only after fixture-owned completed delivery", async () => {
+  const flow = fixtureBackedPublicSession();
+
+  flow.stub.emitBatch(publicFlowBatch({
+    responseId: "review-response",
+    userTurnId: "human-turn-one",
+    deferUntilDelivered: flow.stub.deferUntilDelivered,
+    calls: [publicFlowCall("review-call", "review", { amount: 41 })],
+  }));
+  await waitForPublicFlow(
+    () => flow.stub.responseHistory().length === 1,
+    "the review response",
+  );
+  expect(flow.stub.responseHistory()[0]).toEqual({
+    callId: "review-call",
+    result: { ok: true, message: "Reviewed by the application." },
+  });
+  expect(flow.stub.deliveryCallbackCount()).toBe(1);
+  expect(flow.stub.outcomeHistory()).toEqual([]);
+
+  flow.stub.emitDelivery(0, {
+    responseId: "review-response",
+    outcome: "completed",
+  });
+  flow.stub.emitBatch(publicFlowBatch({
+    responseId: "confirm-response",
+    userTurnId: "human-turn-two",
+    calls: [publicFlowCall("confirm-call", "confirm")],
+  }));
+  await waitForPublicFlow(
+    () => flow.stub.responseHistory().length === 2,
+    "the confirmed response",
+  );
+
+  expect(flow.confirmEntries).toHaveLength(1);
+  expect(flow.reviewEntries).toHaveLength(1);
+  const ack = flow.confirmEntries[0].ack;
+  expect(ack).toMatchObject({
+    grade: "relayed",
+    responseId: "review-response",
+    userTurnId: "human-turn-one",
+  });
+  expect(ack.payload).toBe(flow.reviewEntries[0].args);
+  expect(Object.isFrozen(ack)).toBe(true);
+  expect(Object.isFrozen(ack.payload)).toBe(true);
+  expect(flow.stub.responseHistory()[1]).toEqual({
+    callId: "confirm-call",
+    result: { ok: true, message: "Confirmed by the application." },
+  });
+  expect(
+    flow.stub.eventHistory().map(({ sequence, type }) => ({ sequence, type })),
+  ).toEqual([
+    { sequence: 1, type: "response" },
+    { sequence: 2, type: "delivery" },
+    { sequence: 3, type: "response" },
+  ]);
+
+  flow.stub.emitBatch(publicFlowBatch({
+    responseId: "second-confirm-response",
+    userTurnId: "human-turn-three",
+    calls: [publicFlowCall("second-confirm-call", "confirm")],
+  }));
+  await waitForPublicFlow(
+    () => flow.stub.responseHistory().length === 3,
+    "the one-shot closure response",
+  );
+  expect(flow.stub.responseHistory()[2]).toEqual({
+    callId: "second-confirm-call",
+    result: {
+      ok: false,
+      reason: "consent_required",
+      message: "Review this action before confirming it.",
+    },
+  });
+  expect(flow.confirmEntries).toHaveLength(1);
+  expect(
+    flow.stub.eventHistory().slice(-2).map(({ sequence, type }) => ({
+      sequence,
+      type,
+    })),
+  ).toEqual([
+    { sequence: 4, type: "outcome" },
+    { sequence: 5, type: "response" },
+  ]);
+
+  await flow.session.stop();
+  expect(flow.stub.subscriberCounts()).toEqual({ status: 0, batch: 0 });
+});
+
+it("[T-08-08] orders completed outcomes before every response, bypasses all-success, and recovers FIFO after interruption", async () => {
+  const flow = fixtureBackedPublicSession({
+    outcomeBehaviors: ["completed", "interrupted"],
+  });
+
+  flow.stub.emitBatch(publicFlowBatch({
+    responseId: "mixed-response",
+    userTurnId: "mixed-turn",
+    calls: [
+      publicFlowCall("mixed-success", "success", {}, 0),
+      publicFlowCall("mixed-failure", "fail", {}, 1),
+    ],
+  }));
+  await waitForPublicFlow(
+    () => flow.stub.responseHistory().length === 2,
+    "the mixed occurrence responses",
+  );
+  expect(flow.stub.outcomeHistory()[0]).toMatchObject({
+    sequence: 1,
+    behavior: "completed",
+    outcome: {
+      failures: [
+        {
+          callId: "mixed-failure",
+          reason: "declined",
+          message: "The application refused the operation.",
+        },
+      ],
+    },
+  });
+
+  flow.stub.emitBatch(publicFlowBatch({
+    responseId: "all-success-response",
+    userTurnId: "all-success-turn",
+    calls: [publicFlowCall("all-success", "success")],
+  }));
+  await waitForPublicFlow(
+    () => flow.stub.responseHistory().length === 3,
+    "the all-success response",
+  );
+  expect(flow.stub.outcomeHistory()).toHaveLength(1);
+
+  flow.stub.emitBatch(publicFlowBatch({
+    responseId: "interrupted-response",
+    userTurnId: "interrupted-turn",
+    calls: [publicFlowCall("interrupted-failure", "fail")],
+  }));
+  flow.stub.emitBatch(publicFlowBatch({
+    responseId: "fifo-success-response",
+    userTurnId: "fifo-success-turn",
+    calls: [publicFlowCall("fifo-success", "success")],
+  }));
+  await waitForPublicFlow(
+    () => flow.stub.responseHistory().length === 4,
+    "the FIFO successor response",
+  );
+
+  expect(
+    flow.stub.eventHistory().map(({ behavior, sequence, type }) => ({
+      sequence,
+      type,
+      ...(behavior === undefined ? {} : { behavior }),
+    })),
+  ).toEqual([
+    { sequence: 1, type: "outcome", behavior: "completed" },
+    { sequence: 2, type: "response", behavior: "completed" },
+    { sequence: 3, type: "response", behavior: "completed" },
+    { sequence: 4, type: "response", behavior: "completed" },
+    { sequence: 5, type: "outcome", behavior: "interrupted" },
+    { sequence: 6, type: "response", behavior: "completed" },
+  ]);
+  expect(flow.stub.responseHistory().map(({ callId }) => callId)).toEqual([
+    "mixed-success",
+    "mixed-failure",
+    "all-success",
+    "fifo-success",
+  ]);
+  expect(flow.stub.responseHistory().some(({ callId }) =>
+    callId === "interrupted-failure"
+  )).toBe(false);
+  expect(flow.diagnostics).toEqual([
+    {
+      code: "outcome_presentation_failed",
+      message:
+        "The application could not present the failed outcome; no result was released.",
+    },
+  ]);
+  expect(flow.stub.successfulOutcomeHistory()).toHaveLength(1);
+
+  await flow.session.stop();
+  expect(flow.stub.subscriberCounts()).toEqual({ status: 0, batch: 0 });
+});
+
+it("[T-08-08/T-08-10] contains fixture-injected outcome throw and rejection without poisoning a genuine FIFO successor", async () => {
+  for (const behavior of ["throw", "reject"]) {
+    const flow = fixtureBackedPublicSession({ outcomeBehaviors: [behavior] });
+    flow.stub.emitBatch(publicFlowBatch({
+      responseId: `${behavior}-blocked-response`,
+      userTurnId: `${behavior}-blocked-turn`,
+      calls: [publicFlowCall(`${behavior}-blocked`, "fail")],
+    }));
+    flow.stub.emitBatch(publicFlowBatch({
+      responseId: `${behavior}-later-response`,
+      userTurnId: `${behavior}-later-turn`,
+      calls: [publicFlowCall(`${behavior}-later`, "success")],
+    }));
+    await waitForPublicFlow(
+      () => flow.stub.responseHistory().length === 1,
+      `the ${behavior} FIFO successor`,
+    );
+
+    expect(flow.stub.eventHistory().map(({ type }) => type)).toEqual([
+      "outcome",
+      "response",
+    ]);
+    expect(flow.stub.outcomeHistory()[0].behavior).toBe(behavior);
+    expect(flow.stub.responseHistory().map(({ callId }) => callId)).toEqual([
+      `${behavior}-later`,
+    ]);
+    expect(flow.diagnostics).toEqual([
+      {
+        code: "outcome_presentation_failed",
+        message:
+          "The application could not present the failed outcome; no result was released.",
+      },
+    ]);
+    await flow.session.stop();
+    expect(flow.stub.subscriberCounts()).toEqual({ status: 0, batch: 0 });
+  }
 });

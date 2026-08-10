@@ -4,6 +4,11 @@ import { fileURLToPath } from "node:url";
 
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import {
+  COMMAND_PALETTE_CAPABILITIES,
+  createStubTransport,
+} from "./fixtures/stub-transport.js";
+
 const DIST_URL = new URL("../dist/index.js", import.meta.url);
 const DIST_PATH = fileURLToPath(DIST_URL);
 const CONTRACT_KEY = Symbol.for("@fullselfbrowsing/concierge.contract");
@@ -150,23 +155,26 @@ function dispatchGate(
 
 function deliveryHarness() {
   const callbacks = [];
-  let registrations = 0;
+  const stub = createStubTransport({
+    capabilities: COMMAND_PALETTE_CAPABILITIES,
+    initialStatus: "connected",
+  });
 
   return {
     callbacks,
+    stub,
     get registrations() {
-      return registrations;
+      return stub.deliveryCallbackCount();
     },
     hook(effect) {
-      registrations += 1;
       callbacks.push(effect);
+      stub.deferUntilDelivered(effect);
+    },
+    emit(index, report) {
+      stub.emitDelivery(index, report);
     },
     report(index, responseId, outcome = "completed", evidence = {}) {
-      const callback = callbacks[index];
-      if (callback === undefined) {
-        throw new Error(`No delivery callback at index ${index}.`);
-      }
-      callback({ responseId, outcome, ...evidence });
+      stub.emitDelivery(index, { responseId, outcome, ...evidence });
     },
   };
 }
@@ -362,7 +370,7 @@ async function loadCatalogFloorBypass(id, catalogGrade = "delivered") {
 }
 
 describe("CON-01/03/05/06/08 — delivery-owned review authority is generation guarded and one-shot", () => {
-  it("K01 — no review returns consent_required and never enters the gated handler", async () => {
+  it("[T-08-01] K01 — no review returns consent_required and never enters the gated handler", async () => {
     const { concierge, gatedEntries } = createKernel();
 
     const result = await dispatchGate(concierge);
@@ -428,6 +436,74 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
 
     expect(result).toMatchObject({ ok: false, reason: "consent_required" });
     expect(gatedEntries.get("confirm")).toHaveLength(0);
+  });
+
+  it("[T-08-02 flagship] interrupted delivery stays closed after a genuine new human turn and late completion", async () => {
+    const delivery = deliveryHarness();
+    const { concierge, gatedEntries } = createKernel({
+      gates: [
+        {
+          name: "confirm",
+          policy: { bindTo: "userTurn" },
+        },
+      ],
+    });
+
+    expect(
+      await dispatchReview(concierge, {
+        callId: "flagship-review",
+        responseId: "flagship-review-response",
+        userTurnId: "flagship-human-turn-one",
+        deferUntilDelivered: delivery.hook,
+      }),
+    ).toEqual({ ok: true, message: "Reviewed." });
+    expect(delivery.registrations).toBe(1);
+
+    delivery.report(0, "flagship-review-response", "interrupted");
+    const afterGenuineTurn = await dispatchGate(concierge, "confirm", {
+      callId: "flagship-confirm-after-interruption",
+      responseId: "flagship-confirm-response",
+      userTurnId: "flagship-human-turn-two",
+    });
+    expect(afterGenuineTurn).toEqual({
+      ok: false,
+      reason: "consent_required",
+      message: "Review this action before confirming it.",
+    });
+
+    delivery.report(0, "flagship-review-response", "completed");
+    const afterLateCompletion = await dispatchGate(concierge, "confirm", {
+      callId: "flagship-confirm-after-late-completion",
+      responseId: "flagship-later-response",
+      userTurnId: "flagship-human-turn-three",
+    });
+    expect(afterLateCompletion).toEqual({
+      ok: false,
+      reason: "consent_required",
+      message: "Review this action before confirming it.",
+    });
+    expect(Object.isFrozen(afterGenuineTurn)).toBe(true);
+    expect(Object.isFrozen(afterLateCompletion)).toBe(true);
+    expect(gatedEntries.get("confirm")).toHaveLength(0);
+    expect(delivery.stub.responseHistory()).toEqual([]);
+    expect(
+      delivery.stub.deliveryHistory().map(({ report, sequence }) => ({
+        outcome: report.outcome,
+        responseId: report.responseId,
+        sequence,
+      })),
+    ).toEqual([
+      {
+        outcome: "interrupted",
+        responseId: "flagship-review-response",
+        sequence: 1,
+      },
+      {
+        outcome: "completed",
+        responseId: "flagship-review-response",
+        sequence: 2,
+      },
+    ]);
   });
 
   it("K05 — a successful review with no delivery hook stays closed", async () => {
@@ -507,7 +583,7 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
     expect(gatedEntries.get("confirm")).toHaveLength(0);
   });
 
-  it("K10 — an exact duplicate review callId returns one Promise and creates one generation", async () => {
+  it("[T-08-07] K10 — an exact duplicate review callId returns one Promise and creates one generation", async () => {
     const delivery = deliveryHarness();
     const { concierge, reviewEntries } = createKernel();
     const options = {
@@ -735,7 +811,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
     ).toMatchObject({ ok: true });
   });
 
-  it("K17 — drift introduced during the commit window is detected late and destroys authority", async () => {
+  it("[T-08-03] K17 — drift introduced during the commit window is detected late and destroys authority", async () => {
     const scheduler = createManualScheduler();
     const state = { amount: 41 };
     const { concierge, gatedEntries } = createKernel({
@@ -1340,7 +1416,7 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
     expect(flow.readbacks).toHaveLength(1);
   });
 
-  it("E02 — removing or changing any delivery proof component cannot release attested", async () => {
+  it("[T-08-05/T-08-06] E02 — removing or changing any delivery proof component cannot release attested", async () => {
     const variants = [
       {
         label: "missing-attestation",
@@ -1432,6 +1508,39 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
       });
       expect(flow.gatedEntries.get("confirm"), variant.label).toHaveLength(0);
     }
+  });
+
+  it("[T-08-10] hostile delivery accessors reach the public kernel without executing or leaking", async () => {
+    const secret = "HOSTILE_DELIVERY_GETTER_SECRET";
+    let getterReads = 0;
+    const flow = createAttestedKernel();
+    await flow.review({ callId: "hostile-delivery-review" });
+    const report = {
+      responseId: "review-response",
+      outcome: "completed",
+      attestation: confirmedEvidence(flow.hash).attestation,
+    };
+    Object.defineProperty(report, "readbackHash", {
+      enumerable: true,
+      get() {
+        getterReads += 1;
+        throw new Error(secret);
+      },
+    });
+
+    flow.delivery.emit(0, report);
+    await flushEvidence();
+    const closed = await flow.confirm({ callId: "hostile-delivery-confirm" });
+
+    expect(closed).toEqual({
+      ok: false,
+      reason: "consent_required",
+      message: "Review this action before confirming it.",
+    });
+    expect(getterReads).toBe(0);
+    expect(JSON.stringify({ closed, history: flow.delivery.stub.deliveryHistory() }))
+      .not.toContain(secret);
+    expect(flow.gatedEntries.get("confirm")).toHaveLength(0);
   });
 
   it("E03 — presenter throw, rejection, and malformed receipt close without leaking", async () => {
@@ -1821,7 +1930,7 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
     expect(await flow.confirm()).toMatchObject({ ok: true });
   });
 
-  it("E12 — an attested ceiling alone produces only relayed evidence", async () => {
+  it("[T-08-04] E12 — an attested ceiling alone produces only relayed evidence", async () => {
     let presenterCalls = 0;
     const digest = immediateEvidenceDigest();
     const delivery = deliveryHarness();
