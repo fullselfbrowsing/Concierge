@@ -73,6 +73,12 @@ import type {
   ActionResult,
   Concierge,
   ConsentAck,
+  ConsentProfile,
+  FailureOutcome,
+  FailureOutcomeRow,
+  OutcomePresentationReport,
+  OutcomeSink,
+  ReadbackAttestation,
   Session,
   SessionConfig,
   SessionDiagnostic,
@@ -115,6 +121,29 @@ export const f: () => void = assertSingleInstance;
  */
 export type ProbeAck = ConsentAck;
 export type ProbeTransport = Transport;
+
+/** Consent evidence contracts remain constructible from strict foreign code. */
+export const foreignConsentProfile: ConsentProfile = Object.freeze({
+  consentGrade: "attested",
+  userTurnIdentity: "human-attested",
+});
+export const foreignReadbackAttestation: ReadbackAttestation = Object.freeze({
+  act: "confirmed",
+  userTurnId: "turn-human",
+  readbackHash: "hash",
+});
+export const foreignFailureOutcomeRow: FailureOutcomeRow = Object.freeze({
+  callId: "call-failed",
+  reason: undefined,
+  message: "The application could not complete the action.",
+});
+export const foreignFailureOutcome: FailureOutcome = Object.freeze({
+  failures: Object.freeze([foreignFailureOutcomeRow]),
+});
+export const foreignOutcomePresentation: OutcomePresentationReport =
+  Object.freeze({ outcome: "completed" });
+export const foreignOutcomeSink: OutcomeSink = (_outcome) =>
+  Promise.resolve(foreignOutcomePresentation);
 
 /**
  * A structural stand-in for a validator. `StandardSchemaV1` is already a
@@ -231,6 +260,7 @@ const computedDiagnosticHook: SessionConfig["onDiagnostic"] =
 export const foreignSessionConfig: SessionConfig = {
   concierge: foreignConcierge,
   transport: foreignTransport,
+  presentOutcome: foreignOutcomeSink,
   initialContext: computedInitialContext,
   onDiagnostic: computedDiagnosticHook,
 };

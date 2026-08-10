@@ -212,6 +212,28 @@ export type FailureReason =
  */
 export type ReasonCode = AbandonReason | FailureReason;
 
+/** One app-authored failed result exposed to the human before the agent. */
+export interface FailureOutcomeRow {
+  readonly callId: string;
+  readonly reason: ReasonCode | undefined;
+  readonly message: string;
+}
+
+/** The stable, deeply readonly failed rows from one dispatched batch. */
+export interface FailureOutcome {
+  readonly failures: ReadonlyArray<FailureOutcomeRow>;
+}
+
+/** Whether the application completed presenting a failed batch outcome. */
+export interface OutcomePresentationReport {
+  readonly outcome: "completed" | "interrupted";
+}
+
+/** Presents app-authored failure prose before any failed result reaches the agent. */
+export type OutcomeSink = (
+  outcome: FailureOutcome,
+) => Promise<OutcomePresentationReport>;
+
 /**
  * The result to return when the human interrupted or dismissed.
  *
@@ -361,6 +383,13 @@ export interface InvocationMeta {
   deferUntilDelivered?: ((effect: (report: DeliveryReport) => void) => void) | undefined;
 }
 
+/** A human act observed by the application and bound to one readback hash. */
+export interface ReadbackAttestation {
+  readonly act: "confirmed" | "declined" | "dismissed";
+  readonly userTurnId: string;
+  readonly readbackHash: string;
+}
+
 /**
  * What actually happened when the agent's response was delivered.
  *
@@ -406,6 +435,8 @@ export interface DeliveryReport {
    * on the one field that is the sole route to an `attested` grade.
    */
   readonly readbackHash?: string | undefined;
+  /** A separately observed human act; it never changes the delivery outcome. */
+  readonly attestation?: ReadbackAttestation | undefined;
 }
 
 /**
@@ -710,9 +741,9 @@ export type SnapshotNormalizer = <T>(value: T) => T;
  * actually saw.
  */
 export interface Readback<Payload = unknown> {
-  payload: Payload;
+  readonly payload: Payload;
   /** The literal text shown to the human, when there is one. */
-  presented?: string;
+  readonly presented?: string | undefined;
 }
 
 /**
@@ -1300,6 +1331,12 @@ export type TurnIdentityProvenance =
    */
   | "human-attested";
 
+/** The maximum consent evidence an application-owned dispatch can produce. */
+export interface ConsentProfile {
+  readonly consentGrade: ConsentGrade;
+  readonly userTurnIdentity: TurnIdentityProvenance;
+}
+
 export interface TransportCapabilities {
   /** What this transport can honestly promise. See {@link ConsentGrade}. Read-only: a grade raised after declaration is a capability nothing ever verified. */
   readonly consentGrade: ConsentGrade;
@@ -1649,6 +1686,8 @@ export interface ConciergeConfig {
    * `test-d/catalog.test-d.ts`, and why this is documented rather than fixed.
    */
   crossStage?: ReadonlyArray<AnyActionDefinition>;
+  /** Declared consent ceiling; absence is normalized to the weakest profile. */
+  consentProfile?: ConsentProfile | undefined;
   /**
    * Detaches snapshots from framework reactivity before storage. Supplied by
    * the framework adapter; left unset, core supplies a structural clone of the
@@ -1821,7 +1860,8 @@ export type SessionDiagnosticCode =
   | "transport_unsubscribe_failed"
   | "catalog_clear_failed"
   | "abort_signal_failed"
-  | "batch_without_context";
+  | "batch_without_context"
+  | "outcome_presentation_failed";
 
 /** Fixed safe diagnostic shape exposed by Session. */
 export interface SessionDiagnostic {
@@ -1884,6 +1924,7 @@ export interface Session {
 export interface SessionConfig {
   concierge: Concierge;
   transport: Transport;
+  readonly presentOutcome: OutcomeSink;
   initialContext?: StageContext | undefined;
   onDiagnostic?: ((diagnostic: SessionDiagnostic) => void) | undefined;
 }

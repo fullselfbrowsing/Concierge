@@ -58,6 +58,8 @@ const DIAGNOSTIC_MESSAGES: Readonly<Record<SessionDiagnosticCode, string>> =
       "A batch cancellation signal failed; the batch was treated as cancelled.",
     batch_without_context:
       "A batch arrived before session context was set and was ignored.",
+    outcome_presentation_failed:
+      "The application could not present the failed outcome; no result was released.",
   });
 
 type Lifecycle = "starting" | "active" | "stopped";

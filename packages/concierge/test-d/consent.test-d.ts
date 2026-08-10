@@ -42,6 +42,7 @@ import type { Assignable, Equals, Expect, Not } from "./_assert.js";
 import type {
   ConsentAck,
   ConsentGrade,
+  ConciergeConfig,
   ConsentProfile,
   DigestLike,
   Readback,
@@ -70,6 +71,18 @@ type _consentProfileKeys = Expect<Equals<keyof ConsentProfile, "consentGrade" | 
 
 /** Both capability axes are immutable after declaration. */
 type _consentProfileIsReadonly = Expect<Equals<ConsentProfile, { readonly consentGrade: ConsentGrade; readonly userTurnIdentity: TurnIdentityProvenance }>>;
+
+/** The declared profile is an EOPT-safe optional Concierge capability. */
+type _configConsentProfileIsExact = Expect<Equals<Pick<ConciergeConfig, "consentProfile">, { consentProfile?: ConsentProfile | undefined }>>;
+
+declare const maybeConsentProfile: ConsentProfile | undefined;
+
+const _configFromComputedConsentProfile: Pick<ConciergeConfig, "stages" | "consentProfile"> = {
+  stages: [],
+  consentProfile: maybeConsentProfile,
+};
+
+void _configFromComputedConsentProfile;
 
 /** An observed act is closed to the three outcomes the consent state machine understands. */
 type _attestationActIsClosed = Expect<Equals<ReadbackAttestation["act"], "confirmed" | "declined" | "dismissed">>;
