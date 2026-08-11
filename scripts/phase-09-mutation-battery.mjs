@@ -33,6 +33,12 @@ import {
   sep,
 } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  createSecureChildEnvironment,
+  mergeSecureChildEnvironment,
+  PHASE09_PUBLIC_NPM_REGISTRY,
+  runAfterCredentialFreeFinalizationPreflight,
+} from "./phase-09-secure-environment.mjs";
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const ROOT = realpathSync(resolve(dirname(SCRIPT_PATH), ".."));
@@ -173,6 +179,7 @@ const REQUIRED_FINAL_INPUT_PATHS = Object.freeze([
   "scripts/phase-09-test-check.mjs",
   "scripts/phase-09-workflow-check.mjs",
   "scripts/phase-09-mutation-battery.mjs",
+  "scripts/phase-09-secure-environment.mjs",
   "scripts/phase-09-publish-archives.mjs",
   "scripts/phase-09-version.mjs",
   ".changeset/config.json",
@@ -351,6 +358,7 @@ const COMMIT = /^[0-9a-f]{40}$/u;
 const RUN_ID = /^[1-9]\d*$/u;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
 const EXPECTED_REPOSITORY = "fullselfbrowsing/concierge";
+let activeChildEnvironment = null;
 
 class UsageError extends Error {
   constructor() {
@@ -413,6 +421,24 @@ function commandText(spec) {
 function boundedExcerpt(value, maximum = 4_000) {
   const text = value ?? "";
   return text.length <= maximum ? text : text.slice(text.length - maximum);
+}
+
+function childEnvironment(overrides = {}) {
+  assert(
+    activeChildEnvironment !== null,
+    "secure child environment is not initialized",
+  );
+  return mergeSecureChildEnvironment(activeChildEnvironment, overrides);
+}
+
+async function withChildEnvironment(environment, operation) {
+  assert(activeChildEnvironment === null, "secure child environment is already active");
+  activeChildEnvironment = environment;
+  try {
+    return await operation();
+  } finally {
+    activeChildEnvironment = null;
+  }
 }
 
 function isWithin(candidate, parent) {
@@ -481,6 +507,7 @@ function runGitSync(arguments_, root = ROOT, options = {}) {
   const result = spawnSync("git", arguments_, {
     cwd: root,
     encoding: options.encoding ?? "utf8",
+    env: childEnvironment(),
     maxBuffer: MAX_OUTPUT_BYTES,
   });
   assert(
@@ -900,6 +927,18 @@ function removeOwnedTempRoot(root) {
   assert(!existsSync(root), "owned temporary root survived cleanup");
 }
 
+async function withOwnedChildEnvironment(operation) {
+  const root = createOwnedTempRoot();
+  try {
+    const secure = createSecureChildEnvironment(root, process.env);
+    return await withChildEnvironment(secure.environment, () =>
+      operation(root, secure),
+    );
+  } finally {
+    removeOwnedTempRoot(root);
+  }
+}
+
 function assertSnapshotPath(path, snapshotRoot) {
   const normalizedRoot = normalize(resolve(snapshotRoot));
   const normalizedPath = normalize(resolve(path));
@@ -950,13 +989,7 @@ async function runCommand(
     let stderr = "";
     const child = spawn(executable, arguments_, {
       cwd,
-      env: {
-        ...process.env,
-        CI: "1",
-        FORCE_COLOR: "0",
-        NO_COLOR: "1",
-        ...env,
-      },
+      env: childEnvironment(env),
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -1016,11 +1049,13 @@ function cloneBaseline(source, destination) {
   mkdirSync(destination);
   let result = spawnSync("cp", ["-cR", `${source}/.`, destination], {
     encoding: "utf8",
+    env: childEnvironment(),
     maxBuffer: MAX_OUTPUT_BYTES,
   });
   if (result.status !== 0) {
     result = spawnSync("cp", ["-R", `${source}/.`, destination], {
       encoding: "utf8",
+      env: childEnvironment(),
       maxBuffer: MAX_OUTPUT_BYTES,
     });
   }
@@ -1195,7 +1230,7 @@ async function runKiller(row, mutantRoot, outerRoot) {
     const hookOption = `--import=${pathToFileURL(hookPath).href}`;
     options.env = {
       ...MUTANT_EXECUTION_ENV,
-      NODE_OPTIONS: [process.env.NODE_OPTIONS, hookOption].filter(Boolean).join(" "),
+      NODE_OPTIONS: hookOption,
       PHASE09_MUTATION_CAPTURE_DIR: captureDirectory,
     };
     capturePath = join(
@@ -1388,22 +1423,18 @@ async function withMutationLock(operation) {
   }
 }
 
-async function runPreflight(id) {
+async function runPreflight(id, outerRoot) {
+  assertOwnedTempRoot(outerRoot);
   const register = validateRegister(readRegister());
   const row = register.rows.find((candidate) => candidate.id === id);
   assert(row !== undefined, `unknown registered preflight mutant: ${id}`);
   const liveState = mutationLiveState({ allowRunnerModification: true });
-  const outerRoot = createOwnedTempRoot();
-  try {
-    const baseline = await materializeBaseline(outerRoot, liveState.inputManifest);
-    const result = await executeMutant(row, baseline, liveState, outerRoot);
-    assert(result.status === "green" && result.killed, `${id}: preflight did not close green`);
-    console.log(
-      `PHASE09_MUTATION_PREFLIGHT_OK id=${id} files=${result.killer.counts.files} tests=${result.killer.counts.tests} assertions=${result.killer.counts.assertions} restored=true liveTreeUnchanged=true`,
-    );
-  } finally {
-    removeOwnedTempRoot(outerRoot);
-  }
+  const baseline = await materializeBaseline(outerRoot, liveState.inputManifest);
+  const result = await executeMutant(row, baseline, liveState, outerRoot);
+  assert(result.status === "green" && result.killed, `${id}: preflight did not close green`);
+  console.log(
+    `PHASE09_MUTATION_PREFLIGHT_OK id=${id} files=${result.killer.counts.files} tests=${result.killer.counts.tests} assertions=${result.killer.counts.assertions} restored=true liveTreeUnchanged=true`,
+  );
   assertOutputEndpoints(liveState.outputEndpoints);
 }
 
@@ -1582,6 +1613,86 @@ async function runSelfTest() {
     "versioned invocation did not retain its worktree mode",
   );
   pass("versioned-cli");
+
+  const syntheticHome = join(SYSTEM_TEMP_ROOT, "phase09-finalization-self-test-home");
+  for (const hostileEnvironment of [
+    {
+      PATH: process.env.PATH,
+      HOME: syntheticHome,
+      gItHuB_ToKeN: "phase09-secret-repository",
+    },
+    {
+      PATH: process.env.PATH,
+      HOME: syntheticHome,
+      NoDe_AuTh_ToKeN: "phase09-secret-npm",
+    },
+    {
+      PATH: process.env.PATH,
+      HOME: syntheticHome,
+      nPm_CoNfIg_ReGiStRy: "https://hostile.invalid/",
+    },
+    {
+      PATH: process.env.PATH,
+      HOME: syntheticHome,
+      pNpM_cOnFiG_rEgIsTrY: "https://hostile.invalid/",
+    },
+    {
+      PATH: process.env.PATH,
+      HOME: syntheticHome,
+      gIt_CoNfIg_GlObAl: "/tmp/hostile-gitconfig",
+    },
+    {
+      PATH: process.env.PATH,
+      HOME: syntheticHome,
+      Gh_EnTeRpRiSe_ToKeN: "phase09-secret-gh-alias",
+    },
+    {
+      PATH: process.env.PATH,
+      HOME: syntheticHome,
+      TmPdIr: ROOT,
+    },
+  ]) {
+    let childCallbacks = 0;
+    assertThrows(
+      () =>
+        runAfterCredentialFreeFinalizationPreflight(
+          hostileEnvironment,
+          () => {
+            childCallbacks += 1;
+          },
+          { pathPresent: () => false, repositoryRoot: ROOT },
+        ),
+      /credential-free finalization rejected ambient environment variable/u,
+      "credential-bearing finalization environment",
+    );
+    assert(
+      childCallbacks === 0,
+      "finalization preflight invoked a child callback after rejecting credentials",
+    );
+  }
+  pass("finalization-environment-preflight-before-child");
+
+  let configChildCallbacks = 0;
+  assertThrows(
+    () =>
+      runAfterCredentialFreeFinalizationPreflight(
+        { PATH: process.env.PATH, HOME: syntheticHome },
+        () => {
+          configChildCallbacks += 1;
+        },
+        {
+          pathPresent: (path) => path === join(syntheticHome, ".npmrc"),
+          repositoryRoot: ROOT,
+        },
+      ),
+    /ambient HOME credential\/config path.*\.npmrc/u,
+    "ambient npm config path",
+  );
+  assert(
+    configChildCallbacks === 0,
+    "finalization preflight invoked a child callback after rejecting npm config",
+  );
+  pass("finalization-config-preflight-before-child");
   const publishInvocation = parseInvocation([
     "verify",
     "publish",
@@ -1730,7 +1841,50 @@ async function runSelfTest() {
   );
   pass("pnpm-pre-run-install-disabled");
 
-  assert(controls === 26, `self-test control count drifted: ${controls}`);
+  const sentinelEnvironment = Object.freeze({
+    GITHUB_TOKEN: "phase09-secret-repository-probe",
+    NODE_AUTH_TOKEN: "phase09-secret-npm-probe",
+    NPM_CONFIG_REGISTRY: "https://hostile.invalid/",
+  });
+  const previousEnvironment = Object.fromEntries(
+    Object.keys(sentinelEnvironment).map((name) => [name, process.env[name]]),
+  );
+  let environmentProbe;
+  try {
+    Object.assign(process.env, sentinelEnvironment);
+    environmentProbe = await runCommand(
+      process.execPath,
+      [
+        "-e",
+        "process.stdout.write(JSON.stringify({github:process.env.GITHUB_TOKEN??null,nodeAuth:process.env.NODE_AUTH_TOKEN??null,registry:process.env.NPM_CONFIG_REGISTRY??null,userConfig:process.env.NPM_CONFIG_USERCONFIG??null,globalConfig:process.env.NPM_CONFIG_GLOBALCONFIG??null,home:process.env.HOME??null,gitGlobal:process.env.GIT_CONFIG_GLOBAL??null,marker:process.env.PHASE09_CREDENTIAL_FREE_ENV??null}))",
+      ],
+      { cwd: ROOT },
+    );
+  } finally {
+    for (const [name, value] of Object.entries(previousEnvironment)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+  assertSuccessfulCommand(environmentProbe, "self-test secure child probe");
+  const observedEnvironment = JSON.parse(environmentProbe.stdout);
+  assert(
+    observedEnvironment.github === null &&
+      observedEnvironment.nodeAuth === null &&
+      observedEnvironment.registry === PHASE09_PUBLIC_NPM_REGISTRY &&
+      observedEnvironment.marker === "1" &&
+      typeof observedEnvironment.home === "string" &&
+      !isWithin(observedEnvironment.home, ROOT) &&
+      readFileSync(observedEnvironment.userConfig, "utf8") === "" &&
+      readFileSync(observedEnvironment.globalConfig, "utf8") === "" &&
+      readFileSync(observedEnvironment.gitGlobal, "utf8") === "" &&
+      !environmentProbe.output.includes("phase09-secret-") &&
+      !environmentProbe.output.includes("hostile.invalid"),
+    "secure child probe observed an ambient credential or non-isolated config",
+  );
+  pass("secure-child-environment-probe");
+
+  assert(controls === 29, `self-test control count drifted: ${controls}`);
   assertOutputEndpoints(endpoints);
   console.log(`PHASE09_MUTATION_SELF_TEST_OK controls=${controls}`);
 }
@@ -1990,6 +2144,7 @@ function verifyReleaseEvidence(root = ROOT, { quiet = false, publishing = false 
 function readPublishArchiveManifest(path) {
   const result = spawnSync("tar", ["-xOzf", path, "package/package.json"], {
     encoding: "utf8",
+    env: childEnvironment(),
     maxBuffer: MAX_OUTPUT_BYTES,
     timeout: DEFAULT_TIMEOUT_MS,
   });
@@ -2154,6 +2309,7 @@ function gitShowBuffer(commit, path) {
   const result = spawnSync("git", ["show", `${commit}:${path}`], {
     cwd: ROOT,
     encoding: null,
+    env: childEnvironment(),
     maxBuffer: MAX_OUTPUT_BYTES,
   });
   if (result.error !== undefined || result.signal !== null || result.status !== 0) return null;
@@ -2452,7 +2608,7 @@ function makeSecurityMarkdown({
         ? "T06 exact archive triplet"
         : threat === "T-09-08"
           ? "T08 compile-first immutable runner"
-          : `committed ${consumerTooling.lockFile} sha256=${consumerTooling.lockSha256}; npm ${consumerTooling.npmVersion}; lock-derived cache plus npm ci --ignore-scripts --offline`);
+          : `credential-free preflight plus allowlisted nested child environments with owned empty npm/git configs; committed ${consumerTooling.lockFile} sha256=${consumerTooling.lockSha256}; npm ${consumerTooling.npmVersion}; lock-derived cache plus npm ci --ignore-scripts --offline`);
     return `| ${threat} | ${descriptions[threat]} | mitigated | ${evidence} |`;
   }).join("\n");
   return markdownSeal(`# Phase 09 Security\n\nSecurity closure for @fullselfbrowsing/concierge adapter delivery at revision ${releaseInputDigest}.\n\n| Threat | Surface | Disposition | Evidence |\n|---|---|---|---|\n${rows}\n\nThe live Phase 8 records remain byte-identical and their release proof remains the nested release member of 08-consent-kernel/08-MUTATION-EVIDENCE.json.\n`);
@@ -2497,140 +2653,155 @@ function installOutputsTransactionally(sourceRoot) {
   }
 }
 
-async function runAll(jobs, { versioned = false } = {}) {
+async function runAll(jobs, { outerRoot, versioned = false } = {}) {
+  assertOwnedTempRoot(outerRoot);
   const register = validateRegister(readRegister());
   const liveState = mutationLiveState({ allowVersionedWorktree: versioned });
   ensureFinalInputs(ROOT, liveState.paths);
   const inheritedHashes = phase08Hashes(ROOT);
-  const outerRoot = createOwnedTempRoot();
-  try {
-    const inherited = await verifyInheritedPhase08(outerRoot, inheritedHashes);
-    const baseline = await materializeBaseline(outerRoot, liveState.inputManifest);
-    const rows = await mapLimit(register.rows, jobs, async (row, index) => {
-      const result = await executeMutant(row, baseline, liveState, outerRoot);
-      console.log(`[green ${index + 1}/${register.rows.length}] ${row.id}`);
-      return result;
-    });
-    const releaseGates = await runReleaseGates(baseline, outerRoot);
-    assertPhase08Hashes(inheritedHashes, ROOT);
-    verifyLiveMutationState(liveState);
+  const inherited = await verifyInheritedPhase08(outerRoot, inheritedHashes);
+  const baseline = await materializeBaseline(outerRoot, liveState.inputManifest);
+  const rows = await mapLimit(register.rows, jobs, async (row, index) => {
+    const result = await executeMutant(row, baseline, liveState, outerRoot);
+    console.log(`[green ${index + 1}/${register.rows.length}] ${row.id}`);
+    return result;
+  });
+  const releaseGates = await runReleaseGates(baseline, outerRoot);
+  assertPhase08Hashes(inheritedHashes, ROOT);
+  verifyLiveMutationState(liveState);
 
-    const mutationEvidence = sealedObject({
-      schemaVersion: 1,
-      phase: PHASE,
-      ...liveState.authorization,
-      generatedAt: new Date().toISOString(),
-      registerDigest: registerDigest(baseline.root),
-      expectedIds: EXPECTED_IDS,
-      releaseInputs: baseline.inputManifest,
-      phase08: inheritedHashes,
-      rows,
-    });
-    const mutationPath = join(baseline.root, GENERATED_PATHS[0]);
-    writeJson(mutationPath, mutationEvidence);
+  const mutationEvidence = sealedObject({
+    schemaVersion: 1,
+    phase: PHASE,
+    ...liveState.authorization,
+    generatedAt: new Date().toISOString(),
+    registerDigest: registerDigest(baseline.root),
+    expectedIds: EXPECTED_IDS,
+    releaseInputs: baseline.inputManifest,
+    phase08: inheritedHashes,
+    rows,
+  });
+  const mutationPath = join(baseline.root, GENERATED_PATHS[0]);
+  writeJson(mutationPath, mutationEvidence);
 
-    const archiveManifestDigest = sha256(
-      stableJson({
-        archives: releaseGates.packageEvidence.archives,
-        tarEntryCounts: releaseGates.packageEvidence.tarEntryCounts,
-      }),
-    );
-    const validation = makeValidationMarkdown({
-      releaseInputDigest: baseline.inputManifest.digest,
-      registerHash: registerDigest(baseline.root),
-      mutationRows: rows,
-      archiveDigest: archiveManifestDigest,
-    });
-    const security = makeSecurityMarkdown({
-      consumerTooling: releaseGates.packageEvidence.consumerTooling,
-      releaseInputDigest: baseline.inputManifest.digest,
-      mutationRows: rows,
-    });
-    const validationPath = join(baseline.root, GENERATED_PATHS[2]);
-    const securityPath = join(baseline.root, GENERATED_PATHS[3]);
-    writeFileSync(validationPath, validation, "utf8");
-    writeFileSync(securityPath, security, "utf8");
-
-    const releaseEvidence = sealedObject({
-      schemaVersion: 1,
-      phase: PHASE,
-      ...liveState.authorization,
-      generatedAt: new Date().toISOString(),
-      registerDigest: registerDigest(baseline.root),
-      releaseInputs: baseline.inputManifest,
-      mutationEvidenceDigest: sha256File(mutationPath),
-      validationDigest: sha256File(validationPath),
-      securityDigest: sha256File(securityPath),
-      phase08: Object.freeze({
-        sourceRevision: inherited.revision,
-        hashes: inheritedHashes,
-        verification: inherited.verification,
-      }),
-      commands: releaseGates.commands,
-      tests: releaseGates.tests,
-      consumerTooling: releaseGates.packageEvidence.consumerTooling,
+  const archiveManifestDigest = sha256(
+    stableJson({
       archives: releaseGates.packageEvidence.archives,
       tarEntryCounts: releaseGates.packageEvidence.tarEntryCounts,
-      archiveManifestDigest,
-      packageGate: "node scripts/phase-09-package-check.mjs all",
-      budgetGate: "node scripts/phase-09-adapter-budget.mjs check",
-    });
-    writeJson(join(baseline.root, GENERATED_PATHS[1]), releaseEvidence);
+    }),
+  );
+  const validation = makeValidationMarkdown({
+    releaseInputDigest: baseline.inputManifest.digest,
+    registerHash: registerDigest(baseline.root),
+    mutationRows: rows,
+    archiveDigest: archiveManifestDigest,
+  });
+  const security = makeSecurityMarkdown({
+    consumerTooling: releaseGates.packageEvidence.consumerTooling,
+    releaseInputDigest: baseline.inputManifest.digest,
+    mutationRows: rows,
+  });
+  const validationPath = join(baseline.root, GENERATED_PATHS[2]);
+  const securityPath = join(baseline.root, GENERATED_PATHS[3]);
+  writeFileSync(validationPath, validation, "utf8");
+  writeFileSync(securityPath, security, "utf8");
 
-    verifyAll(baseline.root, { quiet: true });
-    const contract = await runCommand("node", ["scripts/phase-09-contract-check.mjs", "final"], {
-      cwd: baseline.root,
-    });
-    assertSuccessfulCommand(contract, "prospective Phase 09 final contract");
-    const prospectiveVerify = await runCommand(
-      "node",
-      ["scripts/phase-09-mutation-battery.mjs", "verify", "all"],
-      { cwd: baseline.root },
-    );
-    assertSuccessfulCommand(prospectiveVerify, "prospective Phase 09 verify all");
+  const releaseEvidence = sealedObject({
+    schemaVersion: 1,
+    phase: PHASE,
+    ...liveState.authorization,
+    generatedAt: new Date().toISOString(),
+    registerDigest: registerDigest(baseline.root),
+    releaseInputs: baseline.inputManifest,
+    mutationEvidenceDigest: sha256File(mutationPath),
+    validationDigest: sha256File(validationPath),
+    securityDigest: sha256File(securityPath),
+    phase08: Object.freeze({
+      sourceRevision: inherited.revision,
+      hashes: inheritedHashes,
+      verification: inherited.verification,
+    }),
+    commands: releaseGates.commands,
+    tests: releaseGates.tests,
+    consumerTooling: releaseGates.packageEvidence.consumerTooling,
+    archives: releaseGates.packageEvidence.archives,
+    tarEntryCounts: releaseGates.packageEvidence.tarEntryCounts,
+    archiveManifestDigest,
+    packageGate: "node scripts/phase-09-package-check.mjs all",
+    budgetGate: "node scripts/phase-09-adapter-budget.mjs check",
+  });
+  writeJson(join(baseline.root, GENERATED_PATHS[1]), releaseEvidence);
 
-    assertPhase08Hashes(inheritedHashes, ROOT);
-    verifyLiveMutationState(liveState);
-    installOutputsTransactionally(baseline.root);
-    verifyAll(ROOT, { quiet: true });
-    console.log(
-      `PHASE09_MUTATION_RUN_ALL_OK mutants=7 jobs=${jobs} commands=15 archives=3 phase08=5`,
-    );
-  } finally {
-    removeOwnedTempRoot(outerRoot);
-  }
+  verifyAll(baseline.root, { quiet: true });
+  const contract = await runCommand("node", ["scripts/phase-09-contract-check.mjs", "final"], {
+    cwd: baseline.root,
+  });
+  assertSuccessfulCommand(contract, "prospective Phase 09 final contract");
+  const prospectiveVerify = await runCommand(
+    "node",
+    ["scripts/phase-09-mutation-battery.mjs", "verify", "all"],
+    { cwd: baseline.root },
+  );
+  assertSuccessfulCommand(prospectiveVerify, "prospective Phase 09 verify all");
+
+  assertPhase08Hashes(inheritedHashes, ROOT);
+  verifyLiveMutationState(liveState);
+  installOutputsTransactionally(baseline.root);
+  verifyAll(ROOT, { quiet: true });
+  console.log(
+    `PHASE09_MUTATION_RUN_ALL_OK mutants=7 jobs=${jobs} commands=15 archives=3 phase08=5`,
+  );
 }
 
 async function main(arguments_) {
   const invocation = parseInvocation(arguments_);
   if (invocation.kind === "self-test") {
-    await runSelfTest();
+    await withOwnedChildEnvironment(() => runSelfTest());
     return;
   }
   if (invocation.kind === "preflight") {
-    await withMutationLock(() => runPreflight(invocation.id));
-    return;
-  }
-  if (invocation.kind === "run-all") {
-    await withMutationLock(() =>
-      runAll(invocation.jobs, { versioned: invocation.versioned }),
+    await withOwnedChildEnvironment((outerRoot) =>
+      withMutationLock(() => runPreflight(invocation.id, outerRoot)),
     );
     return;
   }
+  if (invocation.kind === "run-all") {
+    const execute = () =>
+      withOwnedChildEnvironment((outerRoot) =>
+        withMutationLock(() =>
+          runAll(invocation.jobs, {
+            outerRoot,
+            versioned: invocation.versioned,
+          }),
+        ),
+      );
+    if (invocation.versioned) {
+      await runAfterCredentialFreeFinalizationPreflight(
+        process.env,
+        execute,
+        { repositoryRoot: ROOT },
+      );
+    } else {
+      await execute();
+    }
+    return;
+  }
   if (invocation.kind === "verify-evidence") {
-    verifyMutationEvidence();
+    await withOwnedChildEnvironment(() => verifyMutationEvidence());
     return;
   }
   if (invocation.kind === "verify-release") {
-    verifyReleaseEvidence();
+    await withOwnedChildEnvironment(() => verifyReleaseEvidence());
     return;
   }
   if (invocation.kind === "verify-all") {
-    verifyAll();
+    await withOwnedChildEnvironment(() => verifyAll());
     return;
   }
   if (invocation.kind === "verify-publish") {
-    verifyPublishEvidence(invocation.archiveDirectory);
+    await withOwnedChildEnvironment(() =>
+      verifyPublishEvidence(invocation.archiveDirectory),
+    );
     return;
   }
   throw new UsageError();

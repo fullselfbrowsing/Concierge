@@ -29,6 +29,11 @@ import {
   sep,
 } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  createSecureChildEnvironment,
+  mergeSecureChildEnvironment,
+  PHASE09_PUBLIC_NPM_REGISTRY,
+} from "./phase-09-secure-environment.mjs";
 
 const MODES = Object.freeze([
   "artifacts",
@@ -101,6 +106,7 @@ const CONSUMER_TOOL_VERSIONS = Object.freeze({
   vite: "8.1.5",
   vitest: "4.1.10",
 });
+let activeChildEnvironment = null;
 
 function fail(code, message) {
   throw new Error(`[${code}] ${message}`);
@@ -181,22 +187,51 @@ function removeOwnedTempRoot(root) {
   assert(!existsSync(root), "TEMP_CLEANUP", "owned root survived cleanup");
 }
 
+function withOwnedChildEnvironment(operation) {
+  const root = createOwnedTempRoot();
+  try {
+    const secure = createSecureChildEnvironment(root, process.env);
+    return withChildEnvironment(secure.environment, () =>
+      operation(root, secure),
+    );
+  } finally {
+    removeOwnedTempRoot(root);
+  }
+}
+
 function boundedExcerpt(value) {
   const text = value ?? "";
   return text.length <= 4_000 ? text : text.slice(text.length - 4_000);
+}
+
+function childEnvironment(overrides = {}, secureEnvironment = activeChildEnvironment) {
+  assert(
+    secureEnvironment !== null,
+    "CHILD_ENVIRONMENT",
+    "secure child environment is not initialized",
+  );
+  return mergeSecureChildEnvironment(secureEnvironment, overrides);
+}
+
+function withChildEnvironment(environment, operation) {
+  assert(
+    activeChildEnvironment === null,
+    "CHILD_ENVIRONMENT",
+    "secure child environment is already active",
+  );
+  activeChildEnvironment = environment;
+  try {
+    return operation();
+  } finally {
+    activeChildEnvironment = null;
+  }
 }
 
 function runChild(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? REPOSITORY_ROOT,
     encoding: "utf8",
-    env: {
-      ...process.env,
-      CI: "1",
-      FORCE_COLOR: "0",
-      NO_COLOR: "1",
-      ...options.env,
-    },
+    env: childEnvironment(options.env, options.secureEnvironment),
     maxBuffer: CHILD_MAX_BUFFER,
     timeout: options.timeout ?? CHILD_TIMEOUT_MS,
   });
@@ -917,12 +952,7 @@ function runServerTests(consumerDirectory) {
     "node_modules/.bin",
     process.platform === "win32" ? "vitest.cmd" : "vitest",
   );
-  const nodeOptions = [
-    process.env.NODE_OPTIONS,
-    "--no-experimental-global-navigator",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const nodeOptions = "--no-experimental-global-navigator";
   runChild(
     vitest,
     [
@@ -1420,94 +1450,152 @@ function createSyntheticArchive(directory, name, suffix) {
   return archive;
 }
 
-function runSelfTests() {
-  const root = createOwnedTempRoot();
+function runSelfTests(root, secure) {
+  assertOwnedTempRoot(root);
   let controls = 0;
-  try {
-    const missing = join(root, "missing");
-    mkdirSync(missing);
-    createSyntheticArchive(missing, CORE_NAME, "core");
-    createSyntheticArchive(missing, REACT_NAME, "react");
-    expectFailure("missing archive", "ARCHIVE_COUNT", () =>
-      enumerateExactArchives(missing),
-    );
-    controls += 1;
+  const missing = join(root, "missing");
+  mkdirSync(missing);
+  createSyntheticArchive(missing, CORE_NAME, "core");
+  createSyntheticArchive(missing, REACT_NAME, "react");
+  expectFailure("missing archive", "ARCHIVE_COUNT", () =>
+    enumerateExactArchives(missing),
+  );
+  controls += 1;
 
-    const extra = join(root, "extra");
-    mkdirSync(extra);
-    createSyntheticArchive(extra, CORE_NAME, "core");
-    createSyntheticArchive(extra, REACT_NAME, "react");
-    createSyntheticArchive(extra, SVELTE_NAME, "svelte");
-    createSyntheticArchive(extra, "@foreign/fourth", "fourth");
-    expectFailure("fourth archive", "ARCHIVE_COUNT", () =>
-      enumerateExactArchives(extra),
-    );
-    controls += 1;
+  const extra = join(root, "extra");
+  mkdirSync(extra);
+  createSyntheticArchive(extra, CORE_NAME, "core");
+  createSyntheticArchive(extra, REACT_NAME, "react");
+  createSyntheticArchive(extra, SVELTE_NAME, "svelte");
+  createSyntheticArchive(extra, "@foreign/fourth", "fourth");
+  expectFailure("fourth archive", "ARCHIVE_COUNT", () =>
+    enumerateExactArchives(extra),
+  );
+  controls += 1;
 
-    const linkedTree = join(root, "workspace-realpath");
-    mkdirSync(linkedTree);
-    symlinkSync(REPOSITORY_ROOT, join(linkedTree, "repository-link"), "dir");
-    expectFailure("workspace realpath", "WORKSPACE_REALPATH", () =>
-      walkForRepositorySymlinks(linkedTree),
-    );
-    controls += 1;
+  const linkedTree = join(root, "workspace-realpath");
+  mkdirSync(linkedTree);
+  symlinkSync(REPOSITORY_ROOT, join(linkedTree, "repository-link"), "dir");
+  expectFailure("workspace realpath", "WORKSPACE_REALPATH", () =>
+    walkForRepositorySymlinks(linkedTree),
+  );
+  controls += 1;
 
-    const firstCore = join(root, "core-a");
-    const secondCore = join(root, "core-b");
-    mkdirSync(firstCore);
-    mkdirSync(secondCore);
-    writeJson(join(firstCore, "package.json"), { name: CORE_NAME });
-    writeJson(join(secondCore, "package.json"), { name: CORE_NAME });
-    expectFailure("duplicate core", "DUPLICATE_CORE", () =>
-      assertOnePhysicalCore([
-        join(firstCore, "package.json"),
-        join(secondCore, "package.json"),
-      ]),
-    );
-    controls += 1;
+  const firstCore = join(root, "core-a");
+  const secondCore = join(root, "core-b");
+  mkdirSync(firstCore);
+  mkdirSync(secondCore);
+  writeJson(join(firstCore, "package.json"), { name: CORE_NAME });
+  writeJson(join(secondCore, "package.json"), { name: CORE_NAME });
+  expectFailure("duplicate core", "DUPLICATE_CORE", () =>
+    assertOnePhysicalCore([
+      join(firstCore, "package.json"),
+      join(secondCore, "package.json"),
+    ]),
+  );
+  controls += 1;
 
-    const zeroReport = join(root, "zero-tests.json");
-    writeJson(zeroReport, {
-      success: true,
-      numTotalTestSuites: 0,
-      numTotalTests: 0,
-      numPassedTests: 0,
-      numFailedTests: 0,
-      testResults: [],
-    });
-    expectFailure("zero-test JSON", "VITEST_ZERO", () =>
-      validatePositiveVitestReport(zeroReport, []),
-    );
-    controls += 1;
+  const zeroReport = join(root, "zero-tests.json");
+  writeJson(zeroReport, {
+    success: true,
+    numTotalTestSuites: 0,
+    numTotalTests: 0,
+    numPassedTests: 0,
+    numFailedTests: 0,
+    testResults: [],
+  });
+  expectFailure("zero-test JSON", "VITEST_ZERO", () =>
+    validatePositiveVitestReport(zeroReport, []),
+  );
+  controls += 1;
 
-    expectFailure("failed child", "CHILD_PROCESS", () =>
-      runChild(process.execPath, ["-e", "process.exit(23)"], {
-        label: "self-test failed child",
-      }),
-    );
-    controls += 1;
+  expectFailure("failed child", "CHILD_PROCESS", () =>
+    runChild(process.execPath, ["-e", "process.exit(23)"], {
+      label: "self-test failed child",
+    }),
+  );
+  controls += 1;
 
-    const toolingDrift = join(root, "consumer-tooling-drift");
-    mkdirSync(toolingDrift);
-    const toolingManifest = join(toolingDrift, "package.json");
-    const toolingLock = join(toolingDrift, "package-lock.json");
-    copyFileSync(CONSUMER_TOOLING_MANIFEST, toolingManifest);
-    copyFileSync(CONSUMER_TOOLING_LOCK, toolingLock);
-    const driftedLock = JSON.parse(readFileSync(toolingLock, "utf8"));
-    driftedLock.packages[""].dependencies.vitest = "0.0.0";
-    writeJson(toolingLock, driftedLock);
-    expectFailure("consumer tooling lock drift", "CONSUMER_TOOLING", () =>
-      loadConsumerToolingFixture(toolingManifest, toolingLock),
-    );
-    controls += 1;
+  const sentinelRepositoryCredential = "phase09-secret-package-repository";
+  const sentinelNpmCredential = "phase09-secret-package-npm";
+  const nested = createSecureChildEnvironment(
+    root,
+    {
+      PATH: secure.environment.PATH,
+      LANG: secure.environment.LANG,
+      gItHuB_ToKeN: sentinelRepositoryCredential,
+      nPm_CoNfIg_AuThToKeN: sentinelNpmCredential,
+      npm_config_registry: "https://hostile.invalid/",
+    },
+    { directoryName: "nested-child-environment" },
+  );
+  assert(
+    nested.environment.GITHUB_TOKEN === undefined &&
+      nested.environment.NODE_AUTH_TOKEN === undefined &&
+      nested.environment.NPM_CONFIG_AUTHTOKEN === undefined &&
+      nested.environment.NPM_CONFIG_REGISTRY === PHASE09_PUBLIC_NPM_REGISTRY &&
+      nested.environment.GIT_CONFIG_NOSYSTEM === "1" &&
+      nested.environment.PHASE09_CREDENTIAL_FREE_ENV === "1" &&
+      isPathWithin(nested.paths.home, root) &&
+      !isPathWithin(nested.paths.home, REPOSITORY_ROOT) &&
+      readFileSync(nested.paths.npmUserConfig, "utf8") === "" &&
+      readFileSync(nested.paths.npmGlobalConfig, "utf8") === "" &&
+      readFileSync(nested.paths.gitConfig, "utf8") === "",
+    "SELF_TEST",
+    "nested package child environment retained ambient authority or config",
+  );
+  controls += 1;
 
-    assert(controls === 7, "SELF_TEST", `expected seven controls, ran ${controls}`);
-    console.log(
-      `PHASE09_PACKAGE_SELF_TEST ${JSON.stringify({ controls, status: "passed" })}`,
-    );
-  } finally {
-    removeOwnedTempRoot(root);
-  }
+  const environmentProbe = runChild(
+    process.execPath,
+    ["-e", "process.stdout.write(JSON.stringify(process.env))"],
+    {
+      label: "nested secure child environment probe",
+      secureEnvironment: nested.environment,
+    },
+  );
+  const observedEnvironment = JSON.parse(environmentProbe.stdout);
+  assert(
+    observedEnvironment.GITHUB_TOKEN === undefined &&
+      observedEnvironment.NODE_AUTH_TOKEN === undefined &&
+      observedEnvironment.NPM_CONFIG_AUTHTOKEN === undefined &&
+      observedEnvironment.NPM_CONFIG_REGISTRY === PHASE09_PUBLIC_NPM_REGISTRY &&
+      observedEnvironment.HOME === nested.paths.home &&
+      observedEnvironment.NPM_CONFIG_USERCONFIG ===
+        nested.paths.npmUserConfig &&
+      observedEnvironment.NPM_CONFIG_GLOBALCONFIG ===
+        nested.paths.npmGlobalConfig &&
+      observedEnvironment.GIT_CONFIG_GLOBAL === nested.paths.gitConfig &&
+      !environmentProbe.stdout.includes(sentinelRepositoryCredential) &&
+      !environmentProbe.stdout.includes(sentinelNpmCredential) &&
+      !environmentProbe.stdout.includes("hostile.invalid"),
+    "SELF_TEST",
+    "nested package child probe observed an ambient credential or config",
+  );
+  controls += 1;
+
+  const toolingDrift = join(root, "consumer-tooling-drift");
+  mkdirSync(toolingDrift);
+  const toolingManifest = join(toolingDrift, "package.json");
+  const toolingLock = join(toolingDrift, "package-lock.json");
+  copyFileSync(CONSUMER_TOOLING_MANIFEST, toolingManifest);
+  copyFileSync(CONSUMER_TOOLING_LOCK, toolingLock);
+  const driftedLock = JSON.parse(readFileSync(toolingLock, "utf8"));
+  driftedLock.packages[""].dependencies.vitest = "0.0.0";
+  writeJson(toolingLock, driftedLock);
+  expectFailure("consumer tooling lock drift", "CONSUMER_TOOLING", () =>
+    loadConsumerToolingFixture(toolingManifest, toolingLock),
+  );
+  controls += 1;
+
+  assert(
+    controls === 9,
+    "SELF_TEST",
+    `expected nine controls, ran ${controls}`,
+  );
+  console.log(
+    `PHASE09_PACKAGE_SELF_TEST ${JSON.stringify({ controls, status: "passed" })}`,
+  );
 }
 
 function archiveDigestSummary(archives) {
@@ -1521,64 +1609,60 @@ function archiveDigestSummary(archives) {
   );
 }
 
-function runSubstantiveMode(mode) {
+function runSubstantiveMode(mode, root) {
   const exportDirectory = validateExportDirectory(mode);
-  const root = createOwnedTempRoot();
-  try {
-    const consumerTooling = prepareConsumerTooling(root);
-    const archives = buildAndPackTriplet(root);
-    const tarEntryCounts = validateTripletArtifacts(archives);
-    const digests = archiveDigestSummary(archives);
+  assertOwnedTempRoot(root);
+  const consumerTooling = prepareConsumerTooling(root);
+  const archives = buildAndPackTriplet(root);
+  const tarEntryCounts = validateTripletArtifacts(archives);
+  const digests = archiveDigestSummary(archives);
 
-    if (mode === "artifacts") {
-      const artifacts = runArtifactStage(root, archives, consumerTooling);
-      console.log(
-        `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", consumerTooling: consumerTooling.evidence, digests, tarEntryCounts, typescript: artifacts.typescript, serverTests: artifacts.serverTests, physicalCore: artifacts.consumer.topology.physicalCore })}`,
-      );
-      return;
-    }
-
-    if (mode === "svelte-consent") {
-      const consumer = createConsumer(
-        root,
-        archives,
-        "svelte-consent-consumer",
-        consumerTooling,
-      );
-      const consent = runSvelteConsentStage(consumer.directory);
-      console.log(
-        `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", consumerTooling: consumerTooling.evidence, digests, tarEntryCounts, consent })}`,
-      );
-      return;
-    }
-
-    if (mode === "mismatch") {
-      const mismatch = runMismatchStage(root, archives, consumerTooling);
-      console.log(
-        `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", consumerTooling: consumerTooling.evidence, digests, tarEntryCounts, mismatch })}`,
-      );
-      return;
-    }
-
+  if (mode === "artifacts") {
     const artifacts = runArtifactStage(root, archives, consumerTooling);
-    const consent = runSvelteConsentStage(artifacts.consumer.directory);
-    const mismatch = runMismatchStage(root, archives, consumerTooling);
-
-    if (exportDirectory !== null) {
-      exportArchives(exportDirectory, archives);
-    }
     console.log(
-      `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", consumerTooling: consumerTooling.evidence, archives: Object.fromEntries(PACKAGE_SPECS.map((spec) => [archives[spec.key].name, { file: basename(archives[spec.key].path), sha256: archives[spec.key].sha256 }])), tarEntryCounts, typescript: artifacts.typescript, serverTests: artifacts.serverTests, physicalCore: artifacts.consumer.topology.physicalCore, consent, mismatch, exported: exportDirectory !== null })}`,
+      `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", consumerTooling: consumerTooling.evidence, digests, tarEntryCounts, typescript: artifacts.typescript, serverTests: artifacts.serverTests, physicalCore: artifacts.consumer.topology.physicalCore })}`,
     );
-  } finally {
-    removeOwnedTempRoot(root);
+    return;
   }
+
+  if (mode === "svelte-consent") {
+    const consumer = createConsumer(
+      root,
+      archives,
+      "svelte-consent-consumer",
+      consumerTooling,
+    );
+    const consent = runSvelteConsentStage(consumer.directory);
+    console.log(
+      `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", consumerTooling: consumerTooling.evidence, digests, tarEntryCounts, consent })}`,
+    );
+    return;
+  }
+
+  if (mode === "mismatch") {
+    const mismatch = runMismatchStage(root, archives, consumerTooling);
+    console.log(
+      `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", consumerTooling: consumerTooling.evidence, digests, tarEntryCounts, mismatch })}`,
+    );
+    return;
+  }
+
+  const artifacts = runArtifactStage(root, archives, consumerTooling);
+  const consent = runSvelteConsentStage(artifacts.consumer.directory);
+  const mismatch = runMismatchStage(root, archives, consumerTooling);
+
+  if (exportDirectory !== null) {
+    exportArchives(exportDirectory, archives);
+  }
+  console.log(
+    `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", consumerTooling: consumerTooling.evidence, archives: Object.fromEntries(PACKAGE_SPECS.map((spec) => [archives[spec.key].name, { file: basename(archives[spec.key].path), sha256: archives[spec.key].sha256 }])), tarEntryCounts, typescript: artifacts.typescript, serverTests: artifacts.serverTests, physicalCore: artifacts.consumer.topology.physicalCore, consent, mismatch, exported: exportDirectory !== null })}`,
+  );
 }
 
 const mode = readMode(process.argv.slice(2));
 
 if (mode === "self-test") {
-  runSelfTests();
+  withOwnedChildEnvironment((root, secure) => runSelfTests(root, secure));
 } else {
-  runSubstantiveMode(mode);
+  withOwnedChildEnvironment((root) => runSubstantiveMode(mode, root));
 }
