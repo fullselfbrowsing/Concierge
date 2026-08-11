@@ -5,8 +5,19 @@ import { createRequestHarness } from "../shared/catalog.js";
 
 const renderId = process.env.ADAPTER_SSR_RENDER_ID ?? "normal-build";
 const harness = createRequestHarness(renderId);
+const globals = Object.freeze({
+  window: Reflect.has(globalThis, "window"),
+  document: Reflect.has(globalThis, "document"),
+  navigator: Reflect.has(globalThis, "navigator"),
+});
 
 const catalogJson = JSON.stringify(harness.react.catalog);
+let hash = 2_166_136_261;
+for (const character of catalogJson) {
+  hash ^= character.codePointAt(0) ?? 0;
+  hash = Math.imul(hash, 16_777_619);
+}
+const catalogDigest = (hash >>> 0).toString(16).padStart(8, "0");
 const evidenceJson = (): string =>
   JSON.stringify({
     schemaVersion: 1,
@@ -15,17 +26,15 @@ const evidenceJson = (): string =>
       react: "@fullselfbrowsing/concierge-react/client",
       svelte: "@fullselfbrowsing/concierge-svelte/client.svelte",
     },
-    globalsAbsent:
-      !Reflect.has(globalThis, "window") &&
-      !Reflect.has(globalThis, "document") &&
-      !Reflect.has(globalThis, "navigator"),
+    globals,
+    globalsAbsent: !globals.window && !globals.document && !globals.navigator,
     identities: {
       react: harness.react.identity,
       svelte: harness.svelte.identity,
       distinct: harness.react.identity !== harness.svelte.identity,
     },
     catalog: JSON.parse(catalogJson),
-    catalogDigest: catalogJson,
+    catalogDigest,
     catalogsShared:
       catalogJson === JSON.stringify(harness.svelte.catalog),
     instancesDistinct:
@@ -64,6 +73,7 @@ const evidenceJson = (): string =>
   preRegistry={harness.svelte.preRegistry}
 />
 <script
+  is:inline
   id="adapter-ssr-evidence"
   type="application/json"
   set:html={evidenceJson()}

@@ -26,7 +26,13 @@ function ReactEvidence({
   });
 
   return (
-    <data data-adapter-evidence="react" value={readIdentity()}>
+    <data
+      data-adapter-evidence="react"
+      data-concierge="exact"
+      data-entry="@fullselfbrowsing/concierge-react/client"
+      data-registry="null"
+      value={readIdentity()}
+    >
       {evidence}
     </data>
   );

@@ -27,4 +27,10 @@
   });
 </script>
 
-<data data-adapter-evidence="svelte" value={identity}>{evidence}</data>
+<data
+  data-adapter-evidence="svelte"
+  data-concierge="exact"
+  data-entry="@fullselfbrowsing/concierge-svelte/client.svelte"
+  data-registry="null"
+  value={identity}
+>{evidence}</data>
