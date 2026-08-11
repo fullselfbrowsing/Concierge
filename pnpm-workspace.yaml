@@ -17,6 +17,9 @@ packages:
   # packages/concierge/test/fixtures/probe.ts is not swallowed by this glob.
   - "packages/concierge/test/fixtures/*"
 
+allowBuilds:
+  esbuild: true
+
 # Version pins for the SECOND build toolchain, declared here before its consumer
 # exists. Nothing installs these today — a `catalog:` entry is a pin waiting for
 # a dependent, not a dependency — so `pnpm-lock.yaml` is unchanged by their
