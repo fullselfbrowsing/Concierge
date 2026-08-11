@@ -1,7 +1,13 @@
 {
   "schemaVersion": 1,
   "phase": "09-react-and-svelte-adapters",
-  "generatedAt": "2026-08-11T06:46:40.014Z",
+  "mode": "feature",
+  "releaseAuthorization": false,
+  "runAttempt": null,
+  "sharedVersion": null,
+  "consumedChangesets": [],
+  "versionReceipt": null,
+  "generatedAt": "2026-08-11T16:30:35.685Z",
   "registerDigest": "bb8afeb0c762859753c4d8542cb494b2a21675ce8f7696e6170c53ba2f4a7768",
   "expectedIds": [
     "M-09-R1",
@@ -15,12 +21,20 @@
   "releaseInputs": {
     "entries": [
       {
+        "path": ".changeset/bright-guides-connect.md",
+        "sha256": "1fa02b428ff41e0a28aa7fc59dd9658ee77996716d9862822389488207e4fafb"
+      },
+      {
+        "path": ".changeset/config.json",
+        "sha256": "e4ce1996d3dbaecd174e05800b64e676d8d3e6a9238b6ccfcad5119995d4c16d"
+      },
+      {
         "path": ".github/workflows/ci.yml",
-        "sha256": "7b715e37db17720e29d0a69a3cb9d3fb2ad9ec4c25bb15ca0edb02b8cffc2bf8"
+        "sha256": "86cfb0d265e0d8e9f484c2a273b8fa107f8fdc8d89e6bbf65a9c9bf70b725554"
       },
       {
         "path": ".github/workflows/release.yml",
-        "sha256": "fc73f52bccf2633bdd4e94efca7639a16bdde45f834d528750da6760d4cdb6e3"
+        "sha256": "1432c06adc1d27a2727ea1d73180e044b7e9b8b89ffe81dce4264acac5d88136"
       },
       {
         "path": ".gitignore",
@@ -28,7 +42,7 @@
       },
       {
         "path": ".planning/REQUIREMENTS.md",
-        "sha256": "80d5f6a86eef35383508a0dcbe746fca8431f0532a4ad737ec523d59b1a23d5c"
+        "sha256": "b92abd095fbf676a3c2de2902a9a664824be877024e6a34d0535bae9e2c22bd2"
       },
       {
         "path": ".planning/phases/08-consent-kernel/08-MUTATION-EVIDENCE.json",
@@ -68,15 +82,15 @@
       },
       {
         "path": "CONTRIBUTING.md",
-        "sha256": "75a71b6810efbf4e6def743464c4d6c413c3cb5ae6d5296316e137cfce8514b4"
+        "sha256": "d3bceb75476212896c1a80765ab712d02da3c0c52e3e955bbcd82b09f6078e43"
       },
       {
         "path": "README.md",
-        "sha256": "a9c03fbbbc659e44fc8044db280e61cb244ba5fe75f533f9c7370be95d6ab6ff"
+        "sha256": "79b9428eb17a909af280447252d7336e508ae44d100260fce980f5540a96cd9b"
       },
       {
         "path": "RELEASING.md",
-        "sha256": "c7d314be008cb47712a6e1eb7befa2357a2d6e888fb263df691aadf309b1c936"
+        "sha256": "7f9aeaf9ce4b7562b8ee6c3a2eaef204512683a2323d6b0b1ab4c1e50669d2d7"
       },
       {
         "path": "examples/adapter-ssr/astro.config.mjs",
@@ -92,7 +106,7 @@
       },
       {
         "path": "examples/adapter-ssr/src/components/SvelteIsland.svelte",
-        "sha256": "7f4fbf609820a485a228ff31868853bd9e8cbd67a11c98c99d8f254614cb52ba"
+        "sha256": "1e9fcfba40c923a819b784f1a225a3f845e65e6d10b55be64f78a091728665ae"
       },
       {
         "path": "examples/adapter-ssr/src/pages/index.astro",
@@ -112,7 +126,7 @@
       },
       {
         "path": "package.json",
-        "sha256": "ba4dc16056630c6c581ed1baf80f00eb119b7f01b3732d001fb466549eb6fd36"
+        "sha256": "ea37b45974b395a60aa5ecd9247d4e9d0d21549a14548b87c12dd4bfc9d6b1bb"
       },
       {
         "path": "packages/concierge-react/LICENSE",
@@ -124,7 +138,7 @@
       },
       {
         "path": "packages/concierge-react/package.json",
-        "sha256": "5f5265238680a7369fbb4ef789fd11e6bb2b265c2a1aa167beeadbb26fe763d6"
+        "sha256": "d364876638c5ff5157b173e782b1d47bdeae2f7b22247950a13035c9ae1ad019"
       },
       {
         "path": "packages/concierge-react/src/client.tsx",
@@ -160,15 +174,15 @@
       },
       {
         "path": "packages/concierge-svelte/README.md",
-        "sha256": "438e2d3e008697c807f45a220aecaccba3b44baba530c1272b720bb4e81f9316"
+        "sha256": "4fa55ffa482e8006254c62edfe1c371192354a34c15ead4484466c6e75fcb319"
       },
       {
         "path": "packages/concierge-svelte/package.json",
-        "sha256": "e4e90cc8e89e191ddd0252db98408431ce9522f6053ea494766b8eb60f13c4e7"
+        "sha256": "5e8e6eaf23963986d507c0952cdd7c38b5aed1920d094c25f5f75735b99fd486"
       },
       {
         "path": "packages/concierge-svelte/src/client.svelte.ts",
-        "sha256": "872c3b1b6d988904a0d2d9904de4a2497906a4e0bbe2e468ef44241b1db61dc7"
+        "sha256": "d87f496ba7e2c24e3bd9c32885979d3c74112c7f239cff216cdff08a4639f501"
       },
       {
         "path": "packages/concierge-svelte/src/index.ts",
@@ -180,15 +194,15 @@
       },
       {
         "path": "packages/concierge-svelte/test/Harness.svelte",
-        "sha256": "0bb9405733c82d1eb5c7b90e46733c6fb4b4cd64ff1d70cbe5fb722eb6367971"
+        "sha256": "2f05a030c7975c8c07e3f058275e84ea8b4f37e0800cdc124787aa800a16a328"
       },
       {
         "path": "packages/concierge-svelte/test/artifact.test.ts",
-        "sha256": "48e90eb6ee6ef5f9858090ad6d4289370ef03364b4b9ce06cf843dded95d5af8"
+        "sha256": "25e774473d30ecbf7f4de47c3519afff93cabfadf89fa8541978fc8fc14e7182"
       },
       {
         "path": "packages/concierge-svelte/test/lifecycle.test.ts",
-        "sha256": "d39a78d9370842211a3f722ea9227e177cce30f6f4024ba1a9f14d8db972756f"
+        "sha256": "f4005af2a96c10361e50101b044552d61ed6426625887edeaa08b946d09cf61d"
       },
       {
         "path": "packages/concierge-svelte/tsconfig.json",
@@ -455,6 +469,14 @@
         "sha256": "1b5fc7c438335194d6ca73483878b89b78dfc102f7b7f39558ca02f8bfd9b4cf"
       },
       {
+        "path": "scripts/fixtures/phase-09-foreign-consumer/package-lock.json",
+        "sha256": "b8c4a5ef4449e17ad346b608f955b60102a8d6b8ea7c83afe279b6ab7cd0cddf"
+      },
+      {
+        "path": "scripts/fixtures/phase-09-foreign-consumer/package.json",
+        "sha256": "d45c7525147dbb9176d71b3841603a4dbf7e865bea2a87c28c13f89be3706ccc"
+      },
+      {
         "path": "scripts/mutate-and-prove.sh",
         "sha256": "0e75a7d826fa93ce38ede26a56767cd0b211c415e6f29dc2cffb6123ea24ddb3"
       },
@@ -480,27 +502,39 @@
       },
       {
         "path": "scripts/phase-09-adapter-budget.mjs",
-        "sha256": "dd5a9675740d67b90adb772d57ffb8d2003911d724c73d93c25b9a18c908860c"
+        "sha256": "2b1b3f3398784e551aa8cd874ad637bf1cd650a38a8e3c6f27c1c0dd2ce2e30e"
       },
       {
         "path": "scripts/phase-09-contract-check.mjs",
-        "sha256": "62a6d699daa7c5b3c210c1275d632a3ff8bc140ba602892915cacd759cc1892d"
+        "sha256": "40cd0f57abb4b7f8997e454b56582559f3aba46e920b8c13384973c93f398bf8"
       },
       {
         "path": "scripts/phase-09-mutation-battery.mjs",
-        "sha256": "700f3f66a3c26a2a930a999102b48274fd09b1ca693f43612e55fdbb7644a651"
+        "sha256": "4fecb1d98dd7c28d285fa172cba8860cf6a58a0238f3fb26a7f363e07b2c62ba"
       },
       {
         "path": "scripts/phase-09-package-check.mjs",
-        "sha256": "51a5ac8062ff577a954a72564299090a9cf527198c3736adaeee20a44943d0ca"
+        "sha256": "944fe2435b1f56290fbb42ae55217a5658d4b6e50d2415032ac03f555240efa1"
+      },
+      {
+        "path": "scripts/phase-09-publish-archives.mjs",
+        "sha256": "693d53138dfe953056024a0eabc61c4e1f9b25f422b77fa7077220de912d6c67"
+      },
+      {
+        "path": "scripts/phase-09-secure-environment.mjs",
+        "sha256": "df740e09d51b7195d0980231577c010a7bd3265386bfcdb1a51cf35134e1473d"
       },
       {
         "path": "scripts/phase-09-test-check.mjs",
-        "sha256": "9b53184f80f1a5a1d250fa19786b13c5f040d6752490256e4cde8445f67d15dd"
+        "sha256": "44a637804b0f5268a170c73e0da307eb93c5f69f3265c5cfd1a18187c6f44e46"
+      },
+      {
+        "path": "scripts/phase-09-version.mjs",
+        "sha256": "f0b5c893353a3a70f931189ef3d27eaf4cecceadda194573fbb09fb04361f624"
       },
       {
         "path": "scripts/phase-09-workflow-check.mjs",
-        "sha256": "6a63412f3fb1e9b5bfbf51650daaa07f7c4fe69cb091013a1ecfa0bfcc994f1e"
+        "sha256": "8df6a3893f0587c496d61a472ec2da1fb9553639b4537fc876caf9cd7fd96fa2"
       },
       {
         "path": "scripts/pkg05-zero-runtime-deps.mjs",
@@ -515,7 +549,7 @@
         "sha256": "90b02f12185a4f364de7afd9a607ca19d1d6c4e36767fab398f40947de06266b"
       }
     ],
-    "digest": "8dd58a6bea6887579f2cd7499eb7cedb6585fcbf57728217701ad12c458e3175"
+    "digest": "fda5ae2cfa58db865a0f728edb6d6a78a21a542222b87221c73bfa814aef495d"
   },
   "phase08": {
     ".planning/phases/08-consent-kernel/08-MUTATION-REGISTER.json": "3285fb5ebfb5b3e9f39c63af4b951869b98a8cb7e36fe0e7bba2db9984e07853",
@@ -544,11 +578,11 @@
         "packages/concierge-react/test/lifecycle.test.tsx": "72e7899a7ab5eec4250ecc863141724571e4c328f3b3eee8a22c5eace739f0f4",
         "vitest.config.ts": "90b02f12185a4f364de7afd9a607ca19d1d6c4e36767fab398f40947de06266b"
       },
-      "revisionDigest": "4231dc21ad63014eed0b5005cbec4560d796bd8a19f7fb8629dd527af6609ff1",
+      "revisionDigest": "c46602fe4f68210d9fce85694b1615310a80fb2e0a5110e6fd03f8f0859ceca4",
       "compile": {
         "command": "pnpm --filter @fullselfbrowsing/concierge-react build",
         "exitCode": 0,
-        "outputDigest": "fcea2936f49734c33e8aee21953cf7c7d78906a4874b3c42ed1d9c7f05a20e71"
+        "outputDigest": "0f4ea29104173c543ca665180670f15c1e2bafd403c45e23498abbbc9b6e10e1"
       },
       "killer": {
         "command": "pnpm exec vitest run packages/concierge-react/test/lifecycle.test.tsx --project react-lifecycle --testNamePattern=T01/R1 --reporter=json --outputFile={report}",
@@ -560,14 +594,14 @@
           "assertions": 1
         },
         "assertionFingerprint": "T01/R1 observes setup-cleanup-setup, refuses stale same-object cleanup, and ends at null",
-        "outputDigest": "11cb3616bd9784900ffad20c1f1819fd5863e87e6a00741ec35b165d6b225354"
+        "outputDigest": "2c61cf6bbe857f7a11b17ccc4668f0a4bf89357c9703e166609a000894579a55"
       },
       "exactReplacementCount": 1,
       "compiled": true,
       "killed": true,
       "targetRestored": true,
       "liveTreeUnchanged": true,
-      "executedAt": "2026-08-11T06:45:05.524Z"
+      "executedAt": "2026-08-11T16:28:48.515Z"
     },
     {
       "id": "M-09-R2",
@@ -587,11 +621,11 @@
         "packages/concierge-react/test/lifecycle.test.tsx": "72e7899a7ab5eec4250ecc863141724571e4c328f3b3eee8a22c5eace739f0f4",
         "vitest.config.ts": "90b02f12185a4f364de7afd9a607ca19d1d6c4e36767fab398f40947de06266b"
       },
-      "revisionDigest": "94316d0fb4b680096547c04df129da943111f5c636f37c10eafdeb0be1734cca",
+      "revisionDigest": "c1672f43b89959d4a9de5333dfcd9eb996f960e69ec3b344d06f6a5da81029a3",
       "compile": {
         "command": "pnpm --filter @fullselfbrowsing/concierge-react build",
         "exitCode": 0,
-        "outputDigest": "1f01b71bbd4cc3ce7d08a037d6c1fba3838850c2b8ee7a979da86c2109b5c065"
+        "outputDigest": "90b876c3c06b5a5e94bda369b1d27b3c96b3648653771b7b8c7e52d1e6d12d25"
       },
       "killer": {
         "command": "pnpm exec vitest run packages/concierge-react/test/lifecycle.test.tsx --project react-lifecycle --testNamePattern=T02/R2 --reporter=json --outputFile={report}",
@@ -603,14 +637,14 @@
           "assertions": 1
         },
         "assertionFingerprint": "T02/R2 reads the latest committed plain nested value through the existing core bridge",
-        "outputDigest": "12cc67767525faeac8e1a95337332805d8029f2ea091f1d20beee47a0f59f9ca"
+        "outputDigest": "d5c2a03a4a59660a29e7b96a5bdfa20a3d425ae8edc190ffc169926f1b6c1565"
       },
       "exactReplacementCount": 1,
       "compiled": true,
       "killed": true,
       "targetRestored": true,
       "liveTreeUnchanged": true,
-      "executedAt": "2026-08-11T06:45:10.303Z"
+      "executedAt": "2026-08-11T16:29:00.019Z"
     },
     {
       "id": "M-09-S1",
@@ -625,13 +659,15 @@
         "D-09-12"
       ],
       "definitionDigest": "9e0d0c616b760e63ac7182f5726239b566f78c4e30c442820975b0dd268535b2",
-      "originalTargetHash": "872c3b1b6d988904a0d2d9904de4a2497906a4e0bbe2e468ef44241b1db61dc7",
-      "mutantTargetHash": "29874d6b3257203cdb1110d04d4ea0bddbb8c7deca11544668ef06fcc7790c76",
+      "originalTargetHash": "d87f496ba7e2c24e3bd9c32885979d3c74112c7f239cff216cdff08a4639f501",
+      "mutantTargetHash": "d32c115c23624aeb55e53d48d131d314e047e0d174c0ce9fd50f4a59276a3792",
       "testHashes": {
-        "scripts/phase-09-package-check.mjs": "51a5ac8062ff577a954a72564299090a9cf527198c3736adaeee20a44943d0ca",
-        "packages/concierge-svelte/test/lifecycle.test.ts": "d39a78d9370842211a3f722ea9227e177cce30f6f4024ba1a9f14d8db972756f"
+        "scripts/phase-09-package-check.mjs": "944fe2435b1f56290fbb42ae55217a5658d4b6e50d2415032ac03f555240efa1",
+        "scripts/fixtures/phase-09-foreign-consumer/package.json": "d45c7525147dbb9176d71b3841603a4dbf7e865bea2a87c28c13f89be3706ccc",
+        "scripts/fixtures/phase-09-foreign-consumer/package-lock.json": "b8c4a5ef4449e17ad346b608f955b60102a8d6b8ea7c83afe279b6ab7cd0cddf",
+        "packages/concierge-svelte/test/lifecycle.test.ts": "f4005af2a96c10361e50101b044552d61ed6426625887edeaa08b946d09cf61d"
       },
-      "revisionDigest": "29ccc866a6732effc4594b4aea3a2f41f58f02d4c52ae5b8cfeb3776efddfd7f",
+      "revisionDigest": "6160bc6326c31112f69a5b9bcbd7c14060454178a816f8d21a41c279368214d0",
       "compile": {
         "command": "pnpm --filter @fullselfbrowsing/concierge-svelte build",
         "exitCode": 0,
@@ -647,14 +683,14 @@
           "assertions": 1
         },
         "assertionFingerprint": "[T03/S1] closes completed review after nested live mutation",
-        "outputDigest": "f4983763a49ef88911fa01a8967ced5b32b21cf547b82b3807916735c637edb4"
+        "outputDigest": "70c0dc34218863fd531549a4d656a27e6f57653be7dfa165f9d973753e937526"
       },
       "exactReplacementCount": 1,
       "compiled": true,
       "killed": true,
       "targetRestored": true,
       "liveTreeUnchanged": true,
-      "executedAt": "2026-08-11T06:45:20.884Z"
+      "executedAt": "2026-08-11T16:29:05.845Z"
     },
     {
       "id": "M-09-SSR1",
@@ -675,11 +711,11 @@
         "examples/adapter-ssr/test/ssr.test.ts": "c2c16ada0f66bc6379b3ebb3fbc292dc343ea8431be540e4d30b79ea901148b9",
         "vitest.config.ts": "90b02f12185a4f364de7afd9a607ca19d1d6c4e36767fab398f40947de06266b"
       },
-      "revisionDigest": "66e82e71f7b4fcf6cc6287cd471d111acb17f96984a9c85d43411a389fe13153",
+      "revisionDigest": "26fc88edb3e397ec6bab0fc8279133bf008fe65638e6b8f719453d0b3015fbed",
       "compile": {
         "command": "pnpm --filter @fullselfbrowsing/concierge-react build",
         "exitCode": 0,
-        "outputDigest": "71da68db9c736e2a168a39cd08856c33aa11b8000b03a03fbec7cd24ac2b3475"
+        "outputDigest": "bbcda9dd155ab87ed424dad0b80903057808ca671915c270ca5ce8aa619e67a9"
       },
       "killer": {
         "command": "pnpm exec vitest run examples/adapter-ssr/test/ssr.test.ts --project node-artifact-ssr --testNamePattern=T04/SSR1 --reporter=json --outputFile={report}",
@@ -691,14 +727,14 @@
           "assertions": 1
         },
         "assertionFingerprint": "T04/SSR1 proves two fresh normal builds remain registration-silent",
-        "outputDigest": "d249fa03ea546fe15e6d43d9f8f5f971ef3f6dadfa011cd5bcaeb6b98648cd95"
+        "outputDigest": "c484b295b8275003843a24e825c394325f1581746ff8de49941ad9f0be97e7fc"
       },
       "exactReplacementCount": 1,
       "compiled": true,
       "killed": true,
       "targetRestored": true,
       "liveTreeUnchanged": true,
-      "executedAt": "2026-08-11T06:45:21.005Z"
+      "executedAt": "2026-08-11T16:28:54.149Z"
     },
     {
       "id": "M-09-B1",
@@ -712,12 +748,12 @@
         "D-09-13"
       ],
       "definitionDigest": "c39b1d0b5990aa0c6ab56909044b3caa75059bcd8bc1de0d34f45831bfb04d65",
-      "originalTargetHash": "dd5a9675740d67b90adb772d57ffb8d2003911d724c73d93c25b9a18c908860c",
-      "mutantTargetHash": "5ed9f53230c6a0adaceaa5473cb34f8c40d95154d1884d5e4b4070f657785157",
+      "originalTargetHash": "2b1b3f3398784e551aa8cd874ad637bf1cd650a38a8e3c6f27c1c0dd2ce2e30e",
+      "mutantTargetHash": "c417682218fc2a8e016ad0effd100d314adf2703f5cd8b962a377432e7230fe1",
       "testHashes": {
-        "scripts/phase-09-adapter-budget.mjs": "dd5a9675740d67b90adb772d57ffb8d2003911d724c73d93c25b9a18c908860c"
+        "scripts/phase-09-adapter-budget.mjs": "2b1b3f3398784e551aa8cd874ad637bf1cd650a38a8e3c6f27c1c0dd2ce2e30e"
       },
-      "revisionDigest": "316f5fe0ed5a166091f3f2c31cfdeb11416e99c097b4ab7903e3b21487205ae6",
+      "revisionDigest": "7a1ce6a0fb45dd30d7b520780b2d8c9e1f443d89665d5eb8eb06ba0bb2638f96",
       "compile": {
         "command": "node --check scripts/phase-09-adapter-budget.mjs",
         "exitCode": 0,
@@ -740,7 +776,7 @@
       "killed": true,
       "targetRestored": true,
       "liveTreeUnchanged": true,
-      "executedAt": "2026-08-11T06:45:15.195Z"
+      "executedAt": "2026-08-11T16:29:05.933Z"
     },
     {
       "id": "M-09-P1",
@@ -755,16 +791,18 @@
         "D-09-16"
       ],
       "definitionDigest": "4ebaeccc93d0e84bf77c5b7d719cd6f870365924e0be01de903ac915efdd1aa9",
-      "originalTargetHash": "5f5265238680a7369fbb4ef789fd11e6bb2b265c2a1aa167beeadbb26fe763d6",
-      "mutantTargetHash": "23838119b48e0eb49deab2e5fae03345a4f29bf4ef716ec2bae0c4b02be45b9e",
+      "originalTargetHash": "d364876638c5ff5157b173e782b1d47bdeae2f7b22247950a13035c9ae1ad019",
+      "mutantTargetHash": "9f3208b2b379f112af8ca6e8c3e7225c5253758841e601e46d4b478947c5cbb1",
       "testHashes": {
-        "scripts/phase-09-package-check.mjs": "51a5ac8062ff577a954a72564299090a9cf527198c3736adaeee20a44943d0ca"
+        "scripts/phase-09-package-check.mjs": "944fe2435b1f56290fbb42ae55217a5658d4b6e50d2415032ac03f555240efa1",
+        "scripts/fixtures/phase-09-foreign-consumer/package.json": "d45c7525147dbb9176d71b3841603a4dbf7e865bea2a87c28c13f89be3706ccc",
+        "scripts/fixtures/phase-09-foreign-consumer/package-lock.json": "b8c4a5ef4449e17ad346b608f955b60102a8d6b8ea7c83afe279b6ab7cd0cddf"
       },
-      "revisionDigest": "08222d96eb59c1c73780e8ff29a34bf6992a7bfbc5d42e18f0bfbb714852de69",
+      "revisionDigest": "f84cc1d325bdba4abc55125ad2ea763eb45347566c36d558f57c83869653c200",
       "compile": {
         "command": "pnpm --filter @fullselfbrowsing/concierge-react build",
         "exitCode": 0,
-        "outputDigest": "9bc0e17e324dea35cadab21e951f3f987252a3bff9f796d27f1e4982e3fa1ff5"
+        "outputDigest": "53286cde5f7e9a365e3aa5868005c5b0f604891c6587bb4bdca2125439ad3dc3"
       },
       "killer": {
         "command": "node scripts/phase-09-package-check.mjs artifacts",
@@ -776,14 +814,14 @@
           "assertions": 1
         },
         "assertionFingerprint": "[ADAPTER_MANIFEST] @fullselfbrowsing/concierge-react live manifest must keep core peer+dev only",
-        "outputDigest": "ca830a4aa15cd41211414d58d912a452831778649c9499ba7ea73ed9bcd52c5d"
+        "outputDigest": "32f93e19a7b825b5faa668137c187dce46ce3b4d5ba45ebda17808b0e8b232bb"
       },
       "exactReplacementCount": 1,
       "compiled": true,
       "killed": true,
       "targetRestored": true,
       "liveTreeUnchanged": true,
-      "executedAt": "2026-08-11T06:45:26.712Z"
+      "executedAt": "2026-08-11T16:29:16.361Z"
     },
     {
       "id": "M-09-C1",
@@ -801,14 +839,16 @@
       "originalTargetHash": "5461662f7a4b4d77ab202f03b270c9a191418de07bf57d4c7e9266e5bd1c0c09",
       "mutantTargetHash": "36418e0326b26948777765d86949679bfef279de55ab9395dcf1fdf092c84beb",
       "testHashes": {
-        "scripts/phase-09-package-check.mjs": "51a5ac8062ff577a954a72564299090a9cf527198c3736adaeee20a44943d0ca",
+        "scripts/phase-09-package-check.mjs": "944fe2435b1f56290fbb42ae55217a5658d4b6e50d2415032ac03f555240efa1",
+        "scripts/fixtures/phase-09-foreign-consumer/package.json": "d45c7525147dbb9176d71b3841603a4dbf7e865bea2a87c28c13f89be3706ccc",
+        "scripts/fixtures/phase-09-foreign-consumer/package-lock.json": "b8c4a5ef4449e17ad346b608f955b60102a8d6b8ea7c83afe279b6ab7cd0cddf",
         "packages/concierge-react/test/lifecycle.test.tsx": "72e7899a7ab5eec4250ecc863141724571e4c328f3b3eee8a22c5eace739f0f4"
       },
-      "revisionDigest": "792678d35644042f3d106496e268f96ff3f1ff17551cf5837a665a0762e4bd73",
+      "revisionDigest": "3917bdd8bafe6bc49f7fc2c9701e8716faabee4b43c6bc061219829e378cc64d",
       "compile": {
         "command": "pnpm --filter @fullselfbrowsing/concierge-react build",
         "exitCode": 0,
-        "outputDigest": "6518390b6d601e2f9335e807d4dc51c1589fd7ff0548dfceefc6742d10446bdd"
+        "outputDigest": "390422618d3a9a234935edad0fa7a03cdd821475c4a7d85804c6d746314018f9"
       },
       "killer": {
         "command": "node scripts/phase-09-package-check.mjs mismatch",
@@ -820,15 +860,15 @@
           "assertions": 1
         },
         "assertionFingerprint": "fails through the public hook before registry registration",
-        "outputDigest": "f1b821bbd9f346b698228b86c7ee0501e802828601d1d47ca0d505b79ed33c7c"
+        "outputDigest": "ea5949c33597ef3f60941e9d883de4524699e7f714106b6748998bc6bf5a9e0b"
       },
       "exactReplacementCount": 1,
       "compiled": true,
       "killed": true,
       "targetRestored": true,
       "liveTreeUnchanged": true,
-      "executedAt": "2026-08-11T06:45:35.327Z"
+      "executedAt": "2026-08-11T16:29:23.739Z"
     }
   ],
-  "contentDigest": "5339b2bca3e8251b5c47651fbb5c4524eab796bc9b974b0910efdd50214b51cd"
+  "contentDigest": "90c39b51139c0aa915f079ef8dda001675bbccfa3de49a12a97c393de03c9492"
 }

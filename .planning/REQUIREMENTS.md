@@ -12,7 +12,7 @@
 
 - [x] **CAT-01**: Developer declares an action once — name, description, schema, redaction, handler — and the name set, literal union type, per-stage catalogs, emitted JSON Schema, and redaction policy are all derived from that single declaration
 - [x] **CAT-02**: Catalog build throws, naming the offending action, when an action's emitted JSON Schema root is not `type: "object"`
-- [ ] **CAT-03**: Catalog build throws when a `consent.requires` target does not exist in the catalog
+- [x] **CAT-03**: Catalog build throws when a `consent.requires` target does not exist in the catalog
 - [x] **CAT-04**: Catalog build throws when an action's `consent.minGrade` exceeds what the configured transport declares it can promise
 - [x] **CAT-05**: Catalog build emits a warning when an action declares `effects.destructive` without a consent policy
 - [x] **CAT-06**: Developer can supply an explicit `jsonSchema` for validators that do not implement Standard JSON Schema, and the catalog uses it in preference to derivation
@@ -40,10 +40,10 @@
 
 ### Stages
 
-- [ ] **STG-01**: The catalog offered to the agent contains only the actions valid for the current stage, plus cross-stage actions
-- [ ] **STG-02**: Stage matching is evaluated in declaration order, first match wins, and the order does not depend on stage naming
-- [ ] **STG-03**: Stage matching evaluates arbitrary app context, not only pathname
-- [ ] **STG-04**: `catalogFor` returns a memoized frozen array, so repeated calls with equivalent context yield a referentially identical result
+- [x] **STG-01**: The catalog offered to the agent contains only the actions valid for the current stage, plus cross-stage actions
+- [x] **STG-02**: Stage matching is evaluated in declaration order, first match wins, and the order does not depend on stage naming
+- [x] **STG-03**: Stage matching evaluates arbitrary app context, not only pathname
+- [x] **STG-04**: `catalogFor` returns a memoized frozen array, so repeated calls with equivalent context yield a referentially identical result
 
 ### Consent
 
@@ -99,7 +99,7 @@
 
 ### Developer experience
 
-- [ ] **DX-01**: `concierge.explain()` reports the active stage, which bridges are registered, and the current catalog, so a developer can diagnose "why didn't my action fire" without a debugger
+- [x] **DX-01**: `concierge.explain()` reports the active stage, which bridges are registered, and the current catalog, so a developer can diagnose "why didn't my action fire" without a debugger
 - [x] **DX-02**: An action can run against DOM or router state with no bridge registered, so an app gets value before instrumenting its components
 - [x] **DX-03**: Every build-time error names the offending action and states the fix
 
@@ -156,7 +156,7 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 |---|---|---|
 | CAT-01 | Phase 3 — Action declaration and build-time validation; **closed by Phase 4 — Stages, catalog assembly, and explain()** | Complete — Phase 3 shipped 4/5 derived artifacts; the fifth, `per-stage catalogs`, ships as `createConcierge().catalogFor` (plan 04-03, exported and implemented). Evidence: 04-05 S1/S2 |
 | CAT-02 | Phase 3 — Action declaration and build-time validation | Complete |
-| CAT-03 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
+| CAT-03 | Phase 4 — Stages, catalog assembly, and explain() | Complete — Phase 4 verification and the v0.1 milestone integration audit confirm missing consent targets are rejected with action-specific diagnostics. |
 | CAT-04 | Phase 8 — Consent kernel | Complete — 08-02 C27-C29 enforce the inherent delivered floor and aggregate grade/provenance/seam faults; M-08-C01/C04/C07 independently kill floor and capability regressions. |
 | CAT-05 | Phase 3 — Action declaration and build-time validation | Complete |
 | CAT-06 | Phase 3 — Action declaration and build-time validation | Complete |
@@ -175,10 +175,10 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | BRG-03 | Phase 5 — Bridge registry and the no-bridge path | Complete — Phase 5 proves registry resolution and honest `no_bridge` handling (05-05 D14–D19, M-05-12…M-05-14); Phase 6 closes the real-dispatch join: R52 passes the mounted live bridge, R53 resolves an absent bridge to `null` at the handler, R54 turns a throwing `read()` into `null`, and M-06-S24 kills `resolveBridge` bypass. |
 | BRG-04 | Phase 5 — Bridge registry and the no-bridge path | Complete — the unsubscriber is guarded on a monotonic token, so a stale cleanup is refused even when the replacement is `===` the original. M-05-1 reddens exactly the four discriminating orderings. Evidence: 05-04 B10–B13 |
 | BRG-05 | Phase 5 — Bridge registry and the no-bridge path | Complete — a structural clone detaches an accessor-backed `Proxy` while leaving the host store unfrozen; discriminated by M-05-3, M-05-4, M-05-5, M-05-6, M-05-9. The framework half (React StrictMode, Svelte `$state.snapshot`) is Phase 9's. Evidence: 05-05 D1–D13 |
-| STG-01 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
-| STG-02 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
-| STG-03 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
-| STG-04 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
+| STG-01 | Phase 4 — Stages, catalog assembly, and explain() | Complete — Phase 4 verification and the v0.1 milestone integration audit confirm current-stage plus cross-stage projection. |
+| STG-02 | Phase 4 — Stages, catalog assembly, and explain() | Complete — Phase 4 verification confirms declaration-order, first-match behavior independent of stage naming. |
+| STG-03 | Phase 4 — Stages, catalog assembly, and explain() | Complete — Phase 4 verification confirms matching against arbitrary nested application context. |
+| STG-04 | Phase 4 — Stages, catalog assembly, and explain() | Complete — Phase 4 verification and the v0.1 milestone integration audit confirm frozen referential memoization. |
 | CON-01 | Phase 8 — Consent kernel | Complete — 08-03 K01 and the 08-06 public fixture flow fail closed without a review; M-08-G01 proves the ledger guard is load-bearing. |
 | CON-02 | Phase 8 — Consent kernel | Complete — 08-03 K14 rejects same or forgeable boundaries while preserving a later genuine turn; M-08-G06 kills the boundary bypass. |
 | CON-03 | Phase 8 — Consent kernel | Complete — 08-03 K03-K08 arm only from an owned completed delivery; M-08-G01..G04 kill review-return, interrupted, stale, and ownership defects. |
@@ -213,6 +213,6 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | PKG-03 | Phase 2 — Packaging, build, and release | Complete |
 | PKG-04 | Phase 2 — Packaging, build, and release | Complete |
 | PKG-05 | Phase 2 — Packaging, build, and release | Complete |
-| DX-01 | Phase 4 — Stages, catalog assembly, and explain() | Pending |
+| DX-01 | Phase 4 — Stages, catalog assembly, and explain() | Complete — Phase 4 verification confirms `explain()` reports stage, bridge status, and the live catalog. |
 | DX-02 | Phase 5 — Bridge registry and the no-bridge path | Complete — proven in both variants: a stage declaring no bridge, and a stage declaring one with nothing registered. Both run their handler, which returns `{ok:true}` with `ctx.bridge` null; core never auto-fails an action over an unmounted bridge. Evidence: 05-05 D20/D21, 05-02 `resolveBridge` |
 | DX-03 | Phase 3 — Action declaration and build-time validation | Complete |

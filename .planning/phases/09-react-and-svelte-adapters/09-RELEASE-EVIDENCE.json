@@ -1,17 +1,31 @@
 {
   "schemaVersion": 1,
   "phase": "09-react-and-svelte-adapters",
-  "generatedAt": "2026-08-11T06:46:40.014Z",
+  "mode": "feature",
+  "releaseAuthorization": false,
+  "runAttempt": null,
+  "sharedVersion": null,
+  "consumedChangesets": [],
+  "versionReceipt": null,
+  "generatedAt": "2026-08-11T16:30:35.687Z",
   "registerDigest": "bb8afeb0c762859753c4d8542cb494b2a21675ce8f7696e6170c53ba2f4a7768",
   "releaseInputs": {
     "entries": [
       {
+        "path": ".changeset/bright-guides-connect.md",
+        "sha256": "1fa02b428ff41e0a28aa7fc59dd9658ee77996716d9862822389488207e4fafb"
+      },
+      {
+        "path": ".changeset/config.json",
+        "sha256": "e4ce1996d3dbaecd174e05800b64e676d8d3e6a9238b6ccfcad5119995d4c16d"
+      },
+      {
         "path": ".github/workflows/ci.yml",
-        "sha256": "7b715e37db17720e29d0a69a3cb9d3fb2ad9ec4c25bb15ca0edb02b8cffc2bf8"
+        "sha256": "86cfb0d265e0d8e9f484c2a273b8fa107f8fdc8d89e6bbf65a9c9bf70b725554"
       },
       {
         "path": ".github/workflows/release.yml",
-        "sha256": "fc73f52bccf2633bdd4e94efca7639a16bdde45f834d528750da6760d4cdb6e3"
+        "sha256": "1432c06adc1d27a2727ea1d73180e044b7e9b8b89ffe81dce4264acac5d88136"
       },
       {
         "path": ".gitignore",
@@ -19,7 +33,7 @@
       },
       {
         "path": ".planning/REQUIREMENTS.md",
-        "sha256": "80d5f6a86eef35383508a0dcbe746fca8431f0532a4ad737ec523d59b1a23d5c"
+        "sha256": "b92abd095fbf676a3c2de2902a9a664824be877024e6a34d0535bae9e2c22bd2"
       },
       {
         "path": ".planning/phases/08-consent-kernel/08-MUTATION-EVIDENCE.json",
@@ -59,15 +73,15 @@
       },
       {
         "path": "CONTRIBUTING.md",
-        "sha256": "75a71b6810efbf4e6def743464c4d6c413c3cb5ae6d5296316e137cfce8514b4"
+        "sha256": "d3bceb75476212896c1a80765ab712d02da3c0c52e3e955bbcd82b09f6078e43"
       },
       {
         "path": "README.md",
-        "sha256": "a9c03fbbbc659e44fc8044db280e61cb244ba5fe75f533f9c7370be95d6ab6ff"
+        "sha256": "79b9428eb17a909af280447252d7336e508ae44d100260fce980f5540a96cd9b"
       },
       {
         "path": "RELEASING.md",
-        "sha256": "c7d314be008cb47712a6e1eb7befa2357a2d6e888fb263df691aadf309b1c936"
+        "sha256": "7f9aeaf9ce4b7562b8ee6c3a2eaef204512683a2323d6b0b1ab4c1e50669d2d7"
       },
       {
         "path": "examples/adapter-ssr/astro.config.mjs",
@@ -83,7 +97,7 @@
       },
       {
         "path": "examples/adapter-ssr/src/components/SvelteIsland.svelte",
-        "sha256": "7f4fbf609820a485a228ff31868853bd9e8cbd67a11c98c99d8f254614cb52ba"
+        "sha256": "1e9fcfba40c923a819b784f1a225a3f845e65e6d10b55be64f78a091728665ae"
       },
       {
         "path": "examples/adapter-ssr/src/pages/index.astro",
@@ -103,7 +117,7 @@
       },
       {
         "path": "package.json",
-        "sha256": "ba4dc16056630c6c581ed1baf80f00eb119b7f01b3732d001fb466549eb6fd36"
+        "sha256": "ea37b45974b395a60aa5ecd9247d4e9d0d21549a14548b87c12dd4bfc9d6b1bb"
       },
       {
         "path": "packages/concierge-react/LICENSE",
@@ -115,7 +129,7 @@
       },
       {
         "path": "packages/concierge-react/package.json",
-        "sha256": "5f5265238680a7369fbb4ef789fd11e6bb2b265c2a1aa167beeadbb26fe763d6"
+        "sha256": "d364876638c5ff5157b173e782b1d47bdeae2f7b22247950a13035c9ae1ad019"
       },
       {
         "path": "packages/concierge-react/src/client.tsx",
@@ -151,15 +165,15 @@
       },
       {
         "path": "packages/concierge-svelte/README.md",
-        "sha256": "438e2d3e008697c807f45a220aecaccba3b44baba530c1272b720bb4e81f9316"
+        "sha256": "4fa55ffa482e8006254c62edfe1c371192354a34c15ead4484466c6e75fcb319"
       },
       {
         "path": "packages/concierge-svelte/package.json",
-        "sha256": "e4e90cc8e89e191ddd0252db98408431ce9522f6053ea494766b8eb60f13c4e7"
+        "sha256": "5e8e6eaf23963986d507c0952cdd7c38b5aed1920d094c25f5f75735b99fd486"
       },
       {
         "path": "packages/concierge-svelte/src/client.svelte.ts",
-        "sha256": "872c3b1b6d988904a0d2d9904de4a2497906a4e0bbe2e468ef44241b1db61dc7"
+        "sha256": "d87f496ba7e2c24e3bd9c32885979d3c74112c7f239cff216cdff08a4639f501"
       },
       {
         "path": "packages/concierge-svelte/src/index.ts",
@@ -171,15 +185,15 @@
       },
       {
         "path": "packages/concierge-svelte/test/Harness.svelte",
-        "sha256": "0bb9405733c82d1eb5c7b90e46733c6fb4b4cd64ff1d70cbe5fb722eb6367971"
+        "sha256": "2f05a030c7975c8c07e3f058275e84ea8b4f37e0800cdc124787aa800a16a328"
       },
       {
         "path": "packages/concierge-svelte/test/artifact.test.ts",
-        "sha256": "48e90eb6ee6ef5f9858090ad6d4289370ef03364b4b9ce06cf843dded95d5af8"
+        "sha256": "25e774473d30ecbf7f4de47c3519afff93cabfadf89fa8541978fc8fc14e7182"
       },
       {
         "path": "packages/concierge-svelte/test/lifecycle.test.ts",
-        "sha256": "d39a78d9370842211a3f722ea9227e177cce30f6f4024ba1a9f14d8db972756f"
+        "sha256": "f4005af2a96c10361e50101b044552d61ed6426625887edeaa08b946d09cf61d"
       },
       {
         "path": "packages/concierge-svelte/tsconfig.json",
@@ -446,6 +460,14 @@
         "sha256": "1b5fc7c438335194d6ca73483878b89b78dfc102f7b7f39558ca02f8bfd9b4cf"
       },
       {
+        "path": "scripts/fixtures/phase-09-foreign-consumer/package-lock.json",
+        "sha256": "b8c4a5ef4449e17ad346b608f955b60102a8d6b8ea7c83afe279b6ab7cd0cddf"
+      },
+      {
+        "path": "scripts/fixtures/phase-09-foreign-consumer/package.json",
+        "sha256": "d45c7525147dbb9176d71b3841603a4dbf7e865bea2a87c28c13f89be3706ccc"
+      },
+      {
         "path": "scripts/mutate-and-prove.sh",
         "sha256": "0e75a7d826fa93ce38ede26a56767cd0b211c415e6f29dc2cffb6123ea24ddb3"
       },
@@ -471,27 +493,39 @@
       },
       {
         "path": "scripts/phase-09-adapter-budget.mjs",
-        "sha256": "dd5a9675740d67b90adb772d57ffb8d2003911d724c73d93c25b9a18c908860c"
+        "sha256": "2b1b3f3398784e551aa8cd874ad637bf1cd650a38a8e3c6f27c1c0dd2ce2e30e"
       },
       {
         "path": "scripts/phase-09-contract-check.mjs",
-        "sha256": "62a6d699daa7c5b3c210c1275d632a3ff8bc140ba602892915cacd759cc1892d"
+        "sha256": "40cd0f57abb4b7f8997e454b56582559f3aba46e920b8c13384973c93f398bf8"
       },
       {
         "path": "scripts/phase-09-mutation-battery.mjs",
-        "sha256": "700f3f66a3c26a2a930a999102b48274fd09b1ca693f43612e55fdbb7644a651"
+        "sha256": "4fecb1d98dd7c28d285fa172cba8860cf6a58a0238f3fb26a7f363e07b2c62ba"
       },
       {
         "path": "scripts/phase-09-package-check.mjs",
-        "sha256": "51a5ac8062ff577a954a72564299090a9cf527198c3736adaeee20a44943d0ca"
+        "sha256": "944fe2435b1f56290fbb42ae55217a5658d4b6e50d2415032ac03f555240efa1"
+      },
+      {
+        "path": "scripts/phase-09-publish-archives.mjs",
+        "sha256": "693d53138dfe953056024a0eabc61c4e1f9b25f422b77fa7077220de912d6c67"
+      },
+      {
+        "path": "scripts/phase-09-secure-environment.mjs",
+        "sha256": "df740e09d51b7195d0980231577c010a7bd3265386bfcdb1a51cf35134e1473d"
       },
       {
         "path": "scripts/phase-09-test-check.mjs",
-        "sha256": "9b53184f80f1a5a1d250fa19786b13c5f040d6752490256e4cde8445f67d15dd"
+        "sha256": "44a637804b0f5268a170c73e0da307eb93c5f69f3265c5cfd1a18187c6f44e46"
+      },
+      {
+        "path": "scripts/phase-09-version.mjs",
+        "sha256": "f0b5c893353a3a70f931189ef3d27eaf4cecceadda194573fbb09fb04361f624"
       },
       {
         "path": "scripts/phase-09-workflow-check.mjs",
-        "sha256": "6a63412f3fb1e9b5bfbf51650daaa07f7c4fe69cb091013a1ecfa0bfcc994f1e"
+        "sha256": "8df6a3893f0587c496d61a472ec2da1fb9553639b4537fc876caf9cd7fd96fa2"
       },
       {
         "path": "scripts/pkg05-zero-runtime-deps.mjs",
@@ -506,11 +540,11 @@
         "sha256": "90b02f12185a4f364de7afd9a607ca19d1d6c4e36767fab398f40947de06266b"
       }
     ],
-    "digest": "8dd58a6bea6887579f2cd7499eb7cedb6585fcbf57728217701ad12c458e3175"
+    "digest": "fda5ae2cfa58db865a0f728edb6d6a78a21a542222b87221c73bfa814aef495d"
   },
-  "mutationEvidenceDigest": "cf4a003befbd58c0123a76e5fd437f80078373e23677fbc574fbc074cef5b087",
-  "validationDigest": "55813181686b0a0ed37906d9cd76f9cb9427cc37242ab7fed5d47020528e84e1",
-  "securityDigest": "ee0fa75177e82f71d88daeee022904bcea5b50699b9a68aa77cc00c4b8867c29",
+  "mutationEvidenceDigest": "721fc3562bf73001d5e961dcb369b5cfeafe36cc549c360bace26ab6696cb5c1",
+  "validationDigest": "2cbd487d3b86bba1669198b13b2da1989200b0470654d7c98eba733646c7397d",
+  "securityDigest": "15a642d4c7b69f14c7b818e98c1be6a24da9982327d197cbe809f2e70d31db33",
   "phase08": {
     "sourceRevision": "237e77b5704b6d73ac97ad940be513ae087b84a7",
     "hashes": {
@@ -546,22 +580,22 @@
       "name": "typecheck",
       "command": "pnpm typecheck",
       "exitCode": 0,
-      "outputDigest": "5597f9d4e7f4f373c035ea98b6996c5489199944b1a292175b89952cbc6c25f6",
-      "fingerprint": " typecheck$ svelte-check --tsconfig ./tsconfig.json\npackages/concierge-react typecheck: Done\npackages/concierge-svelte typecheck: Loading svelte-check in workspace: /private/var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/concierge-phase09-mutation-geV3Yx/baseline/packages/concierge-svelte\npackages/concierge-svelte typecheck: Getting Svelte diagnostics...\npackages/concierge-svelte typecheck: svelte-check found 0 errors and 0 warnings\npackages/concierge-svelte typecheck: Done\n$ pnpm -r typecheck\n"
+      "outputDigest": "7c2af88b64f35dd639ff8d126fc7a5b7a2a23c8f3a6245f2635f8a7b337fd0c5",
+      "fingerprint": "erge-react typecheck$ tsc -p tsconfig.json --noEmit\npackages/concierge-react typecheck: Done\npackages/concierge-svelte typecheck: Loading svelte-check in workspace: /private/var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/concierge-phase09-mutation-1aViFL/baseline/packages/concierge-svelte\npackages/concierge-svelte typecheck: Getting Svelte diagnostics...\npackages/concierge-svelte typecheck: svelte-check found 0 errors and 0 warnings\npackages/concierge-svelte typecheck: Done\n$ pnpm -r typecheck\n"
     },
     {
       "name": "build",
       "command": "pnpm build",
       "exitCode": 0,
-      "outputDigest": "8c2dc4e0746505e9019da61fe0d16e04d44542b85770d2ebc04a9079bb780d80",
-      "fingerprint": "t in 55ms\nexamples/adapter-ssr build: 01:45:40 [build] Rearranging server assets...\nexamples/adapter-ssr build:  generating static routes \nexamples/adapter-ssr build: 01:45:40   ├─ /index.html (+8ms) \nexamples/adapter-ssr build: 01:45:40 ✓ Completed in 38ms.\nexamples/adapter-ssr build: 01:45:40 [build] ✓ Completed in 198ms.\nexamples/adapter-ssr build: 01:45:40 [build] 1 page(s) built in 244ms\nexamples/adapter-ssr build: 01:45:40 [build] Complete!\nexamples/adapter-ssr build: Done\n$ pnpm -r build\n"
+      "outputDigest": "6c32bdc1c6da44229054596b35a472231d65f9857665662a4c9fa196a0125e31",
+      "fingerprint": "t in 83ms\nexamples/adapter-ssr build: 11:29:30 [build] Rearranging server assets...\nexamples/adapter-ssr build:  generating static routes \nexamples/adapter-ssr build: 11:29:30   ├─ /index.html (+9ms) \nexamples/adapter-ssr build: 11:29:30 ✓ Completed in 46ms.\nexamples/adapter-ssr build: 11:29:30 [build] ✓ Completed in 270ms.\nexamples/adapter-ssr build: 11:29:30 [build] 1 page(s) built in 332ms\nexamples/adapter-ssr build: 11:29:30 [build] Complete!\nexamples/adapter-ssr build: Done\n$ pnpm -r build\n"
     },
     {
       "name": "test",
       "command": "pnpm test",
       "exitCode": 0,
-      "outputDigest": "9317913096ec07b38a9d4cdf5dc1fc85b20fe58b3cf6f442a4206831841afd05",
-      "fingerprint": "\n RUN  v4.1.10 /private/var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/concierge-phase09-mutation-geV3Yx/baseline\n\n\n Test Files  25 passed (25)\n      Tests  439 passed (439)\n   Start at  01:45:41\n   Duration  6.96s (transform 2.89s, setup 326ms, import 3.01s, tests 8.06s, environment 605ms)\n\n$ vitest run\n"
+      "outputDigest": "bdf968c62604072c9dafb3e39d59ce858177c30af0f7631ccdf0a9043aac48a3",
+      "fingerprint": "talog.test.ts > CAT-05 and SEC-05 — both consent markers report themselves without blocking > C11 — with no hook supplied the catalog still builds and diagnostics is still populated\nconcierge: [destructive_without_consent] action \"wipe\": it declares `effects.destructive` but carries no `consent` policy, so an agent can take an irreversible action with no human having confirmed this specific payload. Fix: add a `consent` policy, or set `effects.destructive` to false if the action is reversible.\n\n"
     },
     {
       "name": "check:artifact",
@@ -574,84 +608,90 @@
       "name": "check:deps",
       "command": "pnpm check:deps",
       "exitCode": 0,
-      "outputDigest": "19da4e861b2cb9dda9328fa7735b35bc8da0600b7c799559ef30aac3ec6a8569",
+      "outputDigest": "2b2e42a429a449ba5b6c1c817c799c95192d859a8c7f683408a1db60244c37a1",
       "fingerprint": "xternal imports: []\n  Assertion A: PASS\n\nAssertion B (PKG-05b) — ESM runtime entry byte size of each dependency\n  @standard-schema/spec  0 bytes\n    resolved via exports[\".\"] -> packages/concierge/node_modules/@standard-schema/spec/dist/index.js\n    note: its `require` entry is 754 bytes and is unreachable through core, which is ESM-only\n  Assertion B: PASS\n\ncore's dependencies contribute zero bytes to a consumer bundle\n$ node scripts/pkg05-zero-runtime-deps.mjs packages/concierge/dist/index.js\n"
     },
     {
       "name": "check:pack",
       "command": "pnpm check:pack",
       "exitCode": 0,
-      "outputDigest": "af539d4f672576e3d840a2413a9bbab734ee32a821f5b7fc511e0cfe062b7e16",
+      "outputDigest": "da7d0e26b62830fe7c75705847183901787634083ccd2dca56f74d28d9f3b226",
       "fingerprint": "ge@0.0.0\n└── typescript@7.0.2\n\n==> typechecking the probe against the shipped .d.ts (skipLibCheck: false)\n==> importing the shipped runtime\n==> wall time: 3s\nPACK_EVIDENCE tar_entries=21 tar_entries_sha256=bf8a250bffa403c2523e2ebb4adcb423326360ed6d5cff230b2ddc7fd51cb064 forbidden_entries=absent foreign_typecheck=passed foreign_runtime=passed\nPASS: a foreign project installed the tarball, typechecked the shipped declarations, and imported the runtime\n$ bash scripts/pack-install-check.sh\n$ tsdown\n"
     },
     {
       "name": "check:node-floor",
       "command": "pnpm check:node-floor",
       "exitCode": 0,
-      "outputDigest": "be97bcb3141aff382b42c2705e7391da732e4d0ed28c00e0c5fa32546c6baf92",
-      "fingerprint": "No problems found (153ms)\n✔ [publint] No issues found (163ms)\n==> tarball: /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/tmp.IrLK05CYmd/fullselfbrowsing-concierge-0.0.0.tgz\n==> installing the tarball with npm on the floor runtime\n\nadded 2 packages in 162ms\n==> asserting the runtime is the floor\nv22.12.0\n==> importing the artifact on the floor runtime\n==> wall time: 2s\nPASS: the published artifact installed with npm and imported on a pinned v22.12.0\n$ bash scripts/node-floor-check.sh\n$ tsdown\n"
+      "outputDigest": "2a5b11e168bd698c7ecc98c4c90927fa2979b7e62d6496bf7d63ffeebfe2c430",
+      "fingerprint": "No problems found (162ms)\n✔ [publint] No issues found (173ms)\n==> tarball: /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/tmp.aEMnAh8Q0X/fullselfbrowsing-concierge-0.0.0.tgz\n==> installing the tarball with npm on the floor runtime\n\nadded 2 packages in 190ms\n==> asserting the runtime is the floor\nv22.12.0\n==> importing the artifact on the floor runtime\n==> wall time: 3s\nPASS: the published artifact installed with npm and imported on a pinned v22.12.0\n$ bash scripts/node-floor-check.sh\n$ tsdown\n"
     },
     {
       "name": "test:phase09",
       "command": "pnpm test:phase09",
       "exitCode": 0,
-      "outputDigest": "082fe4582a2b58046552d08dbd149ff4efad66315315a809cd25bf42cc43dabd",
-      "fingerprint": "PHASE09_TEST_CHECK_OK projects=3 files=5 suites=10 tests=11\n$ node scripts/phase-09-test-check.mjs\n"
+      "outputDigest": "7ea7f98051e9ed9a8bfa080d437dd3999f0dcbcf07eb99665457e3e0f3562728",
+      "fingerprint": "SELF_TEST_OK all-passed-report PASS\nSELF_TEST_OK all-skipped-expected-file VITEST_FAILURE\nSELF_TEST_OK mixed-status-report VITEST_FAILURE\nPHASE09_TEST_CHECK_OK projects=3 files=5 suites=10 tests=11\n$ node scripts/phase-09-test-check.mjs\n"
     },
     {
       "name": "astro-check",
       "command": "pnpm --filter @fullselfbrowsing/concierge-adapter-ssr check",
       "exitCode": 0,
-      "outputDigest": "0808c40ffe594a8584921198b107511894e74cdc3bfa0927ab1098180b0fd5eb",
-      "fingerprint": "01:46:05 [vite] Re-optimizing dependencies because vite config has changed\n01:46:05 [types] Generated 83ms\n01:46:05 [check] Getting diagnostics for Astro files in /private/var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/concierge-phase09-mutation-geV3Yx/baseline/examples/adapter-ssr...\nResult (6 files): \n- 0 errors\n- 0 warnings\n- 0 hints\n\n$ astro check\n"
+      "outputDigest": "a2006f4fb9169ee4fbb6efc2afb61d98d5555e9d0f5f4750ac0f1e2b7d41b088",
+      "fingerprint": "11:29:57 [vite] Re-optimizing dependencies because vite config has changed\n11:29:57 [types] Generated 98ms\n11:29:57 [check] Getting diagnostics for Astro files in /private/var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/concierge-phase09-mutation-1aViFL/baseline/examples/adapter-ssr...\nResult (6 files): \n- 0 errors\n- 0 warnings\n- 0 hints\n\n$ astro check\n"
     },
     {
       "name": "astro-build",
       "command": "pnpm --filter @fullselfbrowsing/concierge-adapter-ssr build",
       "exitCode": 0,
-      "outputDigest": "0769c559e0bbef76abf37002140a19fd506396144cfd382e5cc11d678725ffad",
-      "fingerprint": "on-geV3Yx/baseline/examples/adapter-ssr/dist/\n01:46:07 [build] Collecting build info...\n01:46:07 [build] ✓ Completed in 46ms.\n01:46:07 [build] Building static entrypoints...\n01:46:08 [vite] ✓ built in 82ms\n01:46:08 [vite] ✓ built in 50ms\n01:46:08 [build] Rearranging server assets...\n\n generating static routes \n01:46:08   ├─ /index.html (+12ms) \n01:46:08 ✓ Completed in 40ms.\n\n01:46:08 [build] ✓ Completed in 196ms.\n01:46:08 [build] 1 page(s) built in 243ms\n01:46:08 [build] Complete!\n$ astro build\n"
+      "outputDigest": "447b65be73b0d125f27244029dd7ec9935bc94fe12b0ac31a4d2a74c28174ee5",
+      "fingerprint": "on-1aViFL/baseline/examples/adapter-ssr/dist/\n11:30:00 [build] Collecting build info...\n11:30:00 [build] ✓ Completed in 49ms.\n11:30:00 [build] Building static entrypoints...\n11:30:00 [vite] ✓ built in 104ms\n11:30:00 [vite] ✓ built in 80ms\n11:30:00 [build] Rearranging server assets...\n\n generating static routes \n11:30:00   ├─ /index.html (+8ms) \n11:30:00 ✓ Completed in 42ms.\n\n11:30:00 [build] ✓ Completed in 262ms.\n11:30:00 [build] 1 page(s) built in 313ms\n11:30:00 [build] Complete!\n$ astro build\n"
     },
     {
       "name": "phase09-vitest-json",
-      "command": "pnpm exec vitest run --project react-lifecycle --project svelte-lifecycle --project node-artifact-ssr --reporter=json --outputFile=/private/var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/concierge-phase09-mutation-geV3Yx/phase09-tests.json",
+      "command": "pnpm exec vitest run --project react-lifecycle --project svelte-lifecycle --project node-artifact-ssr --reporter=json --outputFile=/private/var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/concierge-phase09-mutation-1aViFL/phase09-tests.json",
       "exitCode": 0,
-      "outputDigest": "679d8349c10f0ae8324ea4a6a7b0a1b0c1cc3e15e50d9b1d459f20149142efd2",
-      "fingerprint": "JSON report written to /private/var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/concierge-phase09-mutation-geV3Yx/phase09-tests.json\n"
+      "outputDigest": "5b9d6dba58efa1f42284a6d578dc2a1cfc0a228ebe1224d5d97164559ddf9dfe",
+      "fingerprint": "JSON report written to /private/var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/concierge-phase09-mutation-1aViFL/phase09-tests.json\n"
     },
     {
       "name": "phase-09-package-check all",
       "command": "node scripts/phase-09-package-check.mjs all",
       "exitCode": 0,
-      "outputDigest": "0fa13e75a582709b4288bf5dbbf73976bfec92c7aaec5558299b1b98f1d8a6a7",
-      "fingerprint": "serverTests\":{\"files\":2,\"suites\":4,\"tests\":2},\"physicalCore\":\"/private/var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/concierge-phase09-pack-hAoWUU/artifact-consumer/node_modules/@fullselfbrowsing/concierge\",\"consent\":{\"files\":1,\"suites\":2,\"tests\":1},\"mismatch\":{\"coreSha256\":\"e6f3d3299059976f1dbaf277befe8a554ff179014bdd254db6abe5b79a85b011\",\"expectedContractVersion\":999,\"foundContractVersion\":1,\"react\":{\"files\":1,\"suites\":2,\"tests\":1},\"svelte\":{\"files\":1,\"suites\":2,\"tests\":1}},\"exported\":true}\n"
+      "outputDigest": "904561cc585f9a5b74dcc0d719205669867cb0f8286f5eb7c2b76683f69a2a65",
+      "fingerprint": "ore\":\"/private/var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/concierge-phase09-mutation-1aViFL/child-environment/tmp/concierge-phase09-pack-4GVRKN/artifact-consumer/node_modules/@fullselfbrowsing/concierge\",\"consent\":{\"files\":1,\"suites\":2,\"tests\":1},\"mismatch\":{\"coreSha256\":\"e6f3d3299059976f1dbaf277befe8a554ff179014bdd254db6abe5b79a85b011\",\"expectedContractVersion\":999,\"foundContractVersion\":1,\"react\":{\"files\":1,\"suites\":2,\"tests\":1},\"svelte\":{\"files\":1,\"suites\":2,\"tests\":1}},\"exported\":true}\n"
     },
     {
       "name": "phase-09-adapter-budget check",
       "command": "node scripts/phase-09-adapter-budget.mjs check",
       "exitCode": 0,
-      "outputDigest": "5af9d618148062a39f3af96098b4251fb00b4aab20d6820e1d85880c75aebdbf",
-      "fingerprint": "ADAPTER_BUDGET package=@fullselfbrowsing/concierge-react total=74 limit=150 files=2\n  packages/concierge-react/src/client.tsx: 69\n  packages/concierge-react/src/index.ts: 5\nADAPTER_BUDGET package=@fullselfbrowsing/concierge-svelte total=56 limit=150 files=2\n  packages/concierge-svelte/src/client.svelte.ts: 50\n  packages/concierge-svelte/src/index.ts: 6\nADAPTER_BUDGET_OK packages=2 files=4\n"
+      "outputDigest": "ea5948458869c5a653cfb86c3aeae1584f010a0f667acb4e5a47c70d3ff99f6e",
+      "fingerprint": "ADAPTER_BUDGET package=@fullselfbrowsing/concierge-react total=74 limit=150 files=2\n  packages/concierge-react/src/client.tsx: 69\n  packages/concierge-react/src/index.ts: 5\nADAPTER_BUDGET package=@fullselfbrowsing/concierge-svelte total=58 limit=150 files=2\n  packages/concierge-svelte/src/client.svelte.ts: 52\n  packages/concierge-svelte/src/index.ts: 6\nADAPTER_BUDGET_OK packages=2 files=4\n"
     },
     {
       "name": "phase-09-adapter-budget self-test",
       "command": "node scripts/phase-09-adapter-budget.mjs self-test",
       "exitCode": 0,
-      "outputDigest": "06fe556cc32c372777df29179357a357cac5f4cd58c379858ee5ba55b315488a",
+      "outputDigest": "390fa703d052abff859e4611649e94e77a1db80da6086ddaf5c0d81e16ca0f7e",
       "fingerprint": "SELF_TEST_OK forbidden-transport-routing FORBIDDEN_RESPONSIBILITY\nSELF_TEST_OK forbidden-scheduler-call FORBIDDEN_RESPONSIBILITY\nSELF_TEST_OK forbidden-retry-state FORBIDDEN_RESPONSIBILITY\nSELF_TEST_OK forbidden-dedupe-cache FORBIDDEN_RESPONSIBILITY\nSELF_TEST_OK forbidden-queue FORBIDDEN_RESPONSIBILITY\nSELF_TEST_OK forbidden-result-sanitation FORBIDDEN_RESPONSIBILITY\nSELF_TEST_OK forbidden-state-container FORBIDDEN_RESPONSIBILITY\nSELF_TEST_OK restored-valid-tree PASS\nADAPTER_BUDGET_SELF_TEST_OK\n"
     },
     {
       "name": "phase-09-workflow-check",
       "command": "node scripts/phase-09-workflow-check.mjs",
       "exitCode": 0,
-      "outputDigest": "af88de21af266a0e3bbc811dd44022df851f83190f84b984fe5090c802cdc809",
-      "fingerprint": "PHASE09_WORKFLOW_CHECK_OK workflows=2 controls=6 ciSteps=19 releaseSteps=15\n"
+      "outputDigest": "b89bc00f9feb1f75cafeb738bf373a0130e1c575664fca1e05eb6a7484206603",
+      "fingerprint": "PHASE09_WORKFLOW_CHECK_OK workflows=2 jobs=7 controls=16 ciSteps=19 releaseSteps=40\n"
     }
   ],
   "tests": {
     "files": 5,
     "tests": 11,
     "assertions": 11
+  },
+  "consumerTooling": {
+    "lockFile": "scripts/fixtures/phase-09-foreign-consumer/package-lock.json",
+    "lockSha256": "b8c4a5ef4449e17ad346b608f955b60102a8d6b8ea7c83afe279b6ab7cd0cddf",
+    "npmVersion": "11.11.0",
+    "offlineCi": true
   },
   "archives": {
     "@fullselfbrowsing/concierge": {
@@ -660,11 +700,11 @@
     },
     "@fullselfbrowsing/concierge-react": {
       "file": "fullselfbrowsing-concierge-react-0.0.0.tgz",
-      "sha256": "c3be0e9381effcfd5281d75f0994aa7c8da46a9ebb53b13ecc78e82a747bef09"
+      "sha256": "daec0d2355d82a5d8571e7f73c7ccf1cd19b080cd0e4de1ad56c908f6210dffb"
     },
     "@fullselfbrowsing/concierge-svelte": {
       "file": "fullselfbrowsing-concierge-svelte-0.0.0.tgz",
-      "sha256": "f76530f826feb3a01815aa8df54c9301a7db0e9565d2e5da089a2777a2e13111"
+      "sha256": "d49392fb7c98d50824db58f4d1ad941707c756d6968cec411bd560b82cd0099c"
     }
   },
   "tarEntryCounts": {
@@ -672,8 +712,8 @@
     "react": 11,
     "svelte": 11
   },
-  "archiveManifestDigest": "646836cc854136c05dcc484e0d467e1293c969ea4792fdb98fee31d6beed2145",
+  "archiveManifestDigest": "f015e086eb225bf60a3668b487baf58e9eb736a341e10c1417a9649018daa4bc",
   "packageGate": "node scripts/phase-09-package-check.mjs all",
   "budgetGate": "node scripts/phase-09-adapter-budget.mjs check",
-  "contentDigest": "4d5b5551a7517f62adc56e0b8b933bf877b2411331dff101e9afce57ca16a8d4"
+  "contentDigest": "f9b54881608fc11765ffa7c9a9c2d82f702c5d2630ef9649fa41a26228fa453d"
 }
