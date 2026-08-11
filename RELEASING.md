@@ -9,15 +9,17 @@ repository or in the org secrets this workflow reads.
 > **`.github/workflows/release.yml` has never been executed.**
 >
 > Nothing publishes until v0.1 completes (see `.planning/ROADMAP.md`), so the workflow
-> ships unrun. Its verification to date is **static review only** — six named properties
-> checked by inspection and `grep` in plan 02-10:
+> ships unrun. Its verification to date is **static review only**. The executable
+> `scripts/phase-09-workflow-check.mjs` checks job boundaries, exact action commits,
+> blocking order, archive identity, and the publisher toolchain, with negative controls
+> for repacking, broad uploads, opaque Changesets publication, and OIDC privilege drift:
 >
-> 1. `permissions.id-token: write` is present
-> 2. no `NPM_TOKEN` is assigned or referenced anywhere under `.github/`
-> 3. no `--provenance` flag on any executable line
-> 4. no `auth-token-line` input on any executable line
-> 5. `fetch-depth: 0` is present on the checkout step
-> 6. `node-version: 24`
+> 1. the version job can write contents/PRs but cannot request OIDC;
+> 2. the verification job can only read contents and owns install/build/test/archive export;
+> 3. only the dependent publisher job has `id-token: write`;
+> 4. that publisher has no checkout, setup, install, build, test, or pack step;
+> 5. all actions are pinned to reviewed 40-hex commits; and
+> 6. the downloaded publisher, npm CLI, manifest, and three archives are rehashed before use.
 >
 > None of those is a substitute for a run. The first real release is the first genuine
 > test of this file, and the checklist below is what turns that release into a checked
@@ -29,18 +31,50 @@ These are hard requirements, not preferences. Each has a specific failure attach
 
 | Tool | Floor | Where it comes from | What happens below it |
 |---|---|---|---|
-| **pnpm** | **≥ 11.1.3** | pnpm 11.1.3 release note (2026-05-18), PR `pnpm/pnpm#11526`, issue `pnpm/pnpm#11513` | **404 on the PUT.** `changeset publish` shells out to `pnpm publish` in this workspace (read from `@changesets/cli@2.31.1`'s `getPublishTool`), so OIDC support lives in pnpm. `actions/setup-node` writes `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}` into a project-level `.npmrc`; under OIDC there is deliberately no `NODE_AUTH_TOKEN`, and an older pnpm passes the unresolved placeholder through, concludes auth is configured, and never performs the OIDC exchange. Provenance signing appears to succeed first, which makes it the most misleading failure in the set. |
-| **npm CLI** | **≥ 11.5.1** | npm trusted-publishing docs | The OIDC exchange is unsupported. The workflow runs `npm install -g npm@latest` because the runner's bundled npm may be older. There is a matching open report for **scoped** packages (`npm/cli#8976`), and this package is scoped, which is why npm is upgraded explicitly rather than trusted at the runner default. |
-| **Node** | **≥ 22.14.0** | npm trusted-publishing docs | The OIDC exchange is unsupported. The workflow pins `node-version: 24`. |
+| **pnpm** | **11.17.0** | root `packageManager` pin | Runs install/build/test and produces the checked archives in no-OIDC jobs. It never holds publication authority. |
+| **npm CLI** | **11.11.0** | exact registry tarball URL and committed SHA-512 SRI in `release.yml` | Publishes the three checked `.tgz` paths. The OIDC job downloads this exact tarball, rechecks its SRI, extracts it without installation, and asserts `--version` before use. A runner-bundled or floating npm is never trusted for publication. |
+| **Node** | **≥ 22.14.0** | npm trusted-publishing docs | The no-OIDC jobs pin Node 24. The minimal publisher deliberately has no setup action under OIDC, so its first built-in check rejects a hosted-runner Node below 22.14.0 before invoking npm. |
 
-`packageManager` in the root `package.json` pins `pnpm@11.17.0`, far past the pnpm floor.
-`ci.yml`'s build job asserts the resolved pnpm major is `11.` so a silent downgrade in
-`pnpm/action-setup` surfaces in CI rather than at publish time.
+`ci.yml` also installs and asserts npm 11.11.0 before the offline foreign-consumer
+package proof. The OIDC publisher does not run either package-manager setup action.
 
 **Do not confuse these with `engines.node`.** `packages/concierge`'s
 `engines.node: ">=22.12.0"` is a promise to *consumers* about where the published
 artifact runs. The numbers above are *release-machinery* requirements. They are
 different numbers for different audiences and must never be harmonized.
+
+## Automated version, evidence, and publication sequence
+
+The workflow has three jobs and two distinct pushes to `main`:
+
+1. The no-OIDC `version` job runs the pinned Changesets action in **version-only**
+   mode. When a changeset exists, `pnpm run version:phase09` versions a private
+   snapshot, validates the shared public version, copies only the consumed changeset,
+   three manifests, three changelogs, and optional lockfile back, then runs the full
+   versioned Phase 09 mutation battery. The fresh four terminal evidence files are
+   staged into the same Version Packages PR.
+2. While that changeset remains on the branch, `hasChangesets` is true and verification
+   and publication are skipped. Review the shared version and regenerated evidence,
+   then merge the Version Packages PR.
+3. On the merged version commit, `hasChangesets` is false. The no-OIDC `verify` job
+   verifies the sealed versioned inputs, builds once, exports the exact three archives
+   and digest manifest, and uploads them with a content-addressed publisher/npm tool
+   artifact.
+4. Only after verification succeeds does the minimal `publish` job receive
+   `id-token: write`. It downloads and rehashes both artifacts, then publishes the
+   exact archive paths core → React → Svelte. It never checks out or packs source.
+
+Before v0.1 is versioned, the source adapter peer is deliberately the bounded
+transition `workspace:^0.0.0 || ^0.1.0`. That makes raw `changeset status` report
+the honest synchronized 0.1.0 minor plan without admitting a future major. The
+version wrapper requires the second arm to equal the version Changesets actually
+produced, then restores canonical `workspace:^` before any versioned output is copied.
+pnpm therefore writes `^<shared-version>` into each final packed adapter (for v0.1,
+`^0.1.0`); a broad `>=0.0.0` peer is never committed or published. Future pre-1.0
+minor transitions use the same bounded old/new form in their release changeset and
+are normalized by the Version Packages PR. The fixed triplet and
+`onlyUpdatePeerDependentsWhenOutOfRange` option in `.changeset/config.json` are both
+load-bearing and are checked by the workflow gate.
 
 ## Release evidence for the three-package set
 
@@ -189,8 +223,15 @@ Run through this by hand on the first real release, in order.
       exits **1** when packages changed with no changeset present — that is the
       unreleased-change signal, not an error in the config.
 - [ ] The "Version Packages" PR opened by `changesets/action` looks right: correct
-      version bump, correct changelog entry, and **no private package listed**.
-- [ ] Merge it. The workflow re-runs on `main` and publishes.
+      shared version bump, all three changelog entries, regenerated Phase 09 evidence,
+      consumed changeset, and **no private package listed**. Both adapter manifests
+      must still contain source peer `workspace:^`.
+- [ ] Merge it. The workflow re-runs on `main`; the version job reports no pending
+      changeset, the no-OIDC verify job uploads exactly four archive files and two
+      publisher-tool files, and only then does the OIDC publisher run.
+- [ ] Confirm the publisher log names the same manifest and core/React/Svelte archive
+      paths uploaded by verification, in that order. Any package-directory publish or
+      second pack is a failed release.
 - [ ] The job log shows the OIDC exchange, not a token read.
 - [ ] **Open the package page on npmjs.com and verify the provenance attestation
       appears.** This is a human step and cannot be delegated to the workflow's exit
@@ -216,9 +257,10 @@ why `privatePackages` is `false`, therefore lives in
 | Mistake | Symptom |
 |---|---|
 | `id-token: write` removed | No OIDC token to exchange; publish falls back to token auth and fails `ENEEDAUTH` / 404 |
-| pnpm pinned below 11.1.3 | 404 on the PUT, after provenance signing appears to succeed |
-| npm CLI below 11.5.1 on the runner | OIDC exchange unsupported |
+| pnpm/root lock pin drift | Version or verification installs a different graph; static workflow check fails before publication |
+| publisher/npm artifact digest drift | Minimal publisher aborts before the OIDC exchange or any package publication |
 | `NPM_TOKEN` present in the env | Token auth wins; publish succeeds **without** provenance — green build, degraded artifact |
 | `--provenance` passed by hand | Redundant on a public repo; a second, divergent signing path |
-| `auth-token-line: false` added | The input does not exist in `actions/setup-node`; unknown `with:` keys are ignored, so it looks like it did something and did not |
-| `fetch-depth` left at the default | changesets cannot determine what was already released; version/publish misbehave |
+| checkout/setup/install/build added to the OIDC job | Dependency or action code receives publication authority; workflow checker rejects the edit |
+| `fetch-depth` left at the default | Changesets cannot determine what was already released; version preparation misbehaves |
+| `publish:` restored on `changesets/action` | Packages are repacked from directories and diverge from checked archives; workflow checker rejects the edit |

@@ -1,32 +1,30 @@
 #!/usr/bin/env node
 
+import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { lstatSync, readFileSync, realpathSync } from "node:fs";
+import { lstatSync, readFileSync, realpathSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const REPOSITORY_ROOT = realpathSync(
-  resolve(dirname(fileURLToPath(import.meta.url)), ".."),
-);
+const ROOT = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
 const CI_PATH = ".github/workflows/ci.yml";
 const RELEASE_PATH = ".github/workflows/release.yml";
-const PACKAGE_PATH = "package.json";
-const PACKAGE_MANIFESTS = Object.freeze([
-  Object.freeze({
-    path: "packages/concierge/package.json",
-    name: "@fullselfbrowsing/concierge",
-  }),
-  Object.freeze({
-    path: "packages/concierge-react/package.json",
-    name: "@fullselfbrowsing/concierge-react",
-  }),
-  Object.freeze({
-    path: "packages/concierge-svelte/package.json",
-    name: "@fullselfbrowsing/concierge-svelte",
-  }),
+const CHECKOUT = "actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09";
+const SETUP_NODE = "actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444";
+const SETUP_PNPM = "pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1";
+const UPLOAD = "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02";
+const DOWNLOAD = "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093";
+const CHANGESETS = "changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d";
+const PUBLISHER_SHA256 =
+  "b3e6f3cee319d7a70764de3b82efcebddf3ab03a60dc721bd0ccaa1f4cdd6b71";
+const NPM_INTEGRITY =
+  "sha512-82gRxKrh/eY5UnNorkTFcdBQAGpgjWehkfGVqAGlJjejEtJZGGJUqjo3mbBTNbc5BTnPKGVtGPBZGhElujX5cw==";
+const FIRST_RELEASE_CORE_PEER = "workspace:^0.0.0 || ^0.1.0";
+const PUBLIC_PACKAGES = Object.freeze([
+  "@fullselfbrowsing/concierge",
+  "@fullselfbrowsing/concierge-react",
+  "@fullselfbrowsing/concierge-svelte",
 ]);
-const ARCHIVE_DIRECTORY_EXPRESSION =
-  "${{ runner.temp }}/phase09-archives";
 const EXACT_ROOT_SCRIPTS = Object.freeze({
   build: "pnpm -r build",
   test: "vitest run",
@@ -47,6 +45,7 @@ const EXACT_ROOT_SCRIPTS = Object.freeze({
     "pnpm run test:phase09 && pnpm --filter @fullselfbrowsing/concierge-adapter-ssr check && pnpm --filter @fullselfbrowsing/concierge-adapter-ssr build && pnpm run check:phase09:packages && pnpm run check:phase09:budget && pnpm run check:phase09:static && pnpm run check:phase09:evidence",
   "check:phase09:release":
     "pnpm run check:phase09 && node scripts/phase-09-workflow-check.mjs",
+  "version:phase09": "node scripts/phase-09-version.mjs",
   release: "changeset publish",
 });
 
@@ -64,7 +63,7 @@ function countOccurrences(source, token) {
 }
 
 function readNonemptyFile(path) {
-  const absolute = resolve(REPOSITORY_ROOT, path);
+  const absolute = resolve(ROOT, path);
   let metadata;
   let source;
   try {
@@ -82,6 +81,13 @@ function readNonemptyFile(path) {
     `${path} must be a nonempty regular file`,
   );
   return source;
+}
+
+function executableSource(source) {
+  return source
+    .split(/\r?\n/u)
+    .filter((line) => !line.trimStart().startsWith("#"))
+    .join("\n");
 }
 
 function leadingSpaces(line) {
@@ -112,28 +118,20 @@ function parseWorkflowSteps(source, path) {
     }
   }
   assert(starts.length > 0, "WORKFLOW_STEPS", `${path} contains no steps`);
-
   return starts.map((start) => {
     let end = lines.length;
     for (let index = start.index + 1; index < lines.length; index += 1) {
       const line = lines[index];
-      if (line.trim().length === 0 || line.trimStart().startsWith("#")) {
-        continue;
-      }
+      if (line.trim().length === 0 || line.trimStart().startsWith("#")) continue;
       const indent = leadingSpaces(line);
-      if (indent < start.indent) {
-        end = index;
-        break;
-      }
       if (
-        indent === start.indent &&
-        /^(\s*)-\s+(?:name|uses|run):/u.test(line)
+        indent < start.indent ||
+        (indent === start.indent && /^(\s*)-\s+(?:name|uses|run):/u.test(line))
       ) {
         end = index;
         break;
       }
     }
-
     const fields = new Map();
     fields.set(start.key, { line: start.index, indent: start.indent, value: start.value });
     for (let index = start.index + 1; index < end; index += 1) {
@@ -146,29 +144,56 @@ function parseWorkflowSteps(source, path) {
         });
       }
     }
-
     const runField = fields.get("run");
-    let run = null;
-    if (runField !== undefined) {
-      run = /^[|>][+-]?$/u.test(runField.value)
+    const uses = fields.get("uses")?.value
+      .replace(/\s+#.*$/u, "")
+      .trim() ?? null;
+    const run = runField === undefined
+      ? null
+      : /^[|>][+-]?$/u.test(runField.value)
         ? blockValue(lines, runField.line, runField.indent)
         : runField.value.trim();
-    }
     return Object.freeze({
       index: start.index,
       name: fields.get("name")?.value.trim() ?? null,
-      uses: fields.get("uses")?.value.trim() ?? null,
+      uses,
       run,
       raw: lines.slice(start.index, end).join("\n"),
     });
   });
 }
 
-function executableSource(source) {
-  return source
-    .split(/\r?\n/u)
-    .filter((line) => !line.trimStart().startsWith("#"))
-    .join("\n");
+function extractJob(source, name, path) {
+  const lines = source.split(/\r?\n/u);
+  const start = lines.findIndex((line) => line === `  ${name}:`);
+  assert(start >= 0, "JOB_LAYOUT", `${path} is missing job ${name}`);
+  let end = lines.length;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (/^  [A-Za-z0-9_-]+:\s*$/u.test(lines[index])) {
+      end = index;
+      break;
+    }
+  }
+  const jobSource = lines.slice(start, end).join("\n");
+  return Object.freeze({
+    name,
+    source: jobSource,
+    executable: executableSource(jobSource),
+    steps: parseWorkflowSteps(jobSource, `${path}#${name}`),
+    start,
+  });
+}
+
+function readWorkflow(path) {
+  const source = readNonemptyFile(path);
+  const workflow = Object.freeze({
+    source,
+    executable: executableSource(source),
+    steps: parseWorkflowSteps(source, path),
+  });
+  validateBlocking(workflow, path);
+  validatePinnedUses(workflow.steps, path);
+  return workflow;
 }
 
 function requireOneStep(steps, predicate, label) {
@@ -182,11 +207,7 @@ function requireOneStep(steps, predicate, label) {
 }
 
 function requireExactRun(steps, command, label = command) {
-  return requireOneStep(
-    steps,
-    (step) => step.run?.trim() === command,
-    label,
-  );
+  return requireOneStep(steps, (step) => step.run?.trim() === command, label);
 }
 
 function requireUse(steps, action, label = action) {
@@ -202,44 +223,42 @@ function requireOrder(entries, label) {
   );
 }
 
+function validateBlocking(workflow, path) {
+  assert(
+    !/(?:^|\n)\s*continue-on-error\s*:/u.test(workflow.executable) &&
+      !/(?:^|\n)\s*if\s*:\s*.*\balways\s*\(/u.test(workflow.executable),
+    "IGNORED_FAILURE",
+    `${path} contains a nonblocking gate`,
+  );
+  for (const step of workflow.steps) {
+    if (step.run === null) continue;
+    assert(
+      !/\bset\s+\+e\b|\|\|\s*(?:true\b|:\s*(?:$|[;\n]))|(?:^|[;\n])\s*exit\s+0\b/u.test(
+        step.run,
+      ),
+      "IGNORED_FAILURE",
+      `${path} step ${step.name ?? step.index} ignores failure`,
+    );
+  }
+}
+
+function validatePinnedUses(steps, path) {
+  for (const step of steps.filter((candidate) => candidate.uses !== null)) {
+    assert(
+      /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[0-9a-f]{40}$/u.test(step.uses),
+      "ACTION_PINS",
+      `${path} action is not pinned to a full commit: ${step.uses}`,
+    );
+  }
+}
+
 function requireExactUseSequence(steps, expected, path) {
-  const actual = steps
-    .filter((step) => step.uses !== null)
-    .map((step) => step.uses);
+  const actual = steps.filter((step) => step.uses !== null).map((step) => step.uses);
   assert(
     JSON.stringify(actual) === JSON.stringify(expected),
     "ACTION_PINS",
-    `${path} action sequence/pins drifted; expected=${JSON.stringify(expected)} actual=${JSON.stringify(actual)}`,
+    `${path} action sequence drifted; expected=${JSON.stringify(expected)} actual=${JSON.stringify(actual)}`,
   );
-}
-
-function validateBlocking(workflow, path) {
-  assert(
-    !/(?:^|\n)\s*continue-on-error\s*:/u.test(workflow.executable),
-    "IGNORED_FAILURE",
-    `${path} contains continue-on-error`,
-  );
-  assert(
-    !/(?:^|\n)\s*if\s*:\s*.*\balways\s*\(/u.test(workflow.executable),
-    "IGNORED_FAILURE",
-    `${path} contains an always() step`,
-  );
-
-  for (const step of workflow.steps) {
-    if (step.run === null) continue;
-    for (const [pattern, description] of [
-      [/\bset\s+\+e\b/u, "set +e"],
-      [/\|\|\s*(?:true\b|:\s*(?:$|[;\n])|echo\b|printf\b|\{)/u, "ignored || failure"],
-      [/(?:^|[;\n])\s*exit\s+0\b/u, "forced exit 0"],
-      [/(?:^|[;\n])\s*true\s*(?:$|[;\n])/u, "standalone true"],
-    ]) {
-      assert(
-        !pattern.test(step.run),
-        "IGNORED_FAILURE",
-        `${path} ${step.name ?? `step at line ${step.index + 1}`} contains ${description}`,
-      );
-    }
-  }
 }
 
 function extractLiteralBlock(raw, field) {
@@ -258,81 +277,110 @@ function extractLiteralBlock(raw, field) {
   return values;
 }
 
-function validateExactUploadPaths(step) {
-  const expected = [
-    "${{ steps.phase09-archives.outputs.core }}",
-    "${{ steps.phase09-archives.outputs.react }}",
-    "${{ steps.phase09-archives.outputs.svelte }}",
-    "${{ steps.phase09-archives.outputs.manifest }}",
-  ];
+function validateExactUpload(step, expected) {
   const actual = extractLiteralBlock(step.raw, "path");
   assert(
     JSON.stringify(actual) === JSON.stringify(expected),
     "UPLOAD_PATHS",
-    `release upload paths must be the exact checked triplet and manifest; actual=${JSON.stringify(actual)}`,
+    `artifact upload paths drifted: ${JSON.stringify(actual)}`,
   );
   assert(
     actual.every((path) => !/[?*\[]/u.test(path)),
     "ARCHIVE_GLOB",
-    "release upload contains a broad archive glob",
+    "release artifact upload contains a glob",
   );
 }
 
-function validateNoRepackBetween(steps, verification, upload) {
-  const between = steps
-    .filter((step) => step.index > verification.index && step.index < upload.index)
+function validateNoArtifactRepack(steps, verification) {
+  const laterRuns = steps
+    .filter((step) => step.index > verification.index)
     .map((step) => step.run ?? "")
     .join("\n");
   assert(
     !/\b(?:npm|pnpm)\s+pack\b|\bcheck:pack\b|phase-09-package-check\.mjs/u.test(
-      between,
+      laterRuns,
     ),
     "REPACK_AFTER_VERIFY",
-    "a second package/pack command appears between verification and upload",
+    "release repacks package artifacts after same-revision verification",
   );
 }
 
-function validateEmbeddedNodeProgram(step) {
-  const match =
-    /^node --input-type=module <<'NODE'\n([\s\S]+)\nNODE$/u.exec(step.run ?? "");
+function validateNoChangesetsPublish(executable) {
   assert(
-    match !== null,
-    "ARCHIVE_RESOLVER",
-    "archive resolver must be one closed Node module heredoc",
+    !/\bchangesets?\s+publish\b/u.test(executable),
+    "CHANGESETS_PUBLISH",
+    "release delegates publication to Changesets instead of exact archives",
   );
-  const result = spawnSync(
-    process.execPath,
-    ["--input-type=module", "--check"],
-    {
-      cwd: REPOSITORY_ROOT,
-      encoding: "utf8",
-      input: match[1],
-      maxBuffer: 1024 * 1024,
-      timeout: 10_000,
-    },
+}
+
+function validateOidcIsolation(job) {
+  const forbiddenAction = job.steps.some((step) =>
+    [CHECKOUT, SETUP_NODE, SETUP_PNPM, CHANGESETS].includes(step.uses),
   );
+  const runs = job.steps.map((step) => step.run ?? "").join("\n");
   assert(
-    result.error === undefined &&
-      result.signal === null &&
-      result.status === 0,
+    !forbiddenAction &&
+      !/\b(?:npm|pnpm)\s+(?:ci|install|pack)\b|\bpnpm\b.*\b(?:build|test|typecheck)\b/u.test(
+        runs,
+      ),
+    "OIDC_ISOLATION",
+    "OIDC publisher job can checkout, install, build, test, or pack",
+  );
+}
+
+function validateEmbeddedNodePrograms(workflow, expectedCount) {
+  let count = 0;
+  for (const step of workflow.steps) {
+    if (step.run === null) continue;
+    const pattern = /<<'NODE'\n([\s\S]*?)\n\s*NODE(?:\n|$)/gu;
+    for (const match of step.run.matchAll(pattern)) {
+      count += 1;
+      const result = spawnSync(process.execPath, ["--input-type=module", "--check"], {
+        cwd: ROOT,
+        encoding: "utf8",
+        input: match[1],
+        maxBuffer: 1024 * 1024,
+        timeout: 10_000,
+      });
+      assert(
+        result.error === undefined && result.signal === null && result.status === 0,
+        "WORKFLOW_SYNTAX",
+        `embedded Node syntax failed: ${result.stderr}`,
+      );
+    }
+  }
+  assert(
+    count === expectedCount,
     "WORKFLOW_SYNTAX",
-    `archive resolver Node syntax failed: ${result.stderr}`,
+    `expected ${expectedCount} embedded Node programs, found ${count}`,
   );
 }
 
-function readWorkflow(path) {
-  const source = readNonemptyFile(path);
-  const workflow = Object.freeze({
-    source,
-    executable: executableSource(source),
-    steps: parseWorkflowSteps(source, path),
-  });
-  validateBlocking(workflow, path);
-  return workflow;
+function permissionEntries(job) {
+  const lines = job.source.split(/\r?\n/u);
+  const start = lines.findIndex((line) => line === "    permissions:");
+  assert(start >= 0, "JOB_PERMISSIONS", `${job.name} has no permissions block`);
+  const entries = {};
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (lines[index].trim().length === 0) continue;
+    if (leadingSpaces(lines[index]) <= 4) break;
+    const match = /^      ([a-z-]+):\s*([a-z]+)\s*$/u.exec(lines[index]);
+    assert(match !== null, "JOB_PERMISSIONS", `${job.name} permissions are malformed`);
+    entries[match[1]] = match[2];
+  }
+  return entries;
 }
 
-function validateLivePackageContracts() {
-  const rootManifest = JSON.parse(readNonemptyFile(PACKAGE_PATH));
+function assertPermissions(job, expected) {
+  assert(
+    JSON.stringify(permissionEntries(job)) === JSON.stringify(expected),
+    "JOB_PERMISSIONS",
+    `${job.name} permissions drifted`,
+  );
+}
+
+function validateLiveContracts() {
+  const rootManifest = JSON.parse(readNonemptyFile("package.json"));
   for (const [name, command] of Object.entries(EXACT_ROOT_SCRIPTS)) {
     assert(
       rootManifest.scripts?.[name] === command,
@@ -340,51 +388,95 @@ function validateLivePackageContracts() {
       `${name} must equal ${command}`,
     );
   }
-
-  for (const expected of PACKAGE_MANIFESTS) {
-    const manifest = JSON.parse(readNonemptyFile(expected.path));
+  const paths = [
+    "packages/concierge/package.json",
+    "packages/concierge-react/package.json",
+    "packages/concierge-svelte/package.json",
+  ];
+  const manifests = paths.map((path) => JSON.parse(readNonemptyFile(path)));
+  for (const [index, manifest] of manifests.entries()) {
+    const path = paths[index];
     assert(
-      manifest.name === expected.name &&
-        typeof manifest.version === "string" &&
-        manifest.version.length > 0,
+      manifest.name === PUBLIC_PACKAGES[index],
       "PACKAGE_IDENTITY",
-      `${expected.path} does not contain the exact live package name/version`,
+      `${path} package identity drifted`,
     );
+    if (index > 0) {
+      const expectedPeer = manifests[0].version === "0.0.0"
+        ? FIRST_RELEASE_CORE_PEER
+        : "workspace:^";
+      assert(
+        manifest.peerDependencies?.[PUBLIC_PACKAGES[0]] === expectedPeer,
+        "PACKAGE_PEER",
+        `${path} must keep the fail-closed ${expectedPeer} core peer`,
+      );
+    }
   }
+  assert(
+    manifests.every(
+      (manifest) =>
+        manifest.version === manifests[0].version &&
+        /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(manifest.version),
+    ),
+    "VERSION_DRIFT",
+    `public manifest versions differ: ${manifests.map((manifest) => manifest.version).join(", ")}`,
+  );
+  const config = JSON.parse(readNonemptyFile(".changeset/config.json"));
+  assert(
+    JSON.stringify(config.fixed) === JSON.stringify([PUBLIC_PACKAGES]) &&
+      JSON.stringify(config.linked) === "[]" &&
+      config.updateInternalDependencies === "patch" &&
+      config.___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH
+        ?.onlyUpdatePeerDependentsWhenOutOfRange === true,
+    "CHANGESET_CONFIG",
+    "Changesets must keep the exact fixed triplet and range-aware peer handling",
+  );
+  const publisherPath = resolve(ROOT, "scripts/phase-09-publish-archives.mjs");
+  const publisherDigest = createHash("sha256")
+    .update(readFileSync(publisherPath))
+    .digest("hex");
+  assert(
+    publisherDigest === PUBLISHER_SHA256,
+    "PUBLISHER_DIGEST",
+    `publisher digest drifted: ${publisherDigest}`,
+  );
 }
 
 function validateCi(workflow) {
-  const { steps, executable } = workflow;
   requireExactUseSequence(
-    steps,
-    [
-      "actions/checkout@v5",
-      "pnpm/action-setup@v4",
-      "actions/setup-node@v5",
-      "actions/upload-artifact@v4",
-      "actions/download-artifact@v4",
-      "actions/setup-node@v5",
-    ],
+    workflow.steps,
+    [CHECKOUT, SETUP_PNPM, SETUP_NODE, UPLOAD, DOWNLOAD, SETUP_NODE],
     CI_PATH,
   );
-
-  const install = requireExactRun(steps, "pnpm install --frozen-lockfile");
-  const typecheck = requireExactRun(steps, "pnpm typecheck");
-  const build = requireExactRun(steps, "pnpm build");
-  const test = requireExactRun(steps, "pnpm test");
-  const artifact = requireExactRun(steps, "pnpm run check:artifact");
-  const dependencies = requireExactRun(steps, "pnpm run check:deps");
-  const pack = requireExactRun(steps, "pnpm run check:pack");
-  const phase09 = requireExactRun(steps, "pnpm run check:phase09");
-  const floorPack = requireExactRun(
-    steps,
-    'pnpm pack --pack-destination "${{ runner.temp }}"',
-    "CI floor archive pack",
+  assert(
+    /(?:^|\n)permissions:\n  contents: read(?:\n|$)/u.test(workflow.executable),
+    "CI_PERMISSIONS",
+    "CI must be globally read-only",
   );
-  const floorUpload = requireUse(steps, "actions/upload-artifact@v4");
-  const floorDownload = requireUse(steps, "actions/download-artifact@v4");
+  const tooling = requireOneStep(
+    workflow.steps,
+    (step) =>
+      step.run?.includes("npm install -g npm@11.11.0") === true &&
+      step.run.includes('test "$(npm --version)" = "11.11.0"'),
+    "CI pinned npm assertion",
+  );
+  const install = requireExactRun(workflow.steps, "pnpm install --frozen-lockfile");
+  const typecheck = requireExactRun(workflow.steps, "pnpm typecheck");
+  const build = requireExactRun(workflow.steps, "pnpm build");
+  const test = requireExactRun(workflow.steps, "pnpm test");
+  const artifact = requireExactRun(workflow.steps, "pnpm run check:artifact");
+  const dependencies = requireExactRun(workflow.steps, "pnpm run check:deps");
+  const pack = requireExactRun(workflow.steps, "pnpm run check:pack");
+  const phase09 = requireExactRun(workflow.steps, "pnpm run check:phase09");
+  const floorPack = requireExactRun(
+    workflow.steps,
+    'pnpm pack --pack-destination "${{ runner.temp }}"',
+  );
+  const upload = requireUse(workflow.steps, UPLOAD);
+  const download = requireUse(workflow.steps, DOWNLOAD);
   requireOrder(
     [
+      tooling,
       install,
       typecheck,
       build,
@@ -394,95 +486,99 @@ function validateCi(workflow) {
       pack,
       phase09,
       floorPack,
-      floorUpload,
-      floorDownload,
+      upload,
+      download,
     ],
-    "CI inherited and Phase 09 gates",
+    "CI gate chain",
   );
-
+  const floor = extractJob(workflow.source, "node-floor", CI_PATH);
   assert(
-    countOccurrences(executable, "pnpm run check:phase09") === 1,
-    "STEP_COUNT",
-    "CI must execute check:phase09 exactly once",
-  );
-  for (const [token, count] of [
-    ["node-version: 24", 1],
-    ["node-version: '22.12.0'", 1],
-    ["needs: build", 1],
-    ["if-no-files-found: error", 1],
-  ]) {
-    assert(
-      countOccurrences(executable, token) === count,
-      "CI_FLOOR",
-      `${CI_PATH} must contain ${token} exactly ${count} time(s)`,
-    );
-  }
-
-  const floorStart = executable.indexOf("\n  node-floor:");
-  assert(floorStart >= 0, "CI_FLOOR", "the separate node-floor job is missing");
-  assert(
-    !/\bpnpm\b/u.test(executable.slice(floorStart)),
+    !/\bpnpm\b/u.test(floor.executable) &&
+      floor.executable.includes("node-version: '22.12.0'") &&
+      floor.executable.includes("process.version !== 'v22.12.0'") &&
+      floor.executable.includes("npm init -y && npm install --no-audit --no-fund ./*.tgz") &&
+      floor.executable.includes('import("@fullselfbrowsing/concierge")'),
     "CI_FLOOR",
-    "the node-floor job must remain npm/node-only",
+    "the separate npm-only Node floor job drifted",
   );
-  for (const token of [
-    "process.version !== 'v22.12.0'",
-    "npm init -y && npm install --no-audit --no-fund ./*.tgz",
-    'import("@fullselfbrowsing/concierge")',
-    "m.assertSingleInstance()",
-    "m.MESSAGE_MAX_CHARS !== 180",
-  ]) {
-    assert(executable.includes(token), "CI_FLOOR", `node-floor is missing ${token}`);
-  }
 }
 
 function validateRelease(workflow) {
-  const { steps, executable } = workflow;
-  requireExactUseSequence(
-    steps,
-    [
-      "actions/checkout@v5",
-      "pnpm/action-setup@v4",
-      "actions/setup-node@v5",
-      "actions/upload-artifact@v4",
-      "changesets/action@v1",
-    ],
-    RELEASE_PATH,
+  const version = extractJob(workflow.source, "version", RELEASE_PATH);
+  const verify = extractJob(workflow.source, "verify", RELEASE_PATH);
+  const publish = extractJob(workflow.source, "publish", RELEASE_PATH);
+  assert(version.start < verify.start && verify.start < publish.start, "JOB_LAYOUT", "release job order drifted");
+  assert(
+    /(?:^|\n)permissions: \{\}(?:\n|$)/u.test(workflow.executable),
+    "JOB_PERMISSIONS",
+    "release must deny top-level permissions",
+  );
+  assertPermissions(version, { contents: "write", "pull-requests": "write" });
+  assertPermissions(verify, { contents: "read" });
+  assertPermissions(publish, { "id-token": "write" });
+  assert(
+    countOccurrences(workflow.executable, "id-token: write") === 1,
+    "JOB_PERMISSIONS",
+    "OIDC permission must exist only in the publisher job",
   );
 
-  const install = requireExactRun(steps, "pnpm install --frozen-lockfile");
-  const inherited = requireExactRun(
-    steps,
-    "pnpm typecheck && pnpm build && pnpm test",
-    "release typecheck/build/test chain",
+  requireExactUseSequence(
+    version.steps,
+    [CHECKOUT, SETUP_PNPM, SETUP_NODE, CHANGESETS],
+    `${RELEASE_PATH}#version`,
   );
-  const artifact = requireExactRun(steps, "pnpm run check:artifact");
-  const dependencies = requireExactRun(steps, "pnpm run check:deps");
-  const pack = requireExactRun(steps, "pnpm run check:pack");
-  const floor = requireExactRun(steps, "pnpm run check:node-floor");
-  const allocate = requireOneStep(
-    steps,
+  const changesets = requireUse(version.steps, CHANGESETS);
+  assert(
+    version.executable.includes("hasChangesets: ${{ steps.changesets.outputs.hasChangesets }}") &&
+      changesets.raw.includes("id: changesets") &&
+      changesets.raw.includes("version: pnpm run version:phase09") &&
+      !/(?:^|\n)\s*publish\s*:/u.test(changesets.raw),
+    "VERSION_LIFECYCLE",
+    "Changesets action is not a version-only evidence-bearing PR gate",
+  );
+  requireExactRun(version.steps, "pnpm install --frozen-lockfile");
+  requireOneStep(
+    version.steps,
     (step) =>
-      step.run?.includes(`test ! -e "${ARCHIVE_DIRECTORY_EXPRESSION}"`) === true &&
-      step.run.includes(`mkdir "${ARCHIVE_DIRECTORY_EXPRESSION}"`),
-    "empty Phase 09 archive allocation",
+      step.run?.includes("npm install -g npm@11.11.0") === true &&
+      step.run.includes('test "$(npm --version)" = "11.11.0"'),
+    "version pinned npm assertion",
   );
-  const phase09 = requireExactRun(
-    steps,
-    "pnpm run check:phase09:release",
-    "same-revision Phase 09 release gate",
+
+  assert(
+    verify.executable.includes("needs: version") &&
+      verify.executable.includes("if: ${{ needs.version.outputs.hasChangesets == 'false' }}"),
+    "VERSION_LIFECYCLE",
+    "verification must run only after Changesets reports no pending changeset",
   );
+  requireExactUseSequence(
+    verify.steps,
+    [CHECKOUT, SETUP_PNPM, SETUP_NODE, UPLOAD, UPLOAD],
+    `${RELEASE_PATH}#verify`,
+  );
+  const install = requireExactRun(verify.steps, "pnpm install --frozen-lockfile");
+  const inherited = requireExactRun(verify.steps, "pnpm typecheck && pnpm build && pnpm test");
+  const artifact = requireExactRun(verify.steps, "pnpm run check:artifact");
+  const dependencies = requireExactRun(verify.steps, "pnpm run check:deps");
+  const pack = requireExactRun(verify.steps, "pnpm run check:pack");
+  const floor = requireExactRun(verify.steps, "pnpm run check:node-floor");
+  const gate = requireExactRun(verify.steps, "pnpm run check:phase09:release");
   const resolver = requireOneStep(
-    steps,
+    verify.steps,
     (step) => step.name === "Resolve the exact checked Phase 09 archives",
-    "exact Phase 09 archive resolver",
+    "verified archive resolver",
   );
-  const upload = requireUse(
-    steps,
-    "actions/upload-artifact@v4",
-    "release exact archive upload",
+  const publisherSelfTest = requireExactRun(
+    verify.steps,
+    "node scripts/phase-09-publish-archives.mjs self-test",
   );
-  const publish = requireUse(steps, "changesets/action@v1");
+  const toolPreparation = requireOneStep(
+    verify.steps,
+    (step) => step.name === "Prepare the content-addressed publisher toolchain",
+    "publisher tool preparation",
+  );
+  const uploads = verify.steps.filter((step) => step.uses === UPLOAD);
+  assert(uploads.length === 2, "STEP_COUNT", "verify must upload exactly two artifacts");
   requireOrder(
     [
       install,
@@ -491,112 +587,114 @@ function validateRelease(workflow) {
       dependencies,
       pack,
       floor,
-      allocate,
-      phase09,
+      gate,
       resolver,
-      upload,
-      publish,
+      publisherSelfTest,
+      toolPreparation,
+      ...uploads,
     ],
-    "release inherited gates, Phase 09 verification, upload, and publish",
-  );
-
-  assert(
-    countOccurrences(executable, "pnpm run check:phase09:release") === 1,
-    "STEP_COUNT",
-    "release must execute check:phase09:release exactly once",
+    "release verification and upload chain",
   );
   assert(
-    countOccurrences(executable, "PHASE09_ARCHIVE_EXPORT_DIR") === 1 &&
-      phase09.raw.includes(
-        `PHASE09_ARCHIVE_EXPORT_DIR: ${ARCHIVE_DIRECTORY_EXPRESSION}`,
-      ),
+    gate.raw.includes("PHASE09_ARCHIVE_EXPORT_DIR: ${{ runner.temp }}/phase09-archives"),
     "ARCHIVE_EXPORT_ENV",
-    "PHASE09_ARCHIVE_EXPORT_DIR must be step-local to the release gate",
+    "archive export directory must be local to the verified gate",
   );
+  validateExactUpload(uploads[0], [
+    "${{ steps.phase09-archives.outputs.core }}",
+    "${{ steps.phase09-archives.outputs.react }}",
+    "${{ steps.phase09-archives.outputs.svelte }}",
+    "${{ steps.phase09-archives.outputs.manifest }}",
+  ]);
+  validateExactUpload(uploads[1], [
+    "${{ steps.phase09-tools.outputs.publisher }}",
+    "${{ steps.phase09-tools.outputs.npm }}",
+  ]);
+  validateNoArtifactRepack(verify.steps, gate);
   assert(
-    resolver.raw.includes(
-      `PHASE09_CHECKED_ARCHIVE_DIR: ${ARCHIVE_DIRECTORY_EXPRESSION}`,
-    ),
-    "ARCHIVE_RESOLVER",
-    "archive resolver must read the same runner-temp export directory",
+    toolPreparation.run?.includes("https://registry.npmjs.org/npm/-/npm-11.11.0.tgz") === true &&
+      toolPreparation.run.includes(PUBLISHER_SHA256) &&
+      toolPreparation.run.includes(NPM_INTEGRITY),
+    "PUBLISHER_TOOLCHAIN",
+    "verified tool artifact is not bound to exact publisher/npm content",
+  );
+
+  assert(
+    publish.executable.includes("needs: verify"),
+    "VERSION_LIFECYCLE",
+    "publisher must depend on successful verification",
+  );
+  requireExactUseSequence(
+    publish.steps,
+    [DOWNLOAD, DOWNLOAD],
+    `${RELEASE_PATH}#publish`,
+  );
+  validateOidcIsolation(publish);
+  const downloadedResolver = requireOneStep(
+    publish.steps,
+    (step) => step.name === "Reverify and resolve the downloaded archive triplet",
+    "downloaded archive resolver",
+  );
+  const publishStep = requireOneStep(
+    publish.steps,
+    (step) => step.name === "Publish the exact checked archive triplet",
+    "exact archive publisher",
+  );
+  requireOrder(
+    [
+      requireOneStep(
+        publish.steps,
+        (step) => step.name === "Download the exact checked Phase 09 archives",
+        "publisher archive download",
+      ),
+      downloadedResolver,
+      publishStep,
+    ],
+    "download, reverify, publish",
   );
   for (const token of [
-    "phase-09-archive-digests.json",
-    "@fullselfbrowsing/concierge",
-    "@fullselfbrowsing/concierge-react",
-    "@fullselfbrowsing/concierge-svelte",
-    'createHash("sha256")',
-    "readdirSync(directory).sort()",
-    "GITHUB_OUTPUT",
-    "outputs.push(`${key}=${archivePath}`)",
+    "phase-09-publish-archives.mjs",
+    "${{ steps.downloaded-archives.outputs.manifest }}",
+    "${{ steps.downloaded-archives.outputs.core }}",
+    "${{ steps.downloaded-archives.outputs.react }}",
+    "${{ steps.downloaded-archives.outputs.svelte }}",
   ]) {
-    assert(
-      resolver.raw.includes(token),
-      "ARCHIVE_RESOLVER",
-      `archive resolver is missing ${token}`,
-    );
+    assert(publishStep.run?.includes(token) === true, "EXACT_PUBLISH", `publisher is missing ${token}`);
   }
-  validateEmbeddedNodeProgram(resolver);
-  validateExactUploadPaths(upload);
-  validateNoRepackBetween(steps, phase09, upload);
-
   assert(
-    !/\b(?:npm|pnpm)\s+pack\b/u.test(
-      steps
-        .filter((step) => step.index > phase09.index)
-        .map((step) => step.run ?? "")
-        .join("\n"),
-    ),
-    "REPACK_AFTER_VERIFY",
-    "release contains a pack command after same-revision verification",
+    countOccurrences(workflow.executable, PUBLISHER_SHA256) === 2 &&
+      countOccurrences(workflow.executable, NPM_INTEGRITY) === 2 &&
+      publish.executable.includes("publisher Node is below 22.14.0") &&
+      publish.executable.includes("PHASE09_NPM_CLI=${cli}"),
+    "PUBLISHER_TOOLCHAIN",
+    "OIDC publisher does not reverify the exact publisher/npm toolchain",
   );
-  assert(
-    !phase09.raw.includes("if:") &&
-      !upload.raw.includes("if:") &&
-      !publish.raw.includes("if:") &&
-      !publish.raw.includes("continue-on-error"),
-    "BLOCKING_PUBLISH",
-    "verification, upload, and publication must retain default success gating",
-  );
-
-  for (const [token, count] of [
-    ["contents: write", 1],
-    ["pull-requests: write", 1],
-    ["id-token: write", 1],
-    ["fetch-depth: 0", 1],
-    ["node-version: 24", 1],
-    ["registry-url: 'https://registry.npmjs.org'", 1],
-    ["npm install -g npm@latest", 1],
-    ["version: pnpm changeset version", 1],
-    ["publish: pnpm changeset publish", 1],
-    ["GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}", 1],
-  ]) {
+  validateNoChangesetsPublish(workflow.executable);
+  for (const forbidden of ["NPM_TOKEN", "--provenance", "secrets.NPM"] ) {
     assert(
-      countOccurrences(executable, token) === count,
-      "RELEASE_INHERITED",
-      `${RELEASE_PATH} must contain ${token} exactly ${count} time(s)`,
-    );
-  }
-  for (const forbidden of ["NPM_TOKEN", "--provenance", "auth-token-line"] ) {
-    assert(
-      !executable.includes(forbidden),
+      !workflow.executable.includes(forbidden),
       "TRUSTED_PUBLISHING",
-      `${RELEASE_PATH} executable YAML contains forbidden ${forbidden}`,
+      `release executable contains forbidden ${forbidden}`,
     );
   }
-  for (const forbidden of ["git checkout", "git switch", "git reset", "git pull"] ) {
-    assert(
-      !steps.some((step) => step.run?.includes(forbidden)),
-      "REVISION_DRIFT",
-      `release changes revision with ${forbidden}`,
-    );
-  }
-  for (const token of [
-    "name: phase09-release-archives",
-    "if-no-files-found: error",
-  ]) {
-    assert(upload.raw.includes(token), "UPLOAD_PATHS", `release upload is missing ${token}`);
-  }
+  validateEmbeddedNodePrograms(workflow, 4);
+}
+
+function runScriptSelfTest(path, marker) {
+  const result = spawnSync(process.execPath, [resolve(ROOT, path), "self-test"], {
+    cwd: ROOT,
+    encoding: "utf8",
+    maxBuffer: 4 * 1024 * 1024,
+    timeout: 30_000,
+  });
+  assert(
+    result.error === undefined &&
+      result.signal === null &&
+      result.status === 0 &&
+      result.stdout.includes(marker),
+    "SCRIPT_SELF_TEST",
+    `${path} self-test failed: ${result.stdout}${result.stderr}`,
+  );
 }
 
 function expectFailure(label, operation, expectedCode) {
@@ -614,21 +712,21 @@ function expectFailure(label, operation, expectedCode) {
 }
 
 function runDetectorControls() {
-  const step = (index, run = null, raw = "") => ({ index, run, raw });
+  const step = (index, { uses = null, run = null, raw = "", name = null } = {}) =>
+    ({ index, uses, run, raw, name });
   let controls = 0;
-  const control = (label, operation, expectedCode) => {
-    expectFailure(label, operation, expectedCode);
+  const control = (label, operation, code) => {
+    expectFailure(label, operation, code);
     controls += 1;
   };
-
   control(
-    "duplicate-command",
-    () => requireOneStep([step(1, "gate"), step(2, "gate")], (item) => item.run === "gate", "gate"),
-    "STEP_COUNT",
+    "unpinned-action",
+    () => validatePinnedUses([step(1, { uses: "actions/checkout@v5" })], "synthetic"),
+    "ACTION_PINS",
   );
   control(
-    "missing-command",
-    () => requireOneStep([], () => true, "missing"),
+    "duplicate-command",
+    () => requireOneStep([step(1, { run: "gate" }), step(2, { run: "gate" })], (item) => item.run === "gate", "gate"),
     "STEP_COUNT",
   );
   control(
@@ -638,24 +736,35 @@ function runDetectorControls() {
   );
   control(
     "ignored-failure",
-    () => validateBlocking({ executable: "steps:", steps: [step(1, "gate || true")] }, "synthetic.yml"),
+    () => validateBlocking({ executable: "steps:", steps: [step(1, { run: "gate || true" })] }, "synthetic"),
     "IGNORED_FAILURE",
   );
   control(
-    "broad-archive-glob",
-    () => validateExactUploadPaths(step(1, null, "path: |\n  /tmp/*.tgz")),
+    "broad-upload",
+    () => validateExactUpload(step(1, { raw: "path: |\n  /tmp/*.tgz" }), ["/tmp/core.tgz"]),
     "UPLOAD_PATHS",
   );
   control(
-    "post-verification-repack",
-    () => validateNoRepackBetween(
-      [step(1), step(2, "pnpm pack"), step(3)],
-      step(1),
-      step(3),
-    ),
+    "post-gate-repack",
+    () => validateNoArtifactRepack([step(1), step(2, { run: "pnpm pack" })], step(1)),
     "REPACK_AFTER_VERIFY",
   );
-  assert(controls === 6, "CHECKER_SELF_TEST", `expected six controls, ran ${controls}`);
+  control(
+    "changesets-publish",
+    () => validateNoChangesetsPublish("with:\n  publish: pnpm changeset publish"),
+    "CHANGESETS_PUBLISH",
+  );
+  control(
+    "oidc-checkout",
+    () => validateOidcIsolation({ steps: [step(1, { uses: CHECKOUT })] }),
+    "OIDC_ISOLATION",
+  );
+  control(
+    "oidc-install",
+    () => validateOidcIsolation({ steps: [step(1, { run: "npm install" })] }),
+    "OIDC_ISOLATION",
+  );
+  assert(controls === 9, "CHECKER_SELF_TEST", `expected nine controls, ran ${controls}`);
   return controls;
 }
 
@@ -664,13 +773,21 @@ if (process.argv.length !== 2) {
 }
 
 const controls = runDetectorControls();
-validateLivePackageContracts();
+validateLiveContracts();
 const ci = readWorkflow(CI_PATH);
 const release = readWorkflow(RELEASE_PATH);
 validateCi(ci);
 validateRelease(release);
+runScriptSelfTest(
+  "scripts/phase-09-version.mjs",
+  "PHASE09_VERSION_SELF_TEST_OK controls=7",
+);
+runScriptSelfTest(
+  "scripts/phase-09-publish-archives.mjs",
+  "PHASE09_PUBLISHER_SELF_TEST_OK controls=2",
+);
 
 process.stdout.write(
-  `PHASE09_WORKFLOW_CHECK_OK workflows=2 controls=${controls} ` +
+  `PHASE09_WORKFLOW_CHECK_OK workflows=2 jobs=5 controls=${controls} ` +
     `ciSteps=${ci.steps.length} releaseSteps=${release.steps.length}\n`,
 );

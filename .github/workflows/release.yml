@@ -1,113 +1,96 @@
 name: release
 
-# THIS WORKFLOW HAS NEVER BEEN EXECUTED.
-#
-# Nothing publishes until v0.1 completes (see .planning/ROADMAP.md), so this file
-# ships unexecuted and its verification to date is STATIC REVIEW ONLY — six named
-# properties checked by inspection and grep in plan 02-10, not a run. Treat the
-# first real release as the first test of this file, and follow RELEASING.md,
-# which exists because the worst failure here is invisible from the exit code.
-#
-# Supply-chain posture: npm trusted publishing over OIDC. Publish rights are bound
-# to this repository and this workflow on the npm side, not to a transferable
-# secret that lives in repository settings.
-
+# This workflow intentionally separates versioning, verification, and
+# publication. Only the final job can request an npm OIDC token, and that job
+# consumes immutable archives produced by the preceding no-OIDC job.
 on:
   push:
     branches: [main]
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
-permissions:
-  # changesets pushes the version commit and the tag.
-  contents: write
-  # changesets opens and updates the "Version Packages" PR.
-  pull-requests: write
-  # REQUIRED for OIDC trusted publishing. Omit it and there is no token to
-  # exchange, so the publish falls back to token auth and fails with ENEEDAUTH
-  # or a 404 that reads like a trusted-publisher misconfiguration.
-  id-token: write
+permissions: {}
 
 jobs:
-  release:
+  version:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      hasChangesets: ${{ steps.changesets.outputs.hasChangesets }}
     steps:
-      # fetch-depth: 0 is REQUIRED, not a tuning knob. changesets diffs against
-      # released versions to decide what to version and what to publish; with
-      # the default shallow clone (depth 1) it cannot determine what was already
-      # released, and version/publish misbehave rather than fail loudly.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
         with:
           fetch-depth: 0
 
-      # No `version` input: pnpm resolves from the root `packageManager` field,
-      # pinned at pnpm@11.17.0.
-      #
-      # The pnpm version is load-bearing here in a way it is nowhere else.
-      # `changeset publish` shells out to `pnpm publish` in this workspace —
-      # verified by reading @changesets/cli@2.31.1's getPublishTool, which
-      # branches on the detected tool and spawns `pnpm publish` for a pnpm
-      # workspace, not `npm publish`. OIDC support therefore lives in pnpm, not
-      # in npm, and pnpm below 11.1.3 returns a 404 ON THE PUT: actions/setup-node
-      # writes `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}` into a
-      # project-level .npmrc, there is deliberately no NODE_AUTH_TOKEN under
-      # OIDC, and an older pnpm passes the unresolved placeholder through — so
-      # the client concludes auth is already configured and never performs the
-      # OIDC exchange. Provenance signing appears to succeed first, which makes
-      # it the most misleading failure in the set. Fixed in pnpm 11.1.3
-      # (2026-05-18, pnpm/pnpm#11526). 11.17.0 is far past it.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.1.0
 
-      # DO NOT add `auth-token-line: false` here. That input does not exist in
-      # actions/setup-node's current action.yml — it was proposed in
-      # actions/setup-node#1551 and closed as a duplicate. An unknown `with:`
-      # key is ignored silently, so writing it produces a workflow that looks
-      # like it disabled the .npmrc token line and did not.
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
-          registry-url: 'https://registry.npmjs.org'
           cache: pnpm
 
-      # The runner's bundled npm may be older than 11.5.1, which is the floor
-      # for the OIDC exchange on the npm side. See RELEASING.md for where each
-      # of the three version floors comes from.
-      - run: npm install -g npm@latest
+      - name: Assert pinned package tooling
+        run: |
+          npm install -g npm@11.11.0
+          test "$(npm --version)" = "11.11.0"
 
       - run: pnpm install --frozen-lockfile
 
-      # typecheck first, for the same reason ci.yml runs it before build:
-      # rolldown transpiles without typechecking, so mutant P4 (plan 02-04) is
-      # a program on which `pnpm build` exits 0 and `pnpm typecheck` does not.
-      # The `&&` chain is what makes the order enforceable in one step.
-      - run: pnpm typecheck && pnpm build && pnpm test
+      # The custom version command versions a private snapshot first, restores
+      # the fail-closed workspace:^ adapter peers, and regenerates/stages fresh
+      # Phase 09 evidence before the action opens or updates Version Packages.
+      - name: Open or update the evidence-bearing version PR
+        id: changesets
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+        with:
+          version: pnpm run version:phase09
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Preserve the original core release gates independently. The adapter
-      # aggregate below adds evidence; it does not replace any inherited proof.
+  verify:
+    needs: version
+    if: ${{ needs.version.outputs.hasChangesets == 'false' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.1.0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Assert pinned package tooling
+        run: |
+          npm install -g npm@11.11.0
+          test "$(npm --version)" = "11.11.0"
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck && pnpm build && pnpm test
       - run: pnpm run check:artifact
       - run: pnpm run check:deps
       - run: pnpm run check:pack
       - run: pnpm run check:node-floor
 
-      # package-check `all` accepts only an existing, empty, normalized export
-      # directory outside the repository. A pre-existing path is therefore an
-      # error rather than something this workflow empties or reuses.
       - name: Allocate the empty Phase 09 archive export
         run: |
           test ! -e "${{ runner.temp }}/phase09-archives"
           mkdir "${{ runner.temp }}/phase09-archives"
 
-      # This single invocation verifies the current checkout and exports the
-      # exact three archives it checked. The env is step-local so no other pack
-      # command can silently replace the release inputs.
-      - name: Verify the same-revision Phase 09 release inputs
+      - name: Verify and export the same-revision Phase 09 release inputs
         run: pnpm run check:phase09:release
         env:
           PHASE09_ARCHIVE_EXPORT_DIR: ${{ runner.temp }}/phase09-archives
 
-      # Resolve upload paths from the digest manifest written by that invocation.
-      # This rechecks the byte digests and exact four-file directory without
-      # copying, renaming, globbing, or repacking any archive.
       - name: Resolve the exact checked Phase 09 archives
         id: phase09-archives
         env:
@@ -129,7 +112,6 @@ jobs:
           if (directory !== normalize(resolve(configured))) {
             throw new Error("checked archive directory is not normalized");
           }
-
           const manifestName = "phase-09-archive-digests.json";
           const manifestPath = join(directory, manifestName);
           const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
@@ -138,67 +120,111 @@ jobs:
             ["react", "@fullselfbrowsing/concierge-react"],
             ["svelte", "@fullselfbrowsing/concierge-svelte"],
           ];
-          const packageNames = packages.map((entry) => entry[1]).sort();
-
           if (
             manifest.schemaVersion !== 1 ||
             manifest.algorithm !== "sha256" ||
-            manifest.archives === null ||
-            typeof manifest.archives !== "object" ||
-            Array.isArray(manifest.archives) ||
-            JSON.stringify(Object.keys(manifest.archives).sort()) !==
-              JSON.stringify(packageNames)
+            JSON.stringify(Object.keys(manifest.archives ?? {}).sort()) !==
+              JSON.stringify(packages.map((entry) => entry[1]).sort())
           ) {
             throw new Error("checked archive digest manifest is malformed");
           }
-
-          const outputs = [];
           const expectedEntries = [manifestName];
+          const outputs = [];
           for (const [key, packageName] of packages) {
             const record = manifest.archives[packageName];
             if (
-              record === null ||
-              typeof record !== "object" ||
+              Object.keys(record ?? {}).sort().join(",") !== "file,sha256" ||
               typeof record.file !== "string" ||
               basename(record.file) !== record.file ||
               !record.file.endsWith(".tgz") ||
               !/^[0-9a-f]{64}$/u.test(record.sha256)
             ) {
-              throw new Error(`invalid checked archive record for ${packageName}`);
+              throw new Error(`invalid archive record: ${packageName}`);
             }
-
             const archivePath = join(directory, record.file);
             const metadata = lstatSync(archivePath);
-            if (
-              !metadata.isFile() ||
-              metadata.size <= 0 ||
-              realpathSync(archivePath) !== archivePath
-            ) {
-              throw new Error(`checked archive is not a nonempty regular file: ${record.file}`);
-            }
             const digest = createHash("sha256")
               .update(readFileSync(archivePath))
               .digest("hex");
-            if (digest !== record.sha256) {
-              throw new Error(`checked archive digest changed: ${record.file}`);
+            if (
+              !metadata.isFile() ||
+              metadata.size <= 0 ||
+              realpathSync(archivePath) !== archivePath ||
+              digest !== record.sha256
+            ) {
+              throw new Error(`checked archive changed: ${record.file}`);
             }
-
             expectedEntries.push(record.file);
             outputs.push(`${key}=${archivePath}`);
           }
-
           if (
             JSON.stringify(readdirSync(directory).sort()) !==
             JSON.stringify(expectedEntries.sort())
           ) {
-            throw new Error("checked archive export does not contain exactly three tgz files and its digest manifest");
+            throw new Error("checked archive directory is not exact");
           }
           outputs.push(`manifest=${manifestPath}`);
           appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join("\n")}\n`);
           NODE
 
+      - name: Exercise the exact-path publisher controls without publishing
+        run: node scripts/phase-09-publish-archives.mjs self-test
+
+      - name: Prepare the content-addressed publisher toolchain
+        id: phase09-tools
+        run: |
+          test ! -e "${{ runner.temp }}/phase09-publish-tools"
+          mkdir "${{ runner.temp }}/phase09-publish-tools"
+          cp scripts/phase-09-publish-archives.mjs "${{ runner.temp }}/phase09-publish-tools/phase-09-publish-archives.mjs"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            --output "${{ runner.temp }}/phase09-publish-tools/npm-11.11.0.tgz" \
+            https://registry.npmjs.org/npm/-/npm-11.11.0.tgz
+          PHASE09_TOOL_DIR="${{ runner.temp }}/phase09-publish-tools" node --input-type=module <<'NODE'
+          import { createHash } from "node:crypto";
+          import {
+            appendFileSync,
+            lstatSync,
+            readFileSync,
+            readdirSync,
+            realpathSync,
+          } from "node:fs";
+          import { join } from "node:path";
+
+          const directory = realpathSync(process.env.PHASE09_TOOL_DIR);
+          const publisher = join(directory, "phase-09-publish-archives.mjs");
+          const npm = join(directory, "npm-11.11.0.tgz");
+          if (
+            JSON.stringify(readdirSync(directory).sort()) !==
+              JSON.stringify(["npm-11.11.0.tgz", "phase-09-publish-archives.mjs"])
+          ) {
+            throw new Error("publisher tool directory is not exact");
+          }
+          for (const path of [publisher, npm]) {
+            const metadata = lstatSync(path);
+            if (!metadata.isFile() || metadata.size <= 0 || realpathSync(path) !== path) {
+              throw new Error(`publisher tool is not a regular file: ${path}`);
+            }
+          }
+          const publisherDigest = createHash("sha256")
+            .update(readFileSync(publisher))
+            .digest("hex");
+          const npmIntegrity = `sha512-${createHash("sha512")
+            .update(readFileSync(npm))
+            .digest("base64")}`;
+          if (publisherDigest !== "b3e6f3cee319d7a70764de3b82efcebddf3ab03a60dc721bd0ccaa1f4cdd6b71") {
+            throw new Error("publisher source digest drifted");
+          }
+          if (npmIntegrity !== "sha512-82gRxKrh/eY5UnNorkTFcdBQAGpgjWehkfGVqAGlJjejEtJZGGJUqjo3mbBTNbc5BTnPKGVtGPBZGhElujX5cw==") {
+            throw new Error("npm 11.11.0 integrity drifted");
+          }
+          appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            `publisher=${publisher}\nnpm=${npm}\n`,
+          );
+          NODE
+
       - name: Upload the exact checked Phase 09 archives
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: phase09-release-archives
           path: |
@@ -208,28 +234,195 @@ jobs:
             ${{ steps.phase09-archives.outputs.manifest }}
           if-no-files-found: error
 
-      # NO `NPM_TOKEN` — not in this env block, not in repository secrets used by
-      # this workflow, not anywhere under .github/. This is the one prohibition
-      # in this file whose violation produces a GREEN build and a degraded
-      # artifact: token auth wins over OIDC, the publish succeeds, and it
-      # succeeds WITHOUT a provenance attestation. Nothing in the workflow's own
-      # exit code reveals it, which is why RELEASING.md makes a human check the
-      # npm package page on the first real release and treats a publish without
-      # an attestation as a FAILED publish. (Threats T-02-46, T-02-47.)
-      #
-      # NO `--provenance` flag either. Provenance attestations are generated
-      # automatically for public repositories on GitHub Actions; passing the flag
-      # by hand is at best redundant and at worst a second, divergent code path.
-      #
-      # Both strings appear above deliberately. The assertions that keep them out
-      # of this file are scoped to non-comment lines and, for NPM_TOKEN, to
-      # assignment or `secrets.` reference context — precisely so that going
-      # green by deleting this comment is not an option. This workflow does not
-      # execute in phase 02, so this comment is the only recorded mitigation
-      # those two threats have.
-      - uses: changesets/action@v1
+      - name: Upload the exact publisher toolchain
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          version: pnpm changeset version
-          publish: pnpm changeset publish
+          name: phase09-publisher-tools
+          path: |
+            ${{ steps.phase09-tools.outputs.publisher }}
+            ${{ steps.phase09-tools.outputs.npm }}
+          if-no-files-found: error
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: Download the exact checked Phase 09 archives
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: phase09-release-archives
+          path: ${{ runner.temp }}/phase09-archives
+
+      - name: Download the content-addressed publisher toolchain
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: phase09-publisher-tools
+          path: ${{ runner.temp }}/phase09-publish-tools
+
+      - name: Verify and unpack the content-addressed npm CLI
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PHASE09_TOOL_DIR: ${{ runner.temp }}/phase09-publish-tools
+        run: |
+          node --input-type=module <<'NODE'
+          import { createHash } from "node:crypto";
+          import { spawnSync } from "node:child_process";
+          import {
+            appendFileSync,
+            lstatSync,
+            mkdirSync,
+            readFileSync,
+            readdirSync,
+            realpathSync,
+          } from "node:fs";
+          import { join, normalize, resolve } from "node:path";
+
+          const configured = process.env.PHASE09_TOOL_DIR;
+          const [nodeMajor, nodeMinor] = process.versions.node
+            .split(".")
+            .slice(0, 2)
+            .map(Number);
+          if (nodeMajor < 22 || (nodeMajor === 22 && nodeMinor < 14)) {
+            throw new Error(`publisher Node is below 22.14.0: ${process.version}`);
+          }
+          const directory = realpathSync(configured);
+          if (directory !== normalize(resolve(configured))) {
+            throw new Error("publisher tool directory is not normalized");
+          }
+          if (
+            JSON.stringify(readdirSync(directory).sort()) !==
+              JSON.stringify(["npm-11.11.0.tgz", "phase-09-publish-archives.mjs"])
+          ) {
+            throw new Error("downloaded publisher tool directory is not exact");
+          }
+          const publisher = join(directory, "phase-09-publish-archives.mjs");
+          const npmArchive = join(directory, "npm-11.11.0.tgz");
+          for (const path of [publisher, npmArchive]) {
+            const metadata = lstatSync(path);
+            if (!metadata.isFile() || metadata.size <= 0 || realpathSync(path) !== path) {
+              throw new Error(`downloaded publisher tool is invalid: ${path}`);
+            }
+          }
+          if (
+            createHash("sha256").update(readFileSync(publisher)).digest("hex") !==
+              "b3e6f3cee319d7a70764de3b82efcebddf3ab03a60dc721bd0ccaa1f4cdd6b71"
+          ) {
+            throw new Error("downloaded publisher source digest drifted");
+          }
+          const npmIntegrity = `sha512-${createHash("sha512")
+            .update(readFileSync(npmArchive))
+            .digest("base64")}`;
+          if (npmIntegrity !== "sha512-82gRxKrh/eY5UnNorkTFcdBQAGpgjWehkfGVqAGlJjejEtJZGGJUqjo3mbBTNbc5BTnPKGVtGPBZGhElujX5cw==") {
+            throw new Error("downloaded npm 11.11.0 integrity drifted");
+          }
+          const npmRoot = join(directory, "npm-cli");
+          mkdirSync(npmRoot);
+          const extraction = spawnSync("tar", ["-xzf", npmArchive, "-C", npmRoot], {
+            encoding: "utf8",
+          });
+          if (extraction.error !== undefined || extraction.signal !== null || extraction.status !== 0) {
+            throw new Error(`npm CLI extraction failed: ${extraction.stderr}`);
+          }
+          const cli = realpathSync(join(npmRoot, "package/bin/npm-cli.js"));
+          if (!lstatSync(cli).isFile()) throw new Error("npm CLI is not a regular file");
+          const version = spawnSync(process.execPath, [cli, "--version"], {
+            encoding: "utf8",
+          });
+          if (
+            version.error !== undefined ||
+            version.signal !== null ||
+            version.status !== 0 ||
+            version.stdout.trim() !== "11.11.0"
+          ) {
+            throw new Error("content-addressed npm CLI version drifted");
+          }
+          appendFileSync(process.env.GITHUB_ENV, `PHASE09_NPM_CLI=${cli}\n`);
+          NODE
+
+      - name: Reverify and resolve the downloaded archive triplet
+        id: downloaded-archives
+        env:
+          PHASE09_CHECKED_ARCHIVE_DIR: ${{ runner.temp }}/phase09-archives
+        run: |
+          node --input-type=module <<'NODE'
+          import { createHash } from "node:crypto";
+          import {
+            appendFileSync,
+            lstatSync,
+            readFileSync,
+            readdirSync,
+            realpathSync,
+          } from "node:fs";
+          import { basename, join, normalize, resolve } from "node:path";
+
+          const configured = process.env.PHASE09_CHECKED_ARCHIVE_DIR;
+          const directory = realpathSync(configured);
+          if (directory !== normalize(resolve(configured))) {
+            throw new Error("downloaded archive directory is not normalized");
+          }
+          const manifestName = "phase-09-archive-digests.json";
+          const manifestPath = join(directory, manifestName);
+          const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+          const packages = [
+            ["core", "@fullselfbrowsing/concierge"],
+            ["react", "@fullselfbrowsing/concierge-react"],
+            ["svelte", "@fullselfbrowsing/concierge-svelte"],
+          ];
+          if (
+            manifest.schemaVersion !== 1 ||
+            manifest.algorithm !== "sha256" ||
+            JSON.stringify(Object.keys(manifest.archives ?? {}).sort()) !==
+              JSON.stringify(packages.map((entry) => entry[1]).sort())
+          ) {
+            throw new Error("downloaded archive manifest is malformed");
+          }
+          const expectedEntries = [manifestName];
+          const outputs = [];
+          for (const [key, packageName] of packages) {
+            const record = manifest.archives[packageName];
+            if (
+              Object.keys(record ?? {}).sort().join(",") !== "file,sha256" ||
+              typeof record.file !== "string" ||
+              basename(record.file) !== record.file ||
+              !record.file.endsWith(".tgz") ||
+              !/^[0-9a-f]{64}$/u.test(record.sha256)
+            ) {
+              throw new Error(`invalid downloaded archive record: ${packageName}`);
+            }
+            const archivePath = join(directory, record.file);
+            const metadata = lstatSync(archivePath);
+            const digest = createHash("sha256")
+              .update(readFileSync(archivePath))
+              .digest("hex");
+            if (
+              !metadata.isFile() ||
+              metadata.size <= 0 ||
+              realpathSync(archivePath) !== archivePath ||
+              digest !== record.sha256
+            ) {
+              throw new Error(`downloaded archive changed: ${record.file}`);
+            }
+            expectedEntries.push(record.file);
+            outputs.push(`${key}=${archivePath}`);
+          }
+          if (
+            JSON.stringify(readdirSync(directory).sort()) !==
+            JSON.stringify(expectedEntries.sort())
+          ) {
+            throw new Error("downloaded archive directory is not exact");
+          }
+          outputs.push(`manifest=${manifestPath}`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join("\n")}\n`);
+          NODE
+
+      # No checkout, package-manager setup, install, build, or test is permitted
+      # in this OIDC-capable job. The reviewed script rehashes all four inputs
+      # before every exact-path publication in core -> React -> Svelte order.
+      - name: Publish the exact checked archive triplet
+        run: >-
+          node "${{ runner.temp }}/phase09-publish-tools/phase-09-publish-archives.mjs"
+          "${{ steps.downloaded-archives.outputs.manifest }}"
+          "${{ steps.downloaded-archives.outputs.core }}"
+          "${{ steps.downloaded-archives.outputs.react }}"
+          "${{ steps.downloaded-archives.outputs.svelte }}"
