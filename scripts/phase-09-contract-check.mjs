@@ -775,6 +775,7 @@ function evaluateContracts(root) {
         "NPM_CONFIG_USERCONFIG",
         "NPM_CONFIG_GLOBALCONFIG",
         "NPM_CONFIG_REGISTRY",
+        "PNPM_CONFIG_STORE_DIR",
         "GIT_CONFIG_NOSYSTEM",
         "GIT_CONFIG_GLOBAL",
         "PHASE09_CREDENTIAL_FREE_ENV",
@@ -966,7 +967,7 @@ function evaluateContracts(root) {
       for (const row of rows) {
         api.check(row?.occurrences === 1 && typeof row?.exactBefore === "string" && typeof row?.exactAfter === "string" && typeof row?.compileCommand === "string" && typeof row?.killerCommand === "string" && typeof row?.assertionFingerprint === "string", `mutation-row-${row?.id ?? "unknown"}`, `${PHASE_DIRECTORY}/09-MUTATION-REGISTER.json`, "one exact compiled semantic row", "inspected");
       }
-      for (const token of ["self-test", "preflight", "run", "finalize", "--jobs", "verify", "evidence", "release", "publish", "mode", "versioned", "releaseAuthorization", "runAttempt", "sharedVersion", "consumedChangesets", "versionReceipt", "09-VERSION-RECEIPT.json", "verifyPublishEvidence", "ordinary-mode-publish-rejected", "zero-version-publish-rejected", "removed-changeset-publish-rejected", "missing-evidence-attempt-rejected", "mismatched-evidence-attempt-rejected", "missing-receipt-attempt-rejected", "mismatched-receipt-attempt-rejected", "finalization-environment-preflight-before-child", "finalization-config-preflight-before-child", "secure-child-environment-probe", "runAfterCredentialFreeFinalizationPreflight", "createSecureChildEnvironment", "mergeSecureChildEnvironment", "mkdtemp", "phase-08-mutation-battery.mjs", "09-MUTATION-EVIDENCE.json", "09-RELEASE-EVIDENCE.json"]) {
+      for (const token of ["self-test", "preflight", "run", "finalize", "--jobs", "verify", "evidence", "release", "publish", "mode", "versioned", "releaseAuthorization", "runAttempt", "sharedVersion", "consumedChangesets", "versionReceipt", "09-VERSION-RECEIPT.json", "verifyPublishEvidence", "ordinary-mode-publish-rejected", "zero-version-publish-rejected", "removed-changeset-publish-rejected", "missing-evidence-attempt-rejected", "mismatched-evidence-attempt-rejected", "missing-receipt-attempt-rejected", "mismatched-receipt-attempt-rejected", "finalization-environment-preflight-before-child", "finalization-config-preflight-before-child", "secure-child-environment-probe", "pnpm-fetch-before-offline-install", "pnpm-fetch-failure-suppresses-install", "owned-pnpm-store-not-redirectable", "pnpm-owned-store-and-registry", "runAfterCredentialFreeFinalizationPreflight", "createSecureChildEnvironment", "mergeSecureChildEnvironment", "prewarmOwnedPnpmStoreAndInstall", "PNPM_FETCH_ARGUMENTS", "PNPM_OFFLINE_INSTALL_ARGUMENTS", "mkdtemp", "phase-08-mutation-battery.mjs", "09-MUTATION-EVIDENCE.json", "09-RELEASE-EVIDENCE.json"]) {
         api.check(runner.includes(token), `mutation-runner-${token}`, "scripts/phase-09-mutation-battery.mjs", `live ${token} state-machine path`, runner.includes(token) ? "present" : "absent");
       }
       api.check(
@@ -977,9 +978,22 @@ function evaluateContracts(root) {
         "inspected",
       );
       api.check(
+        /const PNPM_FETCH_ARGUMENTS\s*=\s*Object\.freeze\(\[\s*"fetch",\s*"--frozen-lockfile",\s*"--ignore-scripts",?\s*\]\)/u.test(runner) &&
+          /const PNPM_OFFLINE_INSTALL_ARGUMENTS\s*=\s*Object\.freeze\(\[\s*"install",\s*"--offline",\s*"--frozen-lockfile",?\s*\]\)/u.test(runner) &&
+          runner.includes('prewarmOwnedPnpmStoreAndInstall(baselineRoot, "baseline")') &&
+          runner.includes('prewarmOwnedPnpmStoreAndInstall(snapshotRoot, "Phase 8 snapshot")'),
+        "owned-pnpm-store-prewarm-order",
+        "scripts/phase-09-mutation-battery.mjs",
+        "exact frozen fetch before both offline installs",
+        "inspected",
+      );
+      api.check(
         releasing.includes('env -i PATH="$PATH"') &&
           /not an OS network or\s+filesystem sandbox/u.test(releasing) &&
-          releasing.includes("owned empty npm user/global and Git global configs"),
+          releasing.includes("owned empty npm user/global and Git global configs") &&
+          releasing.includes("pnpm fetch --frozen-lockfile --ignore-scripts") &&
+          releasing.includes("fetch may") &&
+          releasing.includes("registry.npmjs.org"),
         "versioned-finalization-runbook-boundary",
         "RELEASING.md",
         "credential-free launch plus honest process-isolation boundary",

@@ -106,6 +106,10 @@ If your adapter is meaningfully longer than ~150 lines, logic has leaked out of 
   Its preflight rejects ambient repository/npm credentials and influencing config
   paths before the lock or any evidence write, and every descendant gets an allowlisted
   environment with isolated home/config paths and owned empty npm/Git config files.
+  The finalizer prewarms its explicit owned pnpm store with
+  `pnpm fetch --frozen-lockfile --ignore-scripts` before each frozen offline install;
+  fetch failure stops before install or evidence, and no lifecycle script runs during
+  acquisition.
   This boundary does not claim OS network or filesystem sandboxing; use an ephemeral,
   restricted host when that stronger isolation is required.
 

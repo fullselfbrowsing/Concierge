@@ -94,6 +94,14 @@ The workflow has five jobs and two distinct pushes to `main`:
    Automation cannot make this semantic release decision on the repository-writing
    path.
 
+   The isolated pnpm store starts empty. Before each inherited Phase 8 or Phase 9
+   baseline offline install, the finalizer runs exactly
+   `pnpm fetch --frozen-lockfile --ignore-scripts` against that snapshot's committed
+   lockfile and its owned store, then runs the frozen offline install. Fetch failure,
+   timeout, or bounded-output overflow stops before install or evidence. The fetch may
+   acquire exact lockfile dependencies from `https://registry.npmjs.org/`; it receives
+   no ambient credentials/config and runs no dependency lifecycle scripts.
+
    This is process-environment and tool-config isolation, not an OS network or
    filesystem sandbox. Exact dependency downloads can still reach the public npmjs
    registry, and child code retains the host permissions of the operator. Use a
@@ -354,6 +362,7 @@ why `privatePackages` is `false`, therefore lives in
 | publisher/npm artifact digest drift | Minimal publisher aborts before the OIDC exchange or any package publication |
 | `NPM_TOKEN`, `NODE_AUTH_TOKEN`, `NPM_ID_TOKEN`, or ambient npm registry/auth config present | Publisher rejects the environment before invoking npm |
 | repository/npm credentials or ambient user/repository tool config present during versioned finalization | Finalizer rejects the environment before its lock, any child process, or evidence write; launch it with the documented `env -i` ceremony |
+| isolated finalization store lacks an exact lockfile tarball | Credential-free fetch prewarms the owned store without lifecycle scripts; any fetch failure stops before the offline install or evidence write |
 | package `publishConfig` or repository metadata gains an extra/foreign destination | Sealer/publisher rejects the archive before any registry query or publish |
 | `--provenance` removed from the exact publisher | The reviewed publication command drifted; workflow/static checks fail before OIDC publication |
 | dependency command added to `version` | Repository-write authority reaches workspace/dependency code; workflow checker rejects the edit |
