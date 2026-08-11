@@ -52,6 +52,21 @@ const PACK_COMMAND = "pnpm pack";
 const CORE_NAME = "@fullselfbrowsing/concierge";
 const REACT_NAME = "@fullselfbrowsing/concierge-react";
 const SVELTE_NAME = "@fullselfbrowsing/concierge-svelte";
+const CONSUMER_TOOLING_FIXTURE = join(
+  REPOSITORY_ROOT,
+  "scripts/fixtures/phase-09-foreign-consumer",
+);
+const CONSUMER_TOOLING_LOCK = join(
+  CONSUMER_TOOLING_FIXTURE,
+  "package-lock.json",
+);
+const CONSUMER_TOOLING_MANIFEST = join(
+  CONSUMER_TOOLING_FIXTURE,
+  "package.json",
+);
+const CONSUMER_TOOLING_LOCK_REPOSITORY_PATH =
+  "scripts/fixtures/phase-09-foreign-consumer/package-lock.json";
+const PINNED_NPM_VERSION = "11.11.0";
 const PACKAGE_SPECS = Object.freeze([
   Object.freeze({
     key: "core",
@@ -374,6 +389,13 @@ function validateArchiveContents(archive) {
   );
 
   if (archive.key !== "core") {
+    const expectedFrameworkPeers =
+      archive.key === "react"
+        ? Object.freeze({
+            react: "^18.2.0 || ^19.0.0",
+            "react-dom": "^18.2.0 || ^19.0.0",
+          })
+        : Object.freeze({ svelte: "^5.0.0" });
     assert(
       liveManifest.peerDependencies?.[CORE_NAME] === "workspace:^" &&
         liveManifest.devDependencies?.[CORE_NAME] === "workspace:*" &&
@@ -387,6 +409,16 @@ function validateArchiveContents(archive) {
       "ADAPTER_MANIFEST",
       `${archive.name} packed manifest must keep core peer-only at runtime`,
     );
+    for (const [name, range] of Object.entries(expectedFrameworkPeers)) {
+      assert(
+        liveManifest.peerDependencies?.[name] === range &&
+          archive.manifest.peerDependencies?.[name] === range &&
+          liveManifest.dependencies?.[name] === undefined &&
+          archive.manifest.dependencies?.[name] === undefined,
+        "ADAPTER_MANIFEST",
+        `${archive.name} must retain its reviewed ${name} peer range`,
+      );
+    }
     for (const entry of entries) {
       assert(
         !/^package\/(?:node_modules\/)?@fullselfbrowsing\/concierge\//u.test(entry) &&
@@ -494,36 +526,184 @@ function inspectInstalledTopology(consumerDirectory) {
   });
 }
 
-function createConsumer(root, archives, label) {
+function loadConsumerToolingFixture(
+  manifestPath = CONSUMER_TOOLING_MANIFEST,
+  lockPath = CONSUMER_TOOLING_LOCK,
+) {
+  for (const path of [manifestPath, lockPath]) {
+    const metadata = lstatSync(path);
+    assert(
+      metadata.isFile() && metadata.size > 0 && realpathSync(path) === path,
+      "CONSUMER_TOOLING",
+      `${relative(REPOSITORY_ROOT, path)} must be a nonempty regular file`,
+    );
+  }
+
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const lockText = readFileSync(lockPath, "utf8");
+  const lock = JSON.parse(lockText);
+  assert(
+    manifest.packageManager === `npm@${PINNED_NPM_VERSION}`,
+    "CONSUMER_TOOLING",
+    `consumer tooling must pin npm@${PINNED_NPM_VERSION}`,
+  );
+  assert(
+    JSON.stringify(manifest.dependencies) ===
+      JSON.stringify(CONSUMER_TOOL_VERSIONS),
+    "CONSUMER_TOOLING",
+    "consumer tooling manifest dependencies differ from the reviewed versions",
+  );
+  assert(
+    lock.lockfileVersion === 3 &&
+      JSON.stringify(lock.packages?.[""]?.dependencies) ===
+        JSON.stringify(CONSUMER_TOOL_VERSIONS) &&
+      Object.keys(lock.packages ?? {}).length > 1,
+    "CONSUMER_TOOLING",
+    "consumer tooling lock is incomplete or differs from its manifest",
+  );
+  assert(
+    !lockText.includes("workspace:") &&
+      !lockText.includes(REPOSITORY_ROOT) &&
+      !/"link"\s*:\s*true/u.test(lockText),
+    "CONSUMER_TOOLING",
+    "consumer tooling lock contains workspace or repository linkage",
+  );
+
+  return Object.freeze({
+    lockSha256: sha256File(lockPath),
+    manifest,
+  });
+}
+
+function prepareConsumerTooling(root) {
+  const fixture = loadConsumerToolingFixture();
+  const npmVersion = runChild(NPM, ["--version"], {
+    label: "pinned consumer npm version",
+  }).stdout.trim();
+  assert(
+    npmVersion === PINNED_NPM_VERSION,
+    "NPM_VERSION",
+    `expected npm ${PINNED_NPM_VERSION}, received ${npmVersion}`,
+  );
+
+  const cacheDirectory = join(
+    root,
+    `consumer-npm-cache-${fixture.lockSha256.slice(0, 16)}`,
+  );
+  const populationDirectory = join(root, "consumer-cache-population");
+  mkdirSync(cacheDirectory);
+  mkdirSync(populationDirectory);
+  assertOutsideRepository(cacheDirectory, "consumer tooling cache");
+  assertOutsideRepository(populationDirectory, "consumer cache population");
+  copyFileSync(
+    CONSUMER_TOOLING_MANIFEST,
+    join(populationDirectory, "package.json"),
+  );
+  copyFileSync(
+    CONSUMER_TOOLING_LOCK,
+    join(populationDirectory, "package-lock.json"),
+  );
+  runChild(
+    NPM,
+    [
+      "ci",
+      "--ignore-scripts",
+      "--cache",
+      cacheDirectory,
+      "--no-audit",
+      "--no-fund",
+      "--loglevel=error",
+    ],
+    {
+      cwd: populationDirectory,
+      label: "populate consumer cache from committed lock",
+    },
+  );
+  assert(
+    sha256File(join(populationDirectory, "package-lock.json")) ===
+      fixture.lockSha256,
+    "CONSUMER_LOCK",
+    "cache population changed the committed consumer lock",
+  );
+  rmSync(join(populationDirectory, "node_modules"), {
+    recursive: true,
+    force: false,
+  });
+
+  return Object.freeze({
+    cacheDirectory,
+    evidence: Object.freeze({
+      lockFile: CONSUMER_TOOLING_LOCK_REPOSITORY_PATH,
+      lockSha256: fixture.lockSha256,
+      npmVersion,
+      offlineCi: true,
+    }),
+    manifest: fixture.manifest,
+  });
+}
+
+function createConsumer(root, archives, label, tooling) {
   const consumerDirectory = join(root, label);
   mkdirSync(consumerDirectory);
   assertOutsideRepository(consumerDirectory, `${label} consumer`);
+  const manifestPath = join(consumerDirectory, "package.json");
+  const lockPath = join(consumerDirectory, "package-lock.json");
+  copyFileSync(CONSUMER_TOOLING_MANIFEST, manifestPath);
+  copyFileSync(CONSUMER_TOOLING_LOCK, lockPath);
+  runChild(
+    NPM,
+    [
+      "ci",
+      "--ignore-scripts",
+      "--offline",
+      "--cache",
+      tooling.cacheDirectory,
+      "--no-audit",
+      "--no-fund",
+      "--loglevel=error",
+    ],
+    { cwd: consumerDirectory, label: `offline npm ci ${label}` },
+  );
+  assert(
+    sha256File(lockPath) === tooling.evidence.lockSha256,
+    "CONSUMER_LOCK",
+    "offline npm ci changed the committed consumer lock",
+  );
+
   const dependencies = {
     [CORE_NAME]: `file:${archives.core.path}`,
     [REACT_NAME]: `file:${archives.react.path}`,
     [SVELTE_NAME]: `file:${archives.svelte.path}`,
     ...CONSUMER_TOOL_VERSIONS,
   };
-  writeJson(join(consumerDirectory, "package.json"), {
-    name: `concierge-phase09-${label}`,
-    version: "0.0.0",
-    private: true,
-    type: "module",
-    dependencies,
-  });
+  const archivePaths = PACKAGE_SPECS.map((spec) => archives[spec.key].path);
   runChild(
     NPM,
     [
       "install",
       "--ignore-scripts",
+      "--offline",
+      "--cache",
+      tooling.cacheDirectory,
       "--no-audit",
       "--no-fund",
       "--loglevel=error",
+      "--legacy-peer-deps",
+      "--no-save",
+      ...archivePaths,
     ],
-    { cwd: consumerDirectory, label: `npm install ${label}` },
+    { cwd: consumerDirectory, label: `offline local archives ${label}` },
   );
-  const lockPath = join(consumerDirectory, "package-lock.json");
-  assert(statSync(lockPath).isFile(), "CONSUMER_LOCK", "npm did not write a lockfile");
+  assert(
+    sha256File(lockPath) === tooling.evidence.lockSha256,
+    "CONSUMER_LOCK",
+    "local archive installation changed the committed consumer lock",
+  );
+  writeJson(manifestPath, {
+    ...tooling.manifest,
+    name: `concierge-phase09-${label}`,
+    dependencies,
+  });
   const lockText = readFileSync(lockPath, "utf8");
   assert(
     !lockText.includes("workspace:") &&
@@ -533,7 +713,11 @@ function createConsumer(root, archives, label) {
     "consumer lockfile contains workspace or repository linkage",
   );
   const topology = inspectInstalledTopology(consumerDirectory);
-  return Object.freeze({ directory: consumerDirectory, topology });
+  return Object.freeze({
+    directory: consumerDirectory,
+    lockSha256: tooling.evidence.lockSha256,
+    topology,
+  });
 }
 
 function writeDeclarationFixture(consumerDirectory) {
@@ -753,8 +937,13 @@ function runServerTests(consumerDirectory) {
   ]);
 }
 
-function runArtifactStage(root, archives) {
-  const consumer = createConsumer(root, archives, "artifact-consumer");
+function runArtifactStage(root, archives, tooling) {
+  const consumer = createConsumer(
+    root,
+    archives,
+    "artifact-consumer",
+    tooling,
+  );
   const typescript = runDeclarationCheck(consumer.directory);
   const serverTests = runServerTests(consumer.directory);
   return Object.freeze({ consumer, typescript, serverTests });
@@ -1102,7 +1291,7 @@ function runMismatchFixture(consumerDirectory, adapterKey) {
   ]);
 }
 
-function runMismatchStage(root, archives) {
+function runMismatchStage(root, archives, tooling) {
   const originalCoreDigest = archives.core.sha256;
   const results = {};
   for (const adapterKey of ["react", "svelte"]) {
@@ -1124,6 +1313,7 @@ function runMismatchStage(root, archives) {
       root,
       mismatchArchives,
       `${adapterKey}-mismatch-consumer`,
+      tooling,
     );
     results[adapterKey] = runMismatchFixture(consumer.directory, adapterKey);
     assert(
@@ -1290,7 +1480,21 @@ function runSelfTests() {
     );
     controls += 1;
 
-    assert(controls === 6, "SELF_TEST", `expected six controls, ran ${controls}`);
+    const toolingDrift = join(root, "consumer-tooling-drift");
+    mkdirSync(toolingDrift);
+    const toolingManifest = join(toolingDrift, "package.json");
+    const toolingLock = join(toolingDrift, "package-lock.json");
+    copyFileSync(CONSUMER_TOOLING_MANIFEST, toolingManifest);
+    copyFileSync(CONSUMER_TOOLING_LOCK, toolingLock);
+    const driftedLock = JSON.parse(readFileSync(toolingLock, "utf8"));
+    driftedLock.packages[""].dependencies.vitest = "0.0.0";
+    writeJson(toolingLock, driftedLock);
+    expectFailure("consumer tooling lock drift", "CONSUMER_TOOLING", () =>
+      loadConsumerToolingFixture(toolingManifest, toolingLock),
+    );
+    controls += 1;
+
+    assert(controls === 7, "SELF_TEST", `expected seven controls, ran ${controls}`);
     console.log(
       `PHASE09_PACKAGE_SELF_TEST ${JSON.stringify({ controls, status: "passed" })}`,
     );
@@ -1314,44 +1518,50 @@ function runSubstantiveMode(mode) {
   const exportDirectory = validateExportDirectory(mode);
   const root = createOwnedTempRoot();
   try {
+    const consumerTooling = prepareConsumerTooling(root);
     const archives = buildAndPackTriplet(root);
     const tarEntryCounts = validateTripletArtifacts(archives);
     const digests = archiveDigestSummary(archives);
 
     if (mode === "artifacts") {
-      const artifacts = runArtifactStage(root, archives);
+      const artifacts = runArtifactStage(root, archives, consumerTooling);
       console.log(
-        `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", digests, tarEntryCounts, typescript: artifacts.typescript, serverTests: artifacts.serverTests, physicalCore: artifacts.consumer.topology.physicalCore })}`,
+        `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", consumerTooling: consumerTooling.evidence, digests, tarEntryCounts, typescript: artifacts.typescript, serverTests: artifacts.serverTests, physicalCore: artifacts.consumer.topology.physicalCore })}`,
       );
       return;
     }
 
     if (mode === "svelte-consent") {
-      const consumer = createConsumer(root, archives, "svelte-consent-consumer");
+      const consumer = createConsumer(
+        root,
+        archives,
+        "svelte-consent-consumer",
+        consumerTooling,
+      );
       const consent = runSvelteConsentStage(consumer.directory);
       console.log(
-        `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", digests, tarEntryCounts, consent })}`,
+        `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", consumerTooling: consumerTooling.evidence, digests, tarEntryCounts, consent })}`,
       );
       return;
     }
 
     if (mode === "mismatch") {
-      const mismatch = runMismatchStage(root, archives);
+      const mismatch = runMismatchStage(root, archives, consumerTooling);
       console.log(
-        `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", digests, tarEntryCounts, mismatch })}`,
+        `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", consumerTooling: consumerTooling.evidence, digests, tarEntryCounts, mismatch })}`,
       );
       return;
     }
 
-    const artifacts = runArtifactStage(root, archives);
+    const artifacts = runArtifactStage(root, archives, consumerTooling);
     const consent = runSvelteConsentStage(artifacts.consumer.directory);
-    const mismatch = runMismatchStage(root, archives);
+    const mismatch = runMismatchStage(root, archives, consumerTooling);
 
     if (exportDirectory !== null) {
       exportArchives(exportDirectory, archives);
     }
     console.log(
-      `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", archives: Object.fromEntries(PACKAGE_SPECS.map((spec) => [archives[spec.key].name, { file: basename(archives[spec.key].path), sha256: archives[spec.key].sha256 }])), tarEntryCounts, typescript: artifacts.typescript, serverTests: artifacts.serverTests, physicalCore: artifacts.consumer.topology.physicalCore, consent, mismatch, exported: exportDirectory !== null })}`,
+      `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", consumerTooling: consumerTooling.evidence, archives: Object.fromEntries(PACKAGE_SPECS.map((spec) => [archives[spec.key].name, { file: basename(archives[spec.key].path), sha256: archives[spec.key].sha256 }])), tarEntryCounts, typescript: artifacts.typescript, serverTests: artifacts.serverTests, physicalCore: artifacts.consumer.topology.physicalCore, consent, mismatch, exported: exportDirectory !== null })}`,
     );
   } finally {
     removeOwnedTempRoot(root);

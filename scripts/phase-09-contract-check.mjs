@@ -120,6 +120,8 @@ const FINAL_REQUIRED_PATHS = Object.freeze([
   "scripts/phase-09-test-check.mjs",
   "scripts/phase-09-workflow-check.mjs",
   "scripts/phase-09-mutation-battery.mjs",
+  "scripts/fixtures/phase-09-foreign-consumer/package.json",
+  "scripts/fixtures/phase-09-foreign-consumer/package-lock.json",
   BASELINE_PATH,
   `${PHASE_DIRECTORY}/09-MUTATION-REGISTER.json`,
   `${PHASE_DIRECTORY}/09-MUTATION-EVIDENCE.json`,
@@ -703,6 +705,12 @@ function evaluateContracts(root) {
   results.push(
     createProbe(INITIAL_IDS[8], inspector, (api) => {
       const script = stripJsComments(api.text("scripts/phase-09-package-check.mjs"));
+      const consumerManifest = api.json(
+        "scripts/fixtures/phase-09-foreign-consumer/package.json",
+      );
+      const consumerLock = api.json(
+        "scripts/fixtures/phase-09-foreign-consumer/package-lock.json",
+      );
       for (const mode of ["artifacts", "svelte-consent", "mismatch", "all", "self-test"]) {
         api.check(script.includes(`"${mode}"`) || script.includes(`'${mode}'`), `package-mode-${mode}`, "scripts/phase-09-package-check.mjs", `declared ${mode} mode`, "inspected");
       }
@@ -723,9 +731,33 @@ function evaluateContracts(root) {
         "EXPECTED_CONTRACT_VERSION",
         "useSvelteBridge(() => typedRegistry, () => bridge)",
         "useConciergeBridge(() => registry, () => bridge)",
+        "--offline",
+        "consumerTooling",
+        "CONSUMER_TOOLING_LOCK",
       ]) {
         api.check(script.includes(token), `package-check-${token}`, "scripts/phase-09-package-check.mjs", `live ${token} evidence`, script.includes(token) ? "present" : "absent");
       }
+      api.check(
+        consumerManifest.packageManager === "npm@11.11.0" &&
+          Object.keys(consumerManifest.dependencies ?? {}).length === 13 &&
+          Object.values(consumerManifest.dependencies ?? {}).every((value) =>
+            /^\d+\.\d+\.\d+$/u.test(value),
+          ),
+        "consumer-tooling-manifest",
+        "scripts/fixtures/phase-09-foreign-consumer/package.json",
+        "exact npm and 13 exact tooling versions",
+        "inspected",
+      );
+      api.check(
+        consumerLock.lockfileVersion === 3 &&
+          Object.keys(consumerLock.packages ?? {}).length > 1 &&
+          stableJson(consumerLock.packages?.[""]?.dependencies) ===
+            stableJson(consumerManifest.dependencies),
+        "consumer-tooling-lock",
+        "scripts/fixtures/phase-09-foreign-consumer/package-lock.json",
+        "non-vacuous lockfile v3 matching the tooling manifest",
+        "inspected",
+      );
       api.check(!script.includes("passWithNoTests") && !script.includes("--pack packages/concierge-react") && !script.includes("state_referenced_locally"), "package-check-no-vacuous-repack", "scripts/phase-09-package-check.mjs", "no zero-test/repack/suppression shortcuts", "inspected");
     }),
   );

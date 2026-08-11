@@ -49,6 +49,10 @@ const RELEASE_EVIDENCE_PATH = join(
 );
 const VALIDATION_PATH = join(PHASE_DIRECTORY, "09-VALIDATION.md");
 const SECURITY_PATH = join(PHASE_DIRECTORY, "09-SECURITY.md");
+const CONSUMER_TOOLING_LOCK_PATH =
+  "scripts/fixtures/phase-09-foreign-consumer/package-lock.json";
+const CONSUMER_TOOLING_MANIFEST_PATH =
+  "scripts/fixtures/phase-09-foreign-consumer/package.json";
 const GENERATED_PATHS = Object.freeze([
   ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json",
   ".planning/phases/09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json",
@@ -101,6 +105,13 @@ const REQUIRED_THREATS = Object.freeze([
   "T-09-08",
   "T-09-SC",
 ]);
+const EXPECTED_PHASE09_TEST_FILES = Object.freeze([
+  "examples/adapter-ssr/test/ssr.test.ts",
+  "packages/concierge-react/test/artifact.test.ts",
+  "packages/concierge-react/test/lifecycle.test.tsx",
+  "packages/concierge-svelte/test/artifact.test.ts",
+  "packages/concierge-svelte/test/lifecycle.test.ts",
+]);
 const REQUIRED_FINAL_INPUT_PATHS = Object.freeze([
   "package.json",
   "pnpm-lock.yaml",
@@ -149,6 +160,8 @@ const REQUIRED_FINAL_INPUT_PATHS = Object.freeze([
   "scripts/phase-09-test-check.mjs",
   "scripts/phase-09-workflow-check.mjs",
   "scripts/phase-09-mutation-battery.mjs",
+  CONSUMER_TOOLING_MANIFEST_PATH,
+  CONSUMER_TOOLING_LOCK_PATH,
   ".planning/phases/09-react-and-svelte-adapters/09-RED-BASELINE.json",
   ".planning/phases/09-react-and-svelte-adapters/09-CONTEXT.md",
   ".planning/phases/09-react-and-svelte-adapters/09-RESEARCH.md",
@@ -191,6 +204,8 @@ const TEST_HASH_PATHS = Object.freeze({
   ]),
   "M-09-S1": Object.freeze([
     "scripts/phase-09-package-check.mjs",
+    CONSUMER_TOOLING_MANIFEST_PATH,
+    CONSUMER_TOOLING_LOCK_PATH,
     "packages/concierge-svelte/test/lifecycle.test.ts",
   ]),
   "M-09-SSR1": Object.freeze([
@@ -198,9 +213,15 @@ const TEST_HASH_PATHS = Object.freeze({
     "vitest.config.ts",
   ]),
   "M-09-B1": Object.freeze(["scripts/phase-09-adapter-budget.mjs"]),
-  "M-09-P1": Object.freeze(["scripts/phase-09-package-check.mjs"]),
+  "M-09-P1": Object.freeze([
+    "scripts/phase-09-package-check.mjs",
+    CONSUMER_TOOLING_MANIFEST_PATH,
+    CONSUMER_TOOLING_LOCK_PATH,
+  ]),
   "M-09-C1": Object.freeze([
     "scripts/phase-09-package-check.mjs",
+    CONSUMER_TOOLING_MANIFEST_PATH,
+    CONSUMER_TOOLING_LOCK_PATH,
     "packages/concierge-react/test/lifecycle.test.tsx",
   ]),
 });
@@ -1483,6 +1504,7 @@ function verifyReleaseEvidence(root = ROOT, { quiet = false } = {}) {
     release.tests.files > 0 && release.tests.tests > 0 && release.tests.assertions > 0,
     "release positive test counts are missing",
   );
+  validateConsumerToolingEvidence(release.consumerTooling, root);
   assert(
     release.archives !== null && typeof release.archives === "object" &&
       Object.keys(release.archives).length === 3,
@@ -1650,20 +1672,87 @@ async function verifyInheritedPhase08(outerRoot, liveHashes) {
   return Object.freeze({ revision, verification: Object.freeze(verification) });
 }
 
-function parsePositiveVitestReport(reportPath) {
+function parsePositiveVitestReport(reportPath, root) {
   const report = JSON.parse(readFileSync(reportPath, "utf8"));
   assert(report.success === true, "Phase 09 Vitest JSON did not report success");
   const results = Array.isArray(report.testResults) ? report.testResults : [];
   const assertions = results.flatMap((result) =>
     Array.isArray(result.assertionResults) ? result.assertionResults : [],
   );
-  const active = assertions.filter((assertion) => !["skipped", "pending", "todo"].includes(assertion.status));
-  assert(results.length > 0 && report.numTotalTests > 0 && active.length > 0, "Phase 09 Vitest JSON has zero files/tests/assertions");
-  assert(active.every((assertion) => assertion.status === "passed"), "Phase 09 Vitest JSON contains a failing assertion");
-  return Object.freeze({ files: results.length, tests: report.numTotalTests, assertions: active.length });
+  assert(
+    results.length === EXPECTED_PHASE09_TEST_FILES.length &&
+      Number.isInteger(report.numTotalTests) &&
+      report.numTotalTests > 0 &&
+      assertions.length === report.numTotalTests,
+    "Phase 09 Vitest JSON has missing files/tests/assertions",
+  );
+  assert(
+    report.numPassedTestSuites === report.numTotalTestSuites &&
+      report.numFailedTestSuites === 0 &&
+      report.numPendingTestSuites === 0 &&
+      report.numPassedTests === report.numTotalTests &&
+      report.numFailedTests === 0 &&
+      report.numPendingTests === 0 &&
+      report.numTodoTests === 0,
+    "Phase 09 Vitest JSON aggregate counts are not all passing",
+  );
+  assert(
+    results.every(
+      (result) =>
+        result.status === "passed" &&
+        Array.isArray(result.assertionResults) &&
+        result.assertionResults.length > 0 &&
+        result.assertionResults.every(
+          (assertion) => assertion.status === "passed",
+        ),
+    ),
+    "Phase 09 Vitest JSON contains a skipped or failing file/assertion",
+  );
+  const actualFiles = results
+    .map((result) => {
+      const candidate = isAbsolute(result.name)
+        ? result.name
+        : resolve(root, result.name);
+      return relative(root, realpathSync(candidate)).split(sep).join("/");
+    })
+    .sort();
+  assert(
+    JSON.stringify(actualFiles) === JSON.stringify(EXPECTED_PHASE09_TEST_FILES),
+    "Phase 09 Vitest JSON file set drifted",
+  );
+  return Object.freeze({
+    files: results.length,
+    tests: report.numTotalTests,
+    assertions: assertions.length,
+  });
 }
 
-function parsePackageResult(output) {
+function expectedConsumerTooling(root) {
+  const manifest = JSON.parse(
+    readFileSync(join(root, CONSUMER_TOOLING_MANIFEST_PATH), "utf8"),
+  );
+  const npmVersion = /^npm@(?<version>\d+\.\d+\.\d+)$/u.exec(
+    manifest.packageManager,
+  )?.groups?.version;
+  assert(npmVersion !== undefined, "consumer tooling npm version is not pinned");
+  return Object.freeze({
+    lockFile: CONSUMER_TOOLING_LOCK_PATH,
+    lockSha256: sha256File(join(root, CONSUMER_TOOLING_LOCK_PATH)),
+    npmVersion,
+    offlineCi: true,
+  });
+}
+
+function validateConsumerToolingEvidence(value, root) {
+  const expected = expectedConsumerTooling(root);
+  assert(
+    JSON.stringify(value) === JSON.stringify(expected),
+    "consumer tooling lock/npm/offline evidence is missing or stale",
+  );
+  return value;
+}
+
+function parsePackageResult(output, root) {
   const line = output
     .split(/\r?\n/u)
     .find((candidate) => candidate.startsWith("PHASE09_PACKAGE_RESULT "));
@@ -1671,6 +1760,7 @@ function parsePackageResult(output) {
   const value = JSON.parse(line.slice("PHASE09_PACKAGE_RESULT ".length));
   assert(value.mode === "all" && value.status === "passed", "package all result is not green");
   assert(value.archives !== null && Object.keys(value.archives).length === 3, "package all did not produce exactly three archives");
+  validateConsumerToolingEvidence(value.consumerTooling, root);
   return value;
 }
 
@@ -1725,7 +1815,7 @@ async function runReleaseGates(baseline, outerRoot) {
       `--outputFile=${reportPath}`,
     ],
   );
-  const tests = parsePositiveVitestReport(reportPath);
+  const tests = parsePositiveVitestReport(reportPath, baseline.root);
 
   const archiveDirectory = join(outerRoot, "release-archives");
   mkdirSync(archiveDirectory);
@@ -1735,7 +1825,7 @@ async function runReleaseGates(baseline, outerRoot) {
     ["scripts/phase-09-package-check.mjs", "all"],
     { env: { PHASE09_ARCHIVE_EXPORT_DIR: archiveDirectory } },
   );
-  const packageEvidence = parsePackageResult(packageResult.output);
+  const packageEvidence = parsePackageResult(packageResult.output, baseline.root);
   await run("phase-09-adapter-budget check", "node", ["scripts/phase-09-adapter-budget.mjs", "check"]);
   await run("phase-09-adapter-budget self-test", "node", ["scripts/phase-09-adapter-budget.mjs", "self-test"]);
   await run("phase-09-workflow-check", "node", ["scripts/phase-09-workflow-check.mjs"]);
@@ -1775,7 +1865,11 @@ function makeValidationMarkdown({ releaseInputDigest, registerHash, mutationRows
   return markdownSeal(`# Phase 09 Validation\n\nRevision-bound validation for @fullselfbrowsing/concierge, its React and Svelte adapters, and the inherited 08-consent-kernel records.\n\n## Task Traceability\n\n| Task | Result | Evidence |\n|---|---|---|\n${taskRows}\n\n## Canonical Test Meanings\n\n| Test | Locked meaning | Evidence |\n|---|---|---|\n${testRows}\n\n## Requirement Closure\n\n| Requirement | Evidence |\n|---|---|\n| ADP-01 | T01/M-09-R1 and T02/M-09-R2 |\n| ADP-02 | T03/M-09-S1 |\n| ADP-03 | T07/M-09-B1 only |\n| ADP-04 | T04/M-09-SSR1 normal Astro SSR |\n| PKG-04 | T05/T06 exact archive and contract proof |\n\n## Decision Evidence\n\n| Decision | Evidence |\n|---|---|\n${decisions}\n\n## Immutable Bindings\n\n- Release input digest: ${releaseInputDigest}\n- Mutation register digest: ${registerHash}\n- Exact archive manifest digest: ${archiveDigest}\n- Phase 8 evidence source: .planning/phases/08-consent-kernel/08-MUTATION-EVIDENCE.json (nested release member)\n`);
 }
 
-function makeSecurityMarkdown({ releaseInputDigest, mutationRows }) {
+function makeSecurityMarkdown({
+  consumerTooling,
+  releaseInputDigest,
+  mutationRows,
+}) {
   const byThreat = new Map();
   for (const row of mutationRows) {
     const rows = byThreat.get(row.threat) ?? [];
@@ -1799,7 +1893,7 @@ function makeSecurityMarkdown({ releaseInputDigest, mutationRows }) {
         ? "T06 exact archive triplet"
         : threat === "T-09-08"
           ? "T08 compile-first immutable runner"
-          : "frozen offline install and inherited 08-consent-kernel verification");
+          : `committed ${consumerTooling.lockFile} sha256=${consumerTooling.lockSha256}; npm ${consumerTooling.npmVersion}; lock-derived cache plus npm ci --ignore-scripts --offline`);
     return `| ${threat} | ${descriptions[threat]} | mitigated | ${evidence} |`;
   }).join("\n");
   return markdownSeal(`# Phase 09 Security\n\nSecurity closure for @fullselfbrowsing/concierge adapter delivery at revision ${releaseInputDigest}.\n\n| Threat | Surface | Disposition | Evidence |\n|---|---|---|---|\n${rows}\n\nThe live Phase 8 records remain byte-identical and their release proof remains the nested release member of 08-consent-kernel/08-MUTATION-EVIDENCE.json.\n`);
@@ -1889,6 +1983,7 @@ async function runAll(jobs) {
       archiveDigest: archiveManifestDigest,
     });
     const security = makeSecurityMarkdown({
+      consumerTooling: releaseGates.packageEvidence.consumerTooling,
       releaseInputDigest: baseline.inputManifest.digest,
       mutationRows: rows,
     });
@@ -1913,6 +2008,7 @@ async function runAll(jobs) {
       }),
       commands: releaseGates.commands,
       tests: releaseGates.tests,
+      consumerTooling: releaseGates.packageEvidence.consumerTooling,
       archives: releaseGates.packageEvidence.archives,
       tarEntryCounts: releaseGates.packageEvidence.tarEntryCounts,
       archiveManifestDigest,

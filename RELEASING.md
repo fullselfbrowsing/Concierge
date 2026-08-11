@@ -84,6 +84,15 @@ scripts disabled. The installed adapter manifests and resolver realpaths must
 both converge on one physical core, with no adapter-local core copy; package
 manager graph text by itself is not sufficient evidence.
 
+The consumer tooling graph is committed at
+`scripts/fixtures/phase-09-foreign-consumer/package-lock.json`. The package gate
+requires the exact npm version named by the adjacent manifest, records the lock
+SHA-256, populates an owned cache once from that lock, and runs every proof
+consumer through `npm ci --ignore-scripts --offline`. It then adds only the
+three exact local archives with npm still offline and verifies that the copied
+tooling lock remains byte-identical. The lock digest and npm version are part of
+the generated release evidence; changing either invalidates the evidence.
+
 Declaration checking uses TypeScript 7.0.2 with `skipLibCheck: false` over all
 three installed packages. Svelte packaging/checking and the normal Astro
 `examples/adapter-ssr` domain stay on their package-local TypeScript 6.0.3.
