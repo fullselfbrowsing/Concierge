@@ -1536,8 +1536,11 @@ function runSelfTests(root, secure) {
       nested.environment.NPM_CONFIG_REGISTRY === PHASE09_PUBLIC_NPM_REGISTRY &&
       nested.environment.GIT_CONFIG_NOSYSTEM === "1" &&
       nested.environment.PHASE09_CREDENTIAL_FREE_ENV === "1" &&
+      nested.environment.PNPM_CONFIG_STORE_DIR === nested.paths.pnpmStore &&
       isPathWithin(nested.paths.home, root) &&
+      isPathWithin(nested.paths.pnpmStore, root) &&
       !isPathWithin(nested.paths.home, REPOSITORY_ROOT) &&
+      !isPathWithin(nested.paths.pnpmStore, REPOSITORY_ROOT) &&
       readFileSync(nested.paths.npmUserConfig, "utf8") === "" &&
       readFileSync(nested.paths.npmGlobalConfig, "utf8") === "" &&
       readFileSync(nested.paths.gitConfig, "utf8") === "",
@@ -1566,6 +1569,7 @@ function runSelfTests(root, secure) {
       observedEnvironment.NPM_CONFIG_GLOBALCONFIG ===
         nested.paths.npmGlobalConfig &&
       observedEnvironment.GIT_CONFIG_GLOBAL === nested.paths.gitConfig &&
+      observedEnvironment.PNPM_CONFIG_STORE_DIR === nested.paths.pnpmStore &&
       !environmentProbe.stdout.includes(sentinelRepositoryCredential) &&
       !environmentProbe.stdout.includes(sentinelNpmCredential) &&
       !environmentProbe.stdout.includes("hostile.invalid"),

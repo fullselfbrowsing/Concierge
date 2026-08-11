@@ -352,6 +352,16 @@ const MAX_OUTPUT_BYTES = 32 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 240_000;
 const PACKAGE_TIMEOUT_MS = 600_000;
 const INSTALL_TIMEOUT_MS = 360_000;
+const PNPM_FETCH_ARGUMENTS = Object.freeze([
+  "fetch",
+  "--frozen-lockfile",
+  "--ignore-scripts",
+]);
+const PNPM_OFFLINE_INSTALL_ARGUMENTS = Object.freeze([
+  "install",
+  "--offline",
+  "--frozen-lockfile",
+]);
 const SYSTEM_TEMP_ROOT = realpathSync(tmpdir());
 const SHA256 = /^[0-9a-f]{64}$/u;
 const COMMIT = /^[0-9a-f]{40}$/u;
@@ -1045,6 +1055,35 @@ function assertSuccessfulCommand(result, label) {
   );
 }
 
+async function prewarmOwnedPnpmStoreAndInstall(
+  cwd,
+  label,
+  run = runCommand,
+) {
+  const environment = childEnvironment();
+  const store = environment.PNPM_CONFIG_STORE_DIR;
+  assert(
+    typeof store === "string" &&
+      isAbsolute(store) &&
+      store === normalize(resolve(store)) &&
+      basename(store) === "pnpm-store" &&
+      dirname(store) === dirname(environment.HOME) &&
+      existsSync(store) &&
+      statSync(store).isDirectory() &&
+      !isWithin(realpathSync(store), ROOT),
+    `${label} pnpm store is not an owned isolated directory`,
+  );
+  const options = Object.freeze({ cwd, timeoutMs: INSTALL_TIMEOUT_MS });
+  const fetch = await run("pnpm", [...PNPM_FETCH_ARGUMENTS], options);
+  assertSuccessfulCommand(fetch, `${label} frozen dependency fetch`);
+  const install = await run(
+    "pnpm",
+    [...PNPM_OFFLINE_INSTALL_ARGUMENTS],
+    options,
+  );
+  assertSuccessfulCommand(install, `${label} frozen offline install`);
+}
+
 function cloneBaseline(source, destination) {
   mkdirSync(destination);
   let result = spawnSync("cp", ["-cR", `${source}/.`, destination], {
@@ -1078,12 +1117,7 @@ async function materializeBaseline(outerRoot, inputManifest) {
   const copied = makeInputManifest(baselineRoot);
   assert(copied.digest === inputManifest.digest, "baseline differs from measured release inputs");
 
-  const install = await runCommand(
-    "pnpm",
-    ["install", "--offline", "--frozen-lockfile"],
-    { cwd: baselineRoot, timeoutMs: INSTALL_TIMEOUT_MS },
-  );
-  assertSuccessfulCommand(install, "baseline frozen offline install");
+  await prewarmOwnedPnpmStoreAndInstall(baselineRoot, "baseline");
   const build = await runCommand("pnpm", ["build"], {
     cwd: baselineRoot,
     timeoutMs: PACKAGE_TIMEOUT_MS,
@@ -1829,6 +1863,71 @@ async function runSelfTest() {
   );
   pass("mismatched-receipt-attempt-rejected");
 
+  const installSequence = [];
+  await prewarmOwnedPnpmStoreAndInstall(
+    ROOT,
+    "synthetic prewarm",
+    async (executable, arguments_, options) => {
+      installSequence.push({
+        arguments_,
+        cwd: options.cwd,
+        executable,
+        timeoutMs: options.timeoutMs,
+      });
+      return syntheticCommand(0);
+    },
+  );
+  assert(
+    JSON.stringify(installSequence) ===
+      JSON.stringify([
+        {
+          arguments_: ["fetch", "--frozen-lockfile", "--ignore-scripts"],
+          cwd: ROOT,
+          executable: "pnpm",
+          timeoutMs: INSTALL_TIMEOUT_MS,
+        },
+        {
+          arguments_: ["install", "--offline", "--frozen-lockfile"],
+          cwd: ROOT,
+          executable: "pnpm",
+          timeoutMs: INSTALL_TIMEOUT_MS,
+        },
+      ]),
+    "owned-store prewarm must precede the exact frozen offline install",
+  );
+  pass("pnpm-fetch-before-offline-install");
+
+  for (const fetchFailure of [
+    syntheticCommand(null, { spawnError: "synthetic fetch failure" }),
+    syntheticCommand(null, { timedOut: true }),
+    syntheticCommand(null, { outputOverflow: true }),
+    syntheticCommand(23),
+  ]) {
+    let calls = 0;
+    await assertRejects(
+      () =>
+        prewarmOwnedPnpmStoreAndInstall(
+          ROOT,
+          "synthetic prewarm",
+          async () => {
+            calls += 1;
+            return fetchFailure;
+          },
+        ),
+      /synthetic prewarm frozen dependency fetch: (?:process error|command timed out|command exceeded bounded output|command exited 23)/u,
+      "failed dependency fetch",
+    );
+    assert(calls === 1, "offline install ran after a failed dependency fetch");
+  }
+  pass("pnpm-fetch-failure-suppresses-install");
+
+  assertThrows(
+    () => childEnvironment({ PNPM_CONFIG_STORE_DIR: ROOT }),
+    /rejected override PNPM_CONFIG_STORE_DIR/u,
+    "pnpm store redirect",
+  );
+  pass("owned-pnpm-store-not-redirectable");
+
   const pnpmConfig = await runCommand(
     "pnpm",
     ["config", "get", "verify-deps-before-run"],
@@ -1840,6 +1939,26 @@ async function runSelfTest() {
     "manifest mutants must disable pnpm's pre-run dependency install",
   );
   pass("pnpm-pre-run-install-disabled");
+
+  const pnpmStoreConfig = await runCommand(
+    "pnpm",
+    ["config", "get", "store-dir"],
+    { cwd: ROOT },
+  );
+  assertSuccessfulCommand(pnpmStoreConfig, "self-test pnpm owned store");
+  const pnpmRegistryConfig = await runCommand(
+    "pnpm",
+    ["config", "get", "registry"],
+    { cwd: ROOT },
+  );
+  assertSuccessfulCommand(pnpmRegistryConfig, "self-test pnpm fixed registry");
+  assert(
+    pnpmStoreConfig.stdout.trim() ===
+      childEnvironment().PNPM_CONFIG_STORE_DIR &&
+      pnpmRegistryConfig.stdout.trim() === PHASE09_PUBLIC_NPM_REGISTRY,
+    "pnpm did not observe the owned store and exact public registry",
+  );
+  pass("pnpm-owned-store-and-registry");
 
   const sentinelEnvironment = Object.freeze({
     GITHUB_TOKEN: "phase09-secret-repository-probe",
@@ -1856,7 +1975,7 @@ async function runSelfTest() {
       process.execPath,
       [
         "-e",
-        "process.stdout.write(JSON.stringify({github:process.env.GITHUB_TOKEN??null,nodeAuth:process.env.NODE_AUTH_TOKEN??null,registry:process.env.NPM_CONFIG_REGISTRY??null,userConfig:process.env.NPM_CONFIG_USERCONFIG??null,globalConfig:process.env.NPM_CONFIG_GLOBALCONFIG??null,home:process.env.HOME??null,gitGlobal:process.env.GIT_CONFIG_GLOBAL??null,marker:process.env.PHASE09_CREDENTIAL_FREE_ENV??null}))",
+        "process.stdout.write(JSON.stringify({github:process.env.GITHUB_TOKEN??null,nodeAuth:process.env.NODE_AUTH_TOKEN??null,registry:process.env.NPM_CONFIG_REGISTRY??null,userConfig:process.env.NPM_CONFIG_USERCONFIG??null,globalConfig:process.env.NPM_CONFIG_GLOBALCONFIG??null,home:process.env.HOME??null,gitGlobal:process.env.GIT_CONFIG_GLOBAL??null,pnpmStore:process.env.PNPM_CONFIG_STORE_DIR??null,marker:process.env.PHASE09_CREDENTIAL_FREE_ENV??null}))",
       ],
       { cwd: ROOT },
     );
@@ -1875,6 +1994,9 @@ async function runSelfTest() {
       observedEnvironment.marker === "1" &&
       typeof observedEnvironment.home === "string" &&
       !isWithin(observedEnvironment.home, ROOT) &&
+      typeof observedEnvironment.pnpmStore === "string" &&
+      !isWithin(observedEnvironment.pnpmStore, ROOT) &&
+      statSync(observedEnvironment.pnpmStore).isDirectory() &&
       readFileSync(observedEnvironment.userConfig, "utf8") === "" &&
       readFileSync(observedEnvironment.globalConfig, "utf8") === "" &&
       readFileSync(observedEnvironment.gitGlobal, "utf8") === "" &&
@@ -1884,7 +2006,7 @@ async function runSelfTest() {
   );
   pass("secure-child-environment-probe");
 
-  assert(controls === 29, `self-test control count drifted: ${controls}`);
+  assert(controls === 33, `self-test control count drifted: ${controls}`);
   assertOutputEndpoints(endpoints);
   console.log(`PHASE09_MUTATION_SELF_TEST_OK controls=${controls}`);
 }
@@ -2359,11 +2481,7 @@ async function verifyInheritedPhase08(outerRoot, liveHashes) {
   };
   walk(snapshotRoot);
   initializeDisposableRepository(snapshotRoot, tracked.sort());
-  const install = await runCommand("pnpm", ["install", "--offline", "--frozen-lockfile"], {
-    cwd: snapshotRoot,
-    timeoutMs: INSTALL_TIMEOUT_MS,
-  });
-  assertSuccessfulCommand(install, "Phase 8 snapshot frozen offline install");
+  await prewarmOwnedPnpmStoreAndInstall(snapshotRoot, "Phase 8 snapshot");
 
   const verification = [];
   for (const spec of PHASE08_COMMANDS) {
@@ -2608,7 +2726,7 @@ function makeSecurityMarkdown({
         ? "T06 exact archive triplet"
         : threat === "T-09-08"
           ? "T08 compile-first immutable runner"
-          : `credential-free preflight plus allowlisted nested child environments with owned empty npm/git configs; committed ${consumerTooling.lockFile} sha256=${consumerTooling.lockSha256}; npm ${consumerTooling.npmVersion}; lock-derived cache plus npm ci --ignore-scripts --offline`);
+          : `credential-free preflight plus allowlisted nested child environments with owned empty npm/git configs and an owned pnpm store; pnpm fetch --frozen-lockfile --ignore-scripts before frozen offline installs; committed ${consumerTooling.lockFile} sha256=${consumerTooling.lockSha256}; npm ${consumerTooling.npmVersion}; lock-derived cache plus npm ci --ignore-scripts --offline`);
     return `| ${threat} | ${descriptions[threat]} | mitigated | ${evidence} |`;
   }).join("\n");
   return markdownSeal(`# Phase 09 Security\n\nSecurity closure for @fullselfbrowsing/concierge adapter delivery at revision ${releaseInputDigest}.\n\n| Threat | Surface | Disposition | Evidence |\n|---|---|---|---|\n${rows}\n\nThe live Phase 8 records remain byte-identical and their release proof remains the nested release member of 08-consent-kernel/08-MUTATION-EVIDENCE.json.\n`);
