@@ -54,6 +54,8 @@ const CHILD_MAX_BUFFER = 32 * 1024 * 1024;
 const PNPM = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const NPM = process.platform === "win32" ? "npm.cmd" : "npm";
 const PACK_COMMAND = "pnpm pack";
+const MUTATION_RUNNER_PARENT_MARKER = "PHASE09_CREDENTIAL_FREE_ENV";
+const MUTATION_RUNNER_PNPM_POLICY = "PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN";
 const CORE_NAME = "@fullselfbrowsing/concierge";
 const REACT_NAME = "@fullselfbrowsing/concierge-react";
 const SVELTE_NAME = "@fullselfbrowsing/concierge-svelte";
@@ -69,6 +71,10 @@ const CONSUMER_TOOLING_LOCK = join(
 const CONSUMER_TOOLING_MANIFEST = join(
   CONSUMER_TOOLING_FIXTURE,
   "package.json",
+);
+const MUTATION_REGISTER = join(
+  REPOSITORY_ROOT,
+  ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-REGISTER.json",
 );
 const CONSUMER_TOOLING_LOCK_REPOSITORY_PATH =
   "scripts/fixtures/phase-09-foreign-consumer/package-lock.json";
@@ -190,7 +196,7 @@ function removeOwnedTempRoot(root) {
 function withOwnedChildEnvironment(operation) {
   const root = createOwnedTempRoot();
   try {
-    const secure = createSecureChildEnvironment(root, process.env);
+    const secure = createPackageChildEnvironment(root, process.env);
     return withChildEnvironment(secure.environment, () =>
       operation(root, secure),
     );
@@ -211,6 +217,63 @@ function childEnvironment(overrides = {}, secureEnvironment = activeChildEnviron
     "secure child environment is not initialized",
   );
   return mergeSecureChildEnvironment(secureEnvironment, overrides);
+}
+
+function sourceEnvironmentValue(sourceEnvironment, expectedName) {
+  assert(
+    sourceEnvironment !== null &&
+      typeof sourceEnvironment === "object" &&
+      !Array.isArray(sourceEnvironment),
+    "CHILD_ENVIRONMENT",
+    "package child source environment must be an object",
+  );
+  const normalizedExpected = expectedName.toLowerCase();
+  const matches = Object.entries(sourceEnvironment).filter(
+    ([name]) => name.toLowerCase() === normalizedExpected,
+  );
+  assert(
+    matches.length <= 1,
+    "CHILD_ENVIRONMENT",
+    `package child source environment has ambiguous ${expectedName} variants`,
+  );
+  if (matches.length === 0 || matches[0][1] === undefined) return undefined;
+  return String(matches[0][1]);
+}
+
+function mutationRunnerPnpmChildOverride(sourceEnvironment) {
+  const policy = sourceEnvironmentValue(
+    sourceEnvironment,
+    MUTATION_RUNNER_PNPM_POLICY,
+  );
+  if (policy === undefined) return Object.freeze({});
+  const parentMarker = sourceEnvironmentValue(
+    sourceEnvironment,
+    MUTATION_RUNNER_PARENT_MARKER,
+  );
+  assert(
+    parentMarker === "1",
+    "CHILD_ENVIRONMENT",
+    "pnpm dependency-verification override requires an authenticated mutation-runner parent",
+  );
+  assert(
+    policy === "false",
+    "CHILD_ENVIRONMENT",
+    "authenticated mutation-runner pnpm dependency-verification policy must be exactly false",
+  );
+  return Object.freeze({ [MUTATION_RUNNER_PNPM_POLICY]: "false" });
+}
+
+function createPackageChildEnvironment(ownedRoot, sourceEnvironment, options) {
+  const mutationRunnerOverride = mutationRunnerPnpmChildOverride(sourceEnvironment);
+  const secure = createSecureChildEnvironment(
+    ownedRoot,
+    sourceEnvironment,
+    options,
+  );
+  const environment = Object.freeze(
+    mergeSecureChildEnvironment(secure.environment, mutationRunnerOverride),
+  );
+  return Object.freeze({ environment, paths: secure.paths, root: secure.root });
 }
 
 function withChildEnvironment(environment, operation) {
@@ -389,7 +452,7 @@ function collectManifestTargets(manifest) {
   return targets;
 }
 
-function validateArchiveContents(archive) {
+function validateArchiveContents(archive, liveManifestOverride = null) {
   const entries = listArchiveEntries(archive.path);
   const entrySet = new Set(entries);
   for (const entry of entries) {
@@ -415,7 +478,7 @@ function validateArchiveContents(archive) {
     );
   }
 
-  const liveManifest = JSON.parse(
+  const liveManifest = liveManifestOverride ?? JSON.parse(
     readFileSync(join(PACKAGE_BY_NAME.get(archive.name).directory, "package.json"), "utf8"),
   );
   assert(
@@ -1419,7 +1482,7 @@ function exportArchives(exportDirectory, archives) {
   );
 }
 
-function expectFailure(label, expectedCode, operation) {
+function expectFailure(label, expectedCode, operation, expectedFingerprint = null) {
   try {
     operation();
   } catch (error) {
@@ -1429,18 +1492,25 @@ function expectFailure(label, expectedCode, operation) {
       "SELF_TEST",
       `${label} failed for the wrong reason: ${message}`,
     );
-    return;
+    if (expectedFingerprint !== null) {
+      assert(
+        message.includes(expectedFingerprint),
+        "SELF_TEST",
+        `${label} missed the semantic fingerprint: ${message}`,
+      );
+    }
+    return message;
   }
   fail("SELF_TEST", `${label} unexpectedly passed`);
 }
 
-function createSyntheticArchive(directory, name, suffix) {
+function createSyntheticArchive(directory, name, suffix, version = "0.0.0") {
   const staging = join(directory, `staging-${suffix}`);
   const packageDirectory = join(staging, "package");
   mkdirSync(packageDirectory, { recursive: true });
   writeJson(join(packageDirectory, "package.json"), {
     name,
-    version: "0.0.0",
+    version,
     type: "module",
   });
   const archive = join(directory, `${suffix}.tgz`);
@@ -1448,6 +1518,115 @@ function createSyntheticArchive(directory, name, suffix) {
     label: `self-test archive ${suffix}`,
   });
   return archive;
+}
+
+function runVersionedP1SemanticRegression(
+  root,
+  authenticatedSecureEnvironment,
+) {
+  const policyProbe = runChild(
+    PNPM,
+    ["config", "get", "verify-deps-before-run"],
+    {
+      label: "versioned P1 nested pnpm policy probe",
+      secureEnvironment: authenticatedSecureEnvironment,
+    },
+  );
+  assert(
+    policyProbe.stdout.trim() === "false",
+    "SELF_TEST",
+    "versioned P1 fixture did not retain the reviewed pnpm policy",
+  );
+
+  const register = JSON.parse(readFileSync(MUTATION_REGISTER, "utf8"));
+  const row = register.rows?.find((candidate) => candidate.id === "M-09-P1");
+  assert(
+    row?.exactBefore === '  "peerDependencies": {' &&
+      row?.exactAfter === '  "dependencies": {' &&
+      row?.assertionFingerprint ===
+        `[ADAPTER_MANIFEST] ${REACT_NAME} live manifest must keep core peer+dev only`,
+    "SELF_TEST",
+    "registered M-09-P1 mutation contract drifted",
+  );
+
+  const replaceOnce = (source, before, after, label) => {
+    const occurrences = source.split(before).length - 1;
+    assert(
+      occurrences === 1,
+      "SELF_TEST",
+      `${label} expected one literal, found ${occurrences}`,
+    );
+    return source.replace(before, after);
+  };
+  let versionedSource = readFileSync(
+    join(REPOSITORY_ROOT, "packages/concierge-react/package.json"),
+    "utf8",
+  );
+  const liveVersion = JSON.parse(versionedSource).version;
+  if (liveVersion === "0.0.0") {
+    versionedSource = replaceOnce(
+      versionedSource,
+      '  "version": "0.0.0",',
+      '  "version": "0.1.0",',
+      "versioned P1 package version",
+    );
+    versionedSource = replaceOnce(
+      versionedSource,
+      `    "${CORE_NAME}": "workspace:^0.0.0 || ^0.1.0",`,
+      `    "${CORE_NAME}": "workspace:^",`,
+      "versioned P1 core peer",
+    );
+  } else {
+    assert(
+      /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(liveVersion) &&
+        JSON.parse(versionedSource).peerDependencies?.[CORE_NAME] ===
+          "workspace:^",
+      "SELF_TEST",
+      "versioned P1 fixture requires the reviewed nonzero adapter shape",
+    );
+  }
+  versionedSource = replaceOnce(
+    versionedSource,
+    row.exactBefore,
+    row.exactAfter,
+    "registered P1 mutation",
+  );
+  const versionedP1Manifest = JSON.parse(versionedSource);
+  assert(
+    versionedP1Manifest.version ===
+        (liveVersion === "0.0.0" ? "0.1.0" : liveVersion) &&
+      versionedP1Manifest.peerDependencies === undefined &&
+      versionedP1Manifest.dependencies?.[CORE_NAME] === "workspace:^" &&
+      versionedP1Manifest.devDependencies?.[CORE_NAME] === "workspace:*",
+    "SELF_TEST",
+    "versioned P1 manifest fixture does not match the registered mutation shape",
+  );
+
+  const archiveDirectory = join(root, "versioned-p1-semantic");
+  mkdirSync(archiveDirectory);
+  const archivePath = createSyntheticArchive(
+    archiveDirectory,
+    REACT_NAME,
+    "react-p1",
+    versionedP1Manifest.version,
+  );
+  const archive = Object.freeze({
+    key: "react",
+    name: REACT_NAME,
+    path: archivePath,
+    manifest: readArchiveManifest(archivePath),
+  });
+  const failure = expectFailure(
+    "versioned P1 semantic validation",
+    "ADAPTER_MANIFEST",
+    () => validateArchiveContents(archive, versionedP1Manifest),
+    row.assertionFingerprint,
+  );
+  assert(
+    !failure.includes("ERR_PNPM_OUTDATED_LOCKFILE"),
+    "SELF_TEST",
+    "versioned P1 fixture stopped at stale-lock infrastructure",
+  );
 }
 
 function runSelfTests(root, secure) {
@@ -1518,11 +1697,15 @@ function runSelfTests(root, secure) {
 
   const sentinelRepositoryCredential = "phase09-secret-package-repository";
   const sentinelNpmCredential = "phase09-secret-package-npm";
-  const nested = createSecureChildEnvironment(
+  const nested = createPackageChildEnvironment(
     root,
     {
       PATH: secure.environment.PATH,
       LANG: secure.environment.LANG,
+      PHASE09_CREDENTIAL_FREE_ENV: "1",
+      NODE_OPTIONS: "--require=/hostile-package-hook.cjs",
+      PHASE09_MUTATION_CAPTURE_DIR: REPOSITORY_ROOT,
+      PNPM_CONFIG_STORE_DIR: REPOSITORY_ROOT,
       gItHuB_ToKeN: sentinelRepositoryCredential,
       nPm_CoNfIg_AuThToKeN: sentinelNpmCredential,
       npm_config_registry: "https://hostile.invalid/",
@@ -1536,6 +1719,9 @@ function runSelfTests(root, secure) {
       nested.environment.NPM_CONFIG_REGISTRY === PHASE09_PUBLIC_NPM_REGISTRY &&
       nested.environment.GIT_CONFIG_NOSYSTEM === "1" &&
       nested.environment.PHASE09_CREDENTIAL_FREE_ENV === "1" &&
+      nested.environment.PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN === undefined &&
+      nested.environment.NODE_OPTIONS === undefined &&
+      nested.environment.PHASE09_MUTATION_CAPTURE_DIR === undefined &&
       nested.environment.PNPM_CONFIG_STORE_DIR === nested.paths.pnpmStore &&
       isPathWithin(nested.paths.home, root) &&
       isPathWithin(nested.paths.pnpmStore, root) &&
@@ -1570,12 +1756,106 @@ function runSelfTests(root, secure) {
         nested.paths.npmGlobalConfig &&
       observedEnvironment.GIT_CONFIG_GLOBAL === nested.paths.gitConfig &&
       observedEnvironment.PNPM_CONFIG_STORE_DIR === nested.paths.pnpmStore &&
+      observedEnvironment.PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN === undefined &&
+      observedEnvironment.NODE_OPTIONS === undefined &&
+      observedEnvironment.PHASE09_MUTATION_CAPTURE_DIR === undefined &&
       !environmentProbe.stdout.includes(sentinelRepositoryCredential) &&
       !environmentProbe.stdout.includes(sentinelNpmCredential) &&
       !environmentProbe.stdout.includes("hostile.invalid"),
     "SELF_TEST",
     "nested package child probe observed an ambient credential or config",
   );
+  controls += 1;
+
+  const authenticated = createPackageChildEnvironment(
+    root,
+    {
+      PATH: secure.environment.PATH,
+      LANG: secure.environment.LANG,
+      PHASE09_CREDENTIAL_FREE_ENV: "1",
+      PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
+      NODE_OPTIONS: "--require=/hostile-authenticated-hook.cjs",
+      PHASE09_MUTATION_CAPTURE_DIR: REPOSITORY_ROOT,
+      PNPM_CONFIG_STORE_DIR: REPOSITORY_ROOT,
+      NPM_CONFIG_USERCONFIG: join(REPOSITORY_ROOT, ".npmrc"),
+      NPM_TOKEN: sentinelNpmCredential,
+      GITHUB_TOKEN: sentinelRepositoryCredential,
+    },
+    { directoryName: "authenticated-mutation-runner-child" },
+  );
+  const authenticatedProbe = runChild(
+    process.execPath,
+    ["-e", "process.stdout.write(JSON.stringify(process.env))"],
+    {
+      label: "authenticated mutation-runner child probe",
+      secureEnvironment: authenticated.environment,
+    },
+  );
+  const observedAuthenticated = JSON.parse(authenticatedProbe.stdout);
+  assert(
+    authenticated.environment.PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN === "false" &&
+      observedAuthenticated.PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN === "false" &&
+      observedAuthenticated.PHASE09_CREDENTIAL_FREE_ENV === "1" &&
+      authenticated.environment.PNPM_CONFIG_STORE_DIR ===
+        authenticated.paths.pnpmStore &&
+      observedAuthenticated.PNPM_CONFIG_STORE_DIR ===
+        authenticated.paths.pnpmStore &&
+      observedAuthenticated.NODE_OPTIONS === undefined &&
+      observedAuthenticated.PHASE09_MUTATION_CAPTURE_DIR === undefined &&
+      observedAuthenticated.NPM_TOKEN === undefined &&
+      observedAuthenticated.GITHUB_TOKEN === undefined &&
+      observedAuthenticated.NPM_CONFIG_USERCONFIG ===
+        authenticated.paths.npmUserConfig &&
+      !authenticatedProbe.stdout.includes(sentinelRepositoryCredential) &&
+      !authenticatedProbe.stdout.includes(sentinelNpmCredential) &&
+      !authenticatedProbe.stdout.includes("hostile-authenticated-hook") &&
+      !isPathWithin(authenticated.paths.home, REPOSITORY_ROOT) &&
+      !isPathWithin(authenticated.paths.pnpmStore, REPOSITORY_ROOT),
+    "SELF_TEST",
+    "authenticated package child propagated more than the reviewed pnpm policy",
+  );
+  controls += 1;
+
+  expectFailure("unauthenticated pnpm policy", "CHILD_ENVIRONMENT", () =>
+    createPackageChildEnvironment(
+      root,
+      {
+        PATH: secure.environment.PATH,
+        PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
+      },
+      { directoryName: "unauthenticated-pnpm-policy" },
+    ),
+  );
+  controls += 1;
+
+  expectFailure("wrong authenticated pnpm policy", "CHILD_ENVIRONMENT", () =>
+    createPackageChildEnvironment(
+      root,
+      {
+        PATH: secure.environment.PATH,
+        PHASE09_CREDENTIAL_FREE_ENV: "1",
+        PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "true",
+      },
+      { directoryName: "wrong-pnpm-policy" },
+    ),
+  );
+  controls += 1;
+
+  expectFailure("ambiguous authenticated pnpm policy", "CHILD_ENVIRONMENT", () =>
+    createPackageChildEnvironment(
+      root,
+      {
+        PATH: secure.environment.PATH,
+        PHASE09_CREDENTIAL_FREE_ENV: "1",
+        PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
+        pnpm_config_verify_deps_before_run: "false",
+      },
+      { directoryName: "ambiguous-pnpm-policy" },
+    ),
+  );
+  controls += 1;
+
+  runVersionedP1SemanticRegression(root, authenticated.environment);
   controls += 1;
 
   const toolingDrift = join(root, "consumer-tooling-drift");
@@ -1593,9 +1873,9 @@ function runSelfTests(root, secure) {
   controls += 1;
 
   assert(
-    controls === 9,
+    controls === 14,
     "SELF_TEST",
-    `expected nine controls, ran ${controls}`,
+    `expected fourteen controls, ran ${controls}`,
   );
   console.log(
     `PHASE09_PACKAGE_SELF_TEST ${JSON.stringify({ controls, status: "passed" })}`,
