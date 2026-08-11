@@ -77,14 +77,28 @@ The workflow has five jobs and two distinct pushes to `main`:
    then runs the credential-free finalization ceremony:
 
    ```sh
-   node scripts/phase-09-mutation-battery.mjs finalize versioned --jobs 2
+   env -i PATH="$PATH" LANG="${LANG:-C.UTF-8}" \
+     node scripts/phase-09-mutation-battery.mjs finalize versioned --jobs 2
    ```
 
-   Run it only from the clean committed PR head. Review the four regenerated Phase 09
-   ledgers, commit them, and push that commit to the same PR. CI and publication reject
-   missing or stale versioned evidence, and the evidence must bind the tracked receipt's
-   repository, base SHA, run ID, run attempt, artifact name, and digest. Automation
-   cannot make this semantic release decision on the repository-writing path.
+   Run it only from the clean committed PR head. Before creating its lock, temporary
+   root, or evidence, the command rejects repository/npm credentials and config
+   overrides case-insensitively, plus ambient npm, pnpm, Git, GitHub CLI, netrc, and
+   SSH config/credential paths. Every child, including package-check descendants,
+   receives an allowlisted environment with a new isolated home/temp/config tree,
+   owned empty npm user/global and Git global configs, disabled system Git config and
+   prompting, and the exact public npmjs registry. Review the four regenerated Phase
+   09 ledgers, commit them, and push that commit to the same PR. CI and publication
+   reject missing or stale versioned evidence, and the evidence must bind the tracked
+   receipt's repository, base SHA, run ID, run attempt, artifact name, and digest.
+   Automation cannot make this semantic release decision on the repository-writing
+   path.
+
+   This is process-environment and tool-config isolation, not an OS network or
+   filesystem sandbox. Exact dependency downloads can still reach the public npmjs
+   registry, and child code retains the host permissions of the operator. Use a
+   reviewed ephemeral VM/container with a restricted network or a prewarmed offline
+   cache when stronger isolation is required.
 4. Merge the fully reviewed PR. On the merged version commit, `hasChangesets` is false;
    `verify` runs the dependency battery and exports an explicitly untrusted exact
    archive triplet.
@@ -283,10 +297,11 @@ Run through this by hand on the first real release, in order.
       automated commit must not contain regenerated evidence ledgers or unrelated
       manifest, lockfile, Markdown, or dependency changes.
 - [ ] From the clean committed Version Packages PR head, run
-      `node scripts/phase-09-mutation-battery.mjs finalize versioned --jobs 2` without
-      repository or npm credentials. Review all four regenerated Phase 09 ledgers,
-      confirm their `versionReceipt` binding matches the tracked receipt, commit them,
-      and push. Do not merge while CI reports missing or stale receipt-backed evidence.
+      `env -i PATH="$PATH" LANG="${LANG:-C.UTF-8}" node scripts/phase-09-mutation-battery.mjs finalize versioned --jobs 2`.
+      The preflight must report no ambient credential/config rejection. Review all four
+      regenerated Phase 09 ledgers, confirm their `versionReceipt` binding matches the
+      tracked receipt, commit them, and push. Do not merge while CI reports missing or
+      stale receipt-backed evidence.
 - [ ] Merge the reviewed semantic change plus separately reviewed finalization commit.
       The workflow re-runs on `main`; `prepare` emits the no-op version
       artifact, `version` reports no pending changeset, `verify` uploads four untrusted
@@ -338,6 +353,7 @@ why `privatePackages` is `false`, therefore lives in
 | pnpm/root lock pin drift | Version or verification installs a different graph; static workflow check fails before publication |
 | publisher/npm artifact digest drift | Minimal publisher aborts before the OIDC exchange or any package publication |
 | `NPM_TOKEN`, `NODE_AUTH_TOKEN`, `NPM_ID_TOKEN`, or ambient npm registry/auth config present | Publisher rejects the environment before invoking npm |
+| repository/npm credentials or ambient user/repository tool config present during versioned finalization | Finalizer rejects the environment before its lock, any child process, or evidence write; launch it with the documented `env -i` ceremony |
 | package `publishConfig` or repository metadata gains an extra/foreign destination | Sealer/publisher rejects the archive before any registry query or publish |
 | `--provenance` removed from the exact publisher | The reviewed publication command drifted; workflow/static checks fail before OIDC publication |
 | dependency command added to `version` | Repository-write authority reaches workspace/dependency code; workflow checker rejects the edit |

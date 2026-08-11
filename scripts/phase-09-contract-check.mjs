@@ -121,6 +121,7 @@ const FINAL_REQUIRED_PATHS = Object.freeze([
   "scripts/phase-09-test-check.mjs",
   "scripts/phase-09-workflow-check.mjs",
   "scripts/phase-09-mutation-battery.mjs",
+  "scripts/phase-09-secure-environment.mjs",
   "scripts/phase-09-publish-archives.mjs",
   "scripts/phase-09-version.mjs",
   "scripts/fixtures/phase-09-foreign-consumer/package.json",
@@ -714,6 +715,9 @@ function evaluateContracts(root) {
   results.push(
     createProbe(INITIAL_IDS[8], inspector, (api) => {
       const script = stripJsComments(api.text("scripts/phase-09-package-check.mjs"));
+      const secureEnvironment = api.text(
+        "scripts/phase-09-secure-environment.mjs",
+      );
       const publisher = stripJsComments(
         api.text("scripts/phase-09-publish-archives.mjs"),
       );
@@ -757,9 +761,45 @@ function evaluateContracts(root) {
         "--offline",
         "consumerTooling",
         "CONSUMER_TOOLING_LOCK",
+        "createSecureChildEnvironment",
+        "mergeSecureChildEnvironment",
+        "nested secure child environment probe",
       ]) {
         api.check(script.includes(token), `package-check-${token}`, "scripts/phase-09-package-check.mjs", `live ${token} evidence`, script.includes(token) ? "present" : "absent");
       }
+      for (const token of [
+        "assertCredentialFreeFinalizationEnvironment",
+        "runAfterCredentialFreeFinalizationPreflight",
+        "createSecureChildEnvironment",
+        "mergeSecureChildEnvironment",
+        "NPM_CONFIG_USERCONFIG",
+        "NPM_CONFIG_GLOBALCONFIG",
+        "NPM_CONFIG_REGISTRY",
+        "GIT_CONFIG_NOSYSTEM",
+        "GIT_CONFIG_GLOBAL",
+        "PHASE09_CREDENTIAL_FREE_ENV",
+        ".netrc",
+        ".npmrc",
+        "github_token",
+        "npm_",
+        "node_options",
+        "ssh_",
+      ]) {
+        api.check(
+          secureEnvironment.includes(token),
+          `secure-environment-${token}`,
+          "scripts/phase-09-secure-environment.mjs",
+          `credential-free child control ${token}`,
+          secureEnvironment.includes(token) ? "present" : "absent",
+        );
+      }
+      api.check(
+        !/\.\.\.\s*process\.env/u.test(script),
+        "package-check-no-ambient-environment-spread",
+        "scripts/phase-09-package-check.mjs",
+        "no ambient environment spread into package children",
+        "inspected",
+      );
       api.check(
         consumerManifest.packageManager === "npm@11.11.0" &&
           Object.keys(consumerManifest.dependencies ?? {}).length === 13 &&
@@ -914,6 +954,7 @@ function evaluateContracts(root) {
     createProbe(INITIAL_IDS[10], inspector, (api) => {
       const register = api.json(`${PHASE_DIRECTORY}/09-MUTATION-REGISTER.json`);
       const runner = stripJsComments(api.text("scripts/phase-09-mutation-battery.mjs"));
+      const releasing = api.text("RELEASING.md");
       const mutationEvidence = api.text(`${PHASE_DIRECTORY}/09-MUTATION-EVIDENCE.json`);
       const releaseEvidence = api.text(`${PHASE_DIRECTORY}/09-RELEASE-EVIDENCE.json`);
       const validation = api.text(`${PHASE_DIRECTORY}/09-VALIDATION.md`);
@@ -925,9 +966,25 @@ function evaluateContracts(root) {
       for (const row of rows) {
         api.check(row?.occurrences === 1 && typeof row?.exactBefore === "string" && typeof row?.exactAfter === "string" && typeof row?.compileCommand === "string" && typeof row?.killerCommand === "string" && typeof row?.assertionFingerprint === "string", `mutation-row-${row?.id ?? "unknown"}`, `${PHASE_DIRECTORY}/09-MUTATION-REGISTER.json`, "one exact compiled semantic row", "inspected");
       }
-      for (const token of ["self-test", "preflight", "run", "finalize", "--jobs", "verify", "evidence", "release", "publish", "mode", "versioned", "releaseAuthorization", "runAttempt", "sharedVersion", "consumedChangesets", "versionReceipt", "09-VERSION-RECEIPT.json", "verifyPublishEvidence", "ordinary-mode-publish-rejected", "zero-version-publish-rejected", "removed-changeset-publish-rejected", "missing-evidence-attempt-rejected", "mismatched-evidence-attempt-rejected", "missing-receipt-attempt-rejected", "mismatched-receipt-attempt-rejected", "mkdtemp", "phase-08-mutation-battery.mjs", "09-MUTATION-EVIDENCE.json", "09-RELEASE-EVIDENCE.json"]) {
+      for (const token of ["self-test", "preflight", "run", "finalize", "--jobs", "verify", "evidence", "release", "publish", "mode", "versioned", "releaseAuthorization", "runAttempt", "sharedVersion", "consumedChangesets", "versionReceipt", "09-VERSION-RECEIPT.json", "verifyPublishEvidence", "ordinary-mode-publish-rejected", "zero-version-publish-rejected", "removed-changeset-publish-rejected", "missing-evidence-attempt-rejected", "mismatched-evidence-attempt-rejected", "missing-receipt-attempt-rejected", "mismatched-receipt-attempt-rejected", "finalization-environment-preflight-before-child", "finalization-config-preflight-before-child", "secure-child-environment-probe", "runAfterCredentialFreeFinalizationPreflight", "createSecureChildEnvironment", "mergeSecureChildEnvironment", "mkdtemp", "phase-08-mutation-battery.mjs", "09-MUTATION-EVIDENCE.json", "09-RELEASE-EVIDENCE.json"]) {
         api.check(runner.includes(token), `mutation-runner-${token}`, "scripts/phase-09-mutation-battery.mjs", `live ${token} state-machine path`, runner.includes(token) ? "present" : "absent");
       }
+      api.check(
+        !/\.\.\.\s*process\.env/u.test(runner),
+        "mutation-runner-no-ambient-environment-spread",
+        "scripts/phase-09-mutation-battery.mjs",
+        "no ambient environment spread into finalization children",
+        "inspected",
+      );
+      api.check(
+        releasing.includes('env -i PATH="$PATH"') &&
+          /not an OS network or\s+filesystem sandbox/u.test(releasing) &&
+          releasing.includes("owned empty npm user/global and Git global configs"),
+        "versioned-finalization-runbook-boundary",
+        "RELEASING.md",
+        "credential-free launch plus honest process-isolation boundary",
+        "inspected",
+      );
       for (const mode of ["inputs", "ledgers"]) {
         api.check(new RegExp(`["']verify["']\\s*,\\s*["']${mode}["']`, "u").test(runner), `mutation-runner-verify-${mode}`, "scripts/phase-09-mutation-battery.mjs", `exact Phase 8 verify ${mode} command`, "inspected");
       }

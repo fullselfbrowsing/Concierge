@@ -102,6 +102,12 @@ If your adapter is meaningfully longer than ~150 lines, logic has leaked out of 
   apply-derived receipt. Package CI and publication reject missing/stale receipt-bound
   evidence. Publication additionally requires the independent content-addressed
   archive seal; a colocated archive digest manifest is never its own trust root.
+  Launch the finalizer through the `env -i` command documented in `RELEASING.md`.
+  Its preflight rejects ambient repository/npm credentials and influencing config
+  paths before the lock or any evidence write, and every descendant gets an allowlisted
+  environment with isolated home/config paths and owned empty npm/Git config files.
+  This boundary does not claim OS network or filesystem sandboxing; use an ephemeral,
+  restricted host when that stronger isolation is required.
 
 - **The npm destination is fixed.** Every public package keeps exactly
   `publishConfig: { "access": "public" }` and repository metadata for
