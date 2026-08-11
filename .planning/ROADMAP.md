@@ -432,7 +432,7 @@ Plans:
 
 **Wave 8** *(blocked on Wave 7 completion)*
 
-- [ ] 09-10-PLAN.md — Canonical adapter APIs, ownership/security boundaries, Astro proof, and release documentation
+- [x] 09-10-PLAN.md — Canonical adapter APIs, ownership/security boundaries, Astro proof, and release documentation
 - [ ] 09-12-PLAN.md — Immutable compiled mutation register and runner without premature final evidence
 
 **Wave 9** *(blocked on Wave 8 completion)*
@@ -486,4 +486,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Dispatcher | 8/8 | Complete   | 2026-08-07 |
 | 7. Session and the transport seam | 7/7 | Complete    | 2026-08-10 |
 | 8. Consent kernel | 8/8 | Complete | 2026-08-10 |
-| 9. React and Svelte adapters | 9/13 | In Progress|  |
+| 9. React and Svelte adapters | 10/13 | In Progress|  |
