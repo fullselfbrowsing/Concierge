@@ -72,6 +72,8 @@ const PACKAGE_SPECS = Object.freeze([
 const PACKAGE_BY_NAME = new Map(PACKAGE_SPECS.map((spec) => [spec.name, spec]));
 const CONSUMER_TOOL_VERSIONS = Object.freeze({
   "@sveltejs/vite-plugin-svelte": "7.2.0",
+  "@testing-library/react": "16.3.2",
+  "@testing-library/svelte": "5.4.2",
   "@types/react": "19.2.18",
   "@types/react-dom": "19.2.4",
   "@vitejs/plugin-react": "5.2.0",
@@ -757,7 +759,7 @@ function runArtifactStage(root, archives) {
   return Object.freeze({ consumer, typescript, serverTests });
 }
 
-function writeConsentRedFixture(consumerDirectory) {
+function writeConsentFixture(consumerDirectory) {
   const consentDirectory = join(consumerDirectory, "consent");
   mkdirSync(consentDirectory);
   writeFileSync(
@@ -773,35 +775,370 @@ function writeConsentRedFixture(consumerDirectory) {
   );
   writeFileSync(
     join(consentDirectory, "rune-state.svelte.ts"),
-    `export const state = $state({ booking: { amount: 41, seat: "A" } });\n`,
+    `export function createRuneState() {\n` +
+      `  const state = $state({ booking: { amount: 41, seat: "A" } });\n` +
+      `  return {\n` +
+      `    state,\n` +
+      `    mutate() { state.booking.amount = 42; state.booking.seat = "B"; },\n` +
+      `  };\n` +
+      `}\n`,
     "utf8",
   );
   writeFileSync(
     join(consentDirectory, "consent.test.ts"),
     `import { describe, expect, it } from "vitest";\n` +
-      `import { state } from "./rune-state.svelte";\n` +
+      `import { createBridge, createConcierge, defineAction } from "${CORE_NAME}";\n` +
+      `import { svelteSnapshotNormalizer } from "${SVELTE_NAME}/client.svelte";\n` +
+      `import { createRuneState } from "./rune-state.svelte";\n` +
+      `const schema = { "~standard": { version: 1, vendor: "phase09-packed-consent", validate: (value) => ({ value }) } };\n` +
+      `const review = defineAction({ name: "reviewBooking", description: "Review the current booking.", schema, jsonSchema: { type: "object" }, redact: "drop", effects: { readOnly: true }, handler: () => ({ ok: true, message: "Booking reviewed." }) });\n` +
+      `async function exercise(normalizeSnapshot) {\n` +
+      `  const rune = createRuneState();\n` +
+      `  const registry = createBridge("booking");\n` +
+      `  let handlerCount = 0;\n` +
+      `  let delivered;\n` +
+      `  const confirm = defineAction({\n` +
+      `    name: "confirmBooking",\n` +
+      `    description: "Confirm the reviewed booking.",\n` +
+      `    schema,\n` +
+      `    jsonSchema: { type: "object" },\n` +
+      `    redact: "drop",\n` +
+      `    effects: { destructive: true },\n` +
+      `    consent: { requires: "reviewBooking", bindTo: "response", minGrade: "relayed" },\n` +
+      `    handler: () => { handlerCount += 1; return { ok: true, message: "Booking confirmed." }; },\n` +
+      `  });\n` +
+      `  const bridge = { actions: Object.freeze({}), snapshot: Object.freeze({ booking: () => rune.state }) };\n` +
+      `  const unregister = registry.register(bridge);\n` +
+      `  const concierge = createConcierge({\n` +
+      `    stages: [{ id: "booking", match: () => true, actions: [review, confirm], bridge: registry }],\n` +
+      `    consentProfile: { consentGrade: "relayed", userTurnIdentity: "human-attested" },\n` +
+      `    normalizeSnapshot,\n` +
+      `    commitWindowMs: 0,\n` +
+      `  });\n` +
+      `  const reviewResult = await concierge.dispatch({}, "reviewBooking", { amount: 41, seat: "A" }, {\n` +
+      `    callId: "review-call",\n` +
+      `    responseId: "review-response",\n` +
+      `    deferUntilDelivered(effect) { delivered = effect; },\n` +
+      `  });\n` +
+      `  expect(reviewResult).toEqual({ ok: true, message: "Booking reviewed." });\n` +
+      `  expect(delivered).toBeTypeOf("function");\n` +
+      `  delivered({ responseId: "review-response", outcome: "completed" });\n` +
+      `  rune.mutate();\n` +
+      `  expect(registry.read()).toBe(bridge);\n` +
+      `  expect(registry.read().snapshot.booking()).toEqual({ booking: { amount: 42, seat: "B" } });\n` +
+      `  const confirmResult = await concierge.dispatch({}, "confirmBooking", {}, { callId: "confirm-call", responseId: "confirm-response" });\n` +
+      `  unregister();\n` +
+      `  return { confirmResult, handlerCount };\n` +
+      `}\n` +
       `describe("packed real-$state consent drift", () => {\n` +
-      `  it("[T03/S1] closes completed review after nested live mutation", () => {\n` +
-      `    expect(state.booking).toEqual({ amount: 41, seat: "A" });\n` +
-      `    expect.fail("[RED:09-08-02:CONSENT] public review/completed-delivery/consent_stale flow is not wired");\n` +
+      `  it("[T03/S1] closes completed review after nested live mutation", async () => {\n` +
+      `    const detached = await exercise(svelteSnapshotNormalizer);\n` +
+      `    expect(detached).toEqual({\n` +
+      `      confirmResult: { ok: false, reason: "consent_stale", message: "The reviewed state changed before this action could run." },\n` +
+      `      handlerCount: 0,\n` +
+      `    });\n` +
+      `    const identity = await exercise((value) => value);\n` +
+      `    expect(identity).toEqual({ confirmResult: { ok: true, message: "Booking confirmed." }, handlerCount: 1 });\n` +
       `  });\n` +
       `});\n`,
     "utf8",
   );
 }
 
-function runConsentRedFixture(consumerDirectory) {
-  writeConsentRedFixture(consumerDirectory);
+function runSvelteConsentStage(consumerDirectory) {
+  writeConsentFixture(consumerDirectory);
   const vitest = join(
     consumerDirectory,
     "node_modules/.bin",
     process.platform === "win32" ? "vitest.cmd" : "vitest",
   );
+  const reportPath = join(consumerDirectory, "vitest-consent.json");
   runChild(
     vitest,
-    ["run", "--config", "vitest.consent.config.mjs", "--reporter=verbose"],
-    { cwd: consumerDirectory, label: "packed real-$state consent RED" },
+    [
+      "run",
+      "--config",
+      "vitest.consent.config.mjs",
+      "--reporter=json",
+      `--outputFile=${reportPath}`,
+    ],
+    { cwd: consumerDirectory, label: "packed real-$state consent" },
   );
+  return validatePositiveVitestReport(reportPath, ["consent.test.ts"]);
+}
+
+function hashRegularFileTree(directory) {
+  const hashes = new Map();
+  const visit = (current) => {
+    for (const entry of readdirSync(current).sort()) {
+      const path = join(current, entry);
+      const stat = lstatSync(path);
+      assert(
+        !stat.isSymbolicLink(),
+        "MISMATCH_TREE",
+        `disposable adapter tree contains a symlink: ${path}`,
+      );
+      if (stat.isDirectory()) {
+        visit(path);
+      } else if (stat.isFile()) {
+        hashes.set(relative(directory, path), sha256File(path));
+      } else {
+        fail("MISMATCH_TREE", `unsupported disposable adapter entry: ${path}`);
+      }
+    }
+  };
+  visit(directory);
+  return hashes;
+}
+
+function changedTreePaths(before, after) {
+  const paths = new Set([...before.keys(), ...after.keys()]);
+  return [...paths]
+    .filter((path) => before.get(path) !== after.get(path))
+    .sort();
+}
+
+function replaceUniqueLiteral(source, before, after, label) {
+  const occurrences = source.split(before).length - 1;
+  assert(
+    occurrences === 1,
+    "EXPECTED_CONTRACT_VERSION",
+    `${label} expected one adapter-owned version literal, found ${occurrences}`,
+  );
+  return source.replace(before, after);
+}
+
+function repackMismatchedAdapter(root, archives, adapterKey) {
+  const archive = archives[adapterKey];
+  const mutationRoot = join(root, `${adapterKey}-mismatch`);
+  const unpackRoot = join(mutationRoot, "unpacked");
+  const packedRoot = join(mutationRoot, "packed");
+  mkdirSync(unpackRoot, { recursive: true });
+  mkdirSync(packedRoot);
+  runChild("tar", ["-xzf", archive.path, "-C", unpackRoot], {
+    label: `unpack ${archive.name} for mismatch`,
+  });
+  const packageRoot = join(unpackRoot, "package");
+  assert(statSync(packageRoot).isDirectory(), "MISMATCH_TREE", "unpacked package root is missing");
+  const clientRelative =
+    adapterKey === "react" ? "dist/client.js" : "dist/client.svelte.js";
+  const clientPath = join(packageRoot, clientRelative);
+  const beforeTree = hashRegularFileTree(packageRoot);
+  const originalClient = readFileSync(clientPath, "utf8");
+  const originalLiteral = "const EXPECTED_CONTRACT_VERSION = 1;";
+  const incompatibleLiteral = "const EXPECTED_CONTRACT_VERSION = 999;";
+  writeFileSync(
+    clientPath,
+    replaceUniqueLiteral(
+      originalClient,
+      originalLiteral,
+      incompatibleLiteral,
+      archive.name,
+    ),
+    "utf8",
+  );
+  const afterTree = hashRegularFileTree(packageRoot);
+  assert(
+    JSON.stringify(changedTreePaths(beforeTree, afterTree)) ===
+      JSON.stringify([clientRelative]),
+    "MISMATCH_LITERAL_ONLY",
+    `${archive.name} mismatch changed more than ${clientRelative}`,
+  );
+  runChild(
+    NPM,
+    ["pack", "--ignore-scripts", "--pack-destination", packedRoot],
+    { cwd: packageRoot, label: `repack disposable ${archive.name}` },
+  );
+  const packedFiles = readdirSync(packedRoot).filter((entry) =>
+    entry.endsWith(".tgz"),
+  );
+  assert(
+    packedFiles.length === 1,
+    "MISMATCH_ARCHIVE",
+    `${archive.name} disposable repack produced ${packedFiles.length} archives`,
+  );
+  const path = join(packedRoot, packedFiles[0]);
+  const manifest = readArchiveManifest(path);
+  assert(
+    manifest.name === archive.name && manifest.version === archive.manifest.version,
+    "MISMATCH_ARCHIVE",
+    `${archive.name} disposable archive identity changed`,
+  );
+  const packedClient = readArchiveText(path, `package/${clientRelative}`);
+  assert(
+    packedClient.includes(incompatibleLiteral) &&
+      !packedClient.includes(originalLiteral),
+    "MISMATCH_ARCHIVE",
+    `${archive.name} disposable archive did not retain the unique mismatch literal`,
+  );
+  return Object.freeze({
+    ...archive,
+    path,
+    manifest,
+    sha256: sha256File(path),
+  });
+}
+
+function writeReactMismatchFixture(consumerDirectory) {
+  const testDirectory = join(consumerDirectory, "mismatch");
+  mkdirSync(testDirectory);
+  writeFileSync(
+    join(consumerDirectory, "vitest.mismatch.config.mjs"),
+    `import { defineConfig } from "vitest/config";\n` +
+      `import react from "@vitejs/plugin-react";\n` +
+      `export default defineConfig({ plugins: [react()], test: { environment: "jsdom", include: ["mismatch/react-mismatch.test.tsx"], fileParallelism: false, maxWorkers: 1 } });\n`,
+    "utf8",
+  );
+  writeFileSync(
+    join(testDirectory, "react-mismatch.test.tsx"),
+    `import { createElement } from "react";\n` +
+      `import { cleanup, render } from "@testing-library/react";\n` +
+      `import { afterEach, describe, expect, it } from "vitest";\n` +
+      `import { CONTRACT_VERSION } from "${CORE_NAME}";\n` +
+      `import { useConciergeBridge } from "${REACT_NAME}/client";\n` +
+      `afterEach(() => cleanup());\n` +
+      `describe("disposable packed React mismatch", () => {\n` +
+      `  it("fails through the public hook before registry registration", () => {\n` +
+      `    let registerCount = 0;\n` +
+      `    const registry = { register() { registerCount += 1; return () => {}; }, read() { return null; } };\n` +
+      `    const bridge = { actions: Object.freeze({}), snapshot: Object.freeze({}) };\n` +
+      `    function Probe() { useConciergeBridge(registry, bridge); return null; }\n` +
+      `    let thrown;\n` +
+      `    try { render(createElement(Probe)); } catch (error) { thrown = error; }\n` +
+      `    expect(CONTRACT_VERSION).toBe(1);\n` +
+      `    expect(thrown).toBeInstanceOf(Error);\n` +
+      `    expect(thrown.message).toBe("${REACT_NAME} expected core contract v999 but found v1; upgrade or reinstall ${REACT_NAME} and ${CORE_NAME} together.");\n` +
+      `    expect(registerCount).toBe(0);\n` +
+      `  });\n` +
+      `});\n`,
+    "utf8",
+  );
+}
+
+function writeSvelteMismatchFixture(consumerDirectory) {
+  const testDirectory = join(consumerDirectory, "mismatch");
+  mkdirSync(testDirectory);
+  writeFileSync(
+    join(consumerDirectory, "vitest.mismatch.config.mjs"),
+    `import { defineConfig } from "vitest/config";\n` +
+      `import { svelte } from "@sveltejs/vite-plugin-svelte";\n` +
+      `import { svelteTesting } from "@testing-library/svelte/vite";\n` +
+      `export default defineConfig({ plugins: [svelte({ compilerOptions: { hmr: false } }), svelteTesting()], test: { environment: "jsdom", include: ["mismatch/svelte-mismatch.test.ts"], fileParallelism: false, maxWorkers: 1 } });\n`,
+    "utf8",
+  );
+  writeFileSync(
+    join(testDirectory, "MismatchProbe.svelte"),
+    `<script>\n` +
+      `  import { useConciergeBridge } from "${SVELTE_NAME}/client.svelte";\n` +
+      `  let { registry, bridge } = $props();\n` +
+      `  // svelte-ignore state_referenced_locally\n` +
+      `  useConciergeBridge(registry, bridge);\n` +
+      `</script>\n`,
+    "utf8",
+  );
+  writeFileSync(
+    join(testDirectory, "svelte-mismatch.test.ts"),
+    `import { cleanup, render } from "@testing-library/svelte";\n` +
+      `import { afterEach, describe, expect, it } from "vitest";\n` +
+      `import { CONTRACT_VERSION } from "${CORE_NAME}";\n` +
+      `import MismatchProbe from "./MismatchProbe.svelte";\n` +
+      `afterEach(() => cleanup());\n` +
+      `describe("disposable packed Svelte mismatch", () => {\n` +
+      `  it("fails through the compiled public effect before registry registration", () => {\n` +
+      `    let registerCount = 0;\n` +
+      `    const registry = { register() { registerCount += 1; return () => {}; }, read() { return null; } };\n` +
+      `    const bridge = { actions: Object.freeze({}), snapshot: Object.freeze({}) };\n` +
+      `    let thrown;\n` +
+      `    try { render(MismatchProbe, { registry, bridge }); } catch (error) { thrown = error; }\n` +
+      `    expect(CONTRACT_VERSION).toBe(1);\n` +
+      `    expect(thrown).toBeInstanceOf(Error);\n` +
+      `    const expectedMessage = "${SVELTE_NAME} expected core contract v999 but found v1; upgrade or reinstall ${SVELTE_NAME} and ${CORE_NAME} together.";\n` +
+      `    expect(thrown.message.split("\\n\\n", 1)[0]).toBe(expectedMessage);\n` +
+      `    expect(registerCount).toBe(0);\n` +
+      `  });\n` +
+      `});\n`,
+    "utf8",
+  );
+}
+
+function runMismatchFixture(consumerDirectory, adapterKey) {
+  if (adapterKey === "react") {
+    writeReactMismatchFixture(consumerDirectory);
+  } else {
+    writeSvelteMismatchFixture(consumerDirectory);
+  }
+  const reportPath = join(
+    consumerDirectory,
+    `vitest-${adapterKey}-mismatch.json`,
+  );
+  const vitest = join(
+    consumerDirectory,
+    "node_modules/.bin",
+    process.platform === "win32" ? "vitest.cmd" : "vitest",
+  );
+  try {
+    runChild(
+      vitest,
+      [
+        "run",
+        "--config",
+        "vitest.mismatch.config.mjs",
+        "--reporter=json",
+        `--outputFile=${reportPath}`,
+      ],
+      { cwd: consumerDirectory, label: `${adapterKey} public mismatch lifecycle` },
+    );
+  } catch (error) {
+    const report = existsSync(reportPath)
+      ? boundedExcerpt(readFileSync(reportPath, "utf8"))
+      : "missing JSON report";
+    fail(
+      "MISMATCH_TEST",
+      `${error instanceof Error ? error.message : String(error)}\nreport:\n${report}`,
+    );
+  }
+  return validatePositiveVitestReport(reportPath, [
+    `${adapterKey}-mismatch.test.${adapterKey === "react" ? "tsx" : "ts"}`,
+  ]);
+}
+
+function runMismatchStage(root, archives) {
+  const originalCoreDigest = archives.core.sha256;
+  const results = {};
+  for (const adapterKey of ["react", "svelte"]) {
+    assert(
+      sha256File(archives.core.path) === originalCoreDigest,
+      "CORE_DIGEST",
+      "the original core archive changed before mismatch preparation",
+    );
+    const mismatchedAdapter = repackMismatchedAdapter(
+      root,
+      archives,
+      adapterKey,
+    );
+    const mismatchArchives = Object.freeze({
+      ...archives,
+      [adapterKey]: mismatchedAdapter,
+    });
+    const consumer = createConsumer(
+      root,
+      mismatchArchives,
+      `${adapterKey}-mismatch-consumer`,
+    );
+    results[adapterKey] = runMismatchFixture(consumer.directory, adapterKey);
+    assert(
+      sha256File(archives.core.path) === originalCoreDigest,
+      "CORE_DIGEST",
+      `the original core archive changed during ${adapterKey} mismatch proof`,
+    );
+  }
+  return Object.freeze({
+    coreSha256: originalCoreDigest,
+    expectedContractVersion: 999,
+    foundContractVersion: 1,
+    react: results.react,
+    svelte: results.svelte,
+  });
 }
 
 function validateExportDirectory(mode) {
@@ -991,24 +1328,31 @@ function runSubstantiveMode(mode) {
 
     if (mode === "svelte-consent") {
       const consumer = createConsumer(root, archives, "svelte-consent-consumer");
-      runConsentRedFixture(consumer.directory);
-      fail("RED:09-08-02:CONSENT", "real compiler-transformed Svelte consent probe unexpectedly passed");
+      const consent = runSvelteConsentStage(consumer.directory);
+      console.log(
+        `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", digests, tarEntryCounts, consent })}`,
+      );
+      return;
     }
 
     if (mode === "mismatch") {
-      fail(
-        "RED:09-08-02:MISMATCH",
-        "literal-only React and Svelte public lifecycle mismatch probes are not implemented",
+      const mismatch = runMismatchStage(root, archives);
+      console.log(
+        `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", digests, tarEntryCounts, mismatch })}`,
       );
+      return;
     }
 
     const artifacts = runArtifactStage(root, archives);
-    void artifacts;
-    fail("RED:09-08-02", "all mode awaits consent and mismatch stages");
+    const consent = runSvelteConsentStage(artifacts.consumer.directory);
+    const mismatch = runMismatchStage(root, archives);
 
     if (exportDirectory !== null) {
       exportArchives(exportDirectory, archives);
     }
+    console.log(
+      `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", archives: Object.fromEntries(PACKAGE_SPECS.map((spec) => [archives[spec.key].name, { file: basename(archives[spec.key].path), sha256: archives[spec.key].sha256 }])), tarEntryCounts, typescript: artifacts.typescript, serverTests: artifacts.serverTests, physicalCore: artifacts.consumer.topology.physicalCore, consent, mismatch, exported: exportDirectory !== null })}`,
+    );
   } finally {
     removeOwnedTempRoot(root);
   }
