@@ -2,8 +2,8 @@
 phase: 09-react-and-svelte-adapters
 phase_number: 9
 phase_name: React and Svelte adapters
-audited_at: 2026-08-11T12:44:23Z
-revision: fc27969de2e4aabfe6bbc30e62ed584b9d550268
+audited_at: 2026-08-11T13:01:08Z
+revision: fc7c89f6d36d8652afa1d86520e8701ec0322b75
 remediation_commits:
   - b48fea4258ef12f882c7f927b5c28e6d427d211c
   - f29d0a236e0868c707eb1e37f8be4b2c05bab856
@@ -14,6 +14,8 @@ nested_policy_fix_commits:
   - ee470570e16de42690c7b093f1bd263b68110398
   - d62c6f9e062c2b289e4e5e101b62d7244c97651a
 ceremony_report_commit: fc27969de2e4aabfe6bbc30e62ed584b9d550268
+release_aware_version_fix_commit: d267ad2ccf47ebe8aab1ae7350e0bc11f13fdc6f
+ceremony_fix_3_report_commit: fc7c89f6d36d8652afa1d86520e8701ec0322b75
 verdict: SECURED
 status: passed
 asvs_level: 1
@@ -30,7 +32,7 @@ unregistered_flags: 0
 
 **Phase:** 09 — React and Svelte adapters
 
-**Revision:** `fc27969de2e4aabfe6bbc30e62ed584b9d550268`
+**Revision:** `fc7c89f6d36d8652afa1d86520e8701ec0322b75`
 
 **Threats Closed:** 9/9
 
@@ -38,7 +40,7 @@ unregistered_flags: 0
 
 **Verdict:** **PASS**
 
-The focused re-audit confirms that commits `b48fea4` and `f29d0a2` remediate `SEC09-B01`, commits `0bf6254` and `d1d230c` safely make that boundary functional with a fresh pnpm store, and commits `ee47057` and `d62c6f9` close the nested package-check policy gap exposed by the second disposable ceremony retry. The package checker now reconstructs exactly one mutation-only pnpm policy when both fixed protocol values are present, while normal gates omit the policy and credentials, ambient config/store paths, `NODE_OPTIONS`, capture paths, and arbitrary variables remain excluded. The versioned P1 regression reaches the registered semantic detector instead of stale-lock infrastructure. No High or open declared threat remains.
+The focused re-audit confirms that commits `b48fea4` and `f29d0a2` remediate `SEC09-B01`, commits `0bf6254` and `d1d230c` safely make that boundary functional with a fresh pnpm store, commits `ee47057` and `d62c6f9` close the nested package-check policy gap, and commit `d267ad2` makes the versioner's security self-test independent of the live `0.0.0`/`0.1.0` release state. The new synthetic manifest bases do not change the production manifest validator, semantic-only operation allowlists, bounded peer/lock normalization, artifact/receipt binding, injection rejections, or credential boundary. The self-test passed both against the live feature tree and while a read-only probe presented the legitimate versioned manifest shape. No High or open declared threat remains.
 
 This verdict verifies the implementation controls; it does not authorize a live publish or the still-pending versioned-finalization ceremony. The current `.planning/config.json` does not declare `asvs_level` or `block_on`, so this report retains the conservative project baseline of ASVS Level 1 with High findings blocking.
 
@@ -88,6 +90,22 @@ The second disposable versioned-finalization retry remained fail-closed: its own
 | Versioned P1 reaches the semantic detector | PASS | The regression first runs a real pnpm child in the reconstructed authenticated environment and requires `verify-deps-before-run` to report `false`. It then reads M-09-P1's registered exact replacement and exact fingerprint, constructs the valid nonzero versioned adapter shape, applies the mutation once, and invokes the same `validateArchiveContents` function used by the substantive archive triplet (`scripts/phase-09-package-check.mjs:455-554,1523-1630`; `09-MUTATION-REGISTER.json:111-127`). It requires exact `ADAPTER_MANIFEST` failure text and rejects any result containing `ERR_PNPM_OUTDATED_LOCKFILE`. Both normal and externally authenticated package self-tests passed this control. This is a faithful two-seam regression, not a claim that the prohibited production finalizer ran. |
 | Contracts and runbook pin the boundary | PASS | The final contract requires the consumer functions, exact two names/values, canonical override, missing-policy omission, real authenticated/normal child probes, P1 detector, producer constant, and runbook text (`scripts/phase-09-contract-check.mjs:715-830,981-1037`). The runbook accurately limits the exception to disposable mutation execution and explicitly says normal package/release gates retain pnpm's default (`RELEASING.md:105-115`; `CONTRIBUTING.md:113-119`). |
 
+## Release-aware Version Self-test Re-audit
+
+The third disposable versioned-finalization attempt killed all seven mutants and then failed closed before ledger installation because the workflow checker ran the version self-test from a legitimate `0.1.0` tree. The old test incorrectly used those live manifests as the base of a hard-coded `0.0.0` → `0.1.0` fixture. Commit `d267ad2` changes only that self-test fixture and one contract token; it does not change a production prepare, apply, validation, receipt, or child-execution function.
+
+| Version-control property | Result | Verification evidence |
+|---|---|---|
+| Synthetic base is release-state independent | PASS | The self-test clones each live public manifest, overwrites the synthetic base version to exactly `0.0.0`, restores each adapter's reviewed bounded peer, derives a `0.1.0` output with canonical `workspace:^`, and passes those bytes to the real validator (`scripts/phase-09-version.mjs:1300-1324`). A normal run passed 23 controls on the live `0.0.0` tree. A separate read-only preload probe presented the same script with live-like `0.1.0` manifests and canonical adapter peers; all 23 controls still passed without modifying the workspace. |
+| Production manifest semantics remain exact | PASS | `validateManifestTransition` still requires the exact public package identity, exact shared next version, and release-type arithmetic. For adapters it still accepts only the bounded source peer or canonical peer, requires canonical output, normalizes only that peer for comparison, and rejects every other manifest delta by stable whole-object equality (`scripts/phase-09-version.mjs:549-658`). This function is outside the fix diff. |
+| Peer and lock normalization remain bounded | PASS | Source peers still require either exact `workspace:^` or the exact two-version same-major form beginning at the current core version (`scripts/phase-09-version.mjs:232-267`). Snapshot normalization requires unchanged source peers and a matching transition target, and lock normalization permits only one-for-one replacement with an occurrence bound of two (`scripts/phase-09-version.mjs:269-308,708-723`). The positive normalization and dependency-smuggling negative both passed. |
+| Semantic-only operation allowlists remain closed | PASS | Writes remain limited to the six package/changelog paths plus optional `pnpm-lock.yaml`; deletes remain limited to digest-bound consumed changesets. Every operation has exact keys, unique path, verified base digest, exact action/blob digest, required path cardinality, and no unreferenced blob (`scripts/phase-09-version.mjs:63-68,725-977`). The malicious evidence-write and consumed-digest mismatch negatives passed. |
+| Injection controls remain substantive | PASS | The command-injection negative now derives from the stored synthetic core base and adds `scripts.postinstall`; the unchanged full-object validator rejects it as `VERSION_ARTIFACT_SEMANTICS` (`scripts/phase-09-version.mjs:1326-1344`). Arbitrary changelog content and lock dependency smuggling also retained their exact semantic failures. |
+| Artifact and receipt identity remain bound | PASS | Artifact identity still binds exact base SHA, repository, run ID, run attempt, and derived artifact name (`scripts/phase-09-version.mjs:448-470`). Artifact schema/content digest, consumed changeset digests, base bytes, operation/blob digests, nonzero shared version, and exact path sets remain enforced (`scripts/phase-09-version.mjs:746-977`). The apply-derived receipt still binds that verified artifact and current final manifest/lock digests (`scripts/phase-09-version.mjs:984-1090`). Run/attempt/missing-attempt/content-tamper controls passed. |
+| Child credential boundary is unchanged | PASS | The fix does not touch `unprivilegedEnvironment` or the single subprocess gateway. Prepare/simulation children still receive that environment with repository/npm token names removed (`scripts/phase-09-version.mjs:116-150`), and the real self-test retained its synthetic `GITHUB_TOKEN` stripping control (`scripts/phase-09-version.mjs:1547-1561`). Workflow permissions remain unchanged and the workflow checker passed all 16 controls. This is a no-regression finding, not an expansion of the previously reviewed credential-boundary claim. |
+| Contract pin is present and non-vacuously backed | PASS | The contract now requires `syntheticManifestBases` alongside the existing semantic, injection, binding, and credential-control tokens (`scripts/phase-09-contract-check.mjs:891-910`). Contract self-test passed and final reported 0 missing across 56 artifacts. The presence token is not accepted alone as semantic proof; direct source inspection and both live-shape runtime probes above establish the behavior. |
+| Failure and release state remain fail-closed | PASS | The failed disposable version commit/receipt is not present in the shared tree, all public versions remain `0.0.0`, the changeset remains pending, and none of the four sealed Phase 09 ledgers changed. No production prepare/apply/finalize, mutation run-all, release battery, or publisher was invoked during this audit. |
+
 ### Platform-path assessment
 
 - On the audited macOS host, independent probes confirmed case-insensitive `Path` → `PATH` reconstruction, owned HOME/USERPROFILE/TMPDIR/store paths, mode-0700 environment/store directories, mode-0600 config files, pnpm's effective store path, and the exact `https://registry.npmjs.org/` registry.
@@ -105,7 +123,7 @@ The second disposable versioned-finalization retry remained fail-closed: its own
 | `T-09-05` | Elevation of Privilege — duplicate core/version skew | mitigate | CLOSED | Both adapters guard singleton and literal contract version immediately before registration; peer+dev topology and exact foreign-consumer graph checks remain. |
 | `T-09-06` | Tampering — compiler/package transforms | mitigate | CLOSED | The React directive, Svelte compiler condition, real framework plugins, and exact independently sealed archive path remain unchanged. |
 | `T-09-07` | Tampering — adapter budget/boundary | mitigate | CLOSED | Exact discovery, TypeScript comment-trivia LOC counting, AST responsibility checks, negative controls, and B1 remain intact (`scripts/phase-09-adapter-budget.mjs:395-465`). |
-| `T-09-08` | Repudiation/DoS — evidence/output identity | mitigate | CLOSED | Semantic-only version artifact, apply-derived receipt, nonzero versioned authorization, run-attempt binding, clean seal, exact archives, and transactional ledgers remain intact. Version and publisher regression suites passed 23 and 20 controls respectively. |
+| `T-09-08` | Repudiation/DoS — evidence/output identity | mitigate | CLOSED | Semantic-only version artifact, apply-derived receipt, nonzero versioned authorization, run-attempt binding, clean seal, exact archives, and transactional ledgers remain intact. The 23-control version suite now passes from both feature-era and versioned manifest shapes without relaxing its real semantic validator, operation allowlists, injection negatives, artifact binding, or receipt binding. |
 | `T-09-SC` | Tampering — dependency supply chain | mitigate, with plan-09-10 documentation-only accept | **CLOSED** | Exact pins/locks/archives and split workflow authority remain; SEC09-B01 supplies pre-child authority rejection and strict allowlisted descendant environments. The ceremony uses only its owned store, fetching the frozen graph with scripts disabled before each offline install; exact order, failure suppression, registry, and non-redirection are enforced. The package checker preserves only the runner's exact mutation policy under the fixed parent marker, rejects malformed/ambiguous variants, and otherwise leaves pnpm dependency verification at its default. |
 
 ### Accepted risks log
@@ -141,14 +159,15 @@ Workflow default permissions remain empty; only the checkout-free/install-free p
 
 | Check | Result |
 |---|---|
-| Syntax: secure-environment, mutation battery, package checker, contract checker | PASS |
+| Syntax: secure-environment, mutation battery, package checker, versioner, contract checker | PASS |
 | `node scripts/phase-09-mutation-battery.mjs self-test` | PASS — 33 controls, including preflight-before-child, exact fetch/install order, four fetch-failure classes suppressing install, store-redirect rejection, effective store/registry, and real child probes |
 | Package checker self-test: normal entrypoint | PASS — 14 controls, including normal-policy omission, authenticated one-field propagation, real child isolation, negative protocol cases, and exact versioned P1 semantic failure |
 | Package checker self-test: `env -i` with secure marker only | PASS — 14 controls; normal nested policy remained omitted |
 | Package checker self-test: `env -i` with exact marker plus `PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN=false` | PASS — 14 controls; the authenticated entrypoint and real pnpm child retained `false` |
 | Independent package-policy negative entrypoints | PASS — missing/wrong marker, `true`, `False`, duplicate-case policy names, and duplicate-case marker names each exited 1 with `CHILD_ENVIRONMENT` before substantive work |
 | Contract checker self-test and `final` | PASS — adversarial checker controls; 0 missing IDs across 56 required nonempty artifacts |
-| `node scripts/phase-09-version.mjs self-test` | PASS — 23 controls |
+| `node scripts/phase-09-version.mjs self-test` on the live `0.0.0` tree | PASS — 23 controls, including semantic manifest transition, command injection, exact lock normalization, dependency smuggling, semantic write allowlist, run/attempt/content binding, and token stripping |
+| Version self-test with read-only live-like `0.1.0` manifest preload | PASS — the same 23 controls passed with canonical adapter peers; no repository file changed |
 | `node scripts/phase-09-publish-archives.mjs self-test` | PASS — 20 controls |
 | Workflow checker | PASS — 2 workflows, 7 jobs, 16 controls, 19 CI steps, 40 release steps |
 | Exact Phase 09 test checker | PASS — 3 projects, 5 files, 10 suites, 11 tests; 3 checker negative controls |
@@ -159,7 +178,7 @@ Workflow default permissions remain empty; only the checkout-free/install-free p
 | Frozen-input destination scan | PASS — current and immutable Phase 8 snapshots contain no npm/pnpm project config and neither lockfile contains explicit HTTP, Git, GitHub, or tarball resolution |
 | Child-process inventory | PASS — all six mutation spawn sites and the package gateway explicitly supply `childEnvironment`; no ambient environment spread/inheritance assignment found |
 | Policy producer/consumer inventory | PASS — the one production value originates in `MUTANT_EXECUTION_ENV`; only disposable compile/killer calls supply it; the package constructor is the only production interpreter; normal release/workflow paths do not set it |
-| Protected release state | PASS — sealed `09-SECURITY.md`, mutation evidence, release evidence, and validation ledger had no diff and retained SHA-256 values `ee0fa751…`, `cf4a003b…`, `d27a444a…`, and `55813181…`; the prior audit input was `9fd0527…`; only this report was edited, while the pre-existing `.planning/config.json` modification and `examples/adapter-ssr/.astro/` untracked directory were preserved |
+| Protected release state | PASS — sealed `09-SECURITY.md`, mutation evidence, release evidence, and validation ledger had no diff and retained SHA-256 values `ee0fa751…`, `cf4a003b…`, `d27a444a…`, and `55813181…`; the prior audit input was `6b886d42…`; only this report was edited, while the pre-existing `.planning/config.json` modification and `examples/adapter-ssr/.astro/` untracked directory were preserved |
 
 No production `prepare`, `apply`, `finalize versioned`, mutation `run all`, release battery, Changesets version, live publish, npm publication, or evidence regeneration command was executed.
 
@@ -167,6 +186,6 @@ No production `prepare`, `apply`, `finalize versioned`, mutation `run all`, rele
 
 The thirteen Phase 09 summaries contain no formal `## Threat Flags` entries. Current implementation surfaces map to the registered threats above. **Unregistered flags: none.**
 
-The root and public package versions remain `0.0.0`, the intended changeset remains pending, and the sealed feature-era ledgers were not regenerated. The retained mutation evidence binds 125 release inputs at digest `8dd58a6b…`; an independent read-only reconstruction found 132 current inputs at `49a28b97…`. That deliberate staleness remains fail-closed and is not treated as fresh authorization. Publication remains blocked until the separately reviewed receipt-backed versioned ceremony is deliberately authorized, completes, and regenerates the four ledgers.
+The root and public package versions remain `0.0.0`, the intended changeset remains pending, and the sealed feature-era ledgers were not regenerated. The retained mutation evidence binds 125 release inputs at digest `8dd58a6b…`; an independent read-only reconstruction found 132 current inputs at `7cc83635…`. That deliberate staleness remains fail-closed and is not treated as fresh authorization. Publication remains blocked until the separately reviewed receipt-backed versioned ceremony is deliberately authorized, completes, and regenerates the four ledgers.
 
 `SECURITY.md`: `.planning/phases/09-react-and-svelte-adapters/09-SECURITY-AUDIT.md`
