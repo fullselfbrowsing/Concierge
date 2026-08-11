@@ -4,7 +4,6 @@ import {
   lstat,
   mkdir,
   mkdtemp,
-  readFile,
   readdir,
   realpath,
   rm,
@@ -25,6 +24,8 @@ import { version as TYPESCRIPT_VERSION } from "typescript";
 import { API } from "typescript/unstable/sync";
 import {
   formatSyntaxKind,
+  getLeadingCommentRanges,
+  getTrailingCommentRanges,
   ScriptKind,
   SyntaxKind,
 } from "typescript/unstable/ast";
@@ -403,79 +404,36 @@ async function discoverProductionFiles(root, directory) {
   return sorted(files);
 }
 
-function countAuthoredLines(source) {
-  const lines = source.split(/\r\n?|\n/u);
-  let state = "code";
-  let escaped = false;
-  let count = 0;
+function countAuthoredLines(sourceFile) {
+  const source = sourceFile.getFullText();
+  const commentBytes = new Uint8Array(source.length);
 
-  for (const line of lines) {
-    let lineHasCode = false;
-
-    for (let index = 0; index < line.length; index += 1) {
-      const character = line[index];
-      const next = line[index + 1];
-
-      if (state === "line-comment") {
-        break;
-      }
-
-      if (state === "block-comment") {
-        if (character === "*" && next === "/") {
-          state = "code";
-          index += 1;
-        }
-        continue;
-      }
-
-      if (state !== "code") {
-        if (escaped) {
-          escaped = false;
-          if (!/\s/u.test(character)) lineHasCode = true;
-          continue;
-        }
-
-        if (character === "\\") {
-          escaped = true;
-          lineHasCode = true;
-          continue;
-        }
-
-        if (!/\s/u.test(character)) lineHasCode = true;
-        if (
-          (state === "single-string" && character === "'") ||
-          (state === "double-string" && character === '"') ||
-          (state === "template-string" && character === "`")
-        ) {
-          state = "code";
-        }
-        continue;
-      }
-
-      if (character === "/" && next === "/") {
-        state = "line-comment";
-        break;
-      }
-
-      if (character === "/" && next === "*") {
-        state = "block-comment";
-        index += 1;
-        continue;
-      }
-
-      if (character === "'") state = "single-string";
-      if (character === '"') state = "double-string";
-      if (character === "`") state = "template-string";
-      if (!/\s/u.test(character)) lineHasCode = true;
+  function markComments(ranges) {
+    for (const range of ranges ?? []) {
+      commentBytes.fill(1, range.pos, range.end);
     }
-
-    if (lineHasCode) count += 1;
-    if (state === "line-comment") state = "code";
-    escaped = false;
   }
 
-  if (state === "block-comment") {
-    throw new GateError("LEXICAL_SCAN", "source ends inside a block comment");
+  function visit(node) {
+    markComments(getLeadingCommentRanges(source, node.pos));
+    markComments(getTrailingCommentRanges(source, node.end));
+    node.forEachChild(visit);
+  }
+
+  visit(sourceFile);
+
+  let count = 0;
+  let lineHasCode = false;
+  for (let index = 0; index <= source.length; index += 1) {
+    const character = source[index];
+    if (index === source.length || character === "\n" || character === "\r") {
+      if (lineHasCode) count += 1;
+      lineHasCode = false;
+      if (character === "\r" && source[index + 1] === "\n") index += 1;
+      continue;
+    }
+
+    if (commentBytes[index] === 0 && !/\s/u.test(character)) lineHasCode = true;
   }
 
   return count;
@@ -661,7 +619,7 @@ function inspectProductionNode(path, sourceFile, node) {
   node.forEachChild((child) => inspectProductionNode(path, sourceFile, child));
 }
 
-async function analyzeProductionResponsibilities(root, paths) {
+async function analyzeProductionFiles(root, paths) {
   if (!Array.isArray(paths) || paths.length === 0) {
     throw new GateError(
       "VACUOUS_AST",
@@ -679,6 +637,7 @@ async function analyzeProductionResponsibilities(root, paths) {
   const absolutePaths = paths.map((path) => resolve(root, path));
   const api = new API();
   let snapshot;
+  const authoredLineCounts = new Map();
 
   try {
     snapshot = api.updateSnapshot({ openFiles: absolutePaths });
@@ -718,6 +677,7 @@ async function analyzeProductionResponsibilities(root, paths) {
         );
       }
 
+      authoredLineCounts.set(path, countAuthoredLines(sourceFile));
       sourceFile.forEachChild((node) =>
         inspectProductionNode(path, sourceFile, node),
       );
@@ -732,11 +692,13 @@ async function analyzeProductionResponsibilities(root, paths) {
     snapshot?.dispose();
     api.close();
   }
+
+  return authoredLineCounts;
 }
 
 async function runInventoryAndBudgetGate(root, adapters = ADAPTERS) {
   validateSpecification(adapters);
-  const reports = [];
+  const inventories = [];
 
   for (const adapter of adapters) {
     const expected = sorted(adapter.expected);
@@ -759,11 +721,26 @@ async function runInventoryAndBudgetGate(root, adapters = ADAPTERS) {
       );
     }
 
+    inventories.push(Object.freeze({ adapter, expected }));
+  }
+
+  const authoredLineCounts = await analyzeProductionFiles(
+    root,
+    inventories.flatMap(({ expected }) => expected),
+  );
+  const reports = [];
+
+  for (const { adapter, expected } of inventories) {
     const files = [];
     let total = 0;
     for (const path of expected) {
-      const source = await readFile(resolve(root, path), "utf8");
-      const lines = countAuthoredLines(source);
+      const lines = authoredLineCounts.get(path);
+      if (!Number.isInteger(lines)) {
+        throw new GateError(
+          "AST_SOURCE",
+          `${path} did not receive an authored-line measurement`,
+        );
+      }
       files.push(Object.freeze({ path, lines }));
       total += lines;
     }
@@ -791,11 +768,6 @@ async function runInventoryAndBudgetGate(root, adapters = ADAPTERS) {
       }),
     );
   }
-
-  await analyzeProductionResponsibilities(
-    root,
-    reports.flatMap((report) => report.files.map((file) => file.path)),
-  );
 
   return Object.freeze(reports);
 }
@@ -921,14 +893,6 @@ async function runSelfTest() {
   try {
     await createBaseFixture(root);
 
-    const lexicalCount = countAuthoredLines(LEXICAL_CONTROL_SOURCE);
-    if (lexicalCount !== 5) {
-      throw new GateError(
-        "SELF_TEST",
-        `lexical-control measured ${lexicalCount}; expected 5`,
-      );
-    }
-
     const baseline = await runInventoryAndBudgetGate(root);
     if (
       baseline.length !== 2 ||
@@ -987,6 +951,30 @@ async function runSelfTest() {
       async () => runInventoryAndBudgetGate(root),
       "LINE_BUDGET",
       "@fullselfbrowsing/concierge-react measured 152",
+    );
+    await writeFile(
+      resolve(root, overLimitPath),
+      BASE_FIXTURE_FILES[overLimitPath],
+      "utf8",
+    );
+
+    await writeFile(
+      resolve(root, overLimitPath),
+      [
+        "export const regexOpen = /[/*]/;",
+        ...Array.from(
+          { length: LIMIT + 1 },
+          (_, index) => `export const regexLine${index} = ${index};`,
+        ),
+        "export const regexClose = /[*/]/;",
+      ].join("\n"),
+      "utf8",
+    );
+    await expectFailure(
+      "regex-delimiters-do-not-hide-authored-lines",
+      async () => runInventoryAndBudgetGate(root),
+      "LINE_BUDGET",
+      "@fullselfbrowsing/concierge-react measured 154",
     );
     await writeFile(
       resolve(root, overLimitPath),
