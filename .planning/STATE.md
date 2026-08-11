@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Completed 09-09-PLAN.md
-last_updated: "2026-08-11T03:47:17.762Z"
+stopped_at: Completed 09-07-PLAN.md
+last_updated: "2026-08-11T04:11:23.130Z"
 last_activity: 2026-08-11
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 86
-  completed_plans: 80
+  completed_plans: 81
   percent: 89
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-10)
 ## Current Position
 
 Phase: 09 (react-and-svelte-adapters) — EXECUTING
-Plan: 8 of 13
+Plan: 9 of 13
 Status: Ready to execute
 Last activity: 2026-08-11
 
-Progress: [█████████░] 93%
+Progress: [█████████░] 94%
 
 ## Performance Metrics
 
@@ -75,6 +75,7 @@ Progress: [█████████░] 93%
 | Phase 09 P05 | 28min | 2 tasks | 10 files |
 | Phase 09 P06 | 20m 15s | 2 tasks | 5 files |
 | Phase 09 P09 | 20m 11s | 2 tasks | 1 files |
+| Phase 09 P07 | 22m 5s | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -161,6 +162,10 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 09]: Closed recursive discovery must exactly equal the four canonical production files before either independent 150-line budget is accepted. — This prevents file movement or alternate production extensions from hiding authored adapter code.
 - [Phase 09]: Use the pinned TypeScript 7 unstable sync and AST exports with explicit TS and TSX ScriptKinds. — The root package no longer exposes the legacy compiler API, while these installed exports parse TSX and rune-aware Svelte TypeScript deterministically.
 - [Phase 09]: Scratch mutants only count when their exact GateError code and identifying message are observed. — A generic parser failure cannot impersonate a loop or forbidden-responsibility kill.
+- [Phase 09]: Keep only frozen action and stage declarations at module scope; construct every mutable SSR object per request.
+- [Phase 09]: Exercise the public React and Svelte client entries without hydration and pass the Svelte snapshot normalizer explicitly.
+- [Phase 09]: Use deterministic render IDs and disable the experimental Node navigator only inside fresh proof processes.
+- [Phase 09]: Require exactly one nonempty built evidence block per validated temporary output root.
 
 ### Pending Todos
 
@@ -189,6 +194,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-11T03:47:17.756Z
-Stopped at: Completed 09-09-PLAN.md
+Last session: 2026-08-11T04:11:23.125Z
+Stopped at: Completed 09-07-PLAN.md
 Resume file: None
