@@ -58,7 +58,9 @@ findings:
   warning: 1
   info: 0
   total: 5
-status: issues_found
+status: fixed
+fixed_at: 2026-08-11T09:50:38Z
+fix_report: .planning/phases/09-react-and-svelte-adapters/09-REVIEW-FIX-2.md
 ---
 
 # Phase 09: Code Review Report — Iteration 2
@@ -66,7 +68,7 @@ status: issues_found
 **Reviewed:** 2026-08-11T09:16:08Z  
 **Depth:** deep  
 **Files Reviewed:** 48  
-**Status:** issues_found
+**Status:** fixed
 
 ## Summary
 
@@ -75,6 +77,18 @@ The implementation directly fixes all seven findings from `09-REVIEW.md`: Svelte
 Those fixes are not sufficient to authorize release. Four newly proven release-integrity/security defects remain, plus one partial-publication recovery defect. In particular, the repository still exposes an unchecked package-directory publish command; the Changesets action executes the entire dependency/evidence battery with a repository-write token; ordinary `0.0.0` evidence is accepted as release evidence; and the publish job trusts an archive manifest that can be rewritten alongside compromised archive bytes. Another fix and review iteration is required.
 
 The checked-in Phase 09 evidence is intentionally stale relative to the fixes, so `node scripts/phase-09-mutation-battery.mjs verify all` currently fails closed. Do not regenerate terminal or release evidence merely to make this review pass: the release boundary findings below must be fixed first.
+
+## Iteration 2 Fix Disposition
+
+All five findings were fixed on 2026-08-11. The four Phase 09 terminal ledgers remain intentionally stale and were not regenerated; that is now a fail-closed publication condition rather than release authorization.
+
+| Finding | Disposition | Fix commits |
+|---|---|---|
+| CR-01 | Fixed — root release and the exact folded workflow command reach only the sealed archive publisher; configured directory publishers and appended commands are rejected. | `f294df0`, `d903258` |
+| CR-02 | Fixed — credential-free preparation owns version calculation/evidence; the minimal write-authorized Changesets job only verifies and copies the exact prepared artifact. | `79b2db6`, `d903258` |
+| CR-03 | Fixed — feature evidence is non-authorizing; versioned evidence seals a nonzero shared version and consumed changeset digests, with a publish-specific archive verifier. | `79b2db6`, `adce802` |
+| CR-04 | Fixed — a clean read-only job independently seals tracked release evidence and untrusted archives at `github.sha`; publication consumes only that seal plus pinned tooling. | `d903258` |
+| WR-01 | Fixed — ordered publication queries exact registry versions, accepts only matching integrity plus provenance, and safely resumes partial/ambiguous publication. | `f294df0` |
 
 ## Prior Finding Disposition
 
@@ -153,9 +167,9 @@ The credential behavior is confirmed by the pinned upstream action implementatio
 
 No real publish, terminal mutation `run all`, or release battery was executed. Existing unrelated changes to `.planning/config.json` and `examples/adapter-ssr/.astro/` were not touched.
 
-## Release Authorization Verdict
+## Post-fix Release Authorization Verdict
 
-Release is **not authorized**. Fix CR-01 through CR-04, add the corresponding negative controls, and run another adversarial review. Only after those release-boundary fixes pass review should feature evidence be regenerated for CI; the eventual Version Packages path must then produce fresh versioned evidence for the actual nonzero shared release version.
+The iteration-2 findings are fixed, but release remains **not yet authorized**. A third adversarial review must clear the new prepare/apply/seal/resume boundary. After that review, ordinary feature evidence may be regenerated for CI if needed; the local checked-in `0.0.0` ledgers still cannot authorize publication. The first Version Packages run must prepare the actual `0.1.0` transition, consume `.changeset/bright-guides-connect.md`, generate fresh `mode: "versioned"` evidence for shared version `0.1.0`, and pass the exact publish verifier and independent seal before OIDC publication can become eligible.
 
 ---
 
