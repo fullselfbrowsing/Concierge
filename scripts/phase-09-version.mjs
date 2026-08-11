@@ -28,6 +28,10 @@ const ADAPTER_MANIFEST_PATHS = Object.freeze([
   "packages/concierge-react/package.json",
   "packages/concierge-svelte/package.json",
 ]);
+const PRIVATE_FIXTURE_MANIFEST_PATHS = Object.freeze([
+  "packages/concierge/test/fixtures/adapter-alpha/package.json",
+  "packages/concierge/test/fixtures/adapter-beta/package.json",
+]);
 const VERSION_PATHS = Object.freeze([
   "packages/concierge/package.json",
   "packages/concierge/CHANGELOG.md",
@@ -227,6 +231,18 @@ function normalizeSnapshotPeers(snapshot, state) {
   }
 }
 
+function restorePrivateFixtureFormatting(snapshot, originals) {
+  for (const [path, original] of originals) {
+    const current = readFileSync(resolve(snapshot, path), "utf8");
+    assert(
+      JSON.stringify(JSON.parse(current)) === JSON.stringify(JSON.parse(original)),
+      "VERSION_SNAPSHOT",
+      `Changesets semantically changed private fixture ${path}`,
+    );
+    writeFileSync(resolve(snapshot, path), original);
+  }
+}
+
 function digestFile(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
@@ -278,6 +294,12 @@ function createVersionSnapshot() {
     runAt(temporaryRoot, "tar", ["-xf", archive, "-C", snapshot], "extract release HEAD");
     const before = fingerprintTree(snapshot);
     const peerState = sourcePeerState(snapshot);
+    const fixtureOriginals = new Map(
+      PRIVATE_FIXTURE_MANIFEST_PATHS.map((path) => [
+        path,
+        readFileSync(resolve(snapshot, path), "utf8"),
+      ]),
+    );
     const installedModules = resolve(ROOT, "node_modules");
     assert(
       lstatSync(installedModules).isDirectory(),
@@ -291,6 +313,7 @@ function createVersionSnapshot() {
       [resolve(installedModules, "@changesets/cli/bin.js"), "version"],
       "changeset version in private snapshot",
     );
+    restorePrivateFixtureFormatting(snapshot, fixtureOriginals);
     normalizeSnapshotPeers(snapshot, peerState);
     const version = assertSharedVersionAt(snapshot);
     const after = fingerprintTree(snapshot);
