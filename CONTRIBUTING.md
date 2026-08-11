@@ -69,22 +69,31 @@ If your adapter is meaningfully longer than ~150 lines, logic has leaked out of 
 - **`privatePackages` is `false`, and that is load-bearing rather than tidy.** Omitting it defaults to `{version: true, tag: false}` — changesets versions private packages by default. The workspace contains two private members, `@fullselfbrowsing/concierge-fixture-alpha` and `@fullselfbrowsing/concierge-fixture-beta` under `packages/concierge/test/fixtures/`, which exist to prove the peer-dependency install graph and must never appear in a release plan. Measured on this repo: with the setting, the versionable changed set is `["@fullselfbrowsing/concierge"]`; without it, both fixtures join it.
 - **The three public packages are one fixed release group.** Core, React, and Svelte
   must leave a Version Packages PR at one identical version. A release changeset for
-  the adapter set names all three packages at the same bump level; the version wrapper
-  rejects missing outputs, unrelated source changes, an unconsumed changeset, or
-  version drift before it regenerates evidence.
+  the adapter set names all three packages at the same bump level. Credential-free
+  preparation rejects missing outputs, unrelated changes, an unconsumed changeset, or
+  version drift before it regenerates evidence and emits a hash-manifested allowlist.
+  The repository-write Changesets job only verifies and copies that prepared artifact;
+  it must never install dependencies or run build, test, package, or mutation code.
 - **Adapter-to-core release transitions stay explicitly bounded.** Do not broaden the
   source peer to `>=0.0.0`: that admits future incompatible majors and defeats the loud
   singleton/contract boundary. Changesets treats a canonical `workspace:^` at 0.0.0
   as excluding 0.1.0, so the first release branch uses exactly
   `workspace:^0.0.0 || ^0.1.0`. Raw `changeset status` therefore reports the intended
-  minor triplet. `version:phase09` requires that second arm to equal the actual output
-  and normalizes the Version Packages PR back to `workspace:^`; pnpm packs it as
+  minor triplet. `phase-09-version.mjs prepare` requires that second arm to equal the
+  actual output and normalizes the Version Packages PR back to `workspace:^`; pnpm packs it as
   `^0.1.0`. A later pre-1.0 minor follows the same bounded old/new pattern.
 - **`onlyUpdatePeerDependentsWhenOutOfRange` is intentionally enabled.** Its alarming
   experimental key is pinned by `phase-09-workflow-check.mjs`; removing it or the fixed
   group changes the calculated release types. The private snapshot range, this option,
   bounded transition, final peer normalization, shared version check, and versioned package install are one
   control, not interchangeable configuration preferences.
+
+- **Feature evidence is deliberately not release authorization.** Ordinary
+  `run all` evidence is sealed as `mode: "feature"` with
+  `releaseAuthorization: false`. Only credential-free version preparation may create
+  `mode: "versioned"` evidence with a nonzero shared version and consumed changeset
+  digests. Package publication additionally requires the independent content-addressed
+  archive seal; a colocated archive digest manifest is never its own trust root.
 
 The first-publish checklist lives in [`RELEASING.md`](./RELEASING.md).
 

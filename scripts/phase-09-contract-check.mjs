@@ -121,6 +121,8 @@ const FINAL_REQUIRED_PATHS = Object.freeze([
   "scripts/phase-09-test-check.mjs",
   "scripts/phase-09-workflow-check.mjs",
   "scripts/phase-09-mutation-battery.mjs",
+  "scripts/phase-09-publish-archives.mjs",
+  "scripts/phase-09-version.mjs",
   "scripts/fixtures/phase-09-foreign-consumer/package.json",
   "scripts/fixtures/phase-09-foreign-consumer/package-lock.json",
   BASELINE_PATH,
@@ -712,6 +714,15 @@ function evaluateContracts(root) {
   results.push(
     createProbe(INITIAL_IDS[8], inspector, (api) => {
       const script = stripJsComments(api.text("scripts/phase-09-package-check.mjs"));
+      const publisher = stripJsComments(
+        api.text("scripts/phase-09-publish-archives.mjs"),
+      );
+      const versioner = stripJsComments(api.text("scripts/phase-09-version.mjs"));
+      const workflowChecker = stripJsComments(
+        api.text("scripts/phase-09-workflow-check.mjs"),
+      );
+      const releaseWorkflow = api.text(".github/workflows/release.yml");
+      const rootManifest = api.json("package.json");
       const consumerManifest = api.json(
         "scripts/fixtures/phase-09-foreign-consumer/package.json",
       );
@@ -766,6 +777,69 @@ function evaluateContracts(root) {
         "inspected",
       );
       api.check(!script.includes("passWithNoTests") && !script.includes("--pack packages/concierge-react") && !script.includes("state_referenced_locally"), "package-check-no-vacuous-repack", "scripts/phase-09-package-check.mjs", "no zero-test/repack/suppression shortcuts", "inspected");
+      for (const token of [
+        "phase-09-release-seal.json",
+        "RELEASE_AUTHORIZATION",
+        "SEAL_BINDING",
+        "REGISTRY_INTEGRITY",
+        "REGISTRY_PROVENANCE",
+        "PUBLISH_AMBIGUOUS",
+        "--provenance",
+        "dist",
+        "attestations",
+        "initial-success",
+        "core-success-react-failure",
+        "exact-safe-rerun",
+        "coordinated-archive-manifest-substitution",
+        "ordinary-feature-mode",
+        "zero-version",
+        "archive-version-drift",
+      ]) {
+        api.check(publisher.includes(token), `publisher-${token}`, "scripts/phase-09-publish-archives.mjs", `sealed/resumable publisher control ${token}`, publisher.includes(token) ? "present" : "absent");
+      }
+      for (const token of [
+        "prepare",
+        "apply",
+        "VERSION_ARTIFACT_BINDING",
+        "VERSION_ARTIFACT_SEMANTICS",
+        "unprivilegedEnvironment",
+        "exact-noop-artifact",
+        "manifest-command-injection",
+        "token-stripped-from-prepare-children",
+      ]) {
+        api.check(versioner.includes(token), `versioner-${token}`, "scripts/phase-09-version.mjs", `prepared artifact control ${token}`, versioner.includes(token) ? "present" : "absent");
+      }
+      for (const token of [
+        "appended-publish-command",
+        "prepare-token-leak",
+        "version-extra-command",
+        "sealer-workspace-code",
+        "configured-directory-publisher",
+        "validateConfiguredPublishSurface",
+        "validateRepositoryPublisherSources",
+      ]) {
+        api.check(workflowChecker.includes(token), `workflow-checker-${token}`, "scripts/phase-09-workflow-check.mjs", `release boundary detector ${token}`, workflowChecker.includes(token) ? "present" : "absent");
+      }
+      for (const token of [
+        "prepare:",
+        "version:",
+        "verify:",
+        "seal:",
+        "publish:",
+        "persist-credentials: false",
+        "phase09-untrusted-archives-${{ github.run_id }}-${{ github.sha }}",
+        "phase09-sealed-release-${sealId}",
+        "PHASE09_EXPECTED_SEALED_ARTIFACT",
+      ]) {
+        api.check(releaseWorkflow.includes(token), `release-workflow-${token}`, ".github/workflows/release.yml", `release job/artifact contract ${token}`, releaseWorkflow.includes(token) ? "present" : "absent");
+      }
+      api.check(
+        rootManifest.scripts?.release === "node scripts/phase-09-publish-archives.mjs",
+        "root-release-fail-closed",
+        "package.json",
+        "single exact-archive publisher entry point with required runtime arguments",
+        String(rootManifest.scripts?.release),
+      );
     }),
   );
 
@@ -797,7 +871,7 @@ function evaluateContracts(root) {
       for (const row of rows) {
         api.check(row?.occurrences === 1 && typeof row?.exactBefore === "string" && typeof row?.exactAfter === "string" && typeof row?.compileCommand === "string" && typeof row?.killerCommand === "string" && typeof row?.assertionFingerprint === "string", `mutation-row-${row?.id ?? "unknown"}`, `${PHASE_DIRECTORY}/09-MUTATION-REGISTER.json`, "one exact compiled semantic row", "inspected");
       }
-      for (const token of ["self-test", "preflight", "run", "--jobs", "verify", "evidence", "release", "mkdtemp", "phase-08-mutation-battery.mjs", "09-MUTATION-EVIDENCE.json", "09-RELEASE-EVIDENCE.json"]) {
+      for (const token of ["self-test", "preflight", "run", "--jobs", "verify", "evidence", "release", "publish", "mode", "versioned", "releaseAuthorization", "sharedVersion", "consumedChangesets", "verifyPublishEvidence", "ordinary-mode-publish-rejected", "zero-version-publish-rejected", "removed-changeset-publish-rejected", "mkdtemp", "phase-08-mutation-battery.mjs", "09-MUTATION-EVIDENCE.json", "09-RELEASE-EVIDENCE.json"]) {
         api.check(runner.includes(token), `mutation-runner-${token}`, "scripts/phase-09-mutation-battery.mjs", `live ${token} state-machine path`, runner.includes(token) ? "present" : "absent");
       }
       for (const mode of ["inputs", "ledgers"]) {
