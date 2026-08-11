@@ -437,7 +437,7 @@ Plans:
 
 **Wave 9** *(blocked on Wave 8 completion)*
 
-- [ ] 09-11-PLAN.md — Positive-count adapter gates wired into existing CI and release workflows
+- [x] 09-11-PLAN.md — Positive-count adapter gates wired into existing CI and release workflows
 
 **Wave 10** *(blocked on Wave 9 completion)*
 
@@ -486,4 +486,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Dispatcher | 8/8 | Complete   | 2026-08-07 |
 | 7. Session and the transport seam | 7/7 | Complete    | 2026-08-10 |
 | 8. Consent kernel | 8/8 | Complete | 2026-08-10 |
-| 9. React and Svelte adapters | 11/13 | In Progress|  |
+| 9. React and Svelte adapters | 12/13 | In Progress|  |

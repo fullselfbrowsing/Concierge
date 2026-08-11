@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Completed 09-12-PLAN.md
-last_updated: "2026-08-11T05:37:51.898Z"
+stopped_at: Completed 09-11-PLAN.md
+last_updated: "2026-08-11T06:03:32.120Z"
 last_activity: 2026-08-11
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 86
-  completed_plans: 84
+  completed_plans: 85
   percent: 89
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-10)
 ## Current Position
 
 Phase: 09 (react-and-svelte-adapters) — EXECUTING
-Plan: 12 of 13
+Plan: 13 of 13
 Status: Ready to execute
 Last activity: 2026-08-11
 
-Progress: [██████████] 98%
+Progress: [██████████] 99%
 
 ## Performance Metrics
 
@@ -79,6 +79,7 @@ Progress: [██████████] 98%
 | Phase 09 P08 | 29m | 2 tasks | 1 files |
 | Phase 09 P10 | 10m | 2 tasks | 4 files |
 | Phase 09 P12 | 34m | 2 tasks | 2 files |
+| Phase 09 P11 | 24min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -180,6 +181,9 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 09-12]: Prepare one frozen offline installed and built baseline, then clone and discard an independent tree for every mutant.
 - [Phase 09-12]: Reconstruct Phase 8 from its evidence-producing revision and overlay exactly the five live records before the three prescribed disposable verifications.
 - [Phase 09-12]: Count only active named Vitest assertions for mutation credit while separately requiring exactly one aggregate failed test.
+- [Phase 09]: Run the repository-local Vitest executable directly for the exact Phase 09 test gate. — This keeps stdout strict JSON by avoiding the pnpm workspace-selection prelude.
+- [Phase 09]: Resolve release uploads from the checked Phase 09 digest manifest and rehash every file. — The release uploads exactly the already-verified core, React, and Svelte archives without repacking.
+- [Phase 09]: Enforce CI and release workflow invariants with dependency-free structured parsing and six negative controls. — Action pins, gate order, failure propagation, Node floor, OIDC permissions, and exact uploads remain statically provable without a new dependency.
 
 ### Pending Todos
 
@@ -208,6 +212,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-11T05:37:51.893Z
-Stopped at: Completed 09-12-PLAN.md
+Last session: 2026-08-11T06:03:32.115Z
+Stopped at: Completed 09-11-PLAN.md
 Resume file: None
