@@ -42,6 +42,119 @@ These are hard requirements, not preferences. Each has a specific failure attach
 artifact runs. The numbers above are *release-machinery* requirements. They are
 different numbers for different audiences and must never be harmonized.
 
+## Release evidence for the three-package set
+
+v0.1 is one ordered package set, not three independent releases. Publish the
+core first, then the two peer adapters in this order:
+
+1. `@fullselfbrowsing/concierge`
+2. `@fullselfbrowsing/concierge-react`
+3. `@fullselfbrowsing/concierge-svelte`
+
+Both adapters declare core as a peer, never as an ordinary runtime dependency,
+so the core version must be available before either adapter is published.
+
+The authoritative package gate is:
+
+```sh
+PHASE09_ARCHIVE_EXPORT_DIR=/absolute/path/to/an/existing-empty-directory \
+  node scripts/phase-09-package-check.mjs all
+```
+
+The export directory must be an absolute, normalized, existing empty directory
+outside the repository. A successful run exports exactly these three archive
+identities plus one digest manifest:
+
+| Package | Exact archive path in the export directory | Exact digest record |
+|---|---|---|
+| `@fullselfbrowsing/concierge` | `fullselfbrowsing-concierge-<version>.tgz` | `phase-09-archive-digests.json` → `archives["@fullselfbrowsing/concierge"]` |
+| `@fullselfbrowsing/concierge-react` | `fullselfbrowsing-concierge-react-<version>.tgz` | `phase-09-archive-digests.json` → `archives["@fullselfbrowsing/concierge-react"]` |
+| `@fullselfbrowsing/concierge-svelte` | `fullselfbrowsing-concierge-svelte-<version>.tgz` | `phase-09-archive-digests.json` → `archives["@fullselfbrowsing/concierge-svelte"]` |
+
+Each digest record contains the archive's exact filename and lowercase SHA-256.
+Publish only those three byte-identical files, in the order above. Repacking,
+renaming, or substituting an archive invalidates the shared evidence even when
+its manifest version is unchanged.
+
+The `all` run builds each live package and packs it exactly once. It then runs
+`publint --strict` and ATTW with the `esm-only` profile directly against each
+of those exact archives, inspects every tar entry and export target, and
+installs the same paths in a consumer outside workspace resolution with install
+scripts disabled. The installed adapter manifests and resolver realpaths must
+both converge on one physical core, with no adapter-local core copy; package
+manager graph text by itself is not sufficient evidence.
+
+Declaration checking uses TypeScript 7.0.2 with `skipLibCheck: false` over all
+three installed packages. Svelte packaging/checking and the normal Astro
+`examples/adapter-ssr` domain stay on their package-local TypeScript 6.0.3.
+Those are deliberately separate compiler domains, and neither may be replaced
+by forcing the other's version.
+
+Before terminal evidence is sealed, the package set must also prove all of the
+following:
+
+- the exact archives import through their public server-safe roots;
+- React server rendering and compiled Svelte server rendering register no
+  bridge;
+- the normal `examples/adapter-ssr` Astro check/build and repeated fresh-process
+  SSR proof use both adapters, one immutable catalog declaration, absent browser
+  globals, and request-local mutable objects;
+- a genuine compiled `$state` value remains live through its bridge getter but
+  detaches at review through `svelteSnapshotNormalizer`, so nested drift returns
+  exactly `consent_stale` and enters no consequential handler;
+- React and Svelte contract-version mismatch probes fail through their public
+  client lifecycle before registration while the original core archive digest
+  stays unchanged;
+- `node scripts/phase-09-adapter-budget.mjs check` enforces independent
+  `<=150` production-source budgets and the forbidden-responsibility boundary,
+  with `self-test` proving the inventory, line, parser, loop, and responsibility
+  negatives;
+- the Phase 09 compiled mutation register kills R1, R2, S1, SSR1, B1, P1, and C1
+  from one immutable revision for their named semantic assertions.
+
+### Preserve Phase 8 exactly
+
+Phase 09 inherits these five Phase 8 records and no substitutes:
+
+- `.planning/phases/08-consent-kernel/08-MUTATION-REGISTER.json`
+- `.planning/phases/08-consent-kernel/08-MUTATION-EVIDENCE.json`
+- `.planning/phases/08-consent-kernel/08-VALIDATION.md`
+- `.planning/phases/08-consent-kernel/08-SECURITY.md`
+- `.planning/phases/08-consent-kernel/08-VERIFICATION.md`
+
+Phase 8 release evidence is the nested `release` member of
+`08-MUTATION-EVIDENCE.json`. That nested record binds its seven release-command
+exits, runtime counts, public artifact surface, zero-byte dependency result,
+foreign package consumer, Node floor, and immutable revision digest.
+
+The Phase 09 terminal runner hashes all five live records, copies the repository
+to a disposable snapshot, and runs these three real commands there, in order:
+
+```sh
+node scripts/phase-08-mutation-battery.mjs verify all
+node scripts/phase-08-mutation-battery.mjs verify inputs
+node scripts/phase-08-mutation-battery.mjs verify ledgers
+```
+
+All three must exit zero in the disposable snapshot, after which the five live
+hashes must still be byte-identical. Do not run the ledger-refreshing path as a
+way to rewrite the live Phase 8 record during Phase 09.
+
+### Terminal ordering and drift
+
+Plan 09-13 is terminal. It runs only after every adapter/example source,
+manifest, config, lockfile, README, root script, workflow, harness, and mutation
+register edit is complete. It binds the exact archive triplet, positive test
+counts, normal Astro SSR, real-rune consent drift, source budgets, workflow
+checks, immutable mutations, and the five unchanged Phase 8 hashes to one final
+revision.
+
+After Plan 09-13, any source, manifest, documentation, workflow, test, mutation
+register, ledger, archive, or Phase 8 drift invalidates verify-only evidence.
+Rerun Task 09-13-01 before relying on that evidence or publishing; a later
+`verify all` pass cannot bless bytes different from the terminal snapshot it
+was created to verify.
+
 ## One-time setup on the npm side
 
 Trusted publishing must be configured on npmjs.com before the first release; the

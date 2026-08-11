@@ -18,7 +18,7 @@ Give AI agents a small set of typed, app-defined actions so they can operate you
 ---
 
 > [!IMPORTANT]
-> **Concierge is a work in progress.** This repository contains a pre-alpha core runtime, but there is no published package or production-supported integration yet. The API may change before v0.1; do not build production integrations against it.
+> **Concierge is a work in progress.** This repository contains a pre-alpha core runtime plus built React and Svelte adapters, but none of the packages has been published and there is no production-supported integration yet. The API may change before v0.1; do not build production integrations against it.
 
 ## Why Concierge
 
@@ -57,6 +57,40 @@ Concierge is built around six ideas:
 - **Portable by default** — the core stays DOM-free, framework-agnostic, vendor-neutral, and transport-agnostic.
 
 The same action catalog is intended to work with a chat sidebar, voice interface, MCP client, WebMCP, command palette, or a custom agent loop.
+
+## Framework Adapters
+
+The repository includes both headless framework packages planned for v0.1:
+
+- [`@fullselfbrowsing/concierge-react`](./packages/concierge-react/README.md)
+  uses the server-safe package root for forwarded types and
+  `@fullselfbrowsing/concierge-react/client` for
+  `ConciergeProvider`, `useConcierge`, `useConciergeValue`, and
+  effect-scoped `useConciergeBridge`.
+- [`@fullselfbrowsing/concierge-svelte`](./packages/concierge-svelte/README.md)
+  uses the server-safe package root for forwarded types and
+  `@fullselfbrowsing/concierge-svelte/client.svelte` for native context,
+  effect-scoped bridge registration, and the real
+  `svelteSnapshotNormalizer`.
+
+Both are injection-only bindings. Application setup constructs the one public
+core instance and each public `createBridge` registry, then passes those exact
+objects into the framework lifecycle. The adapters do not construct core or
+own action declarations, catalogs, dispatch, sessions, consent, transports,
+scheduling, or results.
+
+Each adapter has an independently enforced limit of no more than 150 authored,
+nonblank, non-comment production-source lines. The same gate rejects loops and
+core-owned responsibilities so the packages remain lifecycle shells rather
+than parallel runtimes.
+
+[`examples/adapter-ssr`](./examples/adapter-ssr) is the single deterministic,
+headless normal-SSR harness. One ordinary Astro page server-renders both public
+client entrypoints from the same immutable action declaration while creating
+fresh Concierge, registry, and bridge objects per render. Repeated fresh
+processes prove the catalogs agree, browser globals are absent, identities do
+not leak, and React effects and Svelte effects perform zero server
+registrations. It is evidence infrastructure, not a product interface.
 
 ## Security Boundary: Client Consent Is Not Server Authorization
 
@@ -126,14 +160,16 @@ The repository currently contains:
 - A framework-neutral catalog and stage resolver, live bridge registry, direct dispatcher and batch executor, transport Session loop, and client-side consent kernel.
 - Direct consent enforcement that binds one-shot achieved authority to completed review delivery, the reviewed payload, and the captured app snapshot.
 - Mandatory Session presentation of app-authored failure outcomes before transport responses are released.
+- Pre-alpha React and Svelte package adapters that inject existing core objects, register bridges only from native client lifecycle effects, and remain silent during server rendering.
+- A deterministic dual-framework Astro SSR harness plus exact three-tarball, one-core, real-Svelte-snapshot, and independent source-budget proofs.
 - Runtime, type-level, package-boundary, and mutation tests for the highest-risk parts of the contract and implementation.
 
-It does **not** yet provide a published package, framework adapters, telemetry, or a production support contract. The client-side consent kernel is not server authorization; please do not build production integrations against this pre-alpha runtime yet.
+It does **not** yet provide a published package, telemetry, or a production support contract. The client-side consent kernel is not server authorization; please do not build production integrations against this pre-alpha runtime yet.
 
 ## Roadmap
 
-- **Now** — harden the pre-alpha core runtime, public contract, packaging, and security evidence.
-- **v0.1** — publish the first supported core package and add React + Svelte adapters.
+- **Now** — close immutable release evidence for the pre-alpha core plus the built React and Svelte adapters.
+- **v0.1** — publish the first supported core, React, and Svelte package triplet.
 - **Later** — server-side consent verification, telemetry, developer tools, and first-party transports.
 
 If you want to help shape the project, design feedback is especially useful right now. Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request. If you are continuing implementation, start with [HANDOFF.md](./HANDOFF.md).
