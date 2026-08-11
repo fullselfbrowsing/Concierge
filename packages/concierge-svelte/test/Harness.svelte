@@ -18,16 +18,16 @@
     };
   };
 
-  export type SnapshotProbe = {
+  type SnapshotProbe = {
     readonly live: SnapshotValue;
     readonly detached: SnapshotValue;
     readonly setCount: (count: number) => void;
   };
 
-  type Props<B extends Bridge = Bridge> = {
+  type Props = {
     readonly concierge: Concierge;
-    readonly registry: BridgeRegistry<B>;
-    readonly bridge: B;
+    readonly registry: BridgeRegistry;
+    readonly bridge: Bridge;
     readonly provide?: boolean;
     readonly onContext?: (concierge: Concierge) => void;
     readonly onInitialize?: (registered: boolean) => void;

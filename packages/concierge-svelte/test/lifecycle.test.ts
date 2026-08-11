@@ -9,7 +9,12 @@ import type {
 } from "@fullselfbrowsing/concierge";
 
 import Harness from "./Harness.svelte";
-import type { SnapshotProbe } from "./Harness.svelte";
+
+type SnapshotProbe = {
+  readonly live: { nested: { count: number } };
+  readonly detached: { nested: { count: number } };
+  readonly setCount: (count: number) => void;
+};
 
 type TestBridge = Bridge<
   { readonly identify: () => string },
@@ -33,8 +38,16 @@ function makeBridge(label: string): TestBridge {
   };
 }
 
-function trackedRegistry<B extends Bridge>(registry: BridgeRegistry<B>): {
-  readonly registry: BridgeRegistry<B>;
+function requireProbe(probe: SnapshotProbe | null): SnapshotProbe {
+  if (probe === null) {
+    throw new Error("Svelte snapshot probe was not initialized.");
+  }
+
+  return probe;
+}
+
+function trackedRegistry(registry: BridgeRegistry): {
+  readonly registry: BridgeRegistry;
   readonly events: string[];
   readonly cleanups: Array<() => void>;
   readonly cleanupCalls: Array<() => void>;
@@ -47,7 +60,7 @@ function trackedRegistry<B extends Bridge>(registry: BridgeRegistry<B>): {
     registry: {
       id: registry.id,
       read: registry.read,
-      register: (bridge: B): (() => void) => {
+      register: (bridge: Bridge): (() => void) => {
         events.push("setup");
         const unregisterCore: () => void = registry.register(bridge);
         const unregister: () => void = (): void => {
@@ -68,8 +81,7 @@ function trackedRegistry<B extends Bridge>(registry: BridgeRegistry<B>): {
 describe("@fullselfbrowsing/concierge-svelte svelte-lifecycle", () => {
   it("preserves the exact Concierge context reference and names the missing provider remedy", () => {
     const concierge: Concierge = conciergeStub();
-    const registry: BridgeRegistry<TestBridge> =
-      createBridge<TestBridge>("svelte-context");
+    const registry: BridgeRegistry = createBridge("svelte-context");
     const bridge: TestBridge = makeBridge("context");
     let observed: Concierge | null = null;
 
@@ -100,8 +112,7 @@ describe("@fullselfbrowsing/concierge-svelte svelte-lifecycle", () => {
 
   it("T03/S1 detaches a real rune-backed nested value with the exported normalizer", async () => {
     const concierge: Concierge = conciergeStub();
-    const registry: BridgeRegistry<TestBridge> =
-      createBridge<TestBridge>("svelte-snapshot");
+    const registry: BridgeRegistry = createBridge("svelte-snapshot");
     let probe: SnapshotProbe | null = null;
 
     const mounted = render(Harness, {
@@ -113,25 +124,24 @@ describe("@fullselfbrowsing/concierge-svelte svelte-lifecycle", () => {
       },
     });
 
-    expect(probe).not.toBeNull();
-    expect(probe?.live).not.toBe(probe?.detached);
-    expect(probe?.live.nested.count).toBe(1);
-    expect(probe?.detached.nested.count).toBe(1);
+    const captured: SnapshotProbe = requireProbe(probe);
+    expect(captured.live).not.toBe(captured.detached);
+    expect(captured.live.nested.count).toBe(1);
+    expect(captured.detached.nested.count).toBe(1);
 
     await act(() => {
-      probe?.setCount(2);
+      captured.setCount(2);
     });
 
-    expect(probe?.live.nested.count).toBe(2);
-    expect(probe?.detached.nested.count).toBe(1);
+    expect(captured.live.nested.count).toBe(2);
+    expect(captured.detached.nested.count).toBe(1);
 
     mounted.unmount();
   });
 
   it("T04 registers only after initialization and survives replacement, stale teardown, destroy, and remount", () => {
     const concierge: Concierge = conciergeStub();
-    const coreRegistry: BridgeRegistry<TestBridge> =
-      createBridge<TestBridge>("svelte-registration");
+    const coreRegistry: BridgeRegistry = createBridge("svelte-registration");
     const tracked = trackedRegistry(coreRegistry);
     const firstBridge: TestBridge = makeBridge("first");
     const secondBridge: TestBridge = makeBridge("second");

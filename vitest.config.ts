@@ -7,6 +7,7 @@
 // cleanup; it is the difference between CI meaning something and not.
 
 import { svelte as createSveltePlugin } from "@sveltejs/vite-plugin-svelte";
+import { svelteTesting } from "@testing-library/svelte/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
@@ -118,7 +119,7 @@ export default defineConfig({
         },
       },
       {
-        plugins: [svelte({ hot: false })],
+        plugins: [svelte({ hot: false }), svelteTesting()],
         test: {
           name: "svelte-lifecycle",
           environment: "jsdom",
