@@ -95,6 +95,13 @@ jobs:
       # it belongs here and not on the floor.
       - run: pnpm run check:pack
 
+      # Phase 09 is additive: the inherited type/build/test/artifact/dependency/
+      # pack gates above remain independently blocking before the adapter gate.
+      # This aggregate owns the exact five-file test, normal Astro check/build,
+      # exact archive triplet, independent budgets, static contract, and sealed
+      # evidence verification in that dependency order.
+      - run: pnpm run check:phase09
+
       # `pnpm run check:node-floor` is deliberately NOT a step in this job. The
       # floor is the other job's entire purpose, and that script builds and packs
       # with pnpm before switching runtimes, which needs a modern Node.

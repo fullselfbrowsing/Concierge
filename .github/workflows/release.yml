@@ -82,6 +82,132 @@ jobs:
       # The `&&` chain is what makes the order enforceable in one step.
       - run: pnpm typecheck && pnpm build && pnpm test
 
+      # Preserve the original core release gates independently. The adapter
+      # aggregate below adds evidence; it does not replace any inherited proof.
+      - run: pnpm run check:artifact
+      - run: pnpm run check:deps
+      - run: pnpm run check:pack
+      - run: pnpm run check:node-floor
+
+      # package-check `all` accepts only an existing, empty, normalized export
+      # directory outside the repository. A pre-existing path is therefore an
+      # error rather than something this workflow empties or reuses.
+      - name: Allocate the empty Phase 09 archive export
+        run: |
+          test ! -e "${{ runner.temp }}/phase09-archives"
+          mkdir "${{ runner.temp }}/phase09-archives"
+
+      # This single invocation verifies the current checkout and exports the
+      # exact three archives it checked. The env is step-local so no other pack
+      # command can silently replace the release inputs.
+      - name: Verify the same-revision Phase 09 release inputs
+        run: pnpm run check:phase09:release
+        env:
+          PHASE09_ARCHIVE_EXPORT_DIR: ${{ runner.temp }}/phase09-archives
+
+      # Resolve upload paths from the digest manifest written by that invocation.
+      # This rechecks the byte digests and exact four-file directory without
+      # copying, renaming, globbing, or repacking any archive.
+      - name: Resolve the exact checked Phase 09 archives
+        id: phase09-archives
+        env:
+          PHASE09_CHECKED_ARCHIVE_DIR: ${{ runner.temp }}/phase09-archives
+        run: |
+          node --input-type=module <<'NODE'
+          import { createHash } from "node:crypto";
+          import {
+            appendFileSync,
+            lstatSync,
+            readFileSync,
+            readdirSync,
+            realpathSync,
+          } from "node:fs";
+          import { basename, join, normalize, resolve } from "node:path";
+
+          const configured = process.env.PHASE09_CHECKED_ARCHIVE_DIR;
+          const directory = realpathSync(configured);
+          if (directory !== normalize(resolve(configured))) {
+            throw new Error("checked archive directory is not normalized");
+          }
+
+          const manifestName = "phase-09-archive-digests.json";
+          const manifestPath = join(directory, manifestName);
+          const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+          const packages = [
+            ["core", "@fullselfbrowsing/concierge"],
+            ["react", "@fullselfbrowsing/concierge-react"],
+            ["svelte", "@fullselfbrowsing/concierge-svelte"],
+          ];
+          const packageNames = packages.map((entry) => entry[1]).sort();
+
+          if (
+            manifest.schemaVersion !== 1 ||
+            manifest.algorithm !== "sha256" ||
+            manifest.archives === null ||
+            typeof manifest.archives !== "object" ||
+            Array.isArray(manifest.archives) ||
+            JSON.stringify(Object.keys(manifest.archives).sort()) !==
+              JSON.stringify(packageNames)
+          ) {
+            throw new Error("checked archive digest manifest is malformed");
+          }
+
+          const outputs = [];
+          const expectedEntries = [manifestName];
+          for (const [key, packageName] of packages) {
+            const record = manifest.archives[packageName];
+            if (
+              record === null ||
+              typeof record !== "object" ||
+              typeof record.file !== "string" ||
+              basename(record.file) !== record.file ||
+              !record.file.endsWith(".tgz") ||
+              !/^[0-9a-f]{64}$/u.test(record.sha256)
+            ) {
+              throw new Error(`invalid checked archive record for ${packageName}`);
+            }
+
+            const archivePath = join(directory, record.file);
+            const metadata = lstatSync(archivePath);
+            if (
+              !metadata.isFile() ||
+              metadata.size <= 0 ||
+              realpathSync(archivePath) !== archivePath
+            ) {
+              throw new Error(`checked archive is not a nonempty regular file: ${record.file}`);
+            }
+            const digest = createHash("sha256")
+              .update(readFileSync(archivePath))
+              .digest("hex");
+            if (digest !== record.sha256) {
+              throw new Error(`checked archive digest changed: ${record.file}`);
+            }
+
+            expectedEntries.push(record.file);
+            outputs.push(`${key}=${archivePath}`);
+          }
+
+          if (
+            JSON.stringify(readdirSync(directory).sort()) !==
+            JSON.stringify(expectedEntries.sort())
+          ) {
+            throw new Error("checked archive export does not contain exactly three tgz files and its digest manifest");
+          }
+          outputs.push(`manifest=${manifestPath}`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join("\n")}\n`);
+          NODE
+
+      - name: Upload the exact checked Phase 09 archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase09-release-archives
+          path: |
+            ${{ steps.phase09-archives.outputs.core }}
+            ${{ steps.phase09-archives.outputs.react }}
+            ${{ steps.phase09-archives.outputs.svelte }}
+            ${{ steps.phase09-archives.outputs.manifest }}
+          if-no-files-found: error
+
       # NO `NPM_TOKEN` — not in this env block, not in repository secrets used by
       # this workflow, not anywhere under .github/. This is the one prohibition
       # in this file whose violation produces a GREEN build and a degraded
