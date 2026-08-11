@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Completed 09-06-PLAN.md
-last_updated: "2026-08-11T03:22:43.077Z"
+stopped_at: Completed 09-09-PLAN.md
+last_updated: "2026-08-11T03:47:17.762Z"
 last_activity: 2026-08-11
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 86
-  completed_plans: 79
+  completed_plans: 80
   percent: 89
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-10)
 ## Current Position
 
 Phase: 09 (react-and-svelte-adapters) — EXECUTING
-Plan: 7 of 13
+Plan: 8 of 13
 Status: Ready to execute
 Last activity: 2026-08-11
 
-Progress: [█████████░] 92%
+Progress: [█████████░] 93%
 
 ## Performance Metrics
 
@@ -74,6 +74,7 @@ Progress: [█████████░] 92%
 | Phase 09 P04 | 15min | 2 tasks | 6 files |
 | Phase 09 P05 | 28min | 2 tasks | 10 files |
 | Phase 09 P06 | 20m 15s | 2 tasks | 5 files |
+| Phase 09 P09 | 20m 11s | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -157,6 +158,9 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 09]: Make root Vitest configuration own @testing-library/svelte and scope svelteTesting() to svelte-lifecycle. — The direct dependency removes undeclared-import warnings while noExternal rune compilation remains isolated from core and React projects.
 - [Phase 09]: Restrict ADAPTER_SSR_OUT_DIR to normalized direct mkdtemp-style roots with the concierge-adapter-ssr- prefix. — This gives repeated SSR builds fresh owned roots without allowing repository or arbitrary filesystem writes.
 - [Phase 09]: Allow only the esbuild build script required by Astro 7.2.0 while retaining pnpm strictDepBuilds. — The exact direct dependency needs its platform-binary installer; a narrow allowBuilds entry preserves supply-chain enforcement.
+- [Phase 09]: Closed recursive discovery must exactly equal the four canonical production files before either independent 150-line budget is accepted. — This prevents file movement or alternate production extensions from hiding authored adapter code.
+- [Phase 09]: Use the pinned TypeScript 7 unstable sync and AST exports with explicit TS and TSX ScriptKinds. — The root package no longer exposes the legacy compiler API, while these installed exports parse TSX and rune-aware Svelte TypeScript deterministically.
+- [Phase 09]: Scratch mutants only count when their exact GateError code and identifying message are observed. — A generic parser failure cannot impersonate a loop or forbidden-responsibility kill.
 
 ### Pending Todos
 
@@ -185,6 +189,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-11T03:22:42.987Z
-Stopped at: Completed 09-06-PLAN.md
+Last session: 2026-08-11T03:47:17.756Z
+Stopped at: Completed 09-09-PLAN.md
 Resume file: None
