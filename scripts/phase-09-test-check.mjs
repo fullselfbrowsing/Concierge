@@ -119,6 +119,37 @@ function parsePositiveReport(stdout) {
   ) {
     fail("VITEST_ZERO", "Vitest reported zero test suites or tests");
   }
+  const aggregateCounts = [
+    "numPassedTestSuites",
+    "numFailedTestSuites",
+    "numPendingTestSuites",
+    "numPassedTests",
+    "numFailedTests",
+    "numPendingTests",
+    "numTodoTests",
+  ];
+  for (const field of aggregateCounts) {
+    if (!Number.isInteger(report[field]) || report[field] < 0) {
+      fail(
+        "VITEST_JSON",
+        `Vitest ${field} must be a non-negative integer`,
+      );
+    }
+  }
+  if (
+    report.numPassedTestSuites !== report.numTotalTestSuites ||
+    report.numFailedTestSuites !== 0 ||
+    report.numPendingTestSuites !== 0 ||
+    report.numPassedTests !== report.numTotalTests ||
+    report.numFailedTests !== 0 ||
+    report.numPendingTests !== 0 ||
+    report.numTodoTests !== 0
+  ) {
+    fail(
+      "VITEST_FAILURE",
+      "Vitest aggregate counts must report every suite and test as passed",
+    );
+  }
   if (
     !Array.isArray(report.testResults) ||
     report.testResults.length !== EXPECTED_TEST_FILES.length
@@ -126,6 +157,40 @@ function parsePositiveReport(stdout) {
     fail(
       "VITEST_FILES",
       `expected exactly ${EXPECTED_TEST_FILES.length} test results, found ${Array.isArray(report.testResults) ? report.testResults.length : "non-array"}`,
+    );
+  }
+
+  let assertionCount = 0;
+  for (const result of report.testResults) {
+    if (result?.status !== "passed") {
+      fail(
+        "VITEST_FAILURE",
+        `Vitest file ${JSON.stringify(result?.name)} had status ${JSON.stringify(result?.status)}`,
+      );
+    }
+    if (
+      !Array.isArray(result.assertionResults) ||
+      result.assertionResults.length === 0
+    ) {
+      fail(
+        "VITEST_ZERO",
+        `Vitest file ${JSON.stringify(result.name)} reported no assertions`,
+      );
+    }
+    for (const assertion of result.assertionResults) {
+      if (assertion?.status !== "passed") {
+        fail(
+          "VITEST_FAILURE",
+          `Vitest file ${JSON.stringify(result.name)} contained assertion status ${JSON.stringify(assertion?.status)}`,
+        );
+      }
+      assertionCount += 1;
+    }
+  }
+  if (assertionCount !== report.numTotalTests) {
+    fail(
+      "VITEST_JSON",
+      `Vitest assertion count ${assertionCount} differed from aggregate total ${report.numTotalTests}`,
     );
   }
 
@@ -151,10 +216,88 @@ function parsePositiveReport(stdout) {
   });
 }
 
+function syntheticReport(assertionStatusesByFile) {
+  const testResults = EXPECTED_TEST_FILES.map((path, index) => {
+    const statuses = assertionStatusesByFile[index];
+    return {
+      assertionResults: statuses.map((status) => ({ status })),
+      name: resolve(REPOSITORY_ROOT, path),
+      status: statuses.some((status) => status === "passed")
+        ? "passed"
+        : "skipped",
+    };
+  });
+  const statuses = testResults.flatMap((result) =>
+    result.assertionResults.map((assertion) => assertion.status),
+  );
+  const passedTests = statuses.filter((status) => status === "passed").length;
+  const pendingTests = statuses.filter((status) => status === "skipped").length;
+  const passedSuites = testResults.filter(
+    (result) => result.status === "passed",
+  ).length;
+
+  return {
+    numTotalTestSuites: testResults.length,
+    numPassedTestSuites: passedSuites,
+    numFailedTestSuites: 0,
+    numPendingTestSuites: testResults.length - passedSuites,
+    numTotalTests: statuses.length,
+    numPassedTests: passedTests,
+    numFailedTests: 0,
+    numPendingTests: pendingTests,
+    numTodoTests: 0,
+    success: true,
+    testResults,
+  };
+}
+
+function expectSyntheticFailure(name, report) {
+  try {
+    parsePositiveReport(JSON.stringify(report));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("[VITEST_FAILURE]")) {
+      process.stdout.write(`SELF_TEST_OK ${name} VITEST_FAILURE\n`);
+      return;
+    }
+    throw error;
+  }
+
+  fail("SELF_TEST", `${name} unexpectedly passed`);
+}
+
+function runParserSelfTests() {
+  const passing = EXPECTED_TEST_FILES.map(() => ["passed"]);
+  const counts = parsePositiveReport(JSON.stringify(syntheticReport(passing)));
+  if (counts.files !== EXPECTED_TEST_FILES.length || counts.tests !== 5) {
+    fail("SELF_TEST", "passing synthetic report produced unexpected counts");
+  }
+  process.stdout.write("SELF_TEST_OK all-passed-report PASS\n");
+
+  const allSkippedFile = syntheticReport([
+    ["skipped"],
+    ...EXPECTED_TEST_FILES.slice(1).map(() => ["passed"]),
+  ]);
+  Object.assign(allSkippedFile, {
+    numPassedTestSuites: allSkippedFile.numTotalTestSuites,
+    numPendingTestSuites: 0,
+    numPassedTests: allSkippedFile.numTotalTests,
+    numPendingTests: 0,
+  });
+  expectSyntheticFailure("all-skipped-expected-file", allSkippedFile);
+  expectSyntheticFailure(
+    "mixed-status-report",
+    syntheticReport([
+      ["passed", "skipped"],
+      ...EXPECTED_TEST_FILES.slice(1).map(() => ["passed"]),
+    ]),
+  );
+}
+
 if (process.argv.length !== 2) {
   fail("CLI_MODE", "phase-09-test-check accepts no arguments");
 }
 
+runParserSelfTests();
 requireExpectedFiles();
 
 const vitestArguments = [
