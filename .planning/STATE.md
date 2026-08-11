@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Completed 09-04-PLAN.md
-last_updated: "2026-08-11T02:26:05.288Z"
+stopped_at: Completed 09-05-PLAN.md
+last_updated: "2026-08-11T02:58:13.848Z"
 last_activity: 2026-08-11
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 86
-  completed_plans: 77
+  completed_plans: 78
   percent: 89
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-10)
 ## Current Position
 
 Phase: 09 (react-and-svelte-adapters) — EXECUTING
-Plan: 5 of 13
+Plan: 6 of 13
 Status: Ready to execute
 Last activity: 2026-08-11
 
-Progress: [█████████░] 90%
+Progress: [█████████░] 91%
 
 ## Performance Metrics
 
@@ -72,6 +72,7 @@ Progress: [█████████░] 90%
 | Phase 09 P02 | 12m | 2 tasks | 5 files |
 | Phase 09 P03 | 9m | 2 tasks | 5 files |
 | Phase 09 P04 | 15min | 2 tasks | 6 files |
+| Phase 09 P05 | 28min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -149,6 +150,10 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 09]: Apply the use-client directive through tsdown's fileName banner callback only for dist/client.js, leaving the package root server-safe. — The callback makes directive placement explicit without contaminating the inert root entry.
 - [Phase 09]: Point bare svelte-package at the planned src production inventory through package-local kit.files.lib configuration.
 - [Phase 09]: Keep Svelte packaging and checking on package-local TypeScript 6.0.3 while the root compiler remains TypeScript 7.0.2.
+- [Phase 09]: Keep the Svelte adapter capability-thin: callers supply Concierge and BridgeRegistry while one native $effect owns registration and teardown. — Framework lifecycle controls authority without duplicating core construction, subscriptions, or cleanup logic.
+- [Phase 09]: Preserve $effect and $state.snapshot rune syntax in svelte-package output. — The downstream Svelte compiler must own rune transformation; generic prebundling or hand cloning would erase the framework contract.
+- [Phase 09]: Bind @sveltejs/package@2.5.8 to TypeScript 6.0.3 with a version-exact pnpm package extension. — The published packager omits its dynamic TypeScript dependency, while root TypeScript 7 intentionally exposes no legacy compiler API.
+- [Phase 09]: Make root Vitest configuration own @testing-library/svelte and scope svelteTesting() to svelte-lifecycle. — The direct dependency removes undeclared-import warnings while noExternal rune compilation remains isolated from core and React projects.
 
 ### Pending Todos
 
@@ -177,6 +182,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-11T02:26:05.282Z
-Stopped at: Completed 09-04-PLAN.md
+Last session: 2026-08-11T02:58:13.843Z
+Stopped at: Completed 09-05-PLAN.md
 Resume file: None
