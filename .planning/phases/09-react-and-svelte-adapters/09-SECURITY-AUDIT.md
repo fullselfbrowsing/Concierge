@@ -2,8 +2,8 @@
 phase: 09-react-and-svelte-adapters
 phase_number: 9
 phase_name: React and Svelte adapters
-audited_at: 2026-08-11T13:01:08Z
-revision: fc7c89f6d36d8652afa1d86520e8701ec0322b75
+audited_at: 2026-08-11T13:26:03Z
+revision: 006df275d54257c45225b9782e9134ecef5adbfe
 remediation_commits:
   - b48fea4258ef12f882c7f927b5c28e6d427d211c
   - f29d0a236e0868c707eb1e37f8be4b2c05bab856
@@ -16,6 +16,8 @@ nested_policy_fix_commits:
 ceremony_report_commit: fc27969de2e4aabfe6bbc30e62ed584b9d550268
 release_aware_version_fix_commit: d267ad2ccf47ebe8aab1ae7350e0bc11f13fdc6f
 ceremony_fix_3_report_commit: fc7c89f6d36d8652afa1d86520e8701ec0322b75
+receipt_ancestry_fix_commit: cee13c08b1a2cfce0f41171302385d2a5fd1f27d
+ceremony_fix_4_report_commit: 006df275d54257c45225b9782e9134ecef5adbfe
 verdict: SECURED
 status: passed
 asvs_level: 1
@@ -32,7 +34,7 @@ unregistered_flags: 0
 
 **Phase:** 09 — React and Svelte adapters
 
-**Revision:** `fc7c89f6d36d8652afa1d86520e8701ec0322b75`
+**Revision:** `006df275d54257c45225b9782e9134ecef5adbfe`
 
 **Threats Closed:** 9/9
 
@@ -40,7 +42,7 @@ unregistered_flags: 0
 
 **Verdict:** **PASS**
 
-The focused re-audit confirms that commits `b48fea4` and `f29d0a2` remediate `SEC09-B01`, commits `0bf6254` and `d1d230c` safely make that boundary functional with a fresh pnpm store, commits `ee47057` and `d62c6f9` close the nested package-check policy gap, and commit `d267ad2` makes the versioner's security self-test independent of the live `0.0.0`/`0.1.0` release state. The new synthetic manifest bases do not change the production manifest validator, semantic-only operation allowlists, bounded peer/lock normalization, artifact/receipt binding, injection rejections, or credential boundary. The self-test passed both against the live feature tree and while a read-only probe presented the legitimate versioned manifest shape. No High or open declared threat remains.
+The focused re-audit confirms that commits `b48fea4` and `f29d0a2` remediate `SEC09-B01`, commits `0bf6254` and `d1d230c` safely make that boundary functional with a fresh pnpm store, commits `ee47057` and `d62c6f9` close the nested package-check policy gap, commit `d267ad2` makes the versioner's security self-test independent of the live `0.0.0`/`0.1.0` release state, and commit `cee13c0` preserves receipt ancestry in the versioned disposable snapshot without changing its measured release-input tree. Commit `006df27` records that fourth ceremony failure and remediation. The history binding is versioned-only, uses the exact local source HEAD under the credential-free child environment, performs no checkout, configures no remote, and atomically replaces only the disposable snapshot HEAD. The receipt reader now resolves both ancestry and consumed changeset bytes against its passed repository root. No High or open declared threat remains.
 
 This verdict verifies the implementation controls; it does not authorize a live publish or the still-pending versioned-finalization ceremony. The current `.planning/config.json` does not declare `asvs_level` or `block_on`, so this report retains the conservative project baseline of ASVS Level 1 with High findings blocking.
 
@@ -106,6 +108,23 @@ The third disposable versioned-finalization attempt killed all seven mutants and
 | Contract pin is present and non-vacuously backed | PASS | The contract now requires `syntheticManifestBases` alongside the existing semantic, injection, binding, and credential-control tokens (`scripts/phase-09-contract-check.mjs:891-910`). Contract self-test passed and final reported 0 missing across 56 artifacts. The presence token is not accepted alone as semantic proof; direct source inspection and both live-shape runtime probes above establish the behavior. |
 | Failure and release state remain fail-closed | PASS | The failed disposable version commit/receipt is not present in the shared tree, all public versions remain `0.0.0`, the changeset remains pending, and none of the four sealed Phase 09 ledgers changed. No production prepare/apply/finalize, mutation run-all, release battery, or publisher was invoked during this audit. |
 
+## Receipt-Ancestry Snapshot Re-audit
+
+The fourth disposable versioned-finalization attempt reached the prospective receipt verifier and failed closed because its isolated one-commit baseline did not contain the receipt base commit. It stopped before the sole transactional ledger installation. Commit `cee13c0` repairs that ancestry boundary; it does not authorize or perform a live finalization.
+
+| History/receipt property | Result | Verification evidence |
+|---|---|---|
+| Exact local source revision under the credential-free child environment | PASS | The versioned entrypoint completes `runAfterCredentialFreeFinalizationPreflight` before creating the owned child environment or entering `runAll` (`scripts/phase-09-mutation-battery.mjs:2972-2989`). Every Git child, including the history import, receives only `childEnvironment()` (`scripts/phase-09-mutation-battery.mjs:516-527`). The helper reads the exact live source `HEAD`, fetches the explicit local `sourceRoot` with that full SHA and `--no-tags`, and rejects a different `FETCH_HEAD` (`scripts/phase-09-mutation-battery.mjs:984-998`). No credential/config inheritance path was added. |
+| No remote, checkout, or additional worktree file | PASS | The only import command is `git fetch --no-tags --quiet <local-source-root> <exact-source-head>`; the helper contains no checkout and requires `git remote` plus porcelain status to be empty after binding (`scripts/phase-09-mutation-battery.mjs:991-1020`). The captured self-test snapshot had no remote, clean status, and exactly one tracked/worktree file, `input.txt`. Fetch necessarily adds the requested commit's reachable objects and `FETCH_HEAD` inside the disposable `.git`; those are ancestry metadata, not added release-input files or a configured remote. |
+| Exact measured tree and exact live source parent | PASS | Before fetch, the helper records `HEAD^{tree}`. It creates the new commit with `git commit-tree <that-tree> -p <exact-source-head>` and then requires the installed HEAD tree to equal the recorded tree and the source HEAD to be its ancestor (`scripts/phase-09-mutation-battery.mjs:986-1016`). Independent capture found both the old snapshot and new history commit at tree `9e8a461198e2bb0f724262ae77f6497a6bc138dc`; the new commit's sole parent and `FETCH_HEAD` were the same synthetic source HEAD. |
+| Atomic compare-and-swap of only disposable HEAD | PASS | `git update-ref HEAD <history-head> <snapshot-head>` supplies the previously measured old value, so a concurrent or unexpected ref change fails instead of being overwritten (`scripts/phase-09-mutation-battery.mjs:986,1010-1011`). The captured repository contained only its one `refs/heads/master` ref and no remote refs. |
+| Tree, input manifest, and status remain identical | PASS | The baseline already proves its copied manifest digest, installs/builds, and reverifies the original manifest before attachment. Versioned mode attaches history and immediately runs the same exact path-set and per-file digest verification again (`scripts/phase-09-mutation-battery.mjs:1148-1172`). The helper separately proves unchanged tree identity and clean index/worktree status (`scripts/phase-09-mutation-battery.mjs:1012-1020`). The 34th self-test constructs a two-commit source and one-file snapshot and proves the exact file scope/content after attachment (`scripts/phase-09-mutation-battery.mjs:1662-1699`). |
+| Receipt ancestry and consumed bytes use the passed root | PASS | `readVersionReceipt(root)` checks `merge-base --is-ancestor <baseSha> HEAD` in `root` and now calls `gitShowBuffer(baseSha, path, root)` for every consumed changeset before accepting its digest/deletion (`scripts/phase-09-mutation-battery.mjs:768-830`). The self-test proves the base is an ancestor of the attached snapshot and the base's consumed changeset bytes equal the saved bytes when read from that snapshot root (`scripts/phase-09-mutation-battery.mjs:1674-1694`). |
+| Feature mode cannot attach source history | PASS | `run all` parses with `versioned: false`, while only `finalize versioned` parses with `versioned: true` (`scripts/phase-09-mutation-battery.mjs:462-497`). `runAll` is the sole production caller that passes `preserveHistory: versioned`, and `materializeBaseline` defaults the option to false and calls the helper only inside that guard (`scripts/phase-09-mutation-battery.mjs:1148-1171,2858-2867`). Repository-wide inspection found no other production attachment call. |
+| Live worktree and shared refs are not mutation targets | PASS | The production snapshot is `baseline`, a child of the marker-validated owned temporary root outside the live repository (`scripts/phase-09-mutation-battery.mjs:910-960,1148-1156,2858-2867`). The source repository is used only for `rev-parse` and as the local fetch source; fetch, `commit-tree`, and `update-ref` all run with the snapshot as `cwd` (`scripts/phase-09-mutation-battery.mjs:984-1011`). Audit completion retained shared HEAD `006df275…`; only the pre-existing protected config/Astro dirt and this report were present. |
+| Contract and operator text match the executable control | PASS | The contract pins the self-test name, helper, `commit-tree`, and `update-ref` tokens (`scripts/phase-09-contract-check.mjs:998`), but those tokens were not accepted alone: the source and runtime fixture above establish the behavior. `RELEASING.md:105-110` and `CONTRIBUTING.md:113-117` accurately limit the history import to versioned/receipt-authorized execution, state the exact-parent/unchanged-tree behavior, and make no checkout/remote claim beyond what the code proves. |
+| Failure and release state remain fail-closed | PASS | `09-CEREMONY-FIX-4.md:13-23` records that the attempt stopped during prospective receipt verification after mutants/release gates but before ledger installation, and invalidates the disposable version commit and receipt. Independent hashes confirm all four sealed ledgers remain unchanged. No production prepare/apply/finalize, mutation run-all, publisher, or ledger-regeneration command ran during this audit. |
+
 ### Platform-path assessment
 
 - On the audited macOS host, independent probes confirmed case-insensitive `Path` → `PATH` reconstruction, owned HOME/USERPROFILE/TMPDIR/store paths, mode-0700 environment/store directories, mode-0600 config files, pnpm's effective store path, and the exact `https://registry.npmjs.org/` registry.
@@ -123,8 +142,8 @@ The third disposable versioned-finalization attempt killed all seven mutants and
 | `T-09-05` | Elevation of Privilege — duplicate core/version skew | mitigate | CLOSED | Both adapters guard singleton and literal contract version immediately before registration; peer+dev topology and exact foreign-consumer graph checks remain. |
 | `T-09-06` | Tampering — compiler/package transforms | mitigate | CLOSED | The React directive, Svelte compiler condition, real framework plugins, and exact independently sealed archive path remain unchanged. |
 | `T-09-07` | Tampering — adapter budget/boundary | mitigate | CLOSED | Exact discovery, TypeScript comment-trivia LOC counting, AST responsibility checks, negative controls, and B1 remain intact (`scripts/phase-09-adapter-budget.mjs:395-465`). |
-| `T-09-08` | Repudiation/DoS — evidence/output identity | mitigate | CLOSED | Semantic-only version artifact, apply-derived receipt, nonzero versioned authorization, run-attempt binding, clean seal, exact archives, and transactional ledgers remain intact. The 23-control version suite now passes from both feature-era and versioned manifest shapes without relaxing its real semantic validator, operation allowlists, injection negatives, artifact binding, or receipt binding. |
-| `T-09-SC` | Tampering — dependency supply chain | mitigate, with plan-09-10 documentation-only accept | **CLOSED** | Exact pins/locks/archives and split workflow authority remain; SEC09-B01 supplies pre-child authority rejection and strict allowlisted descendant environments. The ceremony uses only its owned store, fetching the frozen graph with scripts disabled before each offline install; exact order, failure suppression, registry, and non-redirection are enforced. The package checker preserves only the runner's exact mutation policy under the fixed parent marker, rejects malformed/ambiguous variants, and otherwise leaves pnpm dependency verification at its default. |
+| `T-09-08` | Repudiation/DoS — evidence/output identity | mitigate | CLOSED | Semantic-only version artifact, apply-derived receipt, nonzero versioned authorization, run-attempt binding, clean seal, exact archives, and transactional ledgers remain intact. Versioned baselines now attach the exact local source HEAD as the sole parent of a new commit over the already-measured snapshot tree, using an old-value-guarded `update-ref`; unchanged tree/status/input-manifest checks follow. `readVersionReceipt(root)` proves base ancestry and consumed changeset bytes in that same passed root. Feature mode never attaches history. The 34-control mutation self-test and independent captured-fixture inspection substantiate the boundary. |
+| `T-09-SC` | Tampering — dependency supply chain | mitigate, with plan-09-10 documentation-only accept | **CLOSED** | Exact pins/locks/archives and split workflow authority remain; SEC09-B01 supplies pre-child authority rejection and strict allowlisted descendant environments. The ceremony uses only its owned store, fetching the frozen graph with scripts disabled before each offline install; exact order, failure suppression, registry, and non-redirection are enforced. The receipt-ancestry import is an exact-SHA local fetch under the same child environment, uses `--no-tags`, configures no remote, and does not check out source-history files. The package checker preserves only the runner's exact mutation policy under the fixed parent marker, rejects malformed/ambiguous variants, and otherwise leaves pnpm dependency verification at its default. |
 
 ### Accepted risks log
 
@@ -159,8 +178,9 @@ Workflow default permissions remain empty; only the checkout-free/install-free p
 
 | Check | Result |
 |---|---|
-| Syntax: secure-environment, mutation battery, package checker, versioner, contract checker | PASS |
-| `node scripts/phase-09-mutation-battery.mjs self-test` | PASS — 33 controls, including preflight-before-child, exact fetch/install order, four fetch-failure classes suppressing install, store-redirect rejection, effective store/registry, and real child probes |
+| Syntax: secure-environment, mutation battery, package checker, versioner, contract checker | PASS — current delta explicitly rechecked mutation battery and contract checker |
+| `node scripts/phase-09-mutation-battery.mjs self-test` | PASS — 34 controls, including `history-backed-version-receipt-snapshot`, preflight-before-child, exact fetch/install order, fetch-failure suppression, store non-redirection, and real child probes |
+| Independent disposable history-fixture capture | PASS — old and new snapshot trees were identical; the new commit's sole parent and `FETCH_HEAD` equaled the exact source HEAD; only one local branch ref existed; remote/status were empty; the worktree contained only `input.txt`. The capture root was moved to Trash after inspection. |
 | Package checker self-test: normal entrypoint | PASS — 14 controls, including normal-policy omission, authenticated one-field propagation, real child isolation, negative protocol cases, and exact versioned P1 semantic failure |
 | Package checker self-test: `env -i` with secure marker only | PASS — 14 controls; normal nested policy remained omitted |
 | Package checker self-test: `env -i` with exact marker plus `PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN=false` | PASS — 14 controls; the authenticated entrypoint and real pnpm child retained `false` |
@@ -178,7 +198,7 @@ Workflow default permissions remain empty; only the checkout-free/install-free p
 | Frozen-input destination scan | PASS — current and immutable Phase 8 snapshots contain no npm/pnpm project config and neither lockfile contains explicit HTTP, Git, GitHub, or tarball resolution |
 | Child-process inventory | PASS — all six mutation spawn sites and the package gateway explicitly supply `childEnvironment`; no ambient environment spread/inheritance assignment found |
 | Policy producer/consumer inventory | PASS — the one production value originates in `MUTANT_EXECUTION_ENV`; only disposable compile/killer calls supply it; the package constructor is the only production interpreter; normal release/workflow paths do not set it |
-| Protected release state | PASS — sealed `09-SECURITY.md`, mutation evidence, release evidence, and validation ledger had no diff and retained SHA-256 values `ee0fa751…`, `cf4a003b…`, `d27a444a…`, and `55813181…`; the prior audit input was `6b886d42…`; only this report was edited, while the pre-existing `.planning/config.json` modification and `examples/adapter-ssr/.astro/` untracked directory were preserved |
+| Protected release state | PASS — sealed `09-SECURITY.md`, mutation evidence, release evidence, and validation ledger had no diff and retained SHA-256 values `ee0fa751…`, `cf4a003b…`, `d27a444a…`, and `55813181…`; the prior audit input was `ae814055…`; only this report was edited, while the pre-existing `.planning/config.json` modification and `examples/adapter-ssr/.astro/` untracked directory were preserved |
 
 No production `prepare`, `apply`, `finalize versioned`, mutation `run all`, release battery, Changesets version, live publish, npm publication, or evidence regeneration command was executed.
 
@@ -186,6 +206,6 @@ No production `prepare`, `apply`, `finalize versioned`, mutation `run all`, rele
 
 The thirteen Phase 09 summaries contain no formal `## Threat Flags` entries. Current implementation surfaces map to the registered threats above. **Unregistered flags: none.**
 
-The root and public package versions remain `0.0.0`, the intended changeset remains pending, and the sealed feature-era ledgers were not regenerated. The retained mutation evidence binds 125 release inputs at digest `8dd58a6b…`; an independent read-only reconstruction found 132 current inputs at `7cc83635…`. That deliberate staleness remains fail-closed and is not treated as fresh authorization. Publication remains blocked until the separately reviewed receipt-backed versioned ceremony is deliberately authorized, completes, and regenerates the four ledgers.
+The root and public package versions remain `0.0.0`, the intended changeset remains pending, and the sealed feature-era ledgers were not regenerated. The retained mutation evidence binds 125 release inputs at digest `8dd58a6b…`; an independent read-only reconstruction found 132 current inputs at `6f4334fa…`. That deliberate staleness remains fail-closed and is not treated as fresh authorization. Publication remains blocked until the separately reviewed receipt-backed versioned ceremony is deliberately authorized, completes, and regenerates the four ledgers.
 
 `SECURITY.md`: `.planning/phases/09-react-and-svelte-adapters/09-SECURITY-AUDIT.md`
