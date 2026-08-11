@@ -428,7 +428,7 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 09-08-PLAN.md — Exact three-tarball declarations, singleton, server, Svelte consent-drift, and mismatch proof
+- [x] 09-08-PLAN.md — Exact three-tarball declarations, singleton, server, Svelte consent-drift, and mismatch proof
 
 **Wave 8** *(blocked on Wave 7 completion)*
 
@@ -486,4 +486,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Dispatcher | 8/8 | Complete   | 2026-08-07 |
 | 7. Session and the transport seam | 7/7 | Complete    | 2026-08-10 |
 | 8. Consent kernel | 8/8 | Complete | 2026-08-10 |
-| 9. React and Svelte adapters | 8/13 | In Progress|  |
+| 9. React and Svelte adapters | 9/13 | In Progress|  |

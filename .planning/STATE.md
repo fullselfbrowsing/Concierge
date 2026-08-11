@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Completed 09-07-PLAN.md
-last_updated: "2026-08-11T04:11:23.130Z"
+stopped_at: Completed 09-08-PLAN.md
+last_updated: "2026-08-11T04:44:49.087Z"
 last_activity: 2026-08-11
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 86
-  completed_plans: 81
+  completed_plans: 82
   percent: 89
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-10)
 ## Current Position
 
 Phase: 09 (react-and-svelte-adapters) — EXECUTING
-Plan: 9 of 13
+Plan: 10 of 13
 Status: Ready to execute
 Last activity: 2026-08-11
 
-Progress: [█████████░] 94%
+Progress: [██████████] 95%
 
 ## Performance Metrics
 
@@ -76,6 +76,7 @@ Progress: [█████████░] 94%
 | Phase 09 P06 | 20m 15s | 2 tasks | 5 files |
 | Phase 09 P09 | 20m 11s | 2 tasks | 1 files |
 | Phase 09 P07 | 22m 5s | 2 tasks | 5 files |
+| Phase 09 P08 | 29m | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -166,6 +167,10 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 09]: Exercise the public React and Svelte client entries without hydration and pass the Svelte snapshot normalizer explicitly.
 - [Phase 09]: Use deterministic render IDs and disable the experimental Node navigator only inside fresh proof processes.
 - [Phase 09]: Require exactly one nonempty built evidence block per validated temporary output root.
+- [Phase 09]: Thread one immutable archive map through every all stage so tar, lint, install, declarations, SSR, consent, and mismatch checks share the same initial SHA-256 identities.
+- [Phase 09]: Resolve adapter dependencies from installed adapter manifests and compare physical core realpaths, rather than trusting workspace metadata or npm graph text alone.
+- [Phase 09]: Patch and repack only each disposable adapter's unique built expected-version literal, then verify the original core digest before and after the public lifecycle failure.
+- [Phase 09]: Compare the exact Svelte adapter error first line because the Svelte runtime appends a component trace to the thrown Error message.
 
 ### Pending Todos
 
@@ -194,6 +199,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-11T04:11:23.125Z
-Stopped at: Completed 09-07-PLAN.md
+Last session: 2026-08-11T04:44:49.082Z
+Stopped at: Completed 09-08-PLAN.md
 Resume file: None
