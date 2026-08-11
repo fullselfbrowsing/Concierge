@@ -16,7 +16,7 @@ const UPLOAD = "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
 const DOWNLOAD = "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093";
 const CHANGESETS = "changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d";
 const PUBLISHER_SHA256 =
-  "b3e6f3cee319d7a70764de3b82efcebddf3ab03a60dc721bd0ccaa1f4cdd6b71";
+  "15751cc8ac4ca8c89f52feb236cbee373dc75948ad9f9ecdef6e156052121c4b";
 const NPM_INTEGRITY =
   "sha512-82gRxKrh/eY5UnNorkTFcdBQAGpgjWehkfGVqAGlJjejEtJZGGJUqjo3mbBTNbc5BTnPKGVtGPBZGhElujX5cw==";
 const FIRST_RELEASE_CORE_PEER = "workspace:^0.0.0 || ^0.1.0";
@@ -46,8 +46,17 @@ const EXACT_ROOT_SCRIPTS = Object.freeze({
   "check:phase09:release":
     "pnpm run check:phase09 && node scripts/phase-09-workflow-check.mjs",
   "version:phase09": "node scripts/phase-09-version.mjs",
-  release: "changeset publish",
+  release: "node scripts/phase-09-publish-archives.mjs",
 });
+const EXACT_PREPARE_COMMAND =
+  "node scripts/phase-09-version.mjs prepare\n" +
+  '"${{ runner.temp }}/phase09-version-artifact"';
+const EXACT_PUBLISH_COMMAND =
+  'node "${{ runner.temp }}/phase09-publish-tools/phase-09-publish-archives.mjs" publish\n' +
+  '"${{ steps.sealed-inputs.outputs.seal }}"\n' +
+  '"${{ steps.sealed-inputs.outputs.core }}"\n' +
+  '"${{ steps.sealed-inputs.outputs.react }}"\n' +
+  '"${{ steps.sealed-inputs.outputs.svelte }}"';
 
 function fail(code, message) {
   throw new Error(`[${code}] ${message}`);
@@ -306,11 +315,173 @@ function validateNoArtifactRepack(steps, verification) {
 }
 
 function validateNoChangesetsPublish(executable) {
+  const pattern = new RegExp(["\\bchangesets?", "\\s+", "publish\\b"].join(""), "u");
   assert(
-    !/\bchangesets?\s+publish\b/u.test(executable),
+    !pattern.test(executable),
     "CHANGESETS_PUBLISH",
     "release delegates publication to Changesets instead of exact archives",
   );
+}
+
+function validateCheckoutIsolation(job, { fetchDepth }) {
+  const checkout = requireUse(job.steps, CHECKOUT, `${job.name} checkout`);
+  assert(
+    checkout.raw.includes("persist-credentials: false") &&
+      checkout.raw.includes("ref: ${{ github.sha }}") &&
+      checkout.raw.includes(`fetch-depth: ${fetchDepth}`),
+    "CHECKOUT_ISOLATION",
+    `${job.name} checkout must use exact github.sha without persisted credentials`,
+  );
+  return checkout;
+}
+
+function validateCredentialFreePreparation(job) {
+  validateCheckoutIsolation(job, { fetchDepth: 0 });
+  assert(
+    !/(?:^|\n)\s+(?:GITHUB_TOKEN|GH_TOKEN|NODE_AUTH_TOKEN|NPM_TOKEN):/u.test(
+      job.executable,
+    ) &&
+      countOccurrences(job.executable, 'test ! -e "$HOME/.netrc"') === 2 &&
+      countOccurrences(job.executable, 'test -z "${GITHUB_TOKEN:-}"') === 2 &&
+      countOccurrences(job.executable, 'test -z "${NODE_AUTH_TOKEN:-}"') === 2 &&
+      countOccurrences(job.executable, 'test -z "${NPM_TOKEN:-}"') === 2,
+    "PREPARE_CREDENTIALS",
+    "version preparation can receive a write/registry token or netrc",
+  );
+}
+
+function validateMinimalVersionJob(job) {
+  validateCheckoutIsolation(job, { fetchDepth: 0 });
+  assert(
+    job.executable.includes("needs: prepare") &&
+      job.steps.length === 3 &&
+      job.steps.every((step) => step.run === null),
+    "VERSION_AUTHORITY",
+    "PR-writing job must contain only checkout, artifact download, and Changesets action",
+  );
+  const forbidden = /\b(?:pnpm|npm)\b|\b(?:install|build|test|typecheck|pack|mutation)\b/u;
+  const customVersion = requireUse(job.steps, CHANGESETS);
+  assert(
+    !forbidden.test(
+      customVersion.raw
+        .replace("node scripts/phase-09-version.mjs apply", "")
+        .replace("phase09-version-artifact", ""),
+    ) &&
+      customVersion.raw.includes("version: >-") &&
+      customVersion.raw.includes("node scripts/phase-09-version.mjs apply") &&
+      customVersion.raw.includes('"${{ runner.temp }}/phase09-version-artifact"') &&
+      !/(?:^|\n)\s*publish\s*:/u.test(customVersion.raw),
+    "VERSION_AUTHORITY",
+    "Changesets custom version path is not the stdlib-only prepared artifact apply command",
+  );
+}
+
+function validateExactPublishCommand(command) {
+  assert(
+    command === EXACT_PUBLISH_COMMAND &&
+      !/[;&|`]\s*(?:npm|pnpm|node|changeset|gh|git)\b/u.test(command),
+    "EXACT_PUBLISH",
+    "final folded publish command differs from the single allowlisted invocation",
+  );
+}
+
+function validateConfiguredPublishSurface(rootManifest, workflows) {
+  const directoryPublish = new RegExp(
+    ["\\b(?:npm|pnpm)", "\\s+", "publish\\b"].join(""),
+    "u",
+  );
+  const changesetPublish = new RegExp(
+    ["\\bchangesets?", "\\s+", "publish\\b"].join(""),
+    "u",
+  );
+  for (const [name, command] of Object.entries(rootManifest.scripts ?? {})) {
+    assert(
+      !directoryPublish.test(command) && !changesetPublish.test(command),
+      "CONFIGURED_PUBLISH",
+      `root script ${name} configures a package-directory publisher`,
+    );
+  }
+  const tracked = spawnSync("git", ["ls-files", "-z"], {
+    cwd: ROOT,
+    encoding: "utf8",
+    maxBuffer: 4 * 1024 * 1024,
+    timeout: 10_000,
+  });
+  assert(
+    tracked.error === undefined && tracked.signal === null && tracked.status === 0,
+    "CONFIGURED_PUBLISH",
+    "could not enumerate configured publish surfaces",
+  );
+  for (const path of tracked.stdout.split("\0").filter((entry) => entry.endsWith("package.json"))) {
+    const manifest = JSON.parse(readNonemptyFile(path));
+    for (const [name, command] of Object.entries(manifest.scripts ?? {})) {
+      assert(
+        !directoryPublish.test(command) && !changesetPublish.test(command),
+        "CONFIGURED_PUBLISH",
+        `${path} script ${name} configures a package-directory publisher`,
+      );
+    }
+  }
+  assert(
+    rootManifest.scripts?.release === EXACT_ROOT_SCRIPTS.release,
+    "CONFIGURED_PUBLISH",
+    "root release must fail closed through the exact archive publisher",
+  );
+  for (const workflow of workflows) {
+    for (const step of workflow.steps) {
+      if (step.run === null) continue;
+      assert(
+        !directoryPublish.test(step.run) && !changesetPublish.test(step.run),
+        "CONFIGURED_PUBLISH",
+        `workflow contains a package-directory publish command: ${step.name ?? step.index}`,
+      );
+    }
+  }
+}
+
+function validateRepositoryPublisherSources() {
+  const directoryPublish = new RegExp(
+    ["\\b(?:npm|pnpm)", "\\s+", "publish\\b"].join(""),
+    "u",
+  );
+  const changesetPublish = new RegExp(
+    ["\\bchangesets?", "\\s+", "publish\\b"].join(""),
+    "u",
+  );
+  const tracked = spawnSync("git", ["ls-files", "-z"], {
+    cwd: ROOT,
+    encoding: "utf8",
+    maxBuffer: 4 * 1024 * 1024,
+    timeout: 10_000,
+  });
+  assert(
+    tracked.error === undefined && tracked.signal === null && tracked.status === 0,
+    "CONFIGURED_PUBLISH",
+    "could not enumerate executable publisher sources",
+  );
+  const paths = tracked.stdout
+    .split("\0")
+    .filter(Boolean)
+    .filter(
+      (path) =>
+        /^\.github\/workflows\/[^/]+\.ya?ml$/u.test(path) ||
+        /^scripts\/[^/]+\.(?:mjs|js|sh)$/u.test(path),
+    )
+    .filter(
+      (path) =>
+        ![
+          "scripts/phase-09-publish-archives.mjs",
+          "scripts/phase-09-workflow-check.mjs",
+        ].includes(path),
+    );
+  for (const path of paths) {
+    const source = executableSource(readNonemptyFile(path));
+    assert(
+      !directoryPublish.test(source) && !changesetPublish.test(source),
+      "CONFIGURED_PUBLISH",
+      `${path} contains a publisher outside the single allowlisted implementation`,
+    );
+  }
 }
 
 function validateOidcIsolation(job) {
@@ -330,17 +501,66 @@ function validateOidcIsolation(job) {
 
 function validateExactOidcSteps(job) {
   const expected = [
-    "Download the exact checked Phase 09 archives",
+    "Download the independently sealed release artifact",
     "Download the content-addressed publisher toolchain",
     "Verify and unpack the content-addressed npm CLI",
-    "Reverify and resolve the downloaded archive triplet",
-    "Publish the exact checked archive triplet",
+    "Resolve the exact sealed release inputs",
+    "Publish the exact independently sealed archive triplet",
   ];
   assert(
     JSON.stringify(job.steps.map((step) => step.name)) === JSON.stringify(expected) &&
       !job.steps.some((step) => /\b(?:curl|wget|git|gh)\b/u.test(step.run ?? "")),
     "OIDC_STEP_SET",
     "OIDC publisher contains an unreviewed step or network/VCS command",
+  );
+}
+
+function validateSealIsolation(job) {
+  validateCheckoutIsolation(job, { fetchDepth: 1 });
+  const executableRuns = job.steps.map((step) => step.run ?? "").join("\n");
+  assert(
+    job.executable.includes("needs: verify") &&
+      job.executable.includes("if: ${{ needs.verify.result == 'success' }}") &&
+      !/\b(?:pnpm|npm)\b|scripts\/[A-Za-z0-9_.-]+\.(?:mjs|js|sh)\b/u.test(
+        executableRuns,
+      ),
+    "SEAL_ISOLATION",
+    "independent sealer can install dependencies or execute workspace code",
+  );
+  const sealer = requireOneStep(
+    job.steps,
+    (step) => step.name === "Independently seal tracked release evidence and archive bytes",
+    "independent sealer",
+  );
+  for (const token of [
+    "git\", [\"rev-parse\", \"HEAD\"]",
+    "process.env.PHASE09_COMMIT",
+    "process.env.PHASE09_REPOSITORY",
+    "process.env.PHASE09_RUN_ID",
+    "process.env.PHASE09_INPUT_ARTIFACT",
+    'evidence.mode !== "versioned"',
+    "evidence.releaseAuthorization !== true",
+    'evidence.sharedVersion === "0.0.0"',
+    "stableJson(localManifest.archives) !== stableJson(evidence.archives)",
+    'hash("sha256", bytes) !== record.sha256',
+    'integrity: `sha512-${hash("sha512", bytes, "base64")}`',
+    "phase09-sealed-release-${sealId}",
+  ]) {
+    assert(
+      sealer.run?.includes(token) === true,
+      "SEAL_BINDING",
+      `independent sealer is missing ${token}`,
+    );
+  }
+  assert(
+    sealer.raw.includes("PHASE09_REPOSITORY: ${{ github.repository }}") &&
+      sealer.raw.includes("PHASE09_RUN_ID: ${{ github.run_id }}") &&
+      sealer.raw.includes("PHASE09_COMMIT: ${{ github.sha }}") &&
+      sealer.raw.includes(
+        "PHASE09_INPUT_ARTIFACT: phase09-untrusted-archives-${{ github.run_id }}-${{ github.sha }}",
+      ),
+    "SEAL_BINDING",
+    "sealer environment does not bind exact repository/run/commit/input artifact identity",
   );
 }
 
@@ -520,17 +740,26 @@ function validateCi(workflow) {
 }
 
 function validateRelease(workflow) {
+  const prepare = extractJob(workflow.source, "prepare", RELEASE_PATH);
   const version = extractJob(workflow.source, "version", RELEASE_PATH);
   const verify = extractJob(workflow.source, "verify", RELEASE_PATH);
+  const seal = extractJob(workflow.source, "seal", RELEASE_PATH);
   const publish = extractJob(workflow.source, "publish", RELEASE_PATH);
-  assert(version.start < verify.start && verify.start < publish.start, "JOB_LAYOUT", "release job order drifted");
+  assert(
+    prepare.start < version.start && version.start < verify.start &&
+      verify.start < seal.start && seal.start < publish.start,
+    "JOB_LAYOUT",
+    "release job order drifted",
+  );
   assert(
     /(?:^|\n)permissions: \{\}(?:\n|$)/u.test(workflow.executable),
     "JOB_PERMISSIONS",
     "release must deny top-level permissions",
   );
+  assertPermissions(prepare, { contents: "read" });
   assertPermissions(version, { contents: "write", "pull-requests": "write" });
   assertPermissions(verify, { contents: "read" });
+  assertPermissions(seal, { contents: "read" });
   assertPermissions(publish, { "id-token": "write" });
   assert(
     countOccurrences(workflow.executable, "id-token: write") === 1,
@@ -539,26 +768,56 @@ function validateRelease(workflow) {
   );
 
   requireExactUseSequence(
+    prepare.steps,
+    [CHECKOUT, SETUP_PNPM, SETUP_NODE, UPLOAD],
+    `${RELEASE_PATH}#prepare`,
+  );
+  validateCredentialFreePreparation(prepare);
+  const prepareInstall = requireExactRun(prepare.steps, "pnpm install --frozen-lockfile");
+  const prepareCommand = requireExactRun(
+    prepare.steps,
+    EXACT_PREPARE_COMMAND,
+    "exact version preparation command",
+  );
+  const prepareUpload = requireUse(prepare.steps, UPLOAD, "version artifact upload");
+  validateExactUpload(prepareUpload, [
+    "${{ runner.temp }}/phase09-version-artifact/phase-09-version-artifact.json",
+    "${{ runner.temp }}/phase09-version-artifact/blobs",
+  ]);
+  assert(
+    prepareUpload.raw.includes(
+      "name: phase09-version-${{ github.run_id }}-${{ github.sha }}",
+    ) &&
+      prepareCommand.raw.includes("PHASE09_BASE_SHA: ${{ github.sha }}") &&
+      prepareCommand.raw.includes("PHASE09_REPOSITORY: ${{ github.repository }}") &&
+      prepareCommand.raw.includes("PHASE09_RUN_ID: ${{ github.run_id }}") &&
+      prepareCommand.raw.includes(
+        "PHASE09_VERSION_ARTIFACT_NAME: phase09-version-${{ github.run_id }}-${{ github.sha }}",
+      ),
+    "VERSION_ARTIFACT_BINDING",
+    "prepared version artifact identity or upload name drifted",
+  );
+  requireOrder([prepareInstall, prepareCommand, prepareUpload], "version preparation chain");
+
+  requireExactUseSequence(
     version.steps,
-    [CHECKOUT, SETUP_PNPM, SETUP_NODE, CHANGESETS],
+    [CHECKOUT, DOWNLOAD, CHANGESETS],
     `${RELEASE_PATH}#version`,
   );
+  validateMinimalVersionJob(version);
   const changesets = requireUse(version.steps, CHANGESETS);
   assert(
+    version.executable.includes("needs: prepare") &&
     version.executable.includes("hasChangesets: ${{ steps.changesets.outputs.hasChangesets }}") &&
       changesets.raw.includes("id: changesets") &&
-      changesets.raw.includes("version: pnpm run version:phase09") &&
+      changesets.raw.includes("version: >-") &&
+      changesets.raw.includes("node scripts/phase-09-version.mjs apply") &&
+      changesets.raw.includes("PHASE09_BASE_SHA: ${{ github.sha }}") &&
+      changesets.raw.includes("PHASE09_REPOSITORY: ${{ github.repository }}") &&
+      changesets.raw.includes("PHASE09_RUN_ID: ${{ github.run_id }}") &&
       !/(?:^|\n)\s*publish\s*:/u.test(changesets.raw),
     "VERSION_LIFECYCLE",
-    "Changesets action is not a version-only evidence-bearing PR gate",
-  );
-  requireExactRun(version.steps, "pnpm install --frozen-lockfile");
-  requireOneStep(
-    version.steps,
-    (step) =>
-      step.run?.includes("npm install -g npm@11.11.0") === true &&
-      step.run.includes('test "$(npm --version)" = "11.11.0"'),
-    "version pinned npm assertion",
+    "Changesets action is not the minimal prepared-artifact PR gate",
   );
 
   assert(
@@ -572,6 +831,7 @@ function validateRelease(workflow) {
     [CHECKOUT, SETUP_PNPM, SETUP_NODE, UPLOAD, UPLOAD],
     `${RELEASE_PATH}#verify`,
   );
+  validateCheckoutIsolation(verify, { fetchDepth: 0 });
   const install = requireExactRun(verify.steps, "pnpm install --frozen-lockfile");
   const inherited = requireExactRun(verify.steps, "pnpm typecheck && pnpm build && pnpm test");
   const artifact = requireExactRun(verify.steps, "pnpm run check:artifact");
@@ -579,6 +839,12 @@ function validateRelease(workflow) {
   const pack = requireExactRun(verify.steps, "pnpm run check:pack");
   const floor = requireExactRun(verify.steps, "pnpm run check:node-floor");
   const gate = requireExactRun(verify.steps, "pnpm run check:phase09:release");
+  const publishEvidence = requireExactRun(
+    verify.steps,
+    "node scripts/phase-09-mutation-battery.mjs verify publish\n" +
+      '"${{ runner.temp }}/phase09-archives"',
+    "publish-specific release evidence verifier",
+  );
   const resolver = requireOneStep(
     verify.steps,
     (step) => step.name === "Resolve the exact checked Phase 09 archives",
@@ -604,6 +870,7 @@ function validateRelease(workflow) {
       pack,
       floor,
       gate,
+      publishEvidence,
       resolver,
       publisherSelfTest,
       toolPreparation,
@@ -622,6 +889,16 @@ function validateRelease(workflow) {
     "${{ steps.phase09-archives.outputs.svelte }}",
     "${{ steps.phase09-archives.outputs.manifest }}",
   ]);
+  assert(
+    uploads[0].raw.includes(
+      "name: phase09-untrusted-archives-${{ github.run_id }}-${{ github.sha }}",
+    ) &&
+      uploads[1].raw.includes(
+        "name: phase09-publisher-tools-${{ github.run_id }}-${{ github.sha }}",
+      ),
+    "ARCHIVE_ARTIFACT_BINDING",
+    "archive/tool artifact names are not bound to run ID and commit",
+  );
   validateExactUpload(uploads[1], [
     "${{ steps.phase09-tools.outputs.publisher }}",
     "${{ steps.phase09-tools.outputs.npm }}",
@@ -635,12 +912,38 @@ function validateRelease(workflow) {
     "verified tool artifact is not bound to exact publisher/npm content",
   );
 
+  requireExactUseSequence(
+    seal.steps,
+    [CHECKOUT, DOWNLOAD, UPLOAD],
+    `${RELEASE_PATH}#seal`,
+  );
+  validateSealIsolation(seal);
+  const sealDownload = requireUse(seal.steps, DOWNLOAD, "untrusted archive download");
+  const sealUpload = requireUse(seal.steps, UPLOAD, "sealed release upload");
   assert(
-    publish.executable.includes("needs: verify") &&
-      publish.executable.includes("if: ${{ needs.verify.result == 'success' }}") &&
+    sealDownload.raw.includes(
+      "name: phase09-untrusted-archives-${{ github.run_id }}-${{ github.sha }}",
+    ) &&
+      seal.executable.includes(
+        "sealedArtifact: ${{ steps.phase09-seal.outputs.artifact }}",
+      ) &&
+      sealUpload.raw.includes("name: ${{ steps.phase09-seal.outputs.artifact }}"),
+    "SEAL_BINDING",
+    "sealed artifact name/output does not preserve the content-addressed identity",
+  );
+  validateExactUpload(sealUpload, [
+    "${{ steps.phase09-seal.outputs.seal }}",
+    "${{ steps.phase09-seal.outputs.core }}",
+    "${{ steps.phase09-seal.outputs.react }}",
+    "${{ steps.phase09-seal.outputs.svelte }}",
+  ]);
+
+  assert(
+    publish.executable.includes("needs: seal") &&
+      publish.executable.includes("if: ${{ needs.seal.result == 'success' }}") &&
       publish.executable.includes("timeout-minutes: 10"),
     "VERSION_LIFECYCLE",
-    "publisher must depend explicitly on successful verification with a bounded lifetime",
+    "publisher must depend explicitly on the independent seal with a bounded lifetime",
   );
   requireExactUseSequence(
     publish.steps,
@@ -651,34 +954,36 @@ function validateRelease(workflow) {
   validateExactOidcSteps(publish);
   const downloadedResolver = requireOneStep(
     publish.steps,
-    (step) => step.name === "Reverify and resolve the downloaded archive triplet",
-    "downloaded archive resolver",
+    (step) => step.name === "Resolve the exact sealed release inputs",
+    "sealed archive resolver",
   );
   const publishStep = requireOneStep(
     publish.steps,
-    (step) => step.name === "Publish the exact checked archive triplet",
+    (step) => step.name === "Publish the exact independently sealed archive triplet",
     "exact archive publisher",
   );
   requireOrder(
     [
       requireOneStep(
         publish.steps,
-        (step) => step.name === "Download the exact checked Phase 09 archives",
-        "publisher archive download",
+        (step) => step.name === "Download the independently sealed release artifact",
+        "publisher sealed artifact download",
       ),
       downloadedResolver,
       publishStep,
     ],
-    "download, reverify, publish",
+    "download, resolve, publish",
   );
+  assert(publishStep.raw.includes("run: >-"), "EXACT_PUBLISH", "final publish command must be folded");
+  validateExactPublishCommand(publishStep.run);
   for (const token of [
-    "phase-09-publish-archives.mjs",
-    "${{ steps.downloaded-archives.outputs.manifest }}",
-    "${{ steps.downloaded-archives.outputs.core }}",
-    "${{ steps.downloaded-archives.outputs.react }}",
-    "${{ steps.downloaded-archives.outputs.svelte }}",
+    "PHASE09_EXPECTED_REPOSITORY: ${{ github.repository }}",
+    "PHASE09_EXPECTED_RUN_ID: ${{ github.run_id }}",
+    "PHASE09_EXPECTED_COMMIT: ${{ github.sha }}",
+    "PHASE09_EXPECTED_INPUT_ARTIFACT: phase09-untrusted-archives-${{ github.run_id }}-${{ github.sha }}",
+    "PHASE09_EXPECTED_SEALED_ARTIFACT: ${{ needs.seal.outputs.sealedArtifact }}",
   ]) {
-    assert(publishStep.run?.includes(token) === true, "EXACT_PUBLISH", `publisher is missing ${token}`);
+    assert(publishStep.raw.includes(token), "SEAL_BINDING", `publisher is missing ${token}`);
   }
   assert(
     countOccurrences(workflow.executable, PUBLISHER_SHA256) === 2 &&
@@ -689,14 +994,14 @@ function validateRelease(workflow) {
     "OIDC publisher does not reverify the exact publisher/npm toolchain",
   );
   validateNoChangesetsPublish(workflow.executable);
-  for (const forbidden of ["NPM_TOKEN", "--provenance", "secrets.NPM"] ) {
+  for (const forbidden of ["NODE_AUTH_TOKEN: ${{", "NPM_TOKEN: ${{", "secrets.NPM"] ) {
     assert(
       !workflow.executable.includes(forbidden),
       "TRUSTED_PUBLISHING",
       `release executable contains forbidden ${forbidden}`,
     );
   }
-  validateEmbeddedNodePrograms(workflow, 4);
+  validateEmbeddedNodePrograms(workflow, 5);
 }
 
 function runScriptSelfTest(path, marker) {
@@ -788,7 +1093,70 @@ function runDetectorControls() {
     () => validateExactOidcSteps({ steps: [step(1, { name: "unreviewed" })] }),
     "OIDC_STEP_SET",
   );
-  assert(controls === 10, "CHECKER_SELF_TEST", `expected ten controls, ran ${controls}`);
+  control(
+    "appended-publish-command",
+    () => validateExactPublishCommand(`${EXACT_PUBLISH_COMMAND}\n&& npm publish /tmp/unchecked-package`),
+    "EXACT_PUBLISH",
+  );
+  control(
+    "prepare-token-leak",
+    () =>
+      validateCredentialFreePreparation({
+        name: "prepare",
+        executable: "env:\n  GITHUB_TOKEN: synthetic",
+        steps: [
+          step(1, {
+            uses: CHECKOUT,
+            raw: "fetch-depth: 0\npersist-credentials: false\nref: ${{ github.sha }}",
+          }),
+        ],
+      }),
+    "PREPARE_CREDENTIALS",
+  );
+  control(
+    "version-extra-command",
+    () =>
+      validateMinimalVersionJob({
+        name: "version",
+        executable: "needs: prepare",
+        steps: [
+          step(1, {
+            uses: CHECKOUT,
+            raw: "fetch-depth: 0\npersist-credentials: false\nref: ${{ github.sha }}",
+          }),
+          step(2, { uses: DOWNLOAD }),
+          step(3, { uses: CHANGESETS, raw: "version: node scripts/phase-09-version.mjs apply" }),
+          step(4, { run: "pnpm test" }),
+        ],
+      }),
+    "VERSION_AUTHORITY",
+  );
+  control(
+    "sealer-workspace-code",
+    () =>
+      validateSealIsolation({
+        name: "seal",
+        executable: "needs: verify\nif: ${{ needs.verify.result == 'success' }}",
+        steps: [
+          step(1, {
+            uses: CHECKOUT,
+            raw: "fetch-depth: 1\npersist-credentials: false\nref: ${{ github.sha }}",
+          }),
+          step(2, { run: "pnpm test" }),
+        ],
+      }),
+    "SEAL_ISOLATION",
+  );
+  control(
+    "configured-directory-publisher",
+    () =>
+      validateConfiguredPublishSurface(
+        { scripts: { release: ["npm", " publish", " ./packages/core"].join("") } },
+        [],
+      ),
+    "CONFIGURED_PUBLISH",
+  );
+  assert(controls === 15, "CHECKER_SELF_TEST", `expected fifteen controls, ran ${controls}`);
   return controls;
 }
 
@@ -800,18 +1168,23 @@ const controls = runDetectorControls();
 validateLiveContracts();
 const ci = readWorkflow(CI_PATH);
 const release = readWorkflow(RELEASE_PATH);
+validateConfiguredPublishSurface(
+  JSON.parse(readNonemptyFile("package.json")),
+  [ci, release],
+);
+validateRepositoryPublisherSources();
 validateCi(ci);
 validateRelease(release);
 runScriptSelfTest(
   "scripts/phase-09-version.mjs",
-  "PHASE09_VERSION_SELF_TEST_OK controls=7",
+  "PHASE09_VERSION_SELF_TEST_OK controls=13",
 );
 runScriptSelfTest(
   "scripts/phase-09-publish-archives.mjs",
-  "PHASE09_PUBLISHER_SELF_TEST_OK controls=2",
+  "PHASE09_PUBLISHER_SELF_TEST_OK controls=9",
 );
 
 process.stdout.write(
-  `PHASE09_WORKFLOW_CHECK_OK workflows=2 jobs=5 controls=${controls} ` +
+  `PHASE09_WORKFLOW_CHECK_OK workflows=2 jobs=7 controls=${controls} ` +
     `ciSteps=${ci.steps.length} releaseSteps=${release.steps.length}\n`,
 );
