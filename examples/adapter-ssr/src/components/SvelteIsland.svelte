@@ -16,7 +16,7 @@
 
   provideConcierge(concierge);
   const exactConcierge = useConcierge() === concierge;
-  useConciergeBridge(registry, bridge);
+  useConciergeBridge(() => registry, () => bridge);
 
   const evidence = JSON.stringify({
     adapter: "svelte",

@@ -562,7 +562,8 @@ function writeDeclarationFixture(consumerDirectory) {
       `const normalizer: SnapshotNormalizer = svelteSnapshotNormalizer;\n` +
       `const bridge: Bridge = { actions: Object.freeze({}), snapshot: Object.freeze({}) };\n` +
       `const typedRegistry: BridgeRegistry = registry;\n` +
-      `void [concierge, normalizer, bridge, typedRegistry, defineAction, reactRoot, ConciergeProvider, useConcierge, useConciergeBridge, useConciergeValue, svelteRoot, provideConcierge, useSvelteConcierge, useSvelteBridge];\n`,
+      `useSvelteBridge(() => typedRegistry, () => bridge);\n` +
+      `void [concierge, normalizer, bridge, typedRegistry, defineAction, reactRoot, ConciergeProvider, useConcierge, useConciergeBridge, useConciergeValue, svelteRoot, provideConcierge, useSvelteConcierge];\n`,
     "utf8",
   );
 }
@@ -640,7 +641,7 @@ function writeServerFixtures(consumerDirectory) {
       `  import { provideConcierge, useConciergeBridge } from "${SVELTE_NAME}/client.svelte";\n` +
       `  let { concierge, registry, bridge } = $props();\n` +
       `  provideConcierge(concierge);\n` +
-      `  useConciergeBridge(registry, bridge);\n` +
+      `  useConciergeBridge(() => registry, () => bridge);\n` +
       `</script>\n` +
       `<span>packed-svelte-server</span>\n`,
     "utf8",
@@ -1031,8 +1032,7 @@ function writeSvelteMismatchFixture(consumerDirectory) {
     `<script>\n` +
       `  import { useConciergeBridge } from "${SVELTE_NAME}/client.svelte";\n` +
       `  let { registry, bridge } = $props();\n` +
-      `  // svelte-ignore state_referenced_locally\n` +
-      `  useConciergeBridge(registry, bridge);\n` +
+      `  useConciergeBridge(() => registry, () => bridge);\n` +
       `</script>\n`,
     "utf8",
   );

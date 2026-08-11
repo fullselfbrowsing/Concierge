@@ -139,20 +139,24 @@ describe("@fullselfbrowsing/concierge-svelte svelte-lifecycle", () => {
     mounted.unmount();
   });
 
-  it("T04 registers only after initialization and survives replacement, stale teardown, destroy, and remount", () => {
+  it("T04 rerenders one component through replacement, stale cleanup, and final null", async () => {
     const concierge: Concierge = conciergeStub();
-    const coreRegistry: BridgeRegistry = createBridge("svelte-registration");
-    const tracked = trackedRegistry(coreRegistry);
+    const firstCoreRegistry: BridgeRegistry = createBridge("svelte-registration-a");
+    const secondCoreRegistry: BridgeRegistry = createBridge("svelte-registration-b");
+    const firstTracked = trackedRegistry(firstCoreRegistry);
+    const secondTracked = trackedRegistry(secondCoreRegistry);
     const firstBridge: TestBridge = makeBridge("first");
     const secondBridge: TestBridge = makeBridge("second");
+    const thirdBridge: TestBridge = makeBridge("third");
     const initializationStates: boolean[] = [];
 
-    expect(coreRegistry.read()).toBeNull();
-    expect(tracked.events).toEqual([]);
+    expect(firstCoreRegistry.read()).toBeNull();
+    expect(secondCoreRegistry.read()).toBeNull();
+    expect(firstTracked.events).toEqual([]);
 
-    const first = render(Harness, {
+    const mounted = render(Harness, {
       concierge,
-      registry: tracked.registry,
+      registry: firstTracked.registry,
       bridge: firstBridge,
       onInitialize: (registered: boolean): void => {
         initializationStates.push(registered);
@@ -160,52 +164,52 @@ describe("@fullselfbrowsing/concierge-svelte svelte-lifecycle", () => {
     });
 
     expect(initializationStates).toEqual([false]);
-    expect(tracked.events).toEqual(["setup"]);
-    expect(coreRegistry.read()).toBe(firstBridge);
+    expect(firstTracked.events).toEqual(["setup"]);
+    expect(firstCoreRegistry.read()).toBe(firstBridge);
 
-    const second = render(Harness, {
+    await mounted.rerender({
       concierge,
-      registry: tracked.registry,
+      registry: firstTracked.registry,
       bridge: secondBridge,
       onInitialize: (registered: boolean): void => {
         initializationStates.push(registered);
       },
     });
 
-    expect(initializationStates).toEqual([false, true]);
-    expect(tracked.events).toEqual(["setup", "setup"]);
-    expect(coreRegistry.read()).toBe(secondBridge);
-    expect(tracked.cleanups).toHaveLength(2);
+    expect(initializationStates).toEqual([false]);
+    expect(firstTracked.events).toEqual(["setup", "cleanup", "setup"]);
+    expect(firstTracked.cleanupCalls).toEqual([firstTracked.cleanups[0]]);
+    expect(firstCoreRegistry.read()).toBe(secondBridge);
+    expect(firstTracked.cleanups).toHaveLength(2);
 
-    first.unmount();
-
-    expect(tracked.cleanupCalls).toEqual([tracked.cleanups[0]]);
-    expect(coreRegistry.read()).toBe(secondBridge);
-
-    tracked.cleanups[0]?.();
-    expect(tracked.cleanupCalls).toEqual([
-      tracked.cleanups[0],
-      tracked.cleanups[0],
+    firstTracked.cleanups[0]?.();
+    expect(firstTracked.cleanupCalls).toEqual([
+      firstTracked.cleanups[0],
+      firstTracked.cleanups[0],
     ]);
-    expect(coreRegistry.read()).toBe(secondBridge);
+    expect(firstCoreRegistry.read()).toBe(secondBridge);
 
-    second.unmount();
-    expect(tracked.cleanupCalls).toEqual([
-      tracked.cleanups[0],
-      tracked.cleanups[0],
-      tracked.cleanups[1],
-    ]);
-    expect(coreRegistry.read()).toBeNull();
-
-    const remountedBridge: TestBridge = makeBridge("remounted");
-    const remounted = render(Harness, {
+    await mounted.rerender({
       concierge,
-      registry: tracked.registry,
-      bridge: remountedBridge,
+      registry: secondTracked.registry,
+      bridge: thirdBridge,
     });
 
-    expect(coreRegistry.read()).toBe(remountedBridge);
-    remounted.unmount();
-    expect(coreRegistry.read()).toBeNull();
+    expect(firstCoreRegistry.read()).toBeNull();
+    expect(secondCoreRegistry.read()).toBe(thirdBridge);
+    expect(firstTracked.cleanupCalls).toEqual([
+      firstTracked.cleanups[0],
+      firstTracked.cleanups[0],
+      firstTracked.cleanups[1],
+    ]);
+    expect(secondTracked.events).toEqual(["setup"]);
+
+    firstTracked.cleanups[1]?.();
+    expect(firstCoreRegistry.read()).toBeNull();
+    expect(secondCoreRegistry.read()).toBe(thirdBridge);
+
+    mounted.unmount();
+    expect(secondTracked.cleanupCalls).toEqual([secondTracked.cleanups[0]]);
+    expect(secondCoreRegistry.read()).toBeNull();
   });
 });

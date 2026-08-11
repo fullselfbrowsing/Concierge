@@ -35,10 +35,13 @@ export function useConcierge(): Concierge {
 }
 
 export function useConciergeBridge<B extends Bridge>(
-  registry: BridgeRegistry<B>,
-  bridge: B,
+  getRegistry: () => BridgeRegistry<B>,
+  getBridge: () => B,
 ): void {
   $effect((): (() => void) => {
+    const registry: BridgeRegistry<B> = getRegistry();
+    const bridge: B = getBridge();
+
     assertSingleInstance();
 
     if (CONTRACT_VERSION !== EXPECTED_CONTRACT_VERSION) {

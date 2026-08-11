@@ -70,7 +70,7 @@ The repository includes both headless framework packages planned for v0.1:
 - [`@fullselfbrowsing/concierge-svelte`](./packages/concierge-svelte/README.md)
   uses the server-safe package root for forwarded types and
   `@fullselfbrowsing/concierge-svelte/client.svelte` for native context,
-  effect-scoped bridge registration, and the real
+  getter-driven effect-scoped bridge registration, and the real
   `svelteSnapshotNormalizer`.
 
 Both are injection-only bindings. Application setup constructs the one public

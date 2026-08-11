@@ -162,6 +162,8 @@ describe("the built @fullselfbrowsing/concierge-svelte entries", () => {
     expect(clientTypes).toContain("provideConcierge");
     expect(clientTypes).toContain("useConcierge");
     expect(clientTypes).toContain("useConciergeBridge");
+    expect(clientTypes).toContain("getRegistry");
+    expect(clientTypes).toContain("getBridge");
     expect(clientTypes).toContain("svelteSnapshotNormalizer");
 
     for (const [mapSource, sourceName] of [
@@ -172,6 +174,8 @@ describe("the built @fullselfbrowsing/concierge-svelte entries", () => {
     }
 
     assertOrderedTokens(clientSource, [
+      "const registry = getRegistry()",
+      "const bridge = getBridge()",
       "assertSingleInstance()",
       "CONTRACT_VERSION !== EXPECTED_CONTRACT_VERSION",
       "@fullselfbrowsing/concierge-svelte expected core contract v",

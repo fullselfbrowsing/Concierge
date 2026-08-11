@@ -120,7 +120,7 @@ Svelte context; descendants call `useConcierge` to read that same reference.
 
   provideConcierge(concierge);
   const currentConcierge = useConcierge();
-  useConciergeBridge(bookingRegistry, bridge);
+  useConciergeBridge(() => bookingRegistry, () => bridge);
 
   if (currentConcierge !== concierge) {
     throw new Error("Unexpected Concierge context.");
@@ -154,9 +154,10 @@ or a hand-written clone. The normalizer is intentionally exported from
 
 - `provideConcierge` and `useConcierge` use native `setContext`/`getContext` and
   carry the supplied `Concierge` reference without a store or copied state.
-- `useConciergeBridge` owns one native `$effect`. After mount it runs the
-  package guards, calls `registry.register(bridge)`, and returns that exact
-  unsubscriber as teardown.
+- `useConciergeBridge` accepts registry and bridge getters and owns one native
+  `$effect`. After mount and whenever either getter's reactive value changes, it
+  reads the current objects, runs the package guards, calls
+  `registry.register(bridge)`, and returns that exact unsubscriber as teardown.
 - Svelte runs the teardown before the effect re-executes and when the component
   is destroyed. The core registry's monotonic token prevents an old teardown
   from removing a newer registration.

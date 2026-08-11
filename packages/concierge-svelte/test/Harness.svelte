@@ -34,36 +34,29 @@
     readonly onSnapshot?: (probe: SnapshotProbe) => void;
   };
 
-  let {
-    concierge,
-    registry,
-    bridge,
-    provide = true,
-    onContext,
-    onInitialize,
-    onSnapshot,
-  }: Props = $props();
+  let props: Props = $props();
+  const getConcierge = (): Concierge => props.concierge;
+  const getRegistry = (): BridgeRegistry => props.registry;
+  const getBridge = (): Bridge => props.bridge;
+  const getProvide = (): boolean => props.provide ?? true;
+  const getOnContext = (): Props["onContext"] => props.onContext;
+  const getOnInitialize = (): Props["onInitialize"] => props.onInitialize;
+  const getOnSnapshot = (): Props["onSnapshot"] => props.onSnapshot;
 
-  // svelte-ignore state_referenced_locally
-  if (provide) {
-    // svelte-ignore state_referenced_locally
-    provideConcierge(concierge);
+  if (getProvide()) {
+    provideConcierge(getConcierge());
   }
 
   const observed: Concierge = useConcierge();
-  // svelte-ignore state_referenced_locally
-  onContext?.(observed);
+  getOnContext()?.(observed);
 
-  // svelte-ignore state_referenced_locally
-  useConciergeBridge(registry, bridge);
-  // svelte-ignore state_referenced_locally
-  onInitialize?.(registry.read() !== null);
+  useConciergeBridge(getRegistry, getBridge);
+  getOnInitialize()?.(getRegistry().read() !== null);
 
   const live: SnapshotValue = $state({ nested: { count: 1 } });
   const detached: SnapshotValue = svelteSnapshotNormalizer(live);
 
-  // svelte-ignore state_referenced_locally
-  onSnapshot?.({
+  getOnSnapshot()?.({
     live,
     detached,
     setCount: (count: number): void => {

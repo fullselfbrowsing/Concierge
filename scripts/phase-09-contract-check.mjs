@@ -633,17 +633,17 @@ function evaluateContracts(root) {
       for (const symbol of ["provideConcierge", "useConcierge", "useConciergeBridge", "svelteSnapshotNormalizer"]) {
         api.check(new RegExp(`export\\s+(?:function|const)\\s+${symbol}\\b`, "u").test(client), `svelte-export-${symbol}`, SVELTE_SOURCE_PATHS[1], "canonical exported symbol", "inspected");
       }
-      for (const token of ["setContext", "getContext", "$effect", "$state.snapshot", "assertSingleInstance", "CONTRACT_VERSION", "EXPECTED_CONTRACT_VERSION", "registry.register", "SnapshotNormalizer"]) {
+      for (const token of ["setContext", "getContext", "$effect", "$state.snapshot", "getRegistry", "getBridge", "assertSingleInstance", "CONTRACT_VERSION", "EXPECTED_CONTRACT_VERSION", "registry.register", "SnapshotNormalizer"]) {
         api.check(client.includes(token), `svelte-runtime-${token}`, SVELTE_SOURCE_PATHS[1], `live ${token} call/path`, client.includes(token) ? "present" : "absent");
       }
       api.check(/EXPECTED_CONTRACT_VERSION\s*(?::\s*number)?\s*=\s*1\b/u.test(client), "svelte-literal-contract", SVELTE_SOURCE_PATHS[1], "adapter-owned literal 1", "inspected");
-      api.check(hasOrderedTokens(client, ["$effect", "assertSingleInstance", "CONTRACT_VERSION", "registry.register"]), "svelte-guard-register-order", SVELTE_SOURCE_PATHS[1], "effect then guards then register", "inspected");
+      api.check(hasOrderedTokens(client, ["$effect", "getRegistry()", "getBridge()", "assertSingleInstance", "CONTRACT_VERSION", "registry.register"]), "svelte-guard-register-order", SVELTE_SOURCE_PATHS[1], "effect getters then guards then register", "inspected");
       api.check(/return\s+(?:unregister|registry\.register\(bridge\))/u.test(client), "svelte-exact-cleanup-return", SVELTE_SOURCE_PATHS[1], "returned registration cleanup", "inspected");
       api.check(/function\s+svelteSnapshotNormalizer\s*<T>\s*\(value\s*:\s*T\)\s*:\s*T/u.test(client) && /function\s+svelteSnapshotNormalizer\s*\(value\s*:\s*unknown\)\s*:\s*unknown/u.test(client), "svelte-normalizer-overload", SVELTE_SOURCE_PATHS[1], "generic plus unknown overload", "inspected");
       api.check(!/\b(?:structuredClone|JSON\.stringify|createContext|createConcierge)\b/u.test(client), "svelte-native-thin-runtime", SVELTE_SOURCE_PATHS[1], "no clone/store/core construction", "inspected");
       api.check(/export\s+type\s*\{/u.test(rootEntry) && /from\s+["']@fullselfbrowsing\/concierge["']/u.test(rootEntry) && !/(?:client\.svelte|\bcreateConcierge\b|\bprovideConcierge\b|\buseConcierge(?:Bridge)?\b|\bsvelteSnapshotNormalizer\b|\bsetContext\b|\bgetContext\b|\$effect)/u.test(rootEntry), "svelte-public-root", SVELTE_SOURCE_PATHS[0], "server-safe public-core type root with client helpers split to ./client.svelte", "inspected");
-      api.check(harness.includes("useConciergeBridge") && !/window\.|document\.|navigator\./u.test(stripJsComments(harness)), "svelte-real-harness", "packages/concierge-svelte/test/Harness.svelte", "component-init hook without host reads", "inspected");
-      for (const token of ["mount", "unmount", "T03", "S1", "T04", "expect("]) {
+      api.check(harness.includes("const getRegistry") && harness.includes("const getBridge") && harness.includes("useConciergeBridge(getRegistry, getBridge)") && !harness.includes("state_referenced_locally") && !/window\.|document\.|navigator\./u.test(stripJsComments(harness)), "svelte-real-harness", "packages/concierge-svelte/test/Harness.svelte", "getter-driven component hook without suppressions or host reads", "inspected");
+      for (const token of ["mount", "rerender", "unmount", "cleanupCalls", "T03", "S1", "T04", "expect("]) {
         api.check(lifecycle.includes(token), `svelte-lifecycle-${token}`, "packages/concierge-svelte/test/lifecycle.test.ts", `assertion-observed ${token}`, lifecycle.includes(token) ? "present" : "absent");
       }
     }),
@@ -691,7 +691,7 @@ function evaluateContracts(root) {
       api.check(tsconfig.includes("astro/tsconfigs/strict"), "astro-strict-tsconfig", "examples/adapter-ssr/tsconfig.json", "Astro strict config", "inspected");
       api.check(catalog.includes("createRequestHarness") && catalog.includes("createBridge") && catalog.includes("createConcierge") && catalog.includes("svelteSnapshotNormalizer"), "astro-request-factory", "examples/adapter-ssr/src/shared/catalog.ts", "request-local shared harness", "inspected");
       api.check(reactIsland.includes("@fullselfbrowsing/concierge-react/client") && reactIsland.includes("useConciergeBridge"), "astro-react-island", "examples/adapter-ssr/src/components/ReactIsland.tsx", "public injected React client", "inspected");
-      api.check(svelteIsland.includes("@fullselfbrowsing/concierge-svelte/client.svelte") && svelteIsland.includes("useConciergeBridge"), "astro-svelte-island", "examples/adapter-ssr/src/components/SvelteIsland.svelte", "public injected Svelte client", "inspected");
+      api.check(svelteIsland.includes("@fullselfbrowsing/concierge-svelte/client.svelte") && svelteIsland.includes("useConciergeBridge(() => registry, () => bridge)"), "astro-svelte-island", "examples/adapter-ssr/src/components/SvelteIsland.svelte", "public getter-injected Svelte client", "inspected");
       api.check(page.includes("adapter-ssr-evidence") && page.includes("application/json"), "astro-machine-evidence", "examples/adapter-ssr/src/pages/index.astro", "JSON evidence block", "inspected");
       api.check(!/[<]style\b|\bclass=|tailwind|document\.|window\.|navigator\./u.test([catalog, reactIsland, svelteIsland, page].join("\n")), "astro-headless-server-source", "examples/adapter-ssr/src", "no UI styling/host reads", "inspected");
       for (const token of ["mkdtemp", "ADAPTER_SSR_OUT_DIR", "astro", "index.html", "ASTRO_SSR_EVIDENCE", "renders=2", "registries=null", "globals=absent", "SSR1", "T04", "expect("]) {
@@ -721,10 +721,12 @@ function evaluateContracts(root) {
         "consent_stale",
         "PHASE09_ARCHIVE_EXPORT_DIR",
         "EXPECTED_CONTRACT_VERSION",
+        "useSvelteBridge(() => typedRegistry, () => bridge)",
+        "useConciergeBridge(() => registry, () => bridge)",
       ]) {
         api.check(script.includes(token), `package-check-${token}`, "scripts/phase-09-package-check.mjs", `live ${token} evidence`, script.includes(token) ? "present" : "absent");
       }
-      api.check(!script.includes("passWithNoTests") && !script.includes("--pack packages/concierge-react"), "package-check-no-vacuous-repack", "scripts/phase-09-package-check.mjs", "no zero-test/repack shortcuts", "inspected");
+      api.check(!script.includes("passWithNoTests") && !script.includes("--pack packages/concierge-react") && !script.includes("state_referenced_locally"), "package-check-no-vacuous-repack", "scripts/phase-09-package-check.mjs", "no zero-test/repack/suppression shortcuts", "inspected");
     }),
   );
 
