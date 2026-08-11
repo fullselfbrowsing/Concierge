@@ -58,7 +58,7 @@ findings:
   warning: 1
   info: 0
   total: 4
-status: issues_found
+status: fixed
 ---
 
 # Phase 09: Code Review Report — Iteration 3
@@ -66,7 +66,7 @@ status: issues_found
 **Reviewed:** 2026-08-11T10:09:15Z  
 **Depth:** deep  
 **Files Reviewed:** 48  
-**Status:** issues_found
+**Status:** fixed
 
 ## Summary
 
@@ -180,9 +180,20 @@ A sealed archive containing `"publishConfig":{"registry":"https://attacker.examp
 
 No production prepare/apply, terminal mutation `run all`, release battery, live publish, or npm publication command was executed. Existing unrelated changes to `.planning/config.json` and `examples/adapter-ssr/.astro/` were not touched.
 
-## Post-review Authorization Verdict
+## Fix Disposition
 
-**Not authorized.** Local credential-free `0.1.0` preparation or evidence finalization must not be run next. Fix CR-01 through CR-03, add the corresponding adversarial controls, and perform another clean review first. The current `simulate` result shows that a coherent `0.1.0` transition is possible; it does not establish a safe release boundary or authorize mutation of the checked-in evidence.
+All four iteration-3 findings were fixed on 2026-08-11:
+
+| Finding | Disposition |
+|---|---|
+| CR-01 | Fixed: `runAttempt` is required throughout version receipts, evidence, seals, publisher bindings, and every release v4 artifact name; missing, mismatched, and cross-attempt cases fail closed. |
+| CR-02 | Fixed: the privileged artifact is semantic-only, apply derives a tracked receipt, and versioned evidence can be created only by the separately documented manual receipt-backed finalization ceremony. Malicious evidence, arbitrary Markdown, lock smuggling, and consumed-digest mismatches are rejected. |
+| CR-03 | Fixed: every npm query/publish uses exact npmjs registry and owned empty configs; ambient overrides and non-exact package publish/repository metadata are rejected before a registry client is invoked. |
+| WR-01 | Fixed within the documented verification boundary: resume fetches the exact npmjs attestation endpoint and semantically binds the DSSE subject integrity and GitHub source repository/ref/commit/workflow/builder to the seal. Documentation explicitly states that this is not local signature/transparency-log verification. |
+
+## Post-fix Authorization Verdict
+
+**Review findings fixed; publication is still ceremony-gated.** This report does not authorize a live publish or automatic evidence regeneration. The Version Packages PR must contain only the reviewed semantic changes plus its apply-derived receipt; a human must then run the credential-free `finalize versioned` command from the clean committed PR head, review and commit the four receipt-bound ledgers separately, and pass the normal clean review/release gates. Failed-jobs-only reruns and ambiguous same-attempt publication both fail closed and require a full workflow rerun.
 
 ---
 
