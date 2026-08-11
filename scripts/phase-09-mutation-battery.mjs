@@ -2726,7 +2726,7 @@ function makeSecurityMarkdown({
         ? "T06 exact archive triplet"
         : threat === "T-09-08"
           ? "T08 compile-first immutable runner"
-          : `credential-free preflight plus allowlisted nested child environments with owned empty npm/git configs and an owned pnpm store; pnpm fetch --frozen-lockfile --ignore-scripts before frozen offline installs; committed ${consumerTooling.lockFile} sha256=${consumerTooling.lockSha256}; npm ${consumerTooling.npmVersion}; lock-derived cache plus npm ci --ignore-scripts --offline`);
+          : `credential-free preflight plus allowlisted nested child environments with owned empty npm/git configs and an owned pnpm store; pnpm fetch --frozen-lockfile --ignore-scripts before frozen offline installs; only authenticated disposable mutants retain PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN=false across package-check nesting; committed ${consumerTooling.lockFile} sha256=${consumerTooling.lockSha256}; npm ${consumerTooling.npmVersion}; lock-derived cache plus npm ci --ignore-scripts --offline`);
     return `| ${threat} | ${descriptions[threat]} | mitigated | ${evidence} |`;
   }).join("\n");
   return markdownSeal(`# Phase 09 Security\n\nSecurity closure for @fullselfbrowsing/concierge adapter delivery at revision ${releaseInputDigest}.\n\n| Threat | Surface | Disposition | Evidence |\n|---|---|---|---|\n${rows}\n\nThe live Phase 8 records remain byte-identical and their release proof remains the nested release member of 08-consent-kernel/08-MUTATION-EVIDENCE.json.\n`);

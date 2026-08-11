@@ -102,6 +102,18 @@ The workflow has five jobs and two distinct pushes to `main`:
    acquire exact lockfile dependencies from `https://registry.npmjs.org/`; it receives
    no ambient credentials/config and runs no dependency lifecycle scripts.
 
+   One narrowly authenticated policy crosses the package checker's second isolation
+   boundary during disposable mutation execution: the runner supplies exactly
+   `PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN=false`, and the package checker retains it only
+   when its parent also carries `PHASE09_CREDENTIAL_FREE_ENV=1`. This prevents pnpm
+   from attempting to install or reject the deliberately inconsistent P1 manifest
+   before the registered package semantic detector runs. Missing authentication,
+   another value, or ambiguous case variants fail closed. The nested checker still
+   rebuilds its owned HOME/config/store and does not forward `NODE_OPTIONS`, capture
+   paths, credentials, config overrides, store redirects, or other ambient fields.
+   Normal substantive package and release gates receive no such policy and retain
+   pnpm's default dependency-verification behavior.
+
    This is process-environment and tool-config isolation, not an OS network or
    filesystem sandbox. Exact dependency downloads can still reach the public npmjs
    registry, and child code retains the host permissions of the operator. Use a

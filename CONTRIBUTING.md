@@ -110,6 +110,11 @@ If your adapter is meaningfully longer than ~150 lines, logic has leaked out of 
   `pnpm fetch --frozen-lockfile --ignore-scripts` before each frozen offline install;
   fetch failure stops before install or evidence, and no lifecycle script runs during
   acquisition.
+  For disposable manifest mutants only, package-check descendants retain the exact
+  authenticated `PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN=false` runner policy so pnpm
+  cannot preempt the semantic detector with an automatic install. Normal package
+  gates retain pnpm's default policy, and no other ambient field crosses that nested
+  boundary.
   This boundary does not claim OS network or filesystem sandboxing; use an ephemeral,
   restricted host when that stronger isolation is required.
 
