@@ -65,6 +65,7 @@ const PHASE_DIRECTORY = ".planning/phases/09-react-and-svelte-adapters";
 const BASELINE_PATH = `${PHASE_DIRECTORY}/09-RED-BASELINE.json`;
 const BASELINE_SCHEMA_VERSION = 1;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
+const FIRST_RELEASE_CORE_PEER = "workspace:^0.0.0 || ^0.1.0";
 
 const REACT_SOURCE_PATHS = Object.freeze([
   "packages/concierge-react/src/index.ts",
@@ -517,12 +518,15 @@ function evaluateContracts(root) {
       const license = api.text("packages/concierge-react/LICENSE");
       const coreLicense = api.text("packages/concierge/LICENSE");
       const lock = api.text("pnpm-lock.yaml");
+      const expectedCorePeer = manifest?.version === "0.0.0"
+        ? FIRST_RELEASE_CORE_PEER
+        : "workspace:^";
 
       api.check(manifest?.name === "@fullselfbrowsing/concierge-react", "react-package-name", "packages/concierge-react/package.json", "@fullselfbrowsing/concierge-react", manifest?.name ?? "absent");
       api.check(manifest?.private === false, "react-public-package", "packages/concierge-react/package.json", "private false", manifest?.private ?? "absent");
       api.check(manifest?.type === "module" && manifest?.sideEffects === false, "react-esm-side-effects", "packages/concierge-react/package.json", "ESM and sideEffects false", `${manifest?.type ?? "absent"}/${manifest?.sideEffects ?? "absent"}`);
       api.check(isRecord(manifest?.exports?.["."]) && isRecord(manifest?.exports?.["./client"]), "react-two-exports", "packages/concierge-react/package.json", "root and ./client maps", "inspected");
-      api.check(manifest?.peerDependencies?.["@fullselfbrowsing/concierge"] === "workspace:^", "react-core-peer", "packages/concierge-react/package.json", "workspace:^", manifest?.peerDependencies?.["@fullselfbrowsing/concierge"] ?? "absent");
+      api.check(manifest?.peerDependencies?.["@fullselfbrowsing/concierge"] === expectedCorePeer, "react-core-peer", "packages/concierge-react/package.json", expectedCorePeer, manifest?.peerDependencies?.["@fullselfbrowsing/concierge"] ?? "absent");
       api.check(manifest?.devDependencies?.["@fullselfbrowsing/concierge"] === "workspace:*", "react-core-dev-link", "packages/concierge-react/package.json", "workspace:*", manifest?.devDependencies?.["@fullselfbrowsing/concierge"] ?? "absent");
       api.check(manifest?.dependencies?.["@fullselfbrowsing/concierge"] === undefined, "react-no-core-dependency", "packages/concierge-react/package.json", "ordinary dependency absent", manifest?.dependencies?.["@fullselfbrowsing/concierge"] ?? "absent");
       api.check(manifest?.peerDependencies?.react === "^18.2.0 || ^19.0.0" && manifest?.peerDependencies?.["react-dom"] === "^18.2.0 || ^19.0.0", "react-framework-peers", "packages/concierge-react/package.json", "React 18.2/19 peers", "inspected");
@@ -595,6 +599,9 @@ function evaluateContracts(root) {
       const license = api.text("packages/concierge-svelte/LICENSE");
       const coreLicense = api.text("packages/concierge/LICENSE");
       const lock = api.text("pnpm-lock.yaml");
+      const expectedCorePeer = manifest?.version === "0.0.0"
+        ? FIRST_RELEASE_CORE_PEER
+        : "workspace:^";
 
       api.check(manifest?.name === "@fullselfbrowsing/concierge-svelte", "svelte-package-name", "packages/concierge-svelte/package.json", "@fullselfbrowsing/concierge-svelte", manifest?.name ?? "absent");
       api.check(manifest?.type === "module" && manifest?.sideEffects === false, "svelte-esm-side-effects", "packages/concierge-svelte/package.json", "ESM and sideEffects false", "inspected");
@@ -603,7 +610,7 @@ function evaluateContracts(root) {
         const entry = manifest?.exports?.[exportName];
         api.check(exactObjectKeys(entry, ["types", "svelte", "import", "default"]), `svelte-export-conditions-${exportName}`, "packages/concierge-svelte/package.json", "types/svelte/import/default only", JSON.stringify(Object.keys(entry ?? {})));
       }
-      api.check(manifest?.peerDependencies?.["@fullselfbrowsing/concierge"] === "workspace:^" && manifest?.peerDependencies?.svelte === "^5.0.0", "svelte-peers", "packages/concierge-svelte/package.json", "core workspace:^ and Svelte ^5", "inspected");
+      api.check(manifest?.peerDependencies?.["@fullselfbrowsing/concierge"] === expectedCorePeer && manifest?.peerDependencies?.svelte === "^5.0.0", "svelte-peers", "packages/concierge-svelte/package.json", `core ${expectedCorePeer} and Svelte ^5`, "inspected");
       api.check(manifest?.devDependencies?.["@fullselfbrowsing/concierge"] === "workspace:*", "svelte-core-dev-link", "packages/concierge-svelte/package.json", "workspace:*", manifest?.devDependencies?.["@fullselfbrowsing/concierge"] ?? "absent");
       api.check(manifest?.dependencies?.["@fullselfbrowsing/concierge"] === undefined, "svelte-no-core-dependency", "packages/concierge-svelte/package.json", "ordinary dependency absent", manifest?.dependencies?.["@fullselfbrowsing/concierge"] ?? "absent");
       for (const [name, expected] of Object.entries({

@@ -15,6 +15,7 @@ type ExportConditions = {
 };
 
 type PackageManifest = {
+  readonly version: string;
   readonly main: string;
   readonly types: string;
   readonly svelte: string;
@@ -109,7 +110,9 @@ describe("the built @fullselfbrowsing/concierge-svelte entries", () => {
     expect(JSON.stringify(manifest)).not.toContain("tsdown");
     expect(manifest.dependencies?.["@fullselfbrowsing/concierge"]).toBeUndefined();
     expect(manifest.peerDependencies["@fullselfbrowsing/concierge"]).toBe(
-      "workspace:^",
+      manifest.version === "0.0.0"
+        ? "workspace:^0.0.0 || ^0.1.0"
+        : "workspace:^",
     );
     expect(Object.keys(rootConditions)).toEqual([
       "types",

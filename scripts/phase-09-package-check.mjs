@@ -52,6 +52,7 @@ const PACK_COMMAND = "pnpm pack";
 const CORE_NAME = "@fullselfbrowsing/concierge";
 const REACT_NAME = "@fullselfbrowsing/concierge-react";
 const SVELTE_NAME = "@fullselfbrowsing/concierge-svelte";
+const FIRST_RELEASE_CORE_PEER = "workspace:^0.0.0 || ^0.1.0";
 const CONSUMER_TOOLING_FIXTURE = join(
   REPOSITORY_ROOT,
   "scripts/fixtures/phase-09-foreign-consumer",
@@ -389,6 +390,12 @@ function validateArchiveContents(archive) {
   );
 
   if (archive.key !== "core") {
+    const expectedLiveCorePeer = liveManifest.version === "0.0.0"
+      ? FIRST_RELEASE_CORE_PEER
+      : "workspace:^";
+    const expectedPackedCorePeer = liveManifest.version === "0.0.0"
+      ? "^0.0.0 || ^0.1.0"
+      : `^${liveManifest.version}`;
     const expectedFrameworkPeers =
       archive.key === "react"
         ? Object.freeze({
@@ -397,17 +404,17 @@ function validateArchiveContents(archive) {
           })
         : Object.freeze({ svelte: "^5.0.0" });
     assert(
-      liveManifest.peerDependencies?.[CORE_NAME] === "workspace:^" &&
+      liveManifest.peerDependencies?.[CORE_NAME] === expectedLiveCorePeer &&
         liveManifest.devDependencies?.[CORE_NAME] === "workspace:*" &&
         liveManifest.dependencies?.[CORE_NAME] === undefined,
       "ADAPTER_MANIFEST",
       `${archive.name} live manifest must keep core peer+dev only`,
     );
     assert(
-      typeof archive.manifest.peerDependencies?.[CORE_NAME] === "string" &&
+      archive.manifest.peerDependencies?.[CORE_NAME] === expectedPackedCorePeer &&
         archive.manifest.dependencies?.[CORE_NAME] === undefined,
       "ADAPTER_MANIFEST",
-      `${archive.name} packed manifest must keep core peer-only at runtime`,
+      `${archive.name} packed manifest must contain exact core peer ${expectedPackedCorePeer}`,
     );
     for (const [name, range] of Object.entries(expectedFrameworkPeers)) {
       assert(

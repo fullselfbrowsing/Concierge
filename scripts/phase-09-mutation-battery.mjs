@@ -112,6 +112,14 @@ const EXPECTED_PHASE09_TEST_FILES = Object.freeze([
   "packages/concierge-svelte/test/artifact.test.ts",
   "packages/concierge-svelte/test/lifecycle.test.ts",
 ]);
+const VERSIONED_REQUIRED_PATHS = Object.freeze([
+  "packages/concierge/package.json",
+  "packages/concierge/CHANGELOG.md",
+  "packages/concierge-react/package.json",
+  "packages/concierge-react/CHANGELOG.md",
+  "packages/concierge-svelte/package.json",
+  "packages/concierge-svelte/CHANGELOG.md",
+]);
 const REQUIRED_FINAL_INPUT_PATHS = Object.freeze([
   "package.json",
   "pnpm-lock.yaml",
@@ -160,6 +168,9 @@ const REQUIRED_FINAL_INPUT_PATHS = Object.freeze([
   "scripts/phase-09-test-check.mjs",
   "scripts/phase-09-workflow-check.mjs",
   "scripts/phase-09-mutation-battery.mjs",
+  "scripts/phase-09-publish-archives.mjs",
+  "scripts/phase-09-version.mjs",
+  ".changeset/config.json",
   CONSUMER_TOOLING_MANIFEST_PATH,
   CONSUMER_TOOLING_LOCK_PATH,
   ".planning/phases/09-react-and-svelte-adapters/09-RED-BASELINE.json",
@@ -191,6 +202,7 @@ const INPUT_DIRECTORY_PREFIXES = Object.freeze([
   "packages/concierge-svelte/",
   "examples/adapter-ssr/",
   "scripts/",
+  ".changeset/",
   ".github/workflows/",
 ]);
 const TEST_HASH_PATHS = Object.freeze({
@@ -318,7 +330,7 @@ const REGISTER_ROW_KEYS = Object.freeze([
 ]);
 const USAGE =
   "Usage: node scripts/phase-09-mutation-battery.mjs " +
-  "self-test|preflight <registered-id>|run all --jobs <1-4>|" +
+  "self-test|preflight <registered-id>|run <all|versioned> --jobs <1-4>|" +
   "verify <evidence|release|all>";
 const TEMP_PREFIX = "concierge-phase09-mutation-";
 const OWNERSHIP_MARKER = ".concierge-phase09-mutation-owned-root";
@@ -414,12 +426,16 @@ function parseInvocation(arguments_) {
   if (
     arguments_.length === 4 &&
     arguments_[0] === "run" &&
-    arguments_[1] === "all" &&
+    ["all", "versioned"].includes(arguments_[1]) &&
     arguments_[2] === "--jobs"
   ) {
     const jobs = Number(arguments_[3]);
     if (Number.isInteger(jobs) && jobs >= 1 && jobs <= 4) {
-      return Object.freeze({ kind: "run-all", jobs });
+      return Object.freeze({
+        kind: "run-all",
+        jobs,
+        versioned: arguments_[1] === "versioned",
+      });
     }
   }
   if (
@@ -665,6 +681,76 @@ function assertCleanReleaseInputs(
     dirty.length === 0,
     `release input tree is dirty:\n${dirty.join("\n")}`,
   );
+}
+
+function validateVersionedWorktree(root) {
+  const lines = runGitSync(
+    ["status", "--porcelain=v1", "--untracked-files=all"],
+    root,
+  )
+    .split(/\r?\n/u)
+    .filter(Boolean);
+  assert(lines.length > 0, "versioned release tree has no staged changes");
+
+  const paths = [];
+  let consumedChangesets = 0;
+  for (const line of lines) {
+    const status = line.slice(0, 2);
+    const path = line.slice(3).replace(/^"|"$/gu, "");
+    assert(
+      status[0] !== " " && status[0] !== "?" && status[1] === " ",
+      `versioned release path is not fully staged: ${line}`,
+    );
+    if (/^\.changeset\/[^/]+\.md$/u.test(path)) {
+      assert(status[0] === "D", `versioned changeset must be consumed: ${line}`);
+      consumedChangesets += 1;
+    } else {
+      assert(
+        VERSIONED_REQUIRED_PATHS.includes(path) || path === "pnpm-lock.yaml",
+        `versioned release changed an unexpected path: ${line}`,
+      );
+    }
+    paths.push(path);
+  }
+  for (const path of VERSIONED_REQUIRED_PATHS) {
+    assert(paths.includes(path), `versioned release omitted required path: ${path}`);
+  }
+  assert(consumedChangesets > 0, "versioned release consumed no changeset");
+
+  const versions = [
+    "packages/concierge/package.json",
+    "packages/concierge-react/package.json",
+    "packages/concierge-svelte/package.json",
+  ].map((path) => JSON.parse(readFileSync(join(root, path), "utf8")).version);
+  assert(
+    versions.every(
+      (version) =>
+        version === versions[0] &&
+        /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(version) &&
+        version !== "0.0.0",
+    ),
+    `versioned release package triplet drifted: ${versions.join(", ")}`,
+  );
+  return Object.freeze({
+    paths: Object.freeze(paths),
+    status: Object.freeze(lines),
+  });
+}
+
+function verifyLiveMutationState(liveState) {
+  verifyInputManifest(liveState.inputManifest, ROOT, {
+    verifyPathSet: !liveState.versioned,
+  });
+  assertCleanReleaseInputs(ROOT, liveState.paths, {
+    allowedModifiedPaths: liveState.allowedModifiedPaths,
+  });
+  if (liveState.versioned) {
+    const current = validateVersionedWorktree(ROOT);
+    assert(
+      JSON.stringify(current.status) === JSON.stringify(liveState.versionedStatus),
+      "versioned release status changed during evidence generation",
+    );
+  }
 }
 
 function outputEndpoints() {
@@ -1086,10 +1172,7 @@ async function executeMutant(row, baseline, liveState, outerRoot) {
 
   assert(sha256File(targetPath) === originalTargetHash, `${row.id}: disposable target was not restored`);
   verifyInputManifest(baseline.inputManifest, baseline.root);
-  verifyInputManifest(liveState.inputManifest, ROOT);
-  assertCleanReleaseInputs(ROOT, liveState.paths, {
-    allowedModifiedPaths: liveState.allowedModifiedPaths,
-  });
+  verifyLiveMutationState(liveState);
   assertOutputEndpoints(liveState.outputEndpoints);
 
   const metadata = mutationRowMetadata(row, baseline.root);
@@ -1142,16 +1225,30 @@ async function executeMutant(row, baseline, liveState, outerRoot) {
   });
 }
 
-function mutationLiveState({ allowRunnerModification = false } = {}) {
-  const paths = releaseInputPaths(ROOT);
-  const allowedModifiedPaths = allowRunnerModification
-    ? ["scripts/phase-09-mutation-battery.mjs"]
-    : [];
+function mutationLiveState({
+  allowRunnerModification = false,
+  allowVersionedWorktree = false,
+} = {}) {
+  const trackedPaths = releaseInputPaths(ROOT);
+  const versionedState = allowVersionedWorktree
+    ? validateVersionedWorktree(ROOT)
+    : null;
+  const paths = allowVersionedWorktree
+    ? trackedPaths.filter((path) => existsSync(join(ROOT, path)))
+    : trackedPaths;
+  const allowedModifiedPaths = [
+    ...(allowRunnerModification
+      ? ["scripts/phase-09-mutation-battery.mjs"]
+      : []),
+    ...(versionedState?.paths ?? []).filter((path) => paths.includes(path)),
+  ];
   assertCleanReleaseInputs(ROOT, paths, { allowedModifiedPaths });
   return Object.freeze({
     paths,
     inputManifest: makeInputManifest(ROOT, paths),
     allowedModifiedPaths,
+    versioned: allowVersionedWorktree,
+    versionedStatus: versionedState?.status ?? Object.freeze([]),
     outputEndpoints: outputEndpoints(),
   });
 }
@@ -1358,6 +1455,19 @@ async function runSelfTest() {
     "undeclared CLI",
   );
   pass("exact-cli");
+  const versionedInvocation = parseInvocation([
+    "run",
+    "versioned",
+    "--jobs",
+    "2",
+  ]);
+  assert(
+    versionedInvocation.kind === "run-all" &&
+      versionedInvocation.jobs === 2 &&
+      versionedInvocation.versioned === true,
+    "versioned invocation did not retain its worktree mode",
+  );
+  pass("versioned-cli");
 
   const pnpmConfig = await runCommand(
     "pnpm",
@@ -1371,7 +1481,7 @@ async function runSelfTest() {
   );
   pass("pnpm-pre-run-install-disabled");
 
-  assert(controls === 16, `self-test control count drifted: ${controls}`);
+  assert(controls === 17, `self-test control count drifted: ${controls}`);
   assertOutputEndpoints(endpoints);
   console.log(`PHASE09_MUTATION_SELF_TEST_OK controls=${controls}`);
 }
@@ -1938,9 +2048,9 @@ function installOutputsTransactionally(sourceRoot) {
   }
 }
 
-async function runAll(jobs) {
+async function runAll(jobs, { versioned = false } = {}) {
   const register = validateRegister(readRegister());
-  const liveState = mutationLiveState();
+  const liveState = mutationLiveState({ allowVersionedWorktree: versioned });
   ensureFinalInputs(ROOT, liveState.paths);
   const inheritedHashes = phase08Hashes(ROOT);
   const outerRoot = createOwnedTempRoot();
@@ -1954,8 +2064,7 @@ async function runAll(jobs) {
     });
     const releaseGates = await runReleaseGates(baseline, outerRoot);
     assertPhase08Hashes(inheritedHashes, ROOT);
-    verifyInputManifest(liveState.inputManifest, ROOT);
-    assertCleanReleaseInputs(ROOT, liveState.paths);
+    verifyLiveMutationState(liveState);
 
     const mutationEvidence = sealedObject({
       schemaVersion: 1,
@@ -2030,8 +2139,7 @@ async function runAll(jobs) {
     assertSuccessfulCommand(prospectiveVerify, "prospective Phase 09 verify all");
 
     assertPhase08Hashes(inheritedHashes, ROOT);
-    verifyInputManifest(liveState.inputManifest, ROOT);
-    assertCleanReleaseInputs(ROOT, liveState.paths);
+    verifyLiveMutationState(liveState);
     installOutputsTransactionally(baseline.root);
     verifyAll(ROOT, { quiet: true });
     console.log(
@@ -2053,7 +2161,9 @@ async function main(arguments_) {
     return;
   }
   if (invocation.kind === "run-all") {
-    await withMutationLock(() => runAll(invocation.jobs));
+    await withMutationLock(() =>
+      runAll(invocation.jobs, { versioned: invocation.versioned }),
+    );
     return;
   }
   if (invocation.kind === "verify-evidence") {

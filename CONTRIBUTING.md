@@ -67,6 +67,24 @@ If your adapter is meaningfully longer than ~150 lines, logic has leaked out of 
 
 - **`ignore` is deliberately empty (`[]`) and explicit.** A package belongs in it when it is a workspace member that must never be published *and* is not already covered by `private: true`. Keeping the key present with an empty array means the first such package in Phase 9 has an obvious home, instead of the discovery that `changeset version` wants to version something that must not publish.
 - **`privatePackages` is `false`, and that is load-bearing rather than tidy.** Omitting it defaults to `{version: true, tag: false}` — changesets versions private packages by default. The workspace contains two private members, `@fullselfbrowsing/concierge-fixture-alpha` and `@fullselfbrowsing/concierge-fixture-beta` under `packages/concierge/test/fixtures/`, which exist to prove the peer-dependency install graph and must never appear in a release plan. Measured on this repo: with the setting, the versionable changed set is `["@fullselfbrowsing/concierge"]`; without it, both fixtures join it.
+- **The three public packages are one fixed release group.** Core, React, and Svelte
+  must leave a Version Packages PR at one identical version. A release changeset for
+  the adapter set names all three packages at the same bump level; the version wrapper
+  rejects missing outputs, unrelated source changes, an unconsumed changeset, or
+  version drift before it regenerates evidence.
+- **Adapter-to-core release transitions stay explicitly bounded.** Do not broaden the
+  source peer to `>=0.0.0`: that admits future incompatible majors and defeats the loud
+  singleton/contract boundary. Changesets treats a canonical `workspace:^` at 0.0.0
+  as excluding 0.1.0, so the first release branch uses exactly
+  `workspace:^0.0.0 || ^0.1.0`. Raw `changeset status` therefore reports the intended
+  minor triplet. `version:phase09` requires that second arm to equal the actual output
+  and normalizes the Version Packages PR back to `workspace:^`; pnpm packs it as
+  `^0.1.0`. A later pre-1.0 minor follows the same bounded old/new pattern.
+- **`onlyUpdatePeerDependentsWhenOutOfRange` is intentionally enabled.** Its alarming
+  experimental key is pinned by `phase-09-workflow-check.mjs`; removing it or the fixed
+  group changes the calculated release types. The private snapshot range, this option,
+  bounded transition, final peer normalization, shared version check, and versioned package install are one
+  control, not interchangeable configuration preferences.
 
 The first-publish checklist lives in [`RELEASING.md`](./RELEASING.md).
 
