@@ -414,7 +414,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 09-04-PLAN.md — Thin React context/client adapter with StrictMode, late-value, cleanup, SSR, and artifact proof
+- [x] 09-04-PLAN.md — Thin React context/client adapter with StrictMode, late-value, cleanup, SSR, and artifact proof
 - [ ] 09-05-PLAN.md — Thin native Svelte context/effect adapter with real `$state.snapshot` and artifact proof
 
 **Wave 5** *(blocked on Wave 4 completion)*
@@ -486,4 +486,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Dispatcher | 8/8 | Complete   | 2026-08-07 |
 | 7. Session and the transport seam | 7/7 | Complete    | 2026-08-10 |
 | 8. Consent kernel | 8/8 | Complete | 2026-08-10 |
-| 9. React and Svelte adapters | 3/13 | In Progress|  |
+| 9. React and Svelte adapters | 4/13 | In Progress|  |
