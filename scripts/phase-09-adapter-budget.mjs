@@ -21,6 +21,13 @@ import {
   sep,
 } from "node:path";
 import { fileURLToPath } from "node:url";
+import { version as TYPESCRIPT_VERSION } from "typescript";
+import { API } from "typescript/unstable/sync";
+import {
+  formatSyntaxKind,
+  ScriptKind,
+  SyntaxKind,
+} from "typescript/unstable/ast";
 
 const MODES = new Set(["check", "self-test"]);
 const LIMIT = 150;
@@ -86,7 +93,9 @@ const BASE_FIXTURE_FILES = Object.freeze({
   "packages/concierge-react/src/client.tsx": LEXICAL_CONTROL_SOURCE,
   "packages/concierge-react/src/index.ts": "export type ReactValue = string;\n",
   "packages/concierge-svelte/src/client.svelte.ts":
-    "export const snapshot = <T>(value: T): T => value;\n",
+    "export function detach<T>(value: T): T {\n" +
+    "  return $state.snapshot(value);\n" +
+    "}\n",
   "packages/concierge-svelte/src/index.ts":
     "export type SvelteValue = string;\n",
 });
@@ -119,12 +128,110 @@ const LOOP_CONTROLS = Object.freeze([
   }),
 ]);
 
-const RESPONSIBILITY_CONTROL = Object.freeze({
-  name: "forbidden-createConcierge-call",
-  source:
-    "declare function createConcierge(value: object): unknown;\n" +
-    "export const ownedCore = createConcierge({});\n",
-});
+const RESPONSIBILITY_CONTROLS = Object.freeze([
+  Object.freeze({
+    name: "forbidden-createConcierge-call",
+    finding: "core-construction:createConcierge",
+    source:
+      "declare function createConcierge(value: object): unknown;\n" +
+      "export const ownedCore = createConcierge({});\n",
+  }),
+  Object.freeze({
+    name: "forbidden-defineAction-call",
+    finding: "action-catalog:defineAction",
+    source:
+      "declare function defineAction(value: object): unknown;\n" +
+      'export const action = defineAction({ name: "owned" });\n',
+  }),
+  Object.freeze({
+    name: "forbidden-stage-matcher",
+    finding: "stage-matching:stageMatcher",
+    source:
+      "export const stageMatcher = (value: unknown): boolean => Boolean(value);\n",
+  }),
+  Object.freeze({
+    name: "forbidden-session-ownership",
+    finding: "session-ownership:sessionState",
+    source: 'export const sessionState = "connected";\n',
+  }),
+  Object.freeze({
+    name: "forbidden-consent-transition",
+    finding: "consent-ownership:consentTransition",
+    source: 'export const consentTransition = "armed";\n',
+  }),
+  Object.freeze({
+    name: "forbidden-transport-routing",
+    finding: "transport-routing:transportRouter",
+    source:
+      "export const transportRouter = (value: unknown): unknown => value;\n",
+  }),
+  Object.freeze({
+    name: "forbidden-scheduler-call",
+    finding: "scheduling:setTimeout",
+    source:
+      "declare function setTimeout(callback: () => void, delay: number): void;\n" +
+      "setTimeout(() => undefined, 0);\n",
+  }),
+  Object.freeze({
+    name: "forbidden-retry-state",
+    finding: "retry-cache-queue:retryCount",
+    source: "export let retryCount = 0;\n",
+  }),
+  Object.freeze({
+    name: "forbidden-dedupe-cache",
+    finding: "retry-cache-queue:dedupeCache",
+    source: "export const dedupeCache = new Map<string, unknown>();\n",
+  }),
+  Object.freeze({
+    name: "forbidden-queue",
+    finding: "retry-cache-queue:workQueue",
+    source: "export const workQueue: unknown[] = [];\n",
+  }),
+  Object.freeze({
+    name: "forbidden-result-sanitation",
+    finding: "result-sanitation:sanitizeResult",
+    source:
+      "export const sanitizeResult = (value: unknown): unknown => value;\n",
+  }),
+  Object.freeze({
+    name: "forbidden-state-container",
+    finding: "state-container:Map",
+    source: "export const ownedState = new Map<string, unknown>();\n",
+  }),
+]);
+
+const FORBIDDEN_LOOP_KINDS = new Map([
+  [SyntaxKind.ForStatement, "ForStatement"],
+  [SyntaxKind.ForInStatement, "ForInStatement"],
+  [SyntaxKind.ForOfStatement, "ForOfStatement"],
+  [SyntaxKind.WhileStatement, "WhileStatement"],
+  [SyntaxKind.DoStatement, "DoStatement"],
+]);
+
+const FORBIDDEN_CALLS = new Map([
+  ["buildCatalog", "action-catalog"],
+  ["catalogFor", "action-catalog"],
+  ["createBridge", "core-construction"],
+  ["createConcierge", "core-construction"],
+  ["createSession", "session-ownership"],
+  ["defineAction", "action-catalog"],
+  ["dispatch", "transport-routing"],
+  ["dispatchBatch", "transport-routing"],
+  ["queueMicrotask", "scheduling"],
+  ["requestAnimationFrame", "scheduling"],
+  ["requestIdleCallback", "scheduling"],
+  ["setImmediate", "scheduling"],
+  ["setInterval", "scheduling"],
+  ["setTimeout", "scheduling"],
+  ["stageFor", "stage-matching"],
+]);
+
+const FORBIDDEN_CONSTRUCTORS = new Set([
+  "Map",
+  "Set",
+  "WeakMap",
+  "WeakSet",
+]);
 
 class GateError extends Error {
   constructor(code, message) {
@@ -374,6 +481,186 @@ function countAuthoredLines(source) {
   return count;
 }
 
+function classifyResponsibilityIdentifier(name) {
+  const normalized = name.toLowerCase();
+
+  if (normalized.includes("catalog")) return "action-catalog";
+  if (normalized.includes("stage") && normalized.includes("match")) {
+    return "stage-matching";
+  }
+  if (normalized.includes("session")) return "session-ownership";
+  if (normalized.includes("consent")) return "consent-ownership";
+  if (
+    normalized.includes("transport") ||
+    normalized.includes("dispatch") ||
+    normalized.includes("router")
+  ) {
+    return "transport-routing";
+  }
+  if (
+    normalized.includes("scheduler") ||
+    normalized.includes("schedule") ||
+    normalized.includes("timer") ||
+    normalized.includes("timeout") ||
+    normalized.includes("interval")
+  ) {
+    return "scheduling";
+  }
+  if (
+    normalized.includes("retry") ||
+    normalized.includes("dedup") ||
+    normalized.includes("cache") ||
+    normalized.includes("queue")
+  ) {
+    return "retry-cache-queue";
+  }
+  if (
+    (normalized.includes("result") || normalized.includes("outcome")) &&
+    (normalized.includes("aggregat") ||
+      normalized.includes("merge") ||
+      normalized.includes("normaliz") ||
+      normalized.includes("sanit"))
+  ) {
+    return "result-sanitation";
+  }
+
+  return undefined;
+}
+
+function terminalExpressionName(expression, sourceFile) {
+  if (expression.kind === SyntaxKind.Identifier) {
+    return expression.getText(sourceFile);
+  }
+  if (expression.kind === SyntaxKind.PropertyAccessExpression) {
+    return expression.name?.getText(sourceFile);
+  }
+  if (expression.kind === SyntaxKind.ElementAccessExpression) {
+    const argument = expression.argumentExpression;
+    if (
+      argument?.kind === SyntaxKind.StringLiteral ||
+      argument?.kind === SyntaxKind.NoSubstitutionTemplateLiteral
+    ) {
+      return argument.text;
+    }
+  }
+
+  return undefined;
+}
+
+function diagnosticMessage(diagnostic) {
+  if (typeof diagnostic?.messageText === "string") {
+    return diagnostic.messageText;
+  }
+  if (diagnostic?.messageText !== undefined) {
+    return JSON.stringify(diagnostic.messageText);
+  }
+  return "unknown parser diagnostic";
+}
+
+function sourceLocation(path, sourceFile, node) {
+  const position = node.getStart();
+  const location = sourceFile.getLineAndCharacterOfPosition(position);
+  return `${path}:${location.line + 1}:${location.character + 1}`;
+}
+
+function rejectResponsibility(path, sourceFile, node, category, name) {
+  throw new GateError(
+    "FORBIDDEN_RESPONSIBILITY",
+    `${sourceLocation(path, sourceFile, node)} ${category}:${name}`,
+  );
+}
+
+function inspectProductionNode(path, sourceFile, node) {
+  const loopKind = FORBIDDEN_LOOP_KINDS.get(node.kind);
+  if (loopKind !== undefined) {
+    throw new GateError(
+      "FORBIDDEN_LOOP",
+      `${sourceLocation(path, sourceFile, node)} SyntaxKind.${loopKind}`,
+    );
+  }
+
+  if (node.kind === SyntaxKind.ImportDeclaration) {
+    const moduleName = node.moduleSpecifier?.text;
+    if (
+      typeof moduleName === "string" &&
+      moduleName.startsWith("@fullselfbrowsing/concierge/")
+    ) {
+      rejectResponsibility(
+        path,
+        sourceFile,
+        node,
+        "private-core-import",
+        moduleName,
+      );
+    }
+    if (
+      typeof moduleName === "string" &&
+      /(?:scheduler|timers?)(?:[/.-]|$)/iu.test(moduleName)
+    ) {
+      rejectResponsibility(
+        path,
+        sourceFile,
+        node,
+        "scheduling-import",
+        moduleName,
+      );
+    }
+  }
+
+  if (node.kind === SyntaxKind.ImportSpecifier) {
+    const importedName = (node.propertyName ?? node.name)?.getText(sourceFile);
+    if (importedName !== undefined) {
+      const category =
+        FORBIDDEN_CALLS.get(importedName) ??
+        classifyResponsibilityIdentifier(importedName);
+      if (category !== undefined) {
+        rejectResponsibility(
+          path,
+          sourceFile,
+          node,
+          category,
+          importedName,
+        );
+      }
+    }
+  }
+
+  if (node.kind === SyntaxKind.CallExpression) {
+    const calledName = terminalExpressionName(node.expression, sourceFile);
+    const category =
+      calledName === undefined ? undefined : FORBIDDEN_CALLS.get(calledName);
+    if (category !== undefined) {
+      rejectResponsibility(path, sourceFile, node, category, calledName);
+    }
+  }
+
+  if (node.kind === SyntaxKind.NewExpression) {
+    const constructedName = terminalExpressionName(node.expression, sourceFile);
+    if (
+      constructedName !== undefined &&
+      FORBIDDEN_CONSTRUCTORS.has(constructedName)
+    ) {
+      rejectResponsibility(
+        path,
+        sourceFile,
+        node,
+        "state-container",
+        constructedName,
+      );
+    }
+  }
+
+  if (node.kind === SyntaxKind.Identifier) {
+    const name = node.getText(sourceFile);
+    const category = classifyResponsibilityIdentifier(name);
+    if (category !== undefined) {
+      rejectResponsibility(path, sourceFile, node, category, name);
+    }
+  }
+
+  node.forEachChild((child) => inspectProductionNode(path, sourceFile, child));
+}
+
 async function analyzeProductionResponsibilities(root, paths) {
   if (!Array.isArray(paths) || paths.length === 0) {
     throw new GateError(
@@ -382,10 +669,69 @@ async function analyzeProductionResponsibilities(root, paths) {
     );
   }
 
-  throw new GateError(
-    "AST_GATE_UNIMPLEMENTED",
-    `TypeScript AST responsibility analysis is missing for ${relativePath(root, resolve(root, paths[0]))}`,
-  );
+  if (!TYPESCRIPT_VERSION.startsWith("7.")) {
+    throw new GateError(
+      "AST_ENGINE",
+      `expected pinned TypeScript 7, found ${TYPESCRIPT_VERSION}`,
+    );
+  }
+
+  const absolutePaths = paths.map((path) => resolve(root, path));
+  const api = new API();
+  let snapshot;
+
+  try {
+    snapshot = api.updateSnapshot({ openFiles: absolutePaths });
+
+    for (const [index, absolute] of absolutePaths.entries()) {
+      const path = paths[index];
+      const project = snapshot.getDefaultProjectForFile(absolute);
+      const sourceFile = project?.program.getSourceFile(absolute);
+      if (sourceFile === undefined) {
+        throw new GateError(
+          "AST_SOURCE",
+          `${path} was not loaded into a TypeScript project`,
+        );
+      }
+
+      const expectedScriptKind = path.endsWith(".tsx")
+        ? ScriptKind.TSX
+        : ScriptKind.TS;
+      if (
+        sourceFile.kind !== SyntaxKind.SourceFile ||
+        sourceFile.scriptKind !== expectedScriptKind
+      ) {
+        throw new GateError(
+          "AST_SOURCE",
+          `${path} parsed as ${formatSyntaxKind(sourceFile.kind)} ` +
+            `with ScriptKind ${sourceFile.scriptKind}; expected ` +
+            `SourceFile/${expectedScriptKind}`,
+        );
+      }
+
+      const diagnostics = project.program.getSyntacticDiagnostics(absolute);
+      if (diagnostics.length > 0) {
+        const diagnostic = diagnostics[0];
+        throw new GateError(
+          "AST_PARSE",
+          `${path} TypeScript ${diagnostic.code}: ${diagnosticMessage(diagnostic)}`,
+        );
+      }
+
+      sourceFile.forEachChild((node) =>
+        inspectProductionNode(path, sourceFile, node),
+      );
+    }
+  } catch (error) {
+    if (error instanceof GateError) throw error;
+    throw new GateError(
+      "AST_ENGINE",
+      error instanceof Error ? error.message : String(error),
+    );
+  } finally {
+    snapshot?.dispose();
+    api.close();
+  }
 }
 
 async function runInventoryAndBudgetGate(root, adapters = ADAPTERS) {
@@ -587,7 +933,7 @@ async function runSelfTest() {
     if (
       baseline.length !== 2 ||
       baseline[0]?.total !== 6 ||
-      baseline[1]?.total !== 2
+      baseline[1]?.total !== 4
     ) {
       throw new GateError(
         "SELF_TEST",
@@ -642,6 +988,53 @@ async function runSelfTest() {
       "LINE_BUDGET",
       "@fullselfbrowsing/concierge-react measured 152",
     );
+    await writeFile(
+      resolve(root, overLimitPath),
+      BASE_FIXTURE_FILES[overLimitPath],
+      "utf8",
+    );
+
+    await writeFile(
+      resolve(root, overLimitPath),
+      "export const malformed = ;\n",
+      "utf8",
+    );
+    await expectFailure(
+      "malformed-source-is-not-a-loop-kill",
+      async () => runInventoryAndBudgetGate(root),
+      "AST_PARSE",
+      `${overLimitPath} TypeScript`,
+    );
+    await writeFile(
+      resolve(root, overLimitPath),
+      BASE_FIXTURE_FILES[overLimitPath],
+      "utf8",
+    );
+
+    for (const control of LOOP_CONTROLS) {
+      await writeFile(resolve(root, overLimitPath), control.source, "utf8");
+      await expectFailure(
+        `loop-${control.name}`,
+        async () => runInventoryAndBudgetGate(root),
+        "FORBIDDEN_LOOP",
+        `SyntaxKind.${control.kind}`,
+      );
+    }
+    await writeFile(
+      resolve(root, overLimitPath),
+      BASE_FIXTURE_FILES[overLimitPath],
+      "utf8",
+    );
+
+    for (const control of RESPONSIBILITY_CONTROLS) {
+      await writeFile(resolve(root, overLimitPath), control.source, "utf8");
+      await expectFailure(
+        control.name,
+        async () => runInventoryAndBudgetGate(root),
+        "FORBIDDEN_RESPONSIBILITY",
+        control.finding,
+      );
+    }
     await writeFile(
       resolve(root, overLimitPath),
       BASE_FIXTURE_FILES[overLimitPath],
