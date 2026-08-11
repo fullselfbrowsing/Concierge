@@ -1,10 +1,19 @@
 #!/usr/bin/env node
 
-import { lstatSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+import { lstatSync, realpathSync } from "node:fs";
+import {
+  dirname,
+  isAbsolute,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
 import { fileURLToPath } from "node:url";
 
-const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const REPOSITORY_ROOT = realpathSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), ".."),
+);
 const PROJECTS = Object.freeze([
   "react-lifecycle",
   "svelte-lifecycle",
@@ -17,19 +26,168 @@ const EXPECTED_TEST_FILES = Object.freeze([
   "packages/concierge-svelte/test/artifact.test.ts",
   "examples/adapter-ssr/test/ssr.test.ts",
 ]);
+const CHILD_TIMEOUT_MS = 300_000;
+const CHILD_MAX_BUFFER = 32 * 1024 * 1024;
+const VITEST = resolve(
+  REPOSITORY_ROOT,
+  "node_modules/.bin",
+  process.platform === "win32" ? "vitest.cmd" : "vitest",
+);
 
-if (process.argv.length !== 2) {
-  throw new Error("phase-09-test-check accepts no arguments");
+function fail(code, message) {
+  throw new Error(`[${code}] ${message}`);
 }
 
-for (const path of EXPECTED_TEST_FILES) {
-  const metadata = lstatSync(resolve(REPOSITORY_ROOT, path));
-  if (!metadata.isFile() || metadata.size <= 0) {
-    throw new Error(`${path} must be a nonempty regular file`);
+function isWithinRepository(path) {
+  const fromRoot = relative(REPOSITORY_ROOT, path);
+  return (
+    fromRoot === "" ||
+    (fromRoot !== ".." && !fromRoot.startsWith(`..${sep}`))
+  );
+}
+
+function portablePath(path) {
+  return path.split(sep).join("/");
+}
+
+function requireExpectedFiles() {
+  for (const path of EXPECTED_TEST_FILES) {
+    let metadata;
+    try {
+      metadata = lstatSync(resolve(REPOSITORY_ROOT, path));
+    } catch (error) {
+      fail(
+        "TEST_FILE",
+        `${path} is missing or unreadable: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    if (!metadata.isFile() || metadata.size <= 0) {
+      fail("TEST_FILE", `${path} must be a nonempty regular file`);
+    }
   }
 }
 
-throw new Error(
-  `[RED:09-11-01:EXACT_VITEST_ORCHESTRATOR_UNIMPLEMENTED] ` +
-    `projects=${PROJECTS.join(",")} files=${EXPECTED_TEST_FILES.length}`,
+function normalizeResultName(name) {
+  if (typeof name !== "string" || name.length === 0) {
+    fail("VITEST_FILES", "Vitest reported an empty or non-string test name");
+  }
+
+  let candidate;
+  try {
+    candidate = name.startsWith("file:")
+      ? fileURLToPath(name)
+      : isAbsolute(name)
+        ? name
+        : resolve(REPOSITORY_ROOT, name);
+    candidate = realpathSync(candidate);
+  } catch (error) {
+    fail(
+      "VITEST_FILES",
+      `Vitest reported an unreadable test path ${JSON.stringify(name)}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  if (!isWithinRepository(candidate)) {
+    fail("VITEST_FILES", `Vitest reported a test outside the repository: ${name}`);
+  }
+  return portablePath(relative(REPOSITORY_ROOT, candidate));
+}
+
+function parsePositiveReport(stdout) {
+  let report;
+  try {
+    report = JSON.parse(stdout);
+  } catch (error) {
+    fail(
+      "VITEST_JSON",
+      `Vitest stdout was not JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  if (report === null || typeof report !== "object" || Array.isArray(report)) {
+    fail("VITEST_JSON", "Vitest JSON must be an object");
+  }
+  if (report.success !== true) {
+    fail("VITEST_FAILURE", "Vitest JSON success was not true");
+  }
+  if (
+    !Number.isInteger(report.numTotalTestSuites) ||
+    report.numTotalTestSuites <= 0 ||
+    !Number.isInteger(report.numTotalTests) ||
+    report.numTotalTests <= 0
+  ) {
+    fail("VITEST_ZERO", "Vitest reported zero test suites or tests");
+  }
+  if (
+    !Array.isArray(report.testResults) ||
+    report.testResults.length !== EXPECTED_TEST_FILES.length
+  ) {
+    fail(
+      "VITEST_FILES",
+      `expected exactly ${EXPECTED_TEST_FILES.length} test results, found ${Array.isArray(report.testResults) ? report.testResults.length : "non-array"}`,
+    );
+  }
+
+  const actualFiles = report.testResults.map((result) =>
+    normalizeResultName(result?.name),
+  );
+  if (new Set(actualFiles).size !== EXPECTED_TEST_FILES.length) {
+    fail("VITEST_FILES", `Vitest reported duplicate files: ${actualFiles.join(", ")}`);
+  }
+  const expectedFiles = [...EXPECTED_TEST_FILES].sort();
+  actualFiles.sort();
+  if (JSON.stringify(actualFiles) !== JSON.stringify(expectedFiles)) {
+    fail(
+      "VITEST_FILES",
+      `Vitest file set differed; expected=${JSON.stringify(expectedFiles)} actual=${JSON.stringify(actualFiles)}`,
+    );
+  }
+
+  return Object.freeze({
+    files: actualFiles.length,
+    suites: report.numTotalTestSuites,
+    tests: report.numTotalTests,
+  });
+}
+
+if (process.argv.length !== 2) {
+  fail("CLI_MODE", "phase-09-test-check accepts no arguments");
+}
+
+requireExpectedFiles();
+
+const vitestArguments = [
+  "run",
+  ...PROJECTS.flatMap((project) => ["--project", project]),
+  "--reporter=json",
+];
+const result = spawnSync(VITEST, vitestArguments, {
+  cwd: REPOSITORY_ROOT,
+  encoding: "utf8",
+  env: { ...process.env, CI: "1", FORCE_COLOR: "0", NO_COLOR: "1" },
+  maxBuffer: CHILD_MAX_BUFFER,
+  timeout: CHILD_TIMEOUT_MS,
+});
+
+if (result.error !== undefined) {
+  fail(
+    "VITEST_PROCESS",
+    `Vitest failed to start or timed out: ${result.error.message}`,
+  );
+}
+if (result.signal !== null) {
+  fail("VITEST_PROCESS", `Vitest ended by signal ${String(result.signal)}`);
+}
+if (result.status !== 0) {
+  fail(
+    "VITEST_PROCESS",
+    `Vitest exited ${String(result.status)}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+  );
+}
+
+const counts = parsePositiveReport(result.stdout);
+process.stdout.write(
+  `PHASE09_TEST_CHECK_OK projects=${PROJECTS.length} ` +
+    `files=${counts.files} suites=${counts.suites} tests=${counts.tests}\n`,
 );
