@@ -558,7 +558,7 @@ function evaluateContracts(root) {
       for (const token of ["createContext", "useEffect", "useRef", "useCallback", "assertSingleInstance", "CONTRACT_VERSION", "EXPECTED_CONTRACT_VERSION", "registry.register"]) {
         api.check(client.includes(token), `react-runtime-${token}`, REACT_SOURCE_PATHS[1], `live ${token} call/path`, client.includes(token) ? "present" : "absent");
       }
-      api.check(/EXPECTED_CONTRACT_VERSION\s*=\s*1\b/u.test(client), "react-literal-contract", REACT_SOURCE_PATHS[1], "adapter-owned literal 1", "inspected");
+      api.check(/EXPECTED_CONTRACT_VERSION\s*(?::\s*number)?\s*=\s*1\b/u.test(client), "react-literal-contract", REACT_SOURCE_PATHS[1], "adapter-owned literal 1", "inspected");
       api.check(hasOrderedTokens(client, ["useEffect", "assertSingleInstance", "CONTRACT_VERSION", "registry.register"]), "react-guard-register-order", REACT_SOURCE_PATHS[1], "effect then guards then register", "inspected");
       api.check(/return\s+(?:unregister|registry\.register\(bridge\))/u.test(client), "react-exact-cleanup-return", REACT_SOURCE_PATHS[1], "returned registration cleanup", "inspected");
       api.check(!/\b(?:createConcierge|setTimeout|setInterval|window|document|navigator)\b/u.test(client), "react-thin-runtime", REACT_SOURCE_PATHS[1], "no core construction/timers/host globals", "inspected");
@@ -572,14 +572,15 @@ function evaluateContracts(root) {
   results.push(
     createProbe(INITIAL_IDS[3], inspector, (api) => {
       const artifact = stripJsComments(api.text("packages/concierge-react/test/artifact.test.ts"));
-      const types = stripJsComments(api.text("packages/concierge-react/test-d/public.test-d.ts"));
+      const typesSource = api.text("packages/concierge-react/test-d/public.test-d.ts");
+      const types = stripJsComments(typesSource);
 
       for (const token of ["dist/index.js", "dist/client.js", "renderToString", "window", "document", "navigator", "EXPECTED_CONTRACT_VERSION", "registry.register", "expect("]) {
         api.check(artifact.includes(token), `react-artifact-${token}`, "packages/concierge-react/test/artifact.test.ts", `artifact assertion for ${token}`, artifact.includes(token) ? "present" : "absent");
       }
       api.check(hasOrderedTokens(artifact, ["EXPECTED_CONTRACT_VERSION", "registry.register"]), "react-artifact-guard-order", "packages/concierge-react/test/artifact.test.ts", "literal guard before registration", "inspected");
       api.check(types.includes("@fullselfbrowsing/concierge-react/client"), "react-public-type-import", "packages/concierge-react/test-d/public.test-d.ts", "public client import", "inspected");
-      api.check(types.includes("@ts-expect-error") && types.includes("ConciergeProvider") && types.includes("useConciergeBridge"), "react-type-contract", "packages/concierge-react/test-d/public.test-d.ts", "positive and negative public API assertions", "inspected");
+      api.check(typesSource.includes("@ts-expect-error") && types.includes("ConciergeProvider") && types.includes("useConciergeBridge"), "react-type-contract", "packages/concierge-react/test-d/public.test-d.ts", "positive and negative public API assertions", "inspected");
       api.check(!types.includes("/src/") && !types.includes("/dist/"), "react-no-private-type-import", "packages/concierge-react/test-d/public.test-d.ts", "no private/dist import", "inspected");
     }),
   );
@@ -635,12 +636,12 @@ function evaluateContracts(root) {
       for (const token of ["setContext", "getContext", "$effect", "$state.snapshot", "assertSingleInstance", "CONTRACT_VERSION", "EXPECTED_CONTRACT_VERSION", "registry.register", "SnapshotNormalizer"]) {
         api.check(client.includes(token), `svelte-runtime-${token}`, SVELTE_SOURCE_PATHS[1], `live ${token} call/path`, client.includes(token) ? "present" : "absent");
       }
-      api.check(/EXPECTED_CONTRACT_VERSION\s*=\s*1\b/u.test(client), "svelte-literal-contract", SVELTE_SOURCE_PATHS[1], "adapter-owned literal 1", "inspected");
+      api.check(/EXPECTED_CONTRACT_VERSION\s*(?::\s*number)?\s*=\s*1\b/u.test(client), "svelte-literal-contract", SVELTE_SOURCE_PATHS[1], "adapter-owned literal 1", "inspected");
       api.check(hasOrderedTokens(client, ["$effect", "assertSingleInstance", "CONTRACT_VERSION", "registry.register"]), "svelte-guard-register-order", SVELTE_SOURCE_PATHS[1], "effect then guards then register", "inspected");
       api.check(/return\s+(?:unregister|registry\.register\(bridge\))/u.test(client), "svelte-exact-cleanup-return", SVELTE_SOURCE_PATHS[1], "returned registration cleanup", "inspected");
       api.check(/function\s+svelteSnapshotNormalizer\s*<T>\s*\(value\s*:\s*T\)\s*:\s*T/u.test(client) && /function\s+svelteSnapshotNormalizer\s*\(value\s*:\s*unknown\)\s*:\s*unknown/u.test(client), "svelte-normalizer-overload", SVELTE_SOURCE_PATHS[1], "generic plus unknown overload", "inspected");
       api.check(!/\b(?:structuredClone|JSON\.stringify|createContext|createConcierge)\b/u.test(client), "svelte-native-thin-runtime", SVELTE_SOURCE_PATHS[1], "no clone/store/core construction", "inspected");
-      api.check(rootEntry.includes("client.svelte") && !rootEntry.includes("createConcierge"), "svelte-public-root", SVELTE_SOURCE_PATHS[0], "canonical client export without construction", "inspected");
+      api.check(/export\s+type\s*\{/u.test(rootEntry) && /from\s+["']@fullselfbrowsing\/concierge["']/u.test(rootEntry) && !/(?:client\.svelte|\bcreateConcierge\b|\bprovideConcierge\b|\buseConcierge(?:Bridge)?\b|\bsvelteSnapshotNormalizer\b|\bsetContext\b|\bgetContext\b|\$effect)/u.test(rootEntry), "svelte-public-root", SVELTE_SOURCE_PATHS[0], "server-safe public-core type root with client helpers split to ./client.svelte", "inspected");
       api.check(harness.includes("useConciergeBridge") && !/window\.|document\.|navigator\./u.test(stripJsComments(harness)), "svelte-real-harness", "packages/concierge-svelte/test/Harness.svelte", "component-init hook without host reads", "inspected");
       for (const token of ["mount", "unmount", "T03", "S1", "T04", "expect("]) {
         api.check(lifecycle.includes(token), `svelte-lifecycle-${token}`, "packages/concierge-svelte/test/lifecycle.test.ts", `assertion-observed ${token}`, lifecycle.includes(token) ? "present" : "absent");
@@ -656,7 +657,7 @@ function evaluateContracts(root) {
         api.check(artifact.includes(token), `svelte-artifact-${token}`, "packages/concierge-svelte/test/artifact.test.ts", `artifact assertion for ${token}`, artifact.includes(token) ? "present" : "absent");
       }
       api.check(exactObjectKeys(manifest?.exports?.["."], ["types", "svelte", "import", "default"]) && exactObjectKeys(manifest?.exports?.["./client.svelte"], ["types", "svelte", "import", "default"]), "svelte-artifact-export-contract", "packages/concierge-svelte/package.json", "framework-aware conditions", "inspected");
-      api.check(!artifact.includes("packages/concierge/src/") && !artifact.includes("tsdown"), "svelte-artifact-boundary", "packages/concierge-svelte/test/artifact.test.ts", "no private core/tsdown", "inspected");
+      api.check(!artifact.includes("packages/concierge/src/") && /expect\(JSON\.stringify\(manifest\)\)\.not\.toContain\(["']tsdown["']\)/u.test(artifact), "svelte-artifact-boundary", "packages/concierge-svelte/test/artifact.test.ts", "no private core and an asserted tsdown exclusion", "inspected");
     }),
   );
 
@@ -755,8 +756,11 @@ function evaluateContracts(root) {
       for (const row of rows) {
         api.check(row?.occurrences === 1 && typeof row?.exactBefore === "string" && typeof row?.exactAfter === "string" && typeof row?.compileCommand === "string" && typeof row?.killerCommand === "string" && typeof row?.assertionFingerprint === "string", `mutation-row-${row?.id ?? "unknown"}`, `${PHASE_DIRECTORY}/09-MUTATION-REGISTER.json`, "one exact compiled semantic row", "inspected");
       }
-      for (const token of ["self-test", "preflight", "run", "--jobs", "verify", "evidence", "release", "mkdtemp", "phase-08-mutation-battery.mjs", "verify inputs", "verify ledgers", "09-MUTATION-EVIDENCE.json", "09-RELEASE-EVIDENCE.json"]) {
+      for (const token of ["self-test", "preflight", "run", "--jobs", "verify", "evidence", "release", "mkdtemp", "phase-08-mutation-battery.mjs", "09-MUTATION-EVIDENCE.json", "09-RELEASE-EVIDENCE.json"]) {
         api.check(runner.includes(token), `mutation-runner-${token}`, "scripts/phase-09-mutation-battery.mjs", `live ${token} state-machine path`, runner.includes(token) ? "present" : "absent");
+      }
+      for (const mode of ["inputs", "ledgers"]) {
+        api.check(new RegExp(`["']verify["']\\s*,\\s*["']${mode}["']`, "u").test(runner), `mutation-runner-verify-${mode}`, "scripts/phase-09-mutation-battery.mjs", `exact Phase 8 verify ${mode} command`, "inspected");
       }
       for (const id of MUTATION_IDS) {
         api.check(mutationEvidence.includes(id), `mutation-evidence-${id}`, `${PHASE_DIRECTORY}/09-MUTATION-EVIDENCE.json`, "green row evidence", mutationEvidence.includes(id) ? "present" : "absent");
