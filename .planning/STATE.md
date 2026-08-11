@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: milestone
 status: executing
-stopped_at: Completed 09-10-PLAN.md
-last_updated: "2026-08-11T04:59:46.747Z"
+stopped_at: Completed 09-12-PLAN.md
+last_updated: "2026-08-11T05:37:51.898Z"
 last_activity: 2026-08-11
 progress:
   total_phases: 9
   completed_phases: 8
   total_plans: 86
-  completed_plans: 83
+  completed_plans: 84
   percent: 89
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-10)
 ## Current Position
 
 Phase: 09 (react-and-svelte-adapters) — EXECUTING
-Plan: 11 of 13
+Plan: 12 of 13
 Status: Ready to execute
 Last activity: 2026-08-11
 
-Progress: [██████████] 97%
+Progress: [██████████] 98%
 
 ## Performance Metrics
 
@@ -78,6 +78,7 @@ Progress: [██████████] 97%
 | Phase 09 P07 | 22m 5s | 2 tasks | 5 files |
 | Phase 09 P08 | 29m | 2 tasks | 1 files |
 | Phase 09 P10 | 10m | 2 tasks | 4 files |
+| Phase 09 P12 | 34m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -175,6 +176,10 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 09]: Adapter documentation uses only application-owned createConcierge/createBridge construction and injects those exact objects through canonical client entries. — Keeps framework packages lifecycle-thin and mirrors the tested public surface.
 - [Phase 09]: Singleton and contract-literal checks are client compatibility and integrity defenses, never server authorization. — Servers must authenticate and authorize the exact action and payload under current policy.
 - [Phase 09]: Phase 8 release proof remains the nested release record verified from five live artifacts in a disposable snapshot; post-09-13 drift invalidates verify-only evidence. — Preserves inherited provenance and terminal ordering.
+- [Phase 09-12]: Treat mutation-register commands as immutable declarations checked against hard-coded argv arrays; never execute register text through a shell.
+- [Phase 09-12]: Prepare one frozen offline installed and built baseline, then clone and discard an independent tree for every mutant.
+- [Phase 09-12]: Reconstruct Phase 8 from its evidence-producing revision and overlay exactly the five live records before the three prescribed disposable verifications.
+- [Phase 09-12]: Count only active named Vitest assertions for mutation credit while separately requiring exactly one aggregate failed test.
 
 ### Pending Todos
 
@@ -203,6 +208,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-11T04:59:46.741Z
-Stopped at: Completed 09-10-PLAN.md
+Last session: 2026-08-11T05:37:51.893Z
+Stopped at: Completed 09-12-PLAN.md
 Resume file: None
