@@ -32,7 +32,7 @@
     "check:phase09": "pnpm run test:phase09 && pnpm --filter @fullselfbrowsing/concierge-adapter-ssr check && pnpm --filter @fullselfbrowsing/concierge-adapter-ssr build && pnpm run check:phase09:packages && pnpm run check:phase09:budget && pnpm run check:phase09:static && pnpm run check:phase09:evidence",
     "check:phase09:release": "pnpm run check:phase09 && node scripts/phase-09-workflow-check.mjs",
     "version:phase09": "node scripts/phase-09-version.mjs",
-    "release": "changeset publish"
+    "release": "node scripts/phase-09-publish-archives.mjs"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.5",
