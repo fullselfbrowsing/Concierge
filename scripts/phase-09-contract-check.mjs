@@ -895,6 +895,7 @@ function evaluateContracts(root) {
         "VERSION_ARTIFACT_SEMANTICS",
         "unprivilegedEnvironment",
         "exact-noop-artifact",
+        "syntheticManifestBases",
         "manifest-command-injection",
         "token-stripped-from-prepare-children",
         "09-VERSION-RECEIPT.json",

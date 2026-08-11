@@ -1297,9 +1297,17 @@ function runSelfTest() {
   );
   controls += 1;
 
+  const syntheticManifestBases = new Map();
   for (const path of ["packages/concierge/package.json", ...ADAPTER_MANIFEST_PATHS]) {
-    const base = readFileSync(resolve(ROOT, path));
-    const output = JSON.parse(base.toString("utf8"));
+    const live = JSON.parse(readFileSync(resolve(ROOT, path), "utf8"));
+    const baseManifest = structuredClone(live);
+    baseManifest.version = "0.0.0";
+    if (ADAPTER_MANIFEST_PATHS.includes(path)) {
+      baseManifest.peerDependencies[PUBLIC_PACKAGES[0]] = transition.sourcePeer;
+    }
+    const base = Buffer.from(`${JSON.stringify(baseManifest, null, 2)}\n`);
+    syntheticManifestBases.set(path, base);
+    const output = structuredClone(baseManifest);
     output.version = "0.1.0";
     if (ADAPTER_MANIFEST_PATHS.includes(path)) {
       output.peerDependencies[PUBLIC_PACKAGES[0]] = CANONICAL_CORE_PEER;
@@ -1316,7 +1324,8 @@ function runSelfTest() {
   controls += 1;
 
   const corePath = "packages/concierge/package.json";
-  const coreBase = readFileSync(resolve(ROOT, corePath));
+  const coreBase = syntheticManifestBases.get(corePath);
+  assert(coreBase !== undefined, "SELF_TEST", "synthetic core manifest is missing");
   const injected = JSON.parse(coreBase.toString("utf8"));
   injected.version = "0.1.0";
   injected.scripts = { postinstall: "credential-exfiltration" };
