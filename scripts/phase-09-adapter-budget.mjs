@@ -91,6 +91,41 @@ const BASE_FIXTURE_FILES = Object.freeze({
     "export type SvelteValue = string;\n",
 });
 
+const LOOP_CONTROLS = Object.freeze([
+  Object.freeze({
+    name: "classic-for",
+    kind: "ForStatement",
+    source: "for (let index = 0; index < 1; index += 1) void index;\n",
+  }),
+  Object.freeze({
+    name: "for-in",
+    kind: "ForInStatement",
+    source: "for (const key in { value: 1 }) void key;\n",
+  }),
+  Object.freeze({
+    name: "for-of",
+    kind: "ForOfStatement",
+    source: "for (const value of [1]) void value;\n",
+  }),
+  Object.freeze({
+    name: "while",
+    kind: "WhileStatement",
+    source: "let pending = false; while (pending) pending = false;\n",
+  }),
+  Object.freeze({
+    name: "do-while",
+    kind: "DoStatement",
+    source: "let pending = false; do { pending = false; } while (pending);\n",
+  }),
+]);
+
+const RESPONSIBILITY_CONTROL = Object.freeze({
+  name: "forbidden-createConcierge-call",
+  source:
+    "declare function createConcierge(value: object): unknown;\n" +
+    "export const ownedCore = createConcierge({});\n",
+});
+
 class GateError extends Error {
   constructor(code, message) {
     super(`[${code}] ${message}`);
@@ -339,6 +374,20 @@ function countAuthoredLines(source) {
   return count;
 }
 
+async function analyzeProductionResponsibilities(root, paths) {
+  if (!Array.isArray(paths) || paths.length === 0) {
+    throw new GateError(
+      "VACUOUS_AST",
+      "TypeScript responsibility analysis requires at least one source file",
+    );
+  }
+
+  throw new GateError(
+    "AST_GATE_UNIMPLEMENTED",
+    `TypeScript AST responsibility analysis is missing for ${relativePath(root, resolve(root, paths[0]))}`,
+  );
+}
+
 async function runInventoryAndBudgetGate(root, adapters = ADAPTERS) {
   validateSpecification(adapters);
   const reports = [];
@@ -396,6 +445,11 @@ async function runInventoryAndBudgetGate(root, adapters = ADAPTERS) {
       }),
     );
   }
+
+  await analyzeProductionResponsibilities(
+    root,
+    reports.flatMap((report) => report.files.map((file) => file.path)),
+  );
 
   return Object.freeze(reports);
 }
