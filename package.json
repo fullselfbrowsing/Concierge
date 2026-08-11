@@ -30,6 +30,7 @@
     "@arethetypeswrong/cli": "0.18.5",
     "@changesets/cli": "2.31.1",
     "@sveltejs/vite-plugin-svelte": "7.2.0",
+    "@testing-library/svelte": "5.4.2",
     "@vitejs/plugin-react": "5.2.0",
     "fs-native-extensions": "1.5.0",
     "jsdom": "29.1.1",
