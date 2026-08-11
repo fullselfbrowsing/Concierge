@@ -723,6 +723,11 @@ function evaluateContracts(root) {
       );
       const releaseWorkflow = api.text(".github/workflows/release.yml");
       const rootManifest = api.json("package.json");
+      const publicManifests = [
+        "packages/concierge/package.json",
+        "packages/concierge-react/package.json",
+        "packages/concierge-svelte/package.json",
+      ].map((path) => [path, api.json(path)]);
       const consumerManifest = api.json(
         "scripts/fixtures/phase-09-foreign-consumer/package.json",
       );
@@ -784,7 +789,17 @@ function evaluateContracts(root) {
         "REGISTRY_INTEGRITY",
         "REGISTRY_PROVENANCE",
         "PUBLISH_AMBIGUOUS",
+        "PUBLISH_ENVIRONMENT",
+        "https://registry.npmjs.org/",
         "--provenance",
+        "--registry=",
+        "--userconfig=",
+        "--globalconfig=",
+        "fetchAttestation",
+        "validateProvenanceBundle",
+        "runAttempt",
+        "sourceRef",
+        "workflowPath",
         "dist",
         "attestations",
         "initial-success",
@@ -794,6 +809,14 @@ function evaluateContracts(root) {
         "ordinary-feature-mode",
         "zero-version",
         "archive-version-drift",
+        "cross-attempt-seal",
+        "hostile-manifest-registry",
+        "foreign-provenance-repository",
+        "foreign-provenance-commit",
+        "foreign-provenance-workflow",
+        "foreign-provenance-predicate",
+        "foreign-provenance-subject",
+        "fabricated-attestation-url",
       ]) {
         api.check(publisher.includes(token), `publisher-${token}`, "scripts/phase-09-publish-archives.mjs", `sealed/resumable publisher control ${token}`, publisher.includes(token) ? "present" : "absent");
       }
@@ -806,6 +829,15 @@ function evaluateContracts(root) {
         "exact-noop-artifact",
         "manifest-command-injection",
         "token-stripped-from-prepare-children",
+        "09-VERSION-RECEIPT.json",
+        "runAttempt",
+        "malicious-evidence-blob",
+        "arbitrary-markdown",
+        "lock-dependency-smuggling",
+        "consumed-digest-mismatch",
+        "artifact-attempt-binding",
+        "artifact-missing-attempt",
+        "rerun-attempt-artifact-isolation",
       ]) {
         api.check(versioner.includes(token), `versioner-${token}`, "scripts/phase-09-version.mjs", `prepared artifact control ${token}`, versioner.includes(token) ? "present" : "absent");
       }
@@ -815,6 +847,7 @@ function evaluateContracts(root) {
         "version-extra-command",
         "sealer-workspace-code",
         "configured-directory-publisher",
+        "artifact-missing-run-attempt",
         "validateConfiguredPublishSurface",
         "validateRepositoryPublisherSources",
       ]) {
@@ -827,8 +860,14 @@ function evaluateContracts(root) {
         "seal:",
         "publish:",
         "persist-credentials: false",
-        "phase09-untrusted-archives-${{ github.run_id }}-${{ github.sha }}",
-        "phase09-sealed-release-${sealId}",
+        "phase09-version-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}",
+        "phase09-untrusted-archives-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}",
+        "phase09-publisher-tools-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}",
+        "phase09-sealed-release-${runAttempt}-${sealId}",
+        "09-VERSION-RECEIPT.json",
+        "PHASE09_EXPECTED_RUN_ATTEMPT",
+        "PHASE09_EXPECTED_SOURCE_REF",
+        "PHASE09_EXPECTED_WORKFLOW_PATH",
         "PHASE09_EXPECTED_SEALED_ARTIFACT",
       ]) {
         api.check(releaseWorkflow.includes(token), `release-workflow-${token}`, ".github/workflows/release.yml", `release job/artifact contract ${token}`, releaseWorkflow.includes(token) ? "present" : "absent");
@@ -840,6 +879,21 @@ function evaluateContracts(root) {
         "single exact-archive publisher entry point with required runtime arguments",
         String(rootManifest.scripts?.release),
       );
+      for (const [path, manifest] of publicManifests) {
+        const directory = path.split("/").at(-2);
+        api.check(
+          stableJson(manifest?.publishConfig) === stableJson({ access: "public" }) &&
+            stableJson(manifest?.repository) === stableJson({
+              type: "git",
+              url: "git+https://github.com/fullselfbrowsing/concierge.git",
+              directory: `packages/${directory}`,
+            }),
+          `publish-destination-${directory}`,
+          path,
+          "exact public npm and repository metadata",
+          "inspected",
+        );
+      }
     }),
   );
 
@@ -871,7 +925,7 @@ function evaluateContracts(root) {
       for (const row of rows) {
         api.check(row?.occurrences === 1 && typeof row?.exactBefore === "string" && typeof row?.exactAfter === "string" && typeof row?.compileCommand === "string" && typeof row?.killerCommand === "string" && typeof row?.assertionFingerprint === "string", `mutation-row-${row?.id ?? "unknown"}`, `${PHASE_DIRECTORY}/09-MUTATION-REGISTER.json`, "one exact compiled semantic row", "inspected");
       }
-      for (const token of ["self-test", "preflight", "run", "--jobs", "verify", "evidence", "release", "publish", "mode", "versioned", "releaseAuthorization", "sharedVersion", "consumedChangesets", "verifyPublishEvidence", "ordinary-mode-publish-rejected", "zero-version-publish-rejected", "removed-changeset-publish-rejected", "mkdtemp", "phase-08-mutation-battery.mjs", "09-MUTATION-EVIDENCE.json", "09-RELEASE-EVIDENCE.json"]) {
+      for (const token of ["self-test", "preflight", "run", "finalize", "--jobs", "verify", "evidence", "release", "publish", "mode", "versioned", "releaseAuthorization", "runAttempt", "sharedVersion", "consumedChangesets", "versionReceipt", "09-VERSION-RECEIPT.json", "verifyPublishEvidence", "ordinary-mode-publish-rejected", "zero-version-publish-rejected", "removed-changeset-publish-rejected", "missing-evidence-attempt-rejected", "mismatched-evidence-attempt-rejected", "missing-receipt-attempt-rejected", "mismatched-receipt-attempt-rejected", "mkdtemp", "phase-08-mutation-battery.mjs", "09-MUTATION-EVIDENCE.json", "09-RELEASE-EVIDENCE.json"]) {
         api.check(runner.includes(token), `mutation-runner-${token}`, "scripts/phase-09-mutation-battery.mjs", `live ${token} state-machine path`, runner.includes(token) ? "present" : "absent");
       }
       for (const mode of ["inputs", "ledgers"]) {

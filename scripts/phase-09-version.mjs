@@ -50,19 +50,26 @@ const VERSION_PATHS = Object.freeze([
   "packages/concierge-svelte/package.json",
   "packages/concierge-svelte/CHANGELOG.md",
 ]);
-const GENERATED_EVIDENCE_PATHS = Object.freeze([
-  ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json",
-  ".planning/phases/09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json",
-  ".planning/phases/09-react-and-svelte-adapters/09-VALIDATION.md",
-  ".planning/phases/09-react-and-svelte-adapters/09-SECURITY.md",
+const MANIFEST_PATHS = Object.freeze([
+  "packages/concierge/package.json",
+  ...ADAPTER_MANIFEST_PATHS,
 ]);
+const LOCK_PATH = "pnpm-lock.yaml";
+const VERSION_RECEIPT_PATH =
+  ".planning/phases/09-react-and-svelte-adapters/09-VERSION-RECEIPT.json";
+const PHASE = "09-react-and-svelte-adapters";
 const VERSION_ARTIFACT_FILENAME = "phase-09-version-artifact.json";
 const VERSION_ARTIFACT_BLOB_DIRECTORY = "blobs";
-const VERSION_ARTIFACT_WRITE_PATHS = Object.freeze([
-  ...VERSION_PATHS,
-  ...GENERATED_EVIDENCE_PATHS,
+const VERSION_ARTIFACT_REQUIRED_WRITE_PATHS = VERSION_PATHS;
+const VERSION_ARTIFACT_OPTIONAL_WRITE_PATHS = Object.freeze([LOCK_PATH]);
+const VERSION_RECEIPT_DIGEST_PATHS = Object.freeze([
+  ...MANIFEST_PATHS,
+  LOCK_PATH,
 ]);
 const CANONICAL_CORE_PEER = "workspace:^";
+const MAX_CHANGESET_BYTES = 16 * 1024;
+const MAX_CHANGESET_SUMMARY_BYTES = 1_000;
+const EXPECTED_REPOSITORY = "fullselfbrowsing/concierge";
 const MAX_OUTPUT_BYTES = 32 * 1024 * 1024;
 const SHA256 = /^[0-9a-f]{64}$/u;
 const COMMIT = /^[0-9a-f]{40}$/u;
@@ -153,7 +160,7 @@ function statusLines() {
     .filter(Boolean);
 }
 
-function validateVersionStatus(lines, { includeEvidence = false } = {}) {
+function validateVersionStatus(lines) {
   const observed = new Set();
   let consumedChangesets = 0;
   for (const line of lines) {
@@ -169,8 +176,7 @@ function validateVersionStatus(lines, { includeEvidence = false } = {}) {
       consumedChangesets += 1;
     } else {
       assert(
-        VERSION_PATHS.includes(path) ||
-          (includeEvidence && GENERATED_EVIDENCE_PATHS.includes(path)),
+        VERSION_PATHS.includes(path) || path === LOCK_PATH,
         "VERSION_STATUS",
         `unexpected version output: ${line}`,
       );
@@ -181,11 +187,6 @@ function validateVersionStatus(lines, { includeEvidence = false } = {}) {
     assert(observed.has(path), "VERSION_STATUS", `missing version output: ${path}`);
   }
   assert(consumedChangesets > 0, "VERSION_STATUS", "no changeset was consumed");
-  if (includeEvidence) {
-    for (const path of GENERATED_EVIDENCE_PATHS) {
-      assert(observed.has(path), "VERSION_STATUS", `missing fresh evidence: ${path}`);
-    }
-  }
 }
 
 function readManifest(root, path) {
@@ -293,6 +294,20 @@ function normalizeSnapshotPeers(snapshot, state) {
   }
 }
 
+function normalizeSnapshotLockPeer(snapshot, state) {
+  if (state.sourcePeer === CANONICAL_CORE_PEER) return;
+  const path = resolve(snapshot, LOCK_PATH);
+  const source = readFileSync(path, "utf8");
+  const occurrences = source.split(state.sourcePeer).length - 1;
+  if (occurrences === 0) return;
+  assert(
+    occurrences <= ADAPTER_MANIFEST_PATHS.length,
+    "VERSION_LOCK",
+    `lock peer normalization occurrence count is unbounded: ${occurrences}`,
+  );
+  writeFileSync(path, source.split(state.sourcePeer).join(CANONICAL_CORE_PEER));
+}
+
 function restorePrivateFixtureFormatting(snapshot, originals) {
   for (const [path, original] of originals) {
     const current = readFileSync(resolve(snapshot, path), "utf8");
@@ -335,7 +350,7 @@ function changedPaths(before, after) {
 
 function validateSnapshotDiff(paths) {
   const consumed = paths.filter((path) => /^\.changeset\/[^/]+\.md$/u.test(path));
-  const allowed = new Set([...VERSION_PATHS, ...consumed]);
+  const allowed = new Set([...VERSION_PATHS, LOCK_PATH, ...consumed]);
   assert(consumed.length > 0, "VERSION_SNAPSHOT", "no changeset was consumed");
   for (const path of paths) {
     assert(allowed.has(path), "VERSION_SNAPSHOT", `unexpected version output: ${path}`);
@@ -377,6 +392,7 @@ function createVersionSnapshot() {
     );
     restorePrivateFixtureFormatting(snapshot, fixtureOriginals);
     normalizeSnapshotPeers(snapshot, peerState);
+    normalizeSnapshotLockPeer(snapshot, peerState);
     const version = assertSharedVersionAt(snapshot);
     const after = fingerprintTree(snapshot);
     const outputs = changedPaths(before, after);
@@ -430,19 +446,25 @@ function isWithin(candidate, parent) {
 }
 
 function versionArtifactIdentity() {
+  const runAttempt = Number(process.env.PHASE09_RUN_ATTEMPT);
   const identity = Object.freeze({
     baseSha: process.env.PHASE09_BASE_SHA,
     repository: process.env.PHASE09_REPOSITORY,
     runId: process.env.PHASE09_RUN_ID,
+    runAttempt,
     artifactName: process.env.PHASE09_VERSION_ARTIFACT_NAME,
   });
+  const expectedArtifactName =
+    `phase09-version-${identity.runId}-${identity.runAttempt}-${identity.baseSha}`;
   assert(
     typeof identity.baseSha === "string" && COMMIT.test(identity.baseSha) &&
-      typeof identity.repository === "string" && REPOSITORY.test(identity.repository) &&
+      identity.repository === EXPECTED_REPOSITORY && REPOSITORY.test(identity.repository) &&
       typeof identity.runId === "string" && RUN_ID.test(identity.runId) &&
-      typeof identity.artifactName === "string" && ARTIFACT_NAME.test(identity.artifactName),
+      Number.isSafeInteger(identity.runAttempt) && identity.runAttempt > 0 &&
+      typeof identity.artifactName === "string" && ARTIFACT_NAME.test(identity.artifactName) &&
+      identity.artifactName === expectedArtifactName,
     "VERSION_ARTIFACT_BINDING",
-    "base SHA, repository, run ID, and version artifact name are required",
+    "base SHA, exact repository, run ID/attempt, and exact version artifact name are required",
   );
   return identity;
 }
@@ -516,6 +538,7 @@ function artifactBody(value) {
     baseSha: value.baseSha,
     repository: value.repository,
     runId: value.runId,
+    runAttempt: value.runAttempt,
     artifactName: value.artifactName,
     sharedVersion: value.sharedVersion,
     consumedChangesets: value.consumedChangesets,
@@ -523,7 +546,70 @@ function artifactBody(value) {
   };
 }
 
-function validateManifestTransition(path, baseBytes, outputBytes, sharedVersion) {
+function nextVersion(version, releaseType) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/u.exec(version);
+  assert(
+    match !== null,
+    "VERSION_ARTIFACT_SEMANTICS",
+    `base version is not a stable semantic version: ${version}`,
+  );
+  const [major, minor, patch] = match.slice(1).map(Number);
+  if (releaseType === "major") return `${major + 1}.0.0`;
+  if (releaseType === "minor") return `${major}.${minor + 1}.0`;
+  return `${major}.${minor}.${patch + 1}`;
+}
+
+function parseChangeset(path, bytes) {
+  assert(
+    bytes !== null && bytes.length > 0 && bytes.length <= MAX_CHANGESET_BYTES,
+    "VERSION_ARTIFACT_CHANGESET",
+    `${path} changeset bytes are missing or unbounded`,
+  );
+  const text = bytes.toString("utf8");
+  assert(
+    !text.includes("\r") && Buffer.byteLength(text) === bytes.length,
+    "VERSION_ARTIFACT_CHANGESET",
+    `${path} changeset encoding is not canonical UTF-8/LF`,
+  );
+  const match = /^---\n((?:"[^"\n]+": (?:patch|minor|major)\n)+)---\n\n([^\n]+)\n?$/u.exec(
+    text,
+  );
+  assert(
+    match !== null && Buffer.byteLength(match[2]) <= MAX_CHANGESET_SUMMARY_BYTES,
+    "VERSION_ARTIFACT_CHANGESET",
+    `${path} must contain one bounded plain-text release summary`,
+  );
+  const releases = new Map();
+  for (const line of match[1].trimEnd().split("\n")) {
+    const entry = /^"([^"]+)": (patch|minor|major)$/u.exec(line);
+    assert(entry !== null, "VERSION_ARTIFACT_CHANGESET", `${path} release row is malformed`);
+    assert(
+      PUBLIC_PACKAGES.includes(entry[1]) && !releases.has(entry[1]),
+      "VERSION_ARTIFACT_CHANGESET",
+      `${path} package set is malformed or duplicated`,
+    );
+    releases.set(entry[1], entry[2]);
+  }
+  assert(
+    stableJson([...releases.keys()].sort()) === stableJson([...PUBLIC_PACKAGES].sort()) &&
+      new Set(releases.values()).size === 1,
+    "VERSION_ARTIFACT_CHANGESET",
+    `${path} must version the exact fixed package triplet at one release type`,
+  );
+  return Object.freeze({
+    path,
+    releaseType: releases.values().next().value,
+    summary: match[2],
+  });
+}
+
+function validateManifestTransition(
+  path,
+  baseBytes,
+  outputBytes,
+  sharedVersion,
+  releaseType,
+) {
   let base;
   let output;
   try {
@@ -540,7 +626,8 @@ function validateManifestTransition(path, baseBytes, outputBytes, sharedVersion)
   ];
   assert(
     base.name === expectedName && output.name === expectedName &&
-      output.version === sharedVersion,
+      output.version === sharedVersion &&
+      nextVersion(base.version, releaseType) === sharedVersion,
     "VERSION_ARTIFACT_SEMANTICS",
     `${path} package identity/version drifted`,
   );
@@ -570,42 +657,89 @@ function validateManifestTransition(path, baseBytes, outputBytes, sharedVersion)
   );
 }
 
-function validateEvidenceAuthorization(path, bytes, sharedVersion, consumedChangesets) {
-  if (path.endsWith(".json")) {
-    let evidence;
-    try {
-      evidence = JSON.parse(bytes.toString("utf8"));
-    } catch (error) {
-      fail(
-        "VERSION_ARTIFACT_EVIDENCE",
-        `${path} is invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-    assert(
-      evidence.mode === "versioned" &&
-        evidence.releaseAuthorization === true &&
-        evidence.sharedVersion === sharedVersion &&
-        stableJson(evidence.consumedChangesets) === stableJson(consumedChangesets) &&
-        SHA256.test(evidence.contentDigest),
-      "VERSION_ARTIFACT_EVIDENCE",
-      `${path} is not sealed versioned release evidence`,
-    );
-    const { contentDigest, ...body } = evidence;
-    assert(
-      contentDigest === createHash("sha256").update(stableJson(body)).digest("hex"),
-      "VERSION_ARTIFACT_EVIDENCE",
-      `${path} evidence content digest is stale`,
-    );
-    return;
-  }
-  const text = bytes.toString("utf8");
-  const match = text.match(/\n\n<!-- content-sha256: ([0-9a-f]{64}) -->\n?$/u);
-  assert(match !== null, "VERSION_ARTIFACT_EVIDENCE", `${path} ledger seal is missing`);
-  const body = text.slice(0, match.index).trimEnd();
+function expectedChangelogTransition(
+  path,
+  baseBytes,
+  sharedVersion,
+  changesets,
+  releaseType,
+) {
+  const packageName = PUBLIC_PACKAGES[VERSION_PATHS.indexOf(path) >> 1];
+  const header = `# ${packageName}\n`;
+  const base = baseBytes === null ? header : baseBytes.toString("utf8");
   assert(
-    match[1] === createHash("sha256").update(body).digest("hex"),
-    "VERSION_ARTIFACT_EVIDENCE",
-    `${path} ledger seal is stale`,
+    !base.includes("\r") && base.startsWith(header) &&
+      (base === header || base.slice(header.length).startsWith("\n## ")),
+    "VERSION_ARTIFACT_SEMANTICS",
+    `${path} base changelog shape is not bounded`,
+  );
+  const title = `${releaseType[0].toUpperCase()}${releaseType.slice(1)} Changes`;
+  const bullets = changesets.map((changeset) => `- ${changeset.summary}`).join("\n");
+  const expected =
+    `${header}\n## ${sharedVersion}\n\n### ${title}\n\n${bullets}\n` +
+    base.slice(header.length);
+  return Buffer.from(expected);
+}
+
+function validateChangelogTransition(
+  path,
+  baseBytes,
+  outputBytes,
+  sharedVersion,
+  changesets,
+  releaseType,
+) {
+  const expected = expectedChangelogTransition(
+    path,
+    baseBytes,
+    sharedVersion,
+    changesets,
+    releaseType,
+  );
+  assert(
+    outputBytes.length <= (baseBytes?.length ?? 0) +
+      changesets.reduce((total, item) => total + Buffer.byteLength(item.summary), 0) +
+      512 && outputBytes.equals(expected),
+    "VERSION_ARTIFACT_SEMANTICS",
+    `${path} contains an arbitrary or incorrectly derived changelog delta`,
+  );
+}
+
+function validateLockTransition(baseBytes, outputBytes, sourcePeer) {
+  const base = baseBytes.toString("utf8");
+  const occurrences = base.split(sourcePeer).length - 1;
+  assert(
+    sourcePeer !== CANONICAL_CORE_PEER && occurrences > 0 &&
+      occurrences <= ADAPTER_MANIFEST_PATHS.length,
+    "VERSION_ARTIFACT_SEMANTICS",
+    "pnpm lock has no narrowly bounded peer-spec normalization",
+  );
+  const expected = base.split(sourcePeer).join(CANONICAL_CORE_PEER);
+  assert(
+    outputBytes.equals(Buffer.from(expected)),
+    "VERSION_ARTIFACT_SEMANTICS",
+    "pnpm lock contains a dependency or non-peer-spec change",
+  );
+}
+
+function validateArtifactWritePath(path) {
+  assert(
+    [
+      ...VERSION_ARTIFACT_REQUIRED_WRITE_PATHS,
+      ...VERSION_ARTIFACT_OPTIONAL_WRITE_PATHS,
+    ].includes(path),
+    "VERSION_ARTIFACT_OPERATION",
+    `write operation is outside the semantic-only allowlist: ${path}`,
+  );
+}
+
+function validateConsumedDeletion(operation, consumedRecord, base) {
+  assert(
+    CHANGESET_PATH.test(operation.path) && consumedRecord !== undefined &&
+      operation.sha256 === null && operation.blob === null && base !== null &&
+      consumedRecord.sha256 === operation.baseSha256,
+    "VERSION_ARTIFACT_OPERATION",
+    `delete operation is not the exact digest-bound consumed changeset: ${operation.path}`,
   );
 }
 
@@ -639,6 +773,7 @@ function validateVersionArtifact(
       "baseSha",
       "repository",
       "runId",
+      "runAttempt",
       "artifactName",
       "sharedVersion",
       "consumedChangesets",
@@ -657,9 +792,10 @@ function validateVersionArtifact(
     artifact.baseSha === expectedIdentity.baseSha &&
       artifact.repository === expectedIdentity.repository &&
       artifact.runId === expectedIdentity.runId &&
+      artifact.runAttempt === expectedIdentity.runAttempt &&
       artifact.artifactName === expectedIdentity.artifactName,
     "VERSION_ARTIFACT_BINDING",
-    "version artifact does not match this base/repository/run/name",
+    "version artifact does not match this base/repository/run/attempt/name",
   );
   assert(
     SHA256.test(artifact.contentDigest) &&
@@ -695,6 +831,7 @@ function validateVersionArtifact(
     "versioned artifact sharedVersion must be nonzero semantic version",
   );
   const changesetPaths = new Set();
+  const changesets = [];
   for (const record of artifact.consumedChangesets) {
     exactKeys(
       record,
@@ -709,12 +846,35 @@ function validateVersionArtifact(
       "consumed changeset identity is malformed or duplicated",
     );
     changesetPaths.add(record.path);
+    const base = readBase(record.path);
+    assert(
+      base !== null && digestFileBuffer(base) === record.sha256,
+      "VERSION_ARTIFACT_CHANGESET",
+      `${record.path} consumed digest differs from its verified base bytes`,
+    );
+    changesets.push(parseChangeset(record.path, base));
   }
   assert(
     changesetPaths.size > 0,
     "VERSION_ARTIFACT_CHANGESET",
     "versioned artifact consumed no changeset",
   );
+  const releaseTypes = new Set(changesets.map((changeset) => changeset.releaseType));
+  assert(
+    releaseTypes.size === 1,
+    "VERSION_ARTIFACT_CHANGESET",
+    "consumed changesets disagree on the fixed-triplet release type",
+  );
+  const releaseType = changesets[0].releaseType;
+  const adapterBase = readBase(ADAPTER_MANIFEST_PATHS[0]);
+  assert(
+    adapterBase !== null,
+    "VERSION_ARTIFACT_BASE",
+    "adapter manifest base is missing",
+  );
+  const adapterBaseManifest = JSON.parse(adapterBase.toString("utf8"));
+  const sourcePeer = adapterBaseManifest.peerDependencies?.[PUBLIC_PACKAGES[0]];
+  analyzeSourcePeer(sourcePeer, adapterBaseManifest.version);
 
   const blobDirectory = join(directory, VERSION_ARTIFACT_BLOB_DIRECTORY);
   assert(
@@ -751,19 +911,17 @@ function validateVersionArtifact(
       `base bytes drifted for ${operation.path}`,
     );
     if (operation.action === "delete") {
-      assert(
-        CHANGESET_PATH.test(operation.path) &&
-          changesetPaths.has(operation.path) &&
-          operation.sha256 === null && operation.blob === null && base !== null,
-        "VERSION_ARTIFACT_OPERATION",
-        `delete operation is not an exact consumed changeset: ${operation.path}`,
+      validateConsumedDeletion(
+        operation,
+        artifact.consumedChangesets.find((record) => record.path === operation.path),
+        base,
       );
       deletePaths.add(operation.path);
       continue;
     }
+    validateArtifactWritePath(operation.path);
     assert(
       operation.action === "write" &&
-        VERSION_ARTIFACT_WRITE_PATHS.includes(operation.path) &&
         SHA256.test(operation.sha256) && operation.blob === operation.sha256,
       "VERSION_ARTIFACT_OPERATION",
       `write operation is outside the exact allowlist: ${operation.path}`,
@@ -777,33 +935,35 @@ function validateVersionArtifact(
     );
     referencedBlobs.add(operation.blob);
     writePaths.add(operation.path);
-    if (["packages/concierge/package.json", ...ADAPTER_MANIFEST_PATHS].includes(operation.path)) {
+    const output = readFileSync(blobPath);
+    if (MANIFEST_PATHS.includes(operation.path)) {
       assert(base !== null, "VERSION_ARTIFACT_BASE", `${operation.path} base is missing`);
       validateManifestTransition(
         operation.path,
         base,
-        readFileSync(blobPath),
+        output,
         artifact.sharedVersion,
+        releaseType,
       );
     } else if (operation.path.endsWith("/CHANGELOG.md")) {
-      const text = readFileSync(blobPath, "utf8");
-      assert(
-        text.startsWith(`# ${PUBLIC_PACKAGES[VERSION_PATHS.indexOf(operation.path) >> 1]}\n`) &&
-          text.includes(`\n## ${artifact.sharedVersion}\n`),
-        "VERSION_ARTIFACT_SEMANTICS",
-        `${operation.path} does not contain the exact package/version heading`,
+      validateChangelogTransition(
+        operation.path,
+        base,
+        output,
+        artifact.sharedVersion,
+        changesets,
+        releaseType,
       );
     } else {
-      validateEvidenceAuthorization(
-        operation.path,
-        readFileSync(blobPath),
-        artifact.sharedVersion,
-        artifact.consumedChangesets,
-      );
+      assert(base !== null, "VERSION_ARTIFACT_BASE", `${LOCK_PATH} base is missing`);
+      validateLockTransition(base, output, sourcePeer);
     }
   }
   assert(
-    stableJson([...writePaths].sort()) === stableJson([...VERSION_ARTIFACT_WRITE_PATHS].sort()) &&
+    VERSION_ARTIFACT_REQUIRED_WRITE_PATHS.every((path) => writePaths.has(path)) &&
+      [...writePaths].every((path) =>
+        VERSION_ARTIFACT_REQUIRED_WRITE_PATHS.includes(path) ||
+          VERSION_ARTIFACT_OPTIONAL_WRITE_PATHS.includes(path)) &&
       stableJson([...deletePaths].sort()) === stableJson([...changesetPaths].sort()),
     "VERSION_ARTIFACT_OPERATION",
     "version artifact does not contain the exact write/delete path set",
@@ -819,6 +979,115 @@ function validateVersionArtifact(
 
 function digestFileBuffer(value) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function versionReceiptBody(value) {
+  return {
+    schemaVersion: value.schemaVersion,
+    phase: value.phase,
+    baseSha: value.baseSha,
+    repository: value.repository,
+    runId: value.runId,
+    runAttempt: value.runAttempt,
+    artifactName: value.artifactName,
+    artifactDigest: value.artifactDigest,
+    sharedVersion: value.sharedVersion,
+    consumedChangesets: value.consumedChangesets,
+    finalDigests: value.finalDigests,
+  };
+}
+
+function validateVersionReceipt(receipt, prepared) {
+  exactKeys(
+    receipt,
+    [
+      "schemaVersion",
+      "phase",
+      "baseSha",
+      "repository",
+      "runId",
+      "runAttempt",
+      "artifactName",
+      "artifactDigest",
+      "sharedVersion",
+      "consumedChangesets",
+      "finalDigests",
+      "contentDigest",
+    ],
+    "VERSION_RECEIPT_SCHEMA",
+    "version receipt",
+  );
+  const artifact = prepared.artifact;
+  assert(
+    receipt.schemaVersion === 1 && receipt.phase === PHASE &&
+      receipt.baseSha === artifact.baseSha &&
+      receipt.repository === artifact.repository &&
+      receipt.runId === artifact.runId &&
+      receipt.runAttempt === artifact.runAttempt &&
+      receipt.artifactName === artifact.artifactName &&
+      receipt.artifactDigest === artifact.contentDigest &&
+      receipt.sharedVersion === artifact.sharedVersion &&
+      stableJson(receipt.consumedChangesets) ===
+        stableJson(artifact.consumedChangesets),
+    "VERSION_RECEIPT_BINDING",
+    "version receipt differs from the verified semantic artifact",
+  );
+  exactKeys(
+    receipt.finalDigests,
+    VERSION_RECEIPT_DIGEST_PATHS,
+    "VERSION_RECEIPT_SCHEMA",
+    "version receipt final digest set",
+  );
+  for (const path of VERSION_RECEIPT_DIGEST_PATHS) {
+    assert(
+      SHA256.test(receipt.finalDigests[path]) &&
+        receipt.finalDigests[path] === digestFile(resolve(ROOT, path)),
+      "VERSION_RECEIPT_DIGEST",
+      `version receipt final digest is stale: ${path}`,
+    );
+  }
+  assert(
+    SHA256.test(receipt.contentDigest) &&
+      receipt.contentDigest === digestFileBuffer(Buffer.from(stableJson(versionReceiptBody(receipt)))),
+    "VERSION_RECEIPT_DIGEST",
+    "version receipt content digest is stale",
+  );
+}
+
+function writeVersionReceipt(prepared) {
+  const destination = resolve(ROOT, VERSION_RECEIPT_PATH);
+  if (existsSync(destination)) {
+    assert(
+      lstatSync(destination).isFile() && realpathSync(destination) === destination,
+      "VERSION_RECEIPT_PATH",
+      "version receipt destination is not a regular repository file",
+    );
+  }
+  const body = {
+    schemaVersion: 1,
+    phase: PHASE,
+    baseSha: prepared.artifact.baseSha,
+    repository: prepared.artifact.repository,
+    runId: prepared.artifact.runId,
+    runAttempt: prepared.artifact.runAttempt,
+    artifactName: prepared.artifact.artifactName,
+    artifactDigest: prepared.artifact.contentDigest,
+    sharedVersion: prepared.artifact.sharedVersion,
+    consumedChangesets: prepared.artifact.consumedChangesets,
+    finalDigests: Object.fromEntries(
+      VERSION_RECEIPT_DIGEST_PATHS.map((path) => [path, digestFile(resolve(ROOT, path))]),
+    ),
+  };
+  const receipt = {
+    ...body,
+    contentDigest: digestFileBuffer(Buffer.from(stableJson(body))),
+  };
+  writeFileSync(destination, `${JSON.stringify(receipt, null, 2)}\n`, "utf8");
+  validateVersionReceipt(
+    JSON.parse(readFileSync(destination, "utf8")),
+    prepared,
+  );
+  return receipt;
 }
 
 function writeVersionArtifact(artifactDirectory, result, identity) {
@@ -912,18 +1181,6 @@ function prepareVersionArtifact(artifactDirectory) {
   validateVersionStatus(statusLines());
   const version = assertSharedVersionAt(ROOT);
   assert(version === result.version, "VERSION_TRIPLET", "copied version drifted");
-  run(
-    "node",
-    ["scripts/phase-09-mutation-battery.mjs", "run", "versioned", "--jobs", "2"],
-    "fresh versioned Phase 09 evidence",
-    2 * 60 * 60 * 1000,
-  );
-  run(
-    "git",
-    ["add", "--all", "--", ...GENERATED_EVIDENCE_PATHS],
-    "stage fresh Phase 09 evidence",
-  );
-  validateVersionStatus(statusLines(), { includeEvidence: true });
   writeVersionArtifact(artifactDirectory, result, identity);
   process.stdout.write(
     `PHASE09_VERSION_PREPARE_OK version=${version} consumed=${result.consumedChangesets.length}\n`,
@@ -957,8 +1214,10 @@ function applyVersionArtifact(artifactDirectory) {
     "VERSION_ARTIFACT_VERSION",
     "applied shared version drifted",
   );
+  const receipt = writeVersionReceipt(prepared);
   process.stdout.write(
-    `PHASE09_VERSION_APPLY_OK version=${version} operations=${prepared.artifact.operations.length}\n`,
+    `PHASE09_VERSION_APPLY_OK version=${version} operations=${prepared.artifact.operations.length} ` +
+      `receipt=${VERSION_RECEIPT_PATH} receiptDigest=${receipt.contentDigest}\n`,
   );
 }
 
@@ -1050,6 +1309,7 @@ function runSelfTest() {
       base,
       Buffer.from(`${JSON.stringify(output, null, 2)}\n`),
       "0.1.0",
+      "minor",
     );
   }
   process.stdout.write("SELF_TEST_OK semantic-manifest-transition PASS\n");
@@ -1068,8 +1328,115 @@ function runSelfTest() {
         coreBase,
         Buffer.from(`${JSON.stringify(injected, null, 2)}\n`),
         "0.1.0",
+        "minor",
       ),
     "VERSION_ARTIFACT_SEMANTICS",
+  );
+  controls += 1;
+
+  const syntheticChangesetBytes = Buffer.from(
+    '---\n"@fullselfbrowsing/concierge": minor\n' +
+      '"@fullselfbrowsing/concierge-react": minor\n' +
+      '"@fullselfbrowsing/concierge-svelte": minor\n---\n\nBounded release summary.\n',
+  );
+  const syntheticChangeset = parseChangeset(
+    ".changeset/example.md",
+    syntheticChangesetBytes,
+  );
+  const changelogPath = "packages/concierge/CHANGELOG.md";
+  const expectedChangelog = expectedChangelogTransition(
+    changelogPath,
+    null,
+    "0.1.0",
+    [syntheticChangeset],
+    "minor",
+  );
+  validateChangelogTransition(
+    changelogPath,
+    null,
+    expectedChangelog,
+    "0.1.0",
+    [syntheticChangeset],
+    "minor",
+  );
+  process.stdout.write("SELF_TEST_OK bounded-changelog PASS\n");
+  controls += 1;
+  expectFailure(
+    "arbitrary-markdown",
+    () =>
+      validateChangelogTransition(
+        changelogPath,
+        null,
+        Buffer.concat([expectedChangelog, Buffer.from("\n## Injected claim\n")]),
+        "0.1.0",
+        [syntheticChangeset],
+        "minor",
+      ),
+    "VERSION_ARTIFACT_SEMANTICS",
+  );
+  controls += 1;
+  expectFailure(
+    "malicious-evidence-blob",
+    () =>
+      validateArtifactWritePath(
+        ".planning/phases/09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json",
+      ),
+    "VERSION_ARTIFACT_OPERATION",
+  );
+  controls += 1;
+  const syntheticLockBase = Buffer.from(
+    `peer: ${transition.sourcePeer}\nunchanged: true\n`,
+  );
+  const syntheticLockOutput = Buffer.from(
+    `peer: ${CANONICAL_CORE_PEER}\nunchanged: true\n`,
+  );
+  validateLockTransition(
+    syntheticLockBase,
+    syntheticLockOutput,
+    transition.sourcePeer,
+  );
+  process.stdout.write("SELF_TEST_OK exact-lock-peer-normalization PASS\n");
+  controls += 1;
+  expectFailure(
+    "lock-dependency-smuggling",
+    () =>
+      validateLockTransition(
+        syntheticLockBase,
+        Buffer.concat([syntheticLockOutput, Buffer.from("attacker: 1.0.0\n")]),
+        transition.sourcePeer,
+      ),
+    "VERSION_ARTIFACT_SEMANTICS",
+  );
+  controls += 1;
+  const syntheticChangesetDigest = digestFileBuffer(syntheticChangesetBytes);
+  validateConsumedDeletion(
+    {
+      path: ".changeset/example.md",
+      action: "delete",
+      baseSha256: syntheticChangesetDigest,
+      sha256: null,
+      blob: null,
+    },
+    { path: ".changeset/example.md", sha256: syntheticChangesetDigest },
+    syntheticChangesetBytes,
+  );
+  process.stdout.write("SELF_TEST_OK digest-bound-changeset-deletion PASS\n");
+  controls += 1;
+  expectFailure(
+    "consumed-digest-mismatch",
+    () =>
+      validateConsumedDeletion(
+        {
+          path: ".changeset/example.md",
+          action: "delete",
+          baseSha256: syntheticChangesetDigest,
+          sha256: null,
+          blob: null,
+        },
+        { path: ".changeset/example.md", sha256: "f".repeat(64) },
+        syntheticChangesetBytes,
+      ),
+    "VERSION_ARTIFACT_OPERATION",
   );
   controls += 1;
 
@@ -1079,7 +1446,8 @@ function runSelfTest() {
       baseSha: "a".repeat(40),
       repository: "fullselfbrowsing/concierge",
       runId: "123456",
-      artifactName: "phase09-version-123456",
+      runAttempt: 1,
+      artifactName: `phase09-version-123456-1-${"a".repeat(40)}`,
     });
     const body = {
       schemaVersion: 1,
@@ -1113,6 +1481,44 @@ function runSelfTest() {
       "VERSION_ARTIFACT_BINDING",
     );
     controls += 1;
+    expectFailure(
+      "artifact-attempt-binding",
+      () =>
+        validateVersionArtifact(
+          temporaryRoot,
+          { ...identity, runAttempt: 2 },
+          () => null,
+        ),
+      "VERSION_ARTIFACT_BINDING",
+    );
+    controls += 1;
+    const attemptTwoName =
+      `phase09-version-${identity.runId}-2-${identity.baseSha}`;
+    assert(
+      attemptTwoName !== identity.artifactName,
+      "SELF_TEST",
+      "rerun attempt artifact names collided",
+    );
+    process.stdout.write("SELF_TEST_OK rerun-attempt-artifact-isolation PASS\n");
+    controls += 1;
+    const missingAttempt = { ...artifact };
+    delete missingAttempt.runAttempt;
+    writeFileSync(
+      join(temporaryRoot, VERSION_ARTIFACT_FILENAME),
+      `${JSON.stringify(missingAttempt, null, 2)}\n`,
+      "utf8",
+    );
+    expectFailure(
+      "artifact-missing-attempt",
+      () => validateVersionArtifact(temporaryRoot, identity, () => null),
+      "VERSION_ARTIFACT_SCHEMA",
+    );
+    controls += 1;
+    writeFileSync(
+      join(temporaryRoot, VERSION_ARTIFACT_FILENAME),
+      `${JSON.stringify(artifact, null, 2)}\n`,
+      "utf8",
+    );
     artifact.contentDigest = "0".repeat(64);
     writeFileSync(
       join(temporaryRoot, VERSION_ARTIFACT_FILENAME),
@@ -1142,7 +1548,7 @@ function runSelfTest() {
   process.stdout.write("SELF_TEST_OK token-stripped-from-prepare-children PASS\n");
   controls += 1;
 
-  assert(controls === 13, "SELF_TEST", `expected thirteen controls, ran ${controls}`);
+  assert(controls === 23, "SELF_TEST", `expected twenty-three controls, ran ${controls}`);
   process.stdout.write(`PHASE09_VERSION_SELF_TEST_OK controls=${controls}\n`);
 }
 

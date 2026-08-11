@@ -16,7 +16,7 @@ repository or in the org secrets this workflow reads.
 > code under write authority, and OIDC privilege drift:
 >
 > 1. `prepare` has only `contents: read`, persists no checkout credential, receives no
->    write token or netrc, and owns version calculation plus the dependency battery;
+>    write token or netrc, and produces a semantic-only version artifact;
 > 2. `version` has contents/PR write solely for the pinned Changesets action, whose
 >    custom command is the stdlib-only prepared-artifact verifier/copier;
 > 3. `verify` can only read contents and owns install/build/test/archive export;
@@ -27,8 +27,9 @@ repository or in the org secrets this workflow reads.
 > 6. all actions are pinned to reviewed 40-hex commits;
 > 7. every configured publish entry rejects package directories and reaches the one
 >    exact archive publisher; and
-> 8. the downloaded publisher, npm CLI, content-addressed seal, and three archives are
->    rehashed and rebound to repository/run/commit/artifact identity before use.
+> 8. every artifact is scoped to repository run, run attempt, and commit; the downloaded
+>    publisher, npm CLI, content-addressed seal, and three archives are rehashed and
+>    rebound to that identity before use.
 >
 > None of those is a substitute for a run. The first real release is the first genuine
 > test of this file, and the checklist below is what turns that release into a checked
@@ -57,30 +58,47 @@ different numbers for different audiences and must never be harmonized.
 The workflow has five jobs and two distinct pushes to `main`:
 
 1. Credential-free `prepare` checks out the exact `github.sha` with
-   `persist-credentials: false`. If a changeset exists, it versions a private snapshot,
-   validates the shared nonzero version, runs the complete versioned Phase 09 battery,
-   and uploads only a SHA-256-manifested allowlist of three manifests, three changelogs,
-   four fresh Phase 09 evidence files, and consumed changeset deletions. If no changeset
-   exists it uploads an exact no-op manifest. Neither path receives a write token or
-   netrc.
+   `persist-credentials: false`. If a changeset exists, it versions a private snapshot
+   and uploads a SHA-256-manifested **semantic-only** allowlist: the three public
+   manifests, bounded deterministic changelogs, an optional lockfile containing only
+   the exact adapter-peer normalization, and matching changeset deletions. Arbitrary
+   Markdown, dependency changes, evidence/ledger files, and unrelated paths are
+   rejected. If no changeset exists it uploads an exact no-op manifest. Neither path
+   receives a write token or netrc.
 2. Minimal `version` downloads that run/commit-bound artifact and invokes the pinned
    Changesets action. Its only custom version command is
    `node scripts/phase-09-version.mjs apply <artifact-dir>`: a stdlib-only path that
-   checks base hashes, semantic package-manifest changes, evidence authorization, and
-   the exact blob/path set before copying it. This job never installs dependencies or
-   runs build, test, package, mutation, or other dependency code.
-3. While a changeset remains, `hasChangesets` is true and later jobs are skipped.
-   Review and merge the Version Packages PR. On the merged version commit,
-   `hasChangesets` is false; `verify` runs the dependency battery and exports an
-   explicitly untrusted exact archive triplet.
-4. Clean `seal` checks out the exact commit read-only, downloads the untrusted export,
+   checks base hashes, every semantic transition, and the exact blob/path set before
+   copying it. Apply then derives `09-VERSION-RECEIPT.json` from the accepted artifact
+   and final bytes. This job never installs dependencies, runs build/test/package/
+   mutation code, or copies generated evidence.
+3. While a changeset remains, `hasChangesets` is true and later jobs are skipped. A
+   human checks out the Version Packages PR, reviews the semantic diff and receipt,
+   then runs the credential-free finalization ceremony:
+
+   ```sh
+   node scripts/phase-09-mutation-battery.mjs finalize versioned --jobs 2
+   ```
+
+   Run it only from the clean committed PR head. Review the four regenerated Phase 09
+   ledgers, commit them, and push that commit to the same PR. CI and publication reject
+   missing or stale versioned evidence, and the evidence must bind the tracked receipt's
+   repository, base SHA, run ID, run attempt, artifact name, and digest. Automation
+   cannot make this semantic release decision on the repository-writing path.
+4. Merge the fully reviewed PR. On the merged version commit, `hasChangesets` is false;
+   `verify` runs the dependency battery and exports an explicitly untrusted exact
+   archive triplet.
+5. Clean `seal` checks out the exact commit read-only, downloads the untrusted export,
    runs inline Node stdlib plus `git`/`tar` only, and compares archive identity, version,
-   and SHA-256 with tracked versioned release evidence. It binds repository, run ID,
-   commit, input artifact name, output artifact name, consumed changeset digests, and
-   SHA-512 integrities into `phase09-sealed-release-<seal-id>`.
-5. Only after that seal succeeds does `publish` receive `id-token: write`. It consumes
+   publish metadata, and SHA-256 with tracked receipt-bound versioned release evidence.
+   It binds repository, source ref, workflow path, run ID, run attempt, commit, input
+   artifact name, output artifact name, consumed changeset digests, receipt digest, and
+   SHA-512 integrities into `phase09-sealed-release-<attempt>-<seal-id>`.
+6. Only after that seal succeeds does `publish` receive `id-token: write`. It consumes
    only the independently sealed artifact and content-addressed pinned npm tooling,
-   revalidates every binding, and publishes or safely resumes core → React → Svelte.
+   revalidates every binding, forces all npm queries and publishes to
+   `https://registry.npmjs.org/` with owned empty config files, and publishes or safely
+   resumes core → React → Svelte.
 
 Before v0.1 is versioned, the source adapter peer is deliberately the bounded
 transition `workspace:^0.0.0 || ^0.1.0`. That makes raw `changeset status` report
@@ -131,10 +149,11 @@ its manifest version is unchanged.
 Ordinary `node scripts/phase-09-mutation-battery.mjs run all --jobs <n>` creates
 feature evidence only: it is sealed with `mode: "feature"`,
 `releaseAuthorization: false`, no shared release version, and no consumed changeset.
-It remains valid for feature CI but can never authorize npm. Only the credential-free
-version preparation path may run `run versioned`; that evidence seals
-`mode: "versioned"`, `releaseAuthorization: true`, the non-`0.0.0` shared version,
-and each consumed changeset path plus SHA-256. Before export upload, the workflow runs:
+It remains valid for feature CI but can never authorize npm. Only the manual
+receipt-backed `finalize versioned` ceremony creates evidence with `mode: "versioned"`,
+`releaseAuthorization: true`, the non-`0.0.0` shared version, the tracked version
+receipt binding, and each consumed changeset path plus SHA-256. Before export upload,
+the workflow runs:
 
 ```sh
 node scripts/phase-09-mutation-battery.mjs verify publish /absolute/archive/export
@@ -228,10 +247,10 @@ checks, immutable mutations, and the five unchanged Phase 8 hashes to one final
 revision.
 
 After Plan 09-13, any source, manifest, documentation, workflow, test, mutation
-register, ledger, archive, or Phase 8 drift invalidates verify-only evidence.
-Rerun Task 09-13-01 before relying on that evidence or publishing; a later
-`verify all` pass cannot bless bytes different from the terminal snapshot it
-was created to verify.
+register, ledger, archive, receipt, or Phase 8 drift invalidates verify-only evidence.
+Feature work uses the ordinary terminal regeneration path. A Version Packages PR uses
+the explicit `finalize versioned` ceremony above; a later `verify all` pass cannot
+bless bytes different from the terminal snapshot it was created to verify.
 
 ## One-time setup on the npm side
 
@@ -258,29 +277,48 @@ Run through this by hand on the first real release, in order.
       exits **1** when packages changed with no changeset present — that is the
       unreleased-change signal, not an error in the config.
 - [ ] The "Version Packages" PR opened by `changesets/action` looks right: correct
-      shared version bump, all three changelog entries, regenerated Phase 09 evidence,
-      consumed changeset, and **no private package listed**. Both adapter manifests
-      must still contain source peer `workspace:^`.
-- [ ] Merge it. The workflow re-runs on `main`; `prepare` emits the no-op version
+      shared version bump, all three bounded changelog entries, the apply-derived
+      `09-VERSION-RECEIPT.json`, consumed changeset deletion, and **no private package
+      listed**. Both adapter manifests must contain source peer `workspace:^`. The
+      automated commit must not contain regenerated evidence ledgers or unrelated
+      manifest, lockfile, Markdown, or dependency changes.
+- [ ] From the clean committed Version Packages PR head, run
+      `node scripts/phase-09-mutation-battery.mjs finalize versioned --jobs 2` without
+      repository or npm credentials. Review all four regenerated Phase 09 ledgers,
+      confirm their `versionReceipt` binding matches the tracked receipt, commit them,
+      and push. Do not merge while CI reports missing or stale receipt-backed evidence.
+- [ ] Merge the reviewed semantic change plus separately reviewed finalization commit.
+      The workflow re-runs on `main`; `prepare` emits the no-op version
       artifact, `version` reports no pending changeset, `verify` uploads four untrusted
       archive files and two publisher-tool files, and `seal` uploads exactly one seal
       plus three archives. Only then may the OIDC publisher run.
-- [ ] Confirm the seal artifact name is content-addressed and the publisher log queries
+- [ ] Confirm every artifact name includes the current `github.run_attempt`, the seal
+      artifact name is content-addressed, and the publisher log queries
       the exact core/React/Svelte versions in that order. Any package-directory publish,
       second pack, identity mismatch, or unsealed archive is a failed release.
-- [ ] If a publish stops partway through, rerun the same commit. Already-present versions
-      are skipped only when registry `dist.integrity` equals the sealed local SHA-512 and
-      trusted provenance metadata is present; mismatched bytes or missing provenance are
-      terminal failures. Never modify the command to skip past a package manually.
+- [ ] If any job stops partway through, use **Re-run all jobs**, never **Re-run failed
+      jobs**. Attempt-scoped artifacts deliberately make a failed-jobs-only rerun fail
+      closed. After an ambiguous publish result, the old seal is not resumable: the full
+      rerun must create a new attempt and seal for the same commit. Already-present
+      versions are skipped only when registry `dist.integrity` equals the sealed local
+      SHA-512 and the fetched npmjs DSSE statement semantically matches the package,
+      repository, source ref, commit, workflow, and GitHub Actions builder. Mismatched
+      bytes or provenance are terminal failures. Never edit the command to skip a
+      package manually.
 - [ ] The job log shows the OIDC exchange, not a token read.
 - [ ] **Open the package page on npmjs.com and verify the provenance attestation
       appears.** This is a human step and cannot be delegated to the workflow's exit
       code.
+- [ ] Treat the publisher's fetched-bundle check as semantic binding, not local
+      cryptographic verification. It decodes the DSSE statement and checks its claimed
+      subject/source identity; it does not verify the signature or transparency log.
+      The npm trusted-publisher ingestion and the human npmjs attestation check remain
+      required.
 - [ ] **A successful publish without an attestation is a FAILED publish.** Treat it as
-      an incident: unpublish or deprecate the version, find the credential that took
-      precedence over OIDC (almost always a stray `NPM_TOKEN` in the env), remove it,
-      and publish again. Do not accept the artifact because the build was green — a
-      silent provenance downgrade is exactly the failure that looks fine.
+      an incident: unpublish or deprecate the version and investigate the trusted
+      publisher configuration. The publisher rejects token/auth variables and registry
+      or npm-config overrides case-insensitively before invoking npm, so do not bypass
+      that guard. Do not accept the artifact because the build was green.
 - [ ] Record the observed pnpm, npm and Node versions from the job log here, so the
       next release has a known-good baseline instead of a table of floors.
 
@@ -299,12 +337,15 @@ why `privatePackages` is `false`, therefore lives in
 | `id-token: write` removed | No OIDC token to exchange; with no long-lived token, publication fails closed |
 | pnpm/root lock pin drift | Version or verification installs a different graph; static workflow check fails before publication |
 | publisher/npm artifact digest drift | Minimal publisher aborts before the OIDC exchange or any package publication |
-| `NPM_TOKEN` present in the env | Token auth wins; publish succeeds **without** provenance — green build, degraded artifact |
+| `NPM_TOKEN`, `NODE_AUTH_TOKEN`, `NPM_ID_TOKEN`, or ambient npm registry/auth config present | Publisher rejects the environment before invoking npm |
+| package `publishConfig` or repository metadata gains an extra/foreign destination | Sealer/publisher rejects the archive before any registry query or publish |
 | `--provenance` removed from the exact publisher | The reviewed publication command drifted; workflow/static checks fail before OIDC publication |
 | dependency command added to `version` | Repository-write authority reaches workspace/dependency code; workflow checker rejects the edit |
 | workspace script added to `seal` | The untrusted archive producer can self-authenticate; workflow checker rejects the edit |
 | archive and adjacent digest manifest changed together | Tracked versioned evidence differs; the independent sealer rejects the substitution |
-| an existing registry version has different integrity or no provenance | Resume fails closed and no later adapter is published |
+| an existing registry version has different integrity, provenance URL, subject, source repository/ref/commit/workflow, or builder | Resume fails closed and no later adapter is published |
+| only failed jobs are rerun | New run attempt cannot consume artifacts from the prior attempt; use Re-run all jobs |
+| publish exits ambiguously | Current attempt fails closed; rerun the complete workflow to produce a fresh seal |
 | checkout/setup/install/build added to the OIDC job | Dependency or action code receives publication authority; workflow checker rejects the edit |
 | `fetch-depth` left at the default | Changesets cannot determine what was already released; version preparation misbehaves |
 | `publish:` restored on `changesets/action` | Packages are repacked from directories and diverge from checked archives; workflow checker rejects the edit |

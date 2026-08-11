@@ -49,6 +49,8 @@ const RELEASE_EVIDENCE_PATH = join(
 );
 const VALIDATION_PATH = join(PHASE_DIRECTORY, "09-VALIDATION.md");
 const SECURITY_PATH = join(PHASE_DIRECTORY, "09-SECURITY.md");
+const VERSION_RECEIPT_RELATIVE_PATH =
+  ".planning/phases/09-react-and-svelte-adapters/09-VERSION-RECEIPT.json";
 const CONSUMER_TOOLING_LOCK_PATH =
   "scripts/fixtures/phase-09-foreign-consumer/package-lock.json";
 const CONSUMER_TOOLING_MANIFEST_PATH =
@@ -117,13 +119,11 @@ const PUBLIC_PACKAGES = Object.freeze([
   "@fullselfbrowsing/concierge-react",
   "@fullselfbrowsing/concierge-svelte",
 ]);
-const VERSIONED_REQUIRED_PATHS = Object.freeze([
+const VERSION_RECEIPT_DIGEST_PATHS = Object.freeze([
   "packages/concierge/package.json",
-  "packages/concierge/CHANGELOG.md",
   "packages/concierge-react/package.json",
-  "packages/concierge-react/CHANGELOG.md",
   "packages/concierge-svelte/package.json",
-  "packages/concierge-svelte/CHANGELOG.md",
+  "pnpm-lock.yaml",
 ]);
 const REQUIRED_FINAL_INPUT_PATHS = Object.freeze([
   "package.json",
@@ -199,6 +199,7 @@ const ROOT_INPUT_PATHS = new Set([
   ".planning/phases/09-react-and-svelte-adapters/09-CONTEXT.md",
   ".planning/phases/09-react-and-svelte-adapters/09-RESEARCH.md",
   ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-REGISTER.json",
+  VERSION_RECEIPT_RELATIVE_PATH,
   ...PHASE08_PATHS,
 ]);
 const INPUT_DIRECTORY_PREFIXES = Object.freeze([
@@ -335,7 +336,8 @@ const REGISTER_ROW_KEYS = Object.freeze([
 ]);
 const USAGE =
   "Usage: node scripts/phase-09-mutation-battery.mjs " +
-  "self-test|preflight <registered-id>|run <all|versioned> --jobs <1-4>|" +
+  "self-test|preflight <registered-id>|run all --jobs <1-4>|" +
+  "finalize versioned --jobs <1-4>|" +
   "verify <evidence|release|all>|verify publish <archive-dir>";
 const TEMP_PREFIX = "concierge-phase09-mutation-";
 const OWNERSHIP_MARKER = ".concierge-phase09-mutation-owned-root";
@@ -345,6 +347,10 @@ const PACKAGE_TIMEOUT_MS = 600_000;
 const INSTALL_TIMEOUT_MS = 360_000;
 const SYSTEM_TEMP_ROOT = realpathSync(tmpdir());
 const SHA256 = /^[0-9a-f]{64}$/u;
+const COMMIT = /^[0-9a-f]{40}$/u;
+const RUN_ID = /^[1-9]\d*$/u;
+const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
+const EXPECTED_REPOSITORY = "fullselfbrowsing/concierge";
 
 class UsageError extends Error {
   constructor() {
@@ -431,7 +437,7 @@ function parseInvocation(arguments_) {
   if (
     arguments_.length === 4 &&
     arguments_[0] === "run" &&
-    ["all", "versioned"].includes(arguments_[1]) &&
+    arguments_[1] === "all" &&
     arguments_[2] === "--jobs"
   ) {
     const jobs = Number(arguments_[3]);
@@ -439,8 +445,19 @@ function parseInvocation(arguments_) {
       return Object.freeze({
         kind: "run-all",
         jobs,
-        versioned: arguments_[1] === "versioned",
+        versioned: false,
       });
+    }
+  }
+  if (
+    arguments_.length === 4 &&
+    arguments_[0] === "finalize" &&
+    arguments_[1] === "versioned" &&
+    arguments_[2] === "--jobs"
+  ) {
+    const jobs = Number(arguments_[3]);
+    if (Number.isInteger(jobs) && jobs >= 1 && jobs <= 4) {
+      return Object.freeze({ kind: "run-all", jobs, versioned: true });
     }
   }
   if (
@@ -695,88 +712,143 @@ function assertCleanReleaseInputs(
   );
 }
 
-function validateVersionedWorktree(root) {
-  const lines = runGitSync(
-    ["status", "--porcelain=v1", "--untracked-files=all"],
-    root,
-  )
-    .split(/\r?\n/u)
-    .filter(Boolean);
-  assert(lines.length > 0, "versioned release tree has no staged changes");
+function versionReceiptBody(value) {
+  return {
+    schemaVersion: value.schemaVersion,
+    phase: value.phase,
+    baseSha: value.baseSha,
+    repository: value.repository,
+    runId: value.runId,
+    runAttempt: value.runAttempt,
+    artifactName: value.artifactName,
+    artifactDigest: value.artifactDigest,
+    sharedVersion: value.sharedVersion,
+    consumedChangesets: value.consumedChangesets,
+    finalDigests: value.finalDigests,
+  };
+}
 
-  const paths = [];
-  const consumedChangesets = [];
-  for (const line of lines) {
-    const status = line.slice(0, 2);
-    const path = line.slice(3).replace(/^"|"$/gu, "");
-    assert(
-      status[0] !== " " && status[0] !== "?" && status[1] === " ",
-      `versioned release path is not fully staged: ${line}`,
-    );
-    if (/^\.changeset\/[^/]+\.md$/u.test(path)) {
-      assert(status[0] === "D", `versioned changeset must be consumed: ${line}`);
-      consumedChangesets.push(
-        Object.freeze({
-          path,
-          sha256: sha256(runGitSync(["show", `HEAD:${path}`], root)),
-        }),
-      );
-    } else {
-      assert(
-        VERSIONED_REQUIRED_PATHS.includes(path) || path === "pnpm-lock.yaml",
-        `versioned release changed an unexpected path: ${line}`,
-      );
-    }
-    paths.push(path);
-  }
-  for (const path of VERSIONED_REQUIRED_PATHS) {
-    assert(paths.includes(path), `versioned release omitted required path: ${path}`);
-  }
-  assert(consumedChangesets.length > 0, "versioned release consumed no changeset");
-
-  const versions = [
-    "packages/concierge/package.json",
-    "packages/concierge-react/package.json",
-    "packages/concierge-svelte/package.json",
-  ].map((path) => JSON.parse(readFileSync(join(root, path), "utf8")).version);
-  assert(
-    versions.every(
-      (version) =>
-        version === versions[0] &&
-        /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(version) &&
-        version !== "0.0.0",
-    ),
-    `versioned release package triplet drifted: ${versions.join(", ")}`,
+function readVersionReceipt(root) {
+  const path = join(root, VERSION_RECEIPT_RELATIVE_PATH);
+  assert(existsSync(path) && lstatSync(path).isFile(), "version receipt is missing");
+  runGitSync(["ls-files", "--error-unmatch", VERSION_RECEIPT_RELATIVE_PATH], root);
+  const bytes = readFileSync(path);
+  const receipt = JSON.parse(bytes.toString("utf8"));
+  exactKeys(
+    receipt,
+    [
+      "schemaVersion",
+      "phase",
+      "baseSha",
+      "repository",
+      "runId",
+      "runAttempt",
+      "artifactName",
+      "artifactDigest",
+      "sharedVersion",
+      "consumedChangesets",
+      "finalDigests",
+      "contentDigest",
+    ],
+    "version receipt",
   );
+  const expectedArtifactName =
+    `phase09-version-${receipt.runId}-${receipt.runAttempt}-${receipt.baseSha}`;
+  assert(
+    receipt.schemaVersion === 1 && receipt.phase === PHASE &&
+      receipt.repository === EXPECTED_REPOSITORY && REPOSITORY.test(receipt.repository) &&
+      COMMIT.test(receipt.baseSha) && RUN_ID.test(receipt.runId) &&
+      Number.isSafeInteger(receipt.runAttempt) && receipt.runAttempt > 0 &&
+      receipt.artifactName === expectedArtifactName &&
+      SHA256.test(receipt.artifactDigest) &&
+      /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(receipt.sharedVersion) &&
+      receipt.sharedVersion !== "0.0.0" &&
+      SHA256.test(receipt.contentDigest) &&
+      receipt.contentDigest === sha256(stableJson(versionReceiptBody(receipt))),
+    "version receipt identity or digest is malformed",
+  );
+  runGitSync(["merge-base", "--is-ancestor", receipt.baseSha, "HEAD"], root);
+  exactKeys(receipt.finalDigests, VERSION_RECEIPT_DIGEST_PATHS, "version receipt final digests");
+  for (const digestPath of VERSION_RECEIPT_DIGEST_PATHS) {
+    assert(
+      SHA256.test(receipt.finalDigests[digestPath]) &&
+        receipt.finalDigests[digestPath] === sha256File(join(root, digestPath)),
+      `version receipt final digest is stale: ${digestPath}`,
+    );
+  }
+  assert(
+    Array.isArray(receipt.consumedChangesets) &&
+      receipt.consumedChangesets.length > 0,
+    "version receipt consumed no changeset",
+  );
+  const paths = new Set();
+  for (const record of receipt.consumedChangesets) {
+    exactKeys(record, ["path", "sha256"], "version receipt consumed changeset");
+    const base = gitShowBuffer(receipt.baseSha, record.path);
+    assert(
+      /^\.changeset\/[^/]+\.md$/u.test(record.path) &&
+        SHA256.test(record.sha256) && !paths.has(record.path) &&
+        base !== null && sha256(base) === record.sha256 &&
+        !existsSync(join(root, record.path)),
+      `version receipt consumed changeset is missing, duplicated, stale, or not deleted: ${record.path}`,
+    );
+    paths.add(record.path);
+  }
+  const manifests = VERSION_RECEIPT_DIGEST_PATHS.slice(0, 3).map((manifestPath) =>
+    JSON.parse(readFileSync(join(root, manifestPath), "utf8"))
+  );
+  assert(
+    manifests.map((manifest) => manifest.name).join("\n") === PUBLIC_PACKAGES.join("\n") &&
+      manifests.every((manifest) => manifest.version === receipt.sharedVersion) &&
+      manifests.slice(1).every(
+        (manifest) => manifest.peerDependencies?.[PUBLIC_PACKAGES[0]] === "workspace:^",
+      ),
+    "version receipt does not match the canonical versioned package triplet",
+  );
+  return Object.freeze({ receipt, bytes });
+}
+
+function versionReceiptBinding(root, receiptRecord = readVersionReceipt(root)) {
+  const { receipt, bytes } = receiptRecord;
   return Object.freeze({
-    paths: Object.freeze(paths),
-    status: Object.freeze(lines),
-    sharedVersion: versions[0],
-    consumedChangesets: Object.freeze(
-      consumedChangesets.sort((left, right) => left.path.localeCompare(right.path)),
-    ),
+    path: VERSION_RECEIPT_RELATIVE_PATH,
+    sha256: sha256(bytes),
+    baseSha: receipt.baseSha,
+    repository: receipt.repository,
+    runId: receipt.runId,
+    runAttempt: receipt.runAttempt,
+    artifactName: receipt.artifactName,
   });
 }
 
+function validateVersionReceiptBinding(value, root) {
+  exactKeys(
+    value,
+    ["path", "sha256", "baseSha", "repository", "runId", "runAttempt", "artifactName"],
+    "version receipt binding",
+  );
+  const expected = versionReceiptBinding(root);
+  assert(
+    stableJson(value) === stableJson(expected),
+    "versioned evidence differs from the tracked apply-derived version receipt",
+  );
+  return expected;
+}
+
 function verifyLiveMutationState(liveState) {
-  verifyInputManifest(liveState.inputManifest, ROOT, {
-    verifyPathSet: !liveState.versioned,
-  });
+  verifyInputManifest(liveState.inputManifest, ROOT);
   assertCleanReleaseInputs(ROOT, liveState.paths, {
     allowedModifiedPaths: liveState.allowedModifiedPaths,
   });
   if (liveState.versioned) {
-    const current = validateVersionedWorktree(ROOT);
+    const current = readVersionReceipt(ROOT);
     assert(
-      JSON.stringify(current.status) === JSON.stringify(liveState.versionedStatus),
-      "versioned release status changed during evidence generation",
-    );
-    assert(
-      current.sharedVersion === liveState.authorization.sharedVersion &&
-        stableJson(current.consumedChangesets) ===
+      current.receipt.sharedVersion === liveState.authorization.sharedVersion &&
+        stableJson(current.receipt.consumedChangesets) ===
           stableJson(liveState.authorization.consumedChangesets),
       "versioned release authorization changed during evidence generation",
     );
+    validateVersionReceiptBinding(liveState.authorization.versionReceipt, ROOT);
   }
 }
 
@@ -1258,16 +1330,13 @@ function mutationLiveState({
 } = {}) {
   const trackedPaths = releaseInputPaths(ROOT);
   const versionedState = allowVersionedWorktree
-    ? validateVersionedWorktree(ROOT)
+    ? readVersionReceipt(ROOT)
     : null;
-  const paths = allowVersionedWorktree
-    ? trackedPaths.filter((path) => existsSync(join(ROOT, path)))
-    : trackedPaths;
+  const paths = trackedPaths;
   const allowedModifiedPaths = [
     ...(allowRunnerModification
       ? ["scripts/phase-09-mutation-battery.mjs"]
       : []),
-    ...(versionedState?.paths ?? []).filter((path) => paths.includes(path)),
   ];
   assertCleanReleaseInputs(ROOT, paths, { allowedModifiedPaths });
   return Object.freeze({
@@ -1275,20 +1344,23 @@ function mutationLiveState({
     inputManifest: makeInputManifest(ROOT, paths),
     allowedModifiedPaths,
     versioned: allowVersionedWorktree,
-    versionedStatus: versionedState?.status ?? Object.freeze([]),
     authorization: Object.freeze(
       allowVersionedWorktree
         ? {
             mode: "versioned",
             releaseAuthorization: true,
-            sharedVersion: versionedState.sharedVersion,
-            consumedChangesets: versionedState.consumedChangesets,
+            runAttempt: versionedState.receipt.runAttempt,
+            sharedVersion: versionedState.receipt.sharedVersion,
+            consumedChangesets: versionedState.receipt.consumedChangesets,
+            versionReceipt: versionReceiptBinding(ROOT, versionedState),
           }
         : {
             mode: "feature",
             releaseAuthorization: false,
+            runAttempt: null,
             sharedVersion: null,
             consumedChangesets: Object.freeze([]),
+            versionReceipt: null,
           },
     ),
     outputEndpoints: outputEndpoints(),
@@ -1498,7 +1570,7 @@ async function runSelfTest() {
   );
   pass("exact-cli");
   const versionedInvocation = parseInvocation([
-    "run",
+    "finalize",
     "versioned",
     "--jobs",
     "2",
@@ -1525,8 +1597,10 @@ async function runSelfTest() {
   const featureAuthorization = {
     mode: "feature",
     releaseAuthorization: false,
+    runAttempt: null,
     sharedVersion: null,
     consumedChangesets: [],
+    versionReceipt: null,
   };
   validateReleaseAuthorization(featureAuthorization, "synthetic feature");
   pass("feature-evidence-non-authorizing");
@@ -1545,10 +1619,20 @@ async function runSelfTest() {
         {
           mode: "versioned",
           releaseAuthorization: true,
+          runAttempt: 1,
           sharedVersion: "0.0.0",
           consumedChangesets: [
             { path: ".changeset/example.md", sha256: "a".repeat(64) },
           ],
+          versionReceipt: {
+            path: VERSION_RECEIPT_RELATIVE_PATH,
+            sha256: "b".repeat(64),
+            baseSha: "c".repeat(40),
+            repository: EXPECTED_REPOSITORY,
+            runId: "123456",
+            runAttempt: 1,
+            artifactName: `phase09-version-123456-1-${"c".repeat(40)}`,
+          },
         },
         "synthetic zero version",
         { publishing: true },
@@ -1563,8 +1647,18 @@ async function runSelfTest() {
         {
           mode: "versioned",
           releaseAuthorization: true,
+          runAttempt: 1,
           sharedVersion: "0.1.0",
           consumedChangesets: [],
+          versionReceipt: {
+            path: VERSION_RECEIPT_RELATIVE_PATH,
+            sha256: "b".repeat(64),
+            baseSha: "c".repeat(40),
+            repository: EXPECTED_REPOSITORY,
+            runId: "123456",
+            runAttempt: 1,
+            artifactName: `phase09-version-123456-1-${"c".repeat(40)}`,
+          },
         },
         "synthetic removed changeset",
         { publishing: true },
@@ -1573,6 +1667,56 @@ async function runSelfTest() {
     "removed changeset authorization",
   );
   pass("removed-changeset-publish-rejected");
+  const versionedAuthorization = {
+    mode: "versioned",
+    releaseAuthorization: true,
+    runAttempt: 1,
+    sharedVersion: "0.1.0",
+    consumedChangesets: [
+      { path: ".changeset/example.md", sha256: "a".repeat(64) },
+    ],
+    versionReceipt: {
+      path: VERSION_RECEIPT_RELATIVE_PATH,
+      sha256: "b".repeat(64),
+      baseSha: "c".repeat(40),
+      repository: EXPECTED_REPOSITORY,
+      runId: "123456",
+      runAttempt: 1,
+      artifactName: `phase09-version-123456-1-${"c".repeat(40)}`,
+    },
+  };
+  const missingEvidenceAttempt = clone(versionedAuthorization);
+  delete missingEvidenceAttempt.runAttempt;
+  assertThrows(
+    () => validateReleaseAuthorization(missingEvidenceAttempt, "synthetic missing evidence attempt"),
+    /versioned evidence lacks nonzero release authorization/u,
+    "missing evidence attempt",
+  );
+  pass("missing-evidence-attempt-rejected");
+  const mismatchedEvidenceAttempt = clone(versionedAuthorization);
+  mismatchedEvidenceAttempt.runAttempt = 2;
+  assertThrows(
+    () => validateReleaseAuthorization(mismatchedEvidenceAttempt, "synthetic evidence attempt mismatch"),
+    /version receipt identity is malformed/u,
+    "mismatched evidence attempt",
+  );
+  pass("mismatched-evidence-attempt-rejected");
+  const missingAttemptAuthorization = clone(versionedAuthorization);
+  delete missingAttemptAuthorization.versionReceipt.runAttempt;
+  assertThrows(
+    () => validateReleaseAuthorization(missingAttemptAuthorization, "synthetic missing attempt"),
+    /version receipt binding keys/u,
+    "missing receipt attempt",
+  );
+  pass("missing-receipt-attempt-rejected");
+  const mismatchedAttemptAuthorization = clone(versionedAuthorization);
+  mismatchedAttemptAuthorization.versionReceipt.runAttempt = 2;
+  assertThrows(
+    () => validateReleaseAuthorization(mismatchedAttemptAuthorization, "synthetic attempt mismatch"),
+    /version receipt identity is malformed/u,
+    "mismatched receipt attempt",
+  );
+  pass("mismatched-receipt-attempt-rejected");
 
   const pnpmConfig = await runCommand(
     "pnpm",
@@ -1586,7 +1730,7 @@ async function runSelfTest() {
   );
   pass("pnpm-pre-run-install-disabled");
 
-  assert(controls === 22, `self-test control count drifted: ${controls}`);
+  assert(controls === 26, `self-test control count drifted: ${controls}`);
   assertOutputEndpoints(endpoints);
   console.log(`PHASE09_MUTATION_SELF_TEST_OK controls=${controls}`);
 }
@@ -1659,24 +1803,30 @@ function validateReleaseAuthorization(value, label, { publishing = false } = {})
   if (value.mode === "feature") {
     assert(
       value.releaseAuthorization === false &&
+        value.runAttempt === null &&
         value.sharedVersion === null &&
-        value.consumedChangesets.length === 0,
+        value.consumedChangesets.length === 0 &&
+        value.versionReceipt === null,
       `${label} feature evidence must be explicitly non-authorizing`,
     );
     assert(!publishing, `${label} feature evidence cannot authorize publication`);
     return Object.freeze({
       mode: value.mode,
       releaseAuthorization: value.releaseAuthorization,
+      runAttempt: value.runAttempt,
       sharedVersion: value.sharedVersion,
       consumedChangesets: value.consumedChangesets,
+      versionReceipt: value.versionReceipt,
     });
   }
   assert(
     value.releaseAuthorization === true &&
+      Number.isSafeInteger(value.runAttempt) && value.runAttempt > 0 &&
       typeof value.sharedVersion === "string" &&
       /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(value.sharedVersion) &&
       value.sharedVersion !== "0.0.0" &&
-      value.consumedChangesets.length > 0,
+      value.consumedChangesets.length > 0 &&
+      value.versionReceipt !== null && typeof value.versionReceipt === "object",
     `${label} versioned evidence lacks nonzero release authorization`,
   );
   const paths = new Set();
@@ -1689,11 +1839,30 @@ function validateReleaseAuthorization(value, label, { publishing = false } = {})
     );
     paths.add(record.path);
   }
+  exactKeys(
+    value.versionReceipt,
+    ["path", "sha256", "baseSha", "repository", "runId", "runAttempt", "artifactName"],
+    `${label} version receipt binding`,
+  );
+  assert(
+    value.versionReceipt.path === VERSION_RECEIPT_RELATIVE_PATH &&
+      SHA256.test(value.versionReceipt.sha256) && COMMIT.test(value.versionReceipt.baseSha) &&
+      value.versionReceipt.repository === EXPECTED_REPOSITORY &&
+      RUN_ID.test(value.versionReceipt.runId) &&
+      Number.isSafeInteger(value.versionReceipt.runAttempt) &&
+      value.versionReceipt.runAttempt > 0 &&
+      value.versionReceipt.runAttempt === value.runAttempt &&
+      value.versionReceipt.artifactName ===
+        `phase09-version-${value.versionReceipt.runId}-${value.versionReceipt.runAttempt}-${value.versionReceipt.baseSha}`,
+    `${label} version receipt identity is malformed`,
+  );
   return Object.freeze({
     mode: value.mode,
     releaseAuthorization: value.releaseAuthorization,
+    runAttempt: value.runAttempt,
     sharedVersion: value.sharedVersion,
     consumedChangesets: value.consumedChangesets,
+    versionReceipt: value.versionReceipt,
   });
 }
 
@@ -1703,7 +1872,10 @@ function verifyMutationEvidence(root = ROOT, { quiet = false } = {}) {
   const evidence = JSON.parse(readFileSync(path, "utf8"));
   verifySeal(evidence, "mutation evidence");
   assert(evidence.schemaVersion === 1 && evidence.phase === PHASE, "mutation evidence identity is invalid");
-  validateReleaseAuthorization(evidence, "mutation evidence");
+  const authorization = validateReleaseAuthorization(evidence, "mutation evidence");
+  if (authorization.mode === "versioned") {
+    validateVersionReceiptBinding(authorization.versionReceipt, root);
+  }
   const register = validateRegister(readRegister(root), root);
   assert(evidence.registerDigest === registerDigest(root), "mutation evidence register digest is stale");
   assert(JSON.stringify(evidence.expectedIds) === JSON.stringify(EXPECTED_IDS), "mutation evidence IDs drifted");
@@ -1760,6 +1932,9 @@ function verifyReleaseEvidence(root = ROOT, { quiet = false, publishing = false 
   const authorization = validateReleaseAuthorization(release, "release evidence", {
     publishing,
   });
+  if (authorization.mode === "versioned") {
+    validateVersionReceiptBinding(authorization.versionReceipt, root);
+  }
   assert(release.registerDigest === registerDigest(root), "release register digest is stale");
   verifyInputManifest(release.releaseInputs, root);
   assertPhase08Hashes(release.phase08.hashes, root);

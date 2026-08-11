@@ -16,7 +16,7 @@ const UPLOAD = "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
 const DOWNLOAD = "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093";
 const CHANGESETS = "changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d";
 const PUBLISHER_SHA256 =
-  "15751cc8ac4ca8c89f52feb236cbee373dc75948ad9f9ecdef6e156052121c4b";
+  "693d53138dfe953056024a0eabc61c4e1f9b25f422b77fa7077220de912d6c67";
 const NPM_INTEGRITY =
   "sha512-82gRxKrh/eY5UnNorkTFcdBQAGpgjWehkfGVqAGlJjejEtJZGGJUqjo3mbBTNbc5BTnPKGVtGPBZGhElujX5cw==";
 const FIRST_RELEASE_CORE_PEER = "workspace:^0.0.0 || ^0.1.0";
@@ -57,6 +57,12 @@ const EXACT_PUBLISH_COMMAND =
   '"${{ steps.sealed-inputs.outputs.core }}"\n' +
   '"${{ steps.sealed-inputs.outputs.react }}"\n' +
   '"${{ steps.sealed-inputs.outputs.svelte }}"';
+const VERSION_ARTIFACT_NAME =
+  "phase09-version-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}";
+const ARCHIVE_ARTIFACT_NAME =
+  "phase09-untrusted-archives-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}";
+const PUBLISHER_ARTIFACT_NAME =
+  "phase09-publisher-tools-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}";
 
 function fail(code, message) {
   throw new Error(`[${code}] ${message}`);
@@ -69,6 +75,14 @@ function assert(condition, code, message) {
 function countOccurrences(source, token) {
   assert(token.length > 0, "CHECKER", "count token must be nonempty");
   return source.split(token).length - 1;
+}
+
+function validateAttemptScopedArtifactName(name, expected) {
+  assert(
+    name === expected && name.includes("${{ github.run_attempt }}"),
+    "ARTIFACT_ATTEMPT",
+    `artifact name is not scoped to the exact workflow attempt: ${name}`,
+  );
 }
 
 function readNonemptyFile(path) {
@@ -516,12 +530,12 @@ function validateExactOidcSteps(job) {
 }
 
 function validateSealIsolation(job) {
-  validateCheckoutIsolation(job, { fetchDepth: 1 });
+  validateCheckoutIsolation(job, { fetchDepth: 0 });
   const executableRuns = job.steps.map((step) => step.run ?? "").join("\n");
   assert(
     job.executable.includes("needs: verify") &&
       job.executable.includes("if: ${{ needs.verify.result == 'success' }}") &&
-      !/\b(?:pnpm|npm)\b|scripts\/[A-Za-z0-9_.-]+\.(?:mjs|js|sh)\b/u.test(
+      !/\b(?:pnpm|npm)\s+(?:ci|install|run|exec|pack|test|publish)\b|scripts\/[A-Za-z0-9_.-]+\.(?:mjs|js|sh)\b/u.test(
         executableRuns,
       ),
     "SEAL_ISOLATION",
@@ -537,14 +551,21 @@ function validateSealIsolation(job) {
     "process.env.PHASE09_COMMIT",
     "process.env.PHASE09_REPOSITORY",
     "process.env.PHASE09_RUN_ID",
+    "process.env.PHASE09_RUN_ATTEMPT",
+    "process.env.PHASE09_SOURCE_REF",
+    "process.env.PHASE09_WORKFLOW_PATH",
     "process.env.PHASE09_INPUT_ARTIFACT",
+    "09-VERSION-RECEIPT.json",
+    '"merge-base", "--is-ancestor", receipt.baseSha, "HEAD"',
+    "evidence.versionReceipt",
+    "evidence.runAttempt !== receipt.runAttempt",
     'evidence.mode !== "versioned"',
     "evidence.releaseAuthorization !== true",
     'evidence.sharedVersion === "0.0.0"',
     "stableJson(localManifest.archives) !== stableJson(evidence.archives)",
     'hash("sha256", bytes) !== record.sha256',
     'integrity: `sha512-${hash("sha512", bytes, "base64")}`',
-    "phase09-sealed-release-${sealId}",
+    "phase09-sealed-release-${runAttempt}-${sealId}",
   ]) {
     assert(
       sealer.run?.includes(token) === true,
@@ -555,9 +576,12 @@ function validateSealIsolation(job) {
   assert(
     sealer.raw.includes("PHASE09_REPOSITORY: ${{ github.repository }}") &&
       sealer.raw.includes("PHASE09_RUN_ID: ${{ github.run_id }}") &&
+      sealer.raw.includes("PHASE09_RUN_ATTEMPT: ${{ github.run_attempt }}") &&
       sealer.raw.includes("PHASE09_COMMIT: ${{ github.sha }}") &&
+      sealer.raw.includes("PHASE09_SOURCE_REF: refs/heads/main") &&
+      sealer.raw.includes("PHASE09_WORKFLOW_PATH: .github/workflows/release.yml") &&
       sealer.raw.includes(
-        "PHASE09_INPUT_ARTIFACT: phase09-untrusted-archives-${{ github.run_id }}-${{ github.sha }}",
+        `PHASE09_INPUT_ARTIFACT: ${ARCHIVE_ARTIFACT_NAME}`,
       ),
     "SEAL_BINDING",
     "sealer environment does not bind exact repository/run/commit/input artifact identity",
@@ -636,6 +660,16 @@ function validateLiveContracts() {
       manifest.name === PUBLIC_PACKAGES[index],
       "PACKAGE_IDENTITY",
       `${path} package identity drifted`,
+    );
+    assert(
+      JSON.stringify(manifest.publishConfig) === JSON.stringify({ access: "public" }) &&
+        JSON.stringify(manifest.repository) === JSON.stringify({
+          type: "git",
+          url: "git+https://github.com/fullselfbrowsing/concierge.git",
+          directory: `packages/${PUBLIC_PACKAGES[index].split("/").at(-1)}`,
+        }),
+      "PACKAGE_PUBLISH_DESTINATION",
+      `${path} must pin exact public npm and repository metadata`,
     );
     if (index > 0) {
       const expectedPeer = manifests[0].version === "0.0.0"
@@ -785,14 +819,13 @@ function validateRelease(workflow) {
     "${{ runner.temp }}/phase09-version-artifact/blobs",
   ]);
   assert(
-    prepareUpload.raw.includes(
-      "name: phase09-version-${{ github.run_id }}-${{ github.sha }}",
-    ) &&
+    prepareUpload.raw.includes(`name: ${VERSION_ARTIFACT_NAME}`) &&
       prepareCommand.raw.includes("PHASE09_BASE_SHA: ${{ github.sha }}") &&
       prepareCommand.raw.includes("PHASE09_REPOSITORY: ${{ github.repository }}") &&
       prepareCommand.raw.includes("PHASE09_RUN_ID: ${{ github.run_id }}") &&
+      prepareCommand.raw.includes("PHASE09_RUN_ATTEMPT: ${{ github.run_attempt }}") &&
       prepareCommand.raw.includes(
-        "PHASE09_VERSION_ARTIFACT_NAME: phase09-version-${{ github.run_id }}-${{ github.sha }}",
+        `PHASE09_VERSION_ARTIFACT_NAME: ${VERSION_ARTIFACT_NAME}`,
       ),
     "VERSION_ARTIFACT_BINDING",
     "prepared version artifact identity or upload name drifted",
@@ -805,6 +838,12 @@ function validateRelease(workflow) {
     `${RELEASE_PATH}#version`,
   );
   validateMinimalVersionJob(version);
+  const versionDownload = requireUse(version.steps, DOWNLOAD, "version artifact download");
+  assert(
+    versionDownload.raw.includes(`name: ${VERSION_ARTIFACT_NAME}`),
+    "VERSION_ARTIFACT_BINDING",
+    "version job can download an artifact from a different workflow attempt",
+  );
   const changesets = requireUse(version.steps, CHANGESETS);
   assert(
     version.executable.includes("needs: prepare") &&
@@ -815,6 +854,10 @@ function validateRelease(workflow) {
       changesets.raw.includes("PHASE09_BASE_SHA: ${{ github.sha }}") &&
       changesets.raw.includes("PHASE09_REPOSITORY: ${{ github.repository }}") &&
       changesets.raw.includes("PHASE09_RUN_ID: ${{ github.run_id }}") &&
+      changesets.raw.includes("PHASE09_RUN_ATTEMPT: ${{ github.run_attempt }}") &&
+      changesets.raw.includes(
+        `PHASE09_VERSION_ARTIFACT_NAME: ${VERSION_ARTIFACT_NAME}`,
+      ) &&
       !/(?:^|\n)\s*publish\s*:/u.test(changesets.raw),
     "VERSION_LIFECYCLE",
     "Changesets action is not the minimal prepared-artifact PR gate",
@@ -890,12 +933,8 @@ function validateRelease(workflow) {
     "${{ steps.phase09-archives.outputs.manifest }}",
   ]);
   assert(
-    uploads[0].raw.includes(
-      "name: phase09-untrusted-archives-${{ github.run_id }}-${{ github.sha }}",
-    ) &&
-      uploads[1].raw.includes(
-        "name: phase09-publisher-tools-${{ github.run_id }}-${{ github.sha }}",
-      ),
+    uploads[0].raw.includes(`name: ${ARCHIVE_ARTIFACT_NAME}`) &&
+      uploads[1].raw.includes(`name: ${PUBLISHER_ARTIFACT_NAME}`),
     "ARCHIVE_ARTIFACT_BINDING",
     "archive/tool artifact names are not bound to run ID and commit",
   );
@@ -921,9 +960,7 @@ function validateRelease(workflow) {
   const sealDownload = requireUse(seal.steps, DOWNLOAD, "untrusted archive download");
   const sealUpload = requireUse(seal.steps, UPLOAD, "sealed release upload");
   assert(
-    sealDownload.raw.includes(
-      "name: phase09-untrusted-archives-${{ github.run_id }}-${{ github.sha }}",
-    ) &&
+    sealDownload.raw.includes(`name: ${ARCHIVE_ARTIFACT_NAME}`) &&
       seal.executable.includes(
         "sealedArtifact: ${{ steps.phase09-seal.outputs.artifact }}",
       ) &&
@@ -962,6 +999,12 @@ function validateRelease(workflow) {
     (step) => step.name === "Publish the exact independently sealed archive triplet",
     "exact archive publisher",
   );
+  const publishDownloads = publish.steps.filter((step) => step.uses === DOWNLOAD);
+  assert(
+    publishDownloads[1]?.raw.includes(`name: ${PUBLISHER_ARTIFACT_NAME}`) === true,
+    "ARTIFACT_ATTEMPT",
+    "publisher tool download can cross workflow attempts",
+  );
   requireOrder(
     [
       requireOneStep(
@@ -979,8 +1022,11 @@ function validateRelease(workflow) {
   for (const token of [
     "PHASE09_EXPECTED_REPOSITORY: ${{ github.repository }}",
     "PHASE09_EXPECTED_RUN_ID: ${{ github.run_id }}",
+    "PHASE09_EXPECTED_RUN_ATTEMPT: ${{ github.run_attempt }}",
     "PHASE09_EXPECTED_COMMIT: ${{ github.sha }}",
-    "PHASE09_EXPECTED_INPUT_ARTIFACT: phase09-untrusted-archives-${{ github.run_id }}-${{ github.sha }}",
+    "PHASE09_EXPECTED_SOURCE_REF: refs/heads/main",
+    "PHASE09_EXPECTED_WORKFLOW_PATH: .github/workflows/release.yml",
+    `PHASE09_EXPECTED_INPUT_ARTIFACT: ${ARCHIVE_ARTIFACT_NAME}`,
     "PHASE09_EXPECTED_SEALED_ARTIFACT: ${{ needs.seal.outputs.sealedArtifact }}",
   ]) {
     assert(publishStep.raw.includes(token), "SEAL_BINDING", `publisher is missing ${token}`);
@@ -1043,6 +1089,15 @@ function runDetectorControls() {
     expectFailure(label, operation, code);
     controls += 1;
   };
+  control(
+    "artifact-missing-run-attempt",
+    () =>
+      validateAttemptScopedArtifactName(
+        "phase09-version-${{ github.run_id }}-${{ github.sha }}",
+        VERSION_ARTIFACT_NAME,
+      ),
+    "ARTIFACT_ATTEMPT",
+  );
   control(
     "unpinned-action",
     () => validatePinnedUses([step(1, { uses: "actions/checkout@v5" })], "synthetic"),
@@ -1140,7 +1195,7 @@ function runDetectorControls() {
         steps: [
           step(1, {
             uses: CHECKOUT,
-            raw: "fetch-depth: 1\npersist-credentials: false\nref: ${{ github.sha }}",
+            raw: "fetch-depth: 0\npersist-credentials: false\nref: ${{ github.sha }}",
           }),
           step(2, { run: "pnpm test" }),
         ],
@@ -1156,7 +1211,7 @@ function runDetectorControls() {
       ),
     "CONFIGURED_PUBLISH",
   );
-  assert(controls === 15, "CHECKER_SELF_TEST", `expected fifteen controls, ran ${controls}`);
+  assert(controls === 16, "CHECKER_SELF_TEST", `expected 16 controls, ran ${controls}`);
   return controls;
 }
 
@@ -1177,11 +1232,11 @@ validateCi(ci);
 validateRelease(release);
 runScriptSelfTest(
   "scripts/phase-09-version.mjs",
-  "PHASE09_VERSION_SELF_TEST_OK controls=13",
+  "PHASE09_VERSION_SELF_TEST_OK controls=23",
 );
 runScriptSelfTest(
   "scripts/phase-09-publish-archives.mjs",
-  "PHASE09_PUBLISHER_SELF_TEST_OK controls=9",
+  "PHASE09_PUBLISHER_SELF_TEST_OK controls=20",
 );
 
 process.stdout.write(

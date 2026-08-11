@@ -70,10 +70,13 @@ If your adapter is meaningfully longer than ~150 lines, logic has leaked out of 
 - **The three public packages are one fixed release group.** Core, React, and Svelte
   must leave a Version Packages PR at one identical version. A release changeset for
   the adapter set names all three packages at the same bump level. Credential-free
-  preparation rejects missing outputs, unrelated changes, an unconsumed changeset, or
-  version drift before it regenerates evidence and emits a hash-manifested allowlist.
-  The repository-write Changesets job only verifies and copies that prepared artifact;
-  it must never install dependencies or run build, test, package, or mutation code.
+  preparation rejects missing outputs, unrelated changes, an unconsumed changeset,
+  arbitrary Markdown, lockfile dependency smuggling, or version drift before it emits
+  a hash-manifested semantic-only allowlist. The repository-write Changesets job only
+  verifies/copies that artifact and derives `09-VERSION-RECEIPT.json`; it must never
+  install dependencies, run build/test/package/mutation code, or copy evidence ledgers.
+  Every prepared, archive, tool, and sealed artifact name includes the workflow run
+  attempt so a failed-jobs-only rerun cannot consume artifacts from an earlier attempt.
 - **Adapter-to-core release transitions stay explicitly bounded.** Do not broaden the
   source peer to `>=0.0.0`: that admits future incompatible majors and defeats the loud
   singleton/contract boundary. Changesets treats a canonical `workspace:^` at 0.0.0
@@ -90,10 +93,22 @@ If your adapter is meaningfully longer than ~150 lines, logic has leaked out of 
 
 - **Feature evidence is deliberately not release authorization.** Ordinary
   `run all` evidence is sealed as `mode: "feature"` with
-  `releaseAuthorization: false`. Only credential-free version preparation may create
-  `mode: "versioned"` evidence with a nonzero shared version and consumed changeset
-  digests. Package publication additionally requires the independent content-addressed
+  `releaseAuthorization: false`. After reviewing the automated semantic-only Version
+  Packages PR, a human runs
+  `node scripts/phase-09-mutation-battery.mjs finalize versioned --jobs 2` from its
+  clean committed head, reviews the four generated Phase 09 ledgers, and commits them
+  separately. Only that ceremony may create `mode: "versioned"` evidence with a
+  nonzero shared version, consumed changeset digests, and an exact binding to the
+  apply-derived receipt. Package CI and publication reject missing/stale receipt-bound
+  evidence. Publication additionally requires the independent content-addressed
   archive seal; a colocated archive digest manifest is never its own trust root.
+
+- **The npm destination is fixed.** Every public package keeps exactly
+  `publishConfig: { "access": "public" }` and repository metadata for
+  `fullselfbrowsing/concierge` with its own package directory. The OIDC publisher
+  rejects extra registry fields and ambient registry/auth/token/config overrides, then
+  supplies exact npmjs registry and owned empty config files to every `npm view` and
+  `npm publish`. Do not add a mirror or registry override to a package manifest.
 
 The first-publish checklist lives in [`RELEASING.md`](./RELEASING.md).
 
