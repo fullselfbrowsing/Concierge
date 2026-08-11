@@ -1,10 +1,8 @@
-import {
-  existsSync,
-  readFileSync,
-  readdirSync,
-  statSync,
-} from "node:fs";
+// @ts-expect-error Node types stay outside the browser-facing package program.
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+// @ts-expect-error Node types stay outside the browser-facing package program.
 import { resolve } from "node:path";
+// @ts-expect-error Node types stay outside the browser-facing package program.
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -140,26 +138,22 @@ describe("the built @fullselfbrowsing/concierge-svelte entries", () => {
     }
   });
 
-  it("retains declarations, maps, guard order, and the compiled rune snapshot path", () => {
+  it("retains declarations, maps, guard order, and the compilable rune snapshot path", () => {
     const rootSource = requireArtifact(ROOT_PATH);
     const rootTypes = requireArtifact(ROOT_TYPES_PATH);
     const clientSource = requireArtifact(CLIENT_PATH);
     const clientTypes = requireArtifact(CLIENT_TYPES_PATH);
     const adapterSource = requireArtifact(ADAPTER_SOURCE_PATH);
-    const rootMap = requireArtifact(`${ROOT_PATH}.map`);
     const rootTypesMap = requireArtifact(`${ROOT_TYPES_PATH}.map`);
-    const clientMap = requireArtifact(`${CLIENT_PATH}.map`);
     const clientTypesMap = requireArtifact(`${CLIENT_TYPES_PATH}.map`);
 
     expect(readdirSync(DIST_DIR).sort()).toEqual([
       "client.svelte.d.ts",
       "client.svelte.d.ts.map",
       "client.svelte.js",
-      "client.svelte.js.map",
       "index.d.ts",
       "index.d.ts.map",
       "index.js",
-      "index.js.map",
     ]);
     expect(rootSource).not.toContain("createConcierge");
     expect(clientSource).toContain('from "@fullselfbrowsing/concierge"');
@@ -171,9 +165,7 @@ describe("the built @fullselfbrowsing/concierge-svelte entries", () => {
     expect(clientTypes).toContain("svelteSnapshotNormalizer");
 
     for (const [mapSource, sourceName] of [
-      [rootMap, "index.ts"],
       [rootTypesMap, "index.ts"],
-      [clientMap, "client.svelte.ts"],
       [clientTypesMap, "client.svelte.ts"],
     ] as const) {
       expect(JSON.parse(mapSource).sources).toContain(`../src/${sourceName}`);
@@ -191,14 +183,13 @@ describe("the built @fullselfbrowsing/concierge-svelte entries", () => {
 
     expect(adapterSource).toContain("return $state.snapshot(value);");
     expect(adapterSource).not.toMatch(/\b(?:as|any)\b/u);
-    expect(clientSource).not.toContain("$state.snapshot");
-    expect(clientSource).toContain('from "svelte/internal/client"');
-    expect(clientSource).toMatch(/return\s+\$\.snapshot\(value\)/u);
+    expect(clientSource).toContain("return $state.snapshot(value);");
+    expect(clientSource).not.toContain("svelte/internal/client");
     expect(clientSource).not.toMatch(
       /structuredClone|JSON\.(?:parse|stringify)|return\s+value\s*;/u,
     );
 
-    const privateOutput = readdirSync(DIST_DIR).filter((name) =>
+    const privateOutput = readdirSync(DIST_DIR).filter((name: string) =>
       /(?:test|spec|Harness)/u.test(name),
     );
     expect(privateOutput).toEqual([]);

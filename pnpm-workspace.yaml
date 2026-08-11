@@ -35,3 +35,11 @@ packages:
 catalog:
   svelte: ^5.0.0
   "@sveltejs/package": ^2.5.8
+
+# @sveltejs/package dynamically imports TypeScript while omitting it from its
+# published dependencies. Bind that import to the Svelte package's compiler
+# domain instead of letting it fall through to the workspace's native TS 7.
+packageExtensions:
+  "@sveltejs/package@2.5.8":
+    dependencies:
+      typescript: 6.0.3
