@@ -159,6 +159,10 @@ function parseEvidence(html: string, renderId: string): SsrEvidence {
 
   expect(html.match(/data-concierge="exact"/gu)).toHaveLength(2);
   expect(html.match(/data-registry="null"/gu)).toHaveLength(2);
+  expect(
+    html,
+    "T04/SSR1 React render payload must remain registration-silent",
+  ).not.toContain("&quot;registry&quot;:&quot;registered&quot;");
   expect(html).toContain(
     'data-entry="@fullselfbrowsing/concierge-react/client"',
   );
