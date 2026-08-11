@@ -266,6 +266,9 @@ const KILLER_COMMANDS = Object.freeze({
   "M-09-P1": Object.freeze(["node", "scripts/phase-09-package-check.mjs", "artifacts"]),
   "M-09-C1": Object.freeze(["node", "scripts/phase-09-package-check.mjs", "mismatch"]),
 });
+const MUTANT_EXECUTION_ENV = Object.freeze({
+  PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
+});
 const REGISTER_TOP_KEYS = Object.freeze([
   "schemaVersion",
   "phase",
@@ -975,7 +978,7 @@ async function runKiller(row, mutantRoot, outerRoot) {
     timeoutMs: row.killerKind === "package" || row.id === "M-09-P1"
       ? PACKAGE_TIMEOUT_MS
       : DEFAULT_TIMEOUT_MS,
-    env: {},
+    env: { ...MUTANT_EXECUTION_ENV },
   };
   let capturePath = null;
   if (row.killerKind === "package") {
@@ -985,6 +988,7 @@ async function runKiller(row, mutantRoot, outerRoot) {
     writeFileSync(hookPath, packageCaptureHookSource(), "utf8");
     const hookOption = `--import=${pathToFileURL(hookPath).href}`;
     options.env = {
+      ...MUTANT_EXECUTION_ENV,
       NODE_OPTIONS: [process.env.NODE_OPTIONS, hookOption].filter(Boolean).join(" "),
       PHASE09_MUTATION_CAPTURE_DIR: captureDirectory,
     };
@@ -1050,6 +1054,7 @@ async function executeMutant(row, baseline, liveState, outerRoot) {
     compile = await runCommand(compileSpec[0], compileSpec.slice(1), {
       cwd: mutantRoot,
       timeoutMs: DEFAULT_TIMEOUT_MS,
+      env: { ...MUTANT_EXECUTION_ENV },
     });
     assertSuccessfulCommand(compile, `${row.id} compile`);
     ({ result: killer, observation } = await runKiller(row, mutantRoot, outerRoot));
@@ -1333,7 +1338,19 @@ async function runSelfTest() {
   );
   pass("exact-cli");
 
-  assert(controls === 15, `self-test control count drifted: ${controls}`);
+  const pnpmConfig = await runCommand(
+    "pnpm",
+    ["config", "get", "verify-deps-before-run"],
+    { cwd: ROOT, env: { ...MUTANT_EXECUTION_ENV } },
+  );
+  assertSuccessfulCommand(pnpmConfig, "self-test pnpm mutant configuration");
+  assert(
+    pnpmConfig.stdout.trim() === "false",
+    "manifest mutants must disable pnpm's pre-run dependency install",
+  );
+  pass("pnpm-pre-run-install-disabled");
+
+  assert(controls === 16, `self-test control count drifted: ${controls}`);
   assertOutputEndpoints(endpoints);
   console.log(`PHASE09_MUTATION_SELF_TEST_OK controls=${controls}`);
 }
