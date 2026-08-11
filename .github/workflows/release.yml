@@ -245,7 +245,9 @@ jobs:
 
   publish:
     needs: verify
+    if: ${{ needs.verify.result == 'success' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       id-token: write
     steps:

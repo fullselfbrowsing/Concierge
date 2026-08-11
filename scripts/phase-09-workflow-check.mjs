@@ -328,6 +328,22 @@ function validateOidcIsolation(job) {
   );
 }
 
+function validateExactOidcSteps(job) {
+  const expected = [
+    "Download the exact checked Phase 09 archives",
+    "Download the content-addressed publisher toolchain",
+    "Verify and unpack the content-addressed npm CLI",
+    "Reverify and resolve the downloaded archive triplet",
+    "Publish the exact checked archive triplet",
+  ];
+  assert(
+    JSON.stringify(job.steps.map((step) => step.name)) === JSON.stringify(expected) &&
+      !job.steps.some((step) => /\b(?:curl|wget|git|gh)\b/u.test(step.run ?? "")),
+    "OIDC_STEP_SET",
+    "OIDC publisher contains an unreviewed step or network/VCS command",
+  );
+}
+
 function validateEmbeddedNodePrograms(workflow, expectedCount) {
   let count = 0;
   for (const step of workflow.steps) {
@@ -620,9 +636,11 @@ function validateRelease(workflow) {
   );
 
   assert(
-    publish.executable.includes("needs: verify"),
+    publish.executable.includes("needs: verify") &&
+      publish.executable.includes("if: ${{ needs.verify.result == 'success' }}") &&
+      publish.executable.includes("timeout-minutes: 10"),
     "VERSION_LIFECYCLE",
-    "publisher must depend on successful verification",
+    "publisher must depend explicitly on successful verification with a bounded lifetime",
   );
   requireExactUseSequence(
     publish.steps,
@@ -630,6 +648,7 @@ function validateRelease(workflow) {
     `${RELEASE_PATH}#publish`,
   );
   validateOidcIsolation(publish);
+  validateExactOidcSteps(publish);
   const downloadedResolver = requireOneStep(
     publish.steps,
     (step) => step.name === "Reverify and resolve the downloaded archive triplet",
@@ -764,7 +783,12 @@ function runDetectorControls() {
     () => validateOidcIsolation({ steps: [step(1, { run: "npm install" })] }),
     "OIDC_ISOLATION",
   );
-  assert(controls === 9, "CHECKER_SELF_TEST", `expected nine controls, ran ${controls}`);
+  control(
+    "oidc-extra-step",
+    () => validateExactOidcSteps({ steps: [step(1, { name: "unreviewed" })] }),
+    "OIDC_STEP_SET",
+  );
+  assert(controls === 10, "CHECKER_SELF_TEST", `expected ten controls, ran ${controls}`);
   return controls;
 }
 
