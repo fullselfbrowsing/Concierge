@@ -102,6 +102,13 @@ The workflow has five jobs and two distinct pushes to `main`:
    acquire exact lockfile dependencies from `https://registry.npmjs.org/`; it receives
    no ambient credentials/config and runs no dependency lifecycle scripts.
 
+   For receipt-authorized finalization, the release-input-only baseline also imports
+   the exact local source commit history without a checkout or configured remote. It
+   creates a new commit with the already-measured snapshot tree and the exact live
+   version commit as its parent. This preserves the receipt base-SHA ancestry and
+   consumed-changeset proof for the prospective verifier without adding any file to
+   the frozen release-input set or changing its aggregate digest.
+
    One narrowly authenticated policy crosses the package checker's second isolation
    boundary during disposable mutation execution: the runner supplies exactly
    `PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN=false`, and the package checker retains it only

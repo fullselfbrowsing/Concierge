@@ -110,6 +110,11 @@ If your adapter is meaningfully longer than ~150 lines, logic has leaked out of 
   `pnpm fetch --frozen-lockfile --ignore-scripts` before each frozen offline install;
   fetch failure stops before install or evidence, and no lifecycle script runs during
   acquisition.
+  A versioned run imports the exact local source history into the otherwise
+  release-input-only baseline without checking out extra files or retaining a remote,
+  then parents the unchanged snapshot tree to the live version commit. That lets the
+  prospective verifier prove receipt ancestry and the consumed changeset while the
+  measured input path set and digest remain unchanged.
   For disposable manifest mutants only, package-check descendants retain the exact
   authenticated `PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN=false` runner policy so pnpm
   cannot preempt the semantic detector with an automatic install. Normal package

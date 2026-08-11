@@ -821,7 +821,7 @@ function readVersionReceipt(root) {
   const paths = new Set();
   for (const record of receipt.consumedChangesets) {
     exactKeys(record, ["path", "sha256"], "version receipt consumed changeset");
-    const base = gitShowBuffer(receipt.baseSha, record.path);
+    const base = gitShowBuffer(receipt.baseSha, record.path, root);
     assert(
       /^\.changeset\/[^/]+\.md$/u.test(record.path) &&
         SHA256.test(record.sha256) && !paths.has(record.path) &&
@@ -981,6 +981,47 @@ function initializeDisposableRepository(root, paths) {
   runGitSync(["commit", "--quiet", "-m", "disposable immutable snapshot"], root);
 }
 
+function attachSourceHistoryToSnapshot(snapshotRoot, sourceRoot) {
+  assertSnapshotPath(snapshotRoot, dirname(snapshotRoot));
+  const snapshotHead = runGitSync(["rev-parse", "HEAD"], snapshotRoot).trim();
+  const snapshotTree = runGitSync(["rev-parse", "HEAD^{tree}"], snapshotRoot).trim();
+  const sourceHead = runGitSync(["rev-parse", "HEAD"], sourceRoot).trim();
+  assert(COMMIT.test(snapshotHead) && COMMIT.test(sourceHead), "snapshot history head is malformed");
+
+  runGitSync(
+    ["fetch", "--no-tags", "--quiet", sourceRoot, sourceHead],
+    snapshotRoot,
+  );
+  assert(
+    runGitSync(["rev-parse", "FETCH_HEAD"], snapshotRoot).trim() === sourceHead,
+    "snapshot history fetch resolved a different source revision",
+  );
+  const historyHead = runGitSync(
+    [
+      "commit-tree",
+      snapshotTree,
+      "-p",
+      sourceHead,
+      "-m",
+      "disposable release-input snapshot with receipt ancestry",
+    ],
+    snapshotRoot,
+  ).trim();
+  assert(COMMIT.test(historyHead), "snapshot history commit is malformed");
+  runGitSync(["update-ref", "HEAD", historyHead, snapshotHead], snapshotRoot);
+  assert(
+    runGitSync(["rev-parse", "HEAD^{tree}"], snapshotRoot).trim() === snapshotTree,
+    "snapshot history binding changed the release-input tree",
+  );
+  runGitSync(["merge-base", "--is-ancestor", sourceHead, "HEAD"], snapshotRoot);
+  assert(
+    runGitSync(["status", "--porcelain=v1"], snapshotRoot).trim() === "" &&
+      runGitSync(["remote"], snapshotRoot).trim() === "",
+    "snapshot history binding dirtied the release-input tree or configured a remote",
+  );
+  return Object.freeze({ sourceHead, historyHead, snapshotTree });
+}
+
 async function runCommand(
   executable,
   arguments_,
@@ -1104,7 +1145,7 @@ function cloneBaseline(source, destination) {
   );
 }
 
-async function materializeBaseline(outerRoot, inputManifest) {
+async function materializeBaseline(outerRoot, inputManifest, { preserveHistory = false } = {}) {
   const baselineRoot = join(outerRoot, "baseline");
   mkdirSync(baselineRoot);
   for (const { path } of inputManifest.entries) {
@@ -1124,6 +1165,10 @@ async function materializeBaseline(outerRoot, inputManifest) {
   });
   assertSuccessfulCommand(build, "baseline build");
   verifyInputManifest(inputManifest, baselineRoot);
+  if (preserveHistory) {
+    attachSourceHistoryToSnapshot(baselineRoot, ROOT);
+    verifyInputManifest(inputManifest, baselineRoot);
+  }
   return Object.freeze({ root: baselineRoot, inputManifest });
 }
 
@@ -1614,6 +1659,45 @@ async function runSelfTest() {
     removeOwnedTempRoot(temporaryRoot);
   }
 
+  const historyRoot = createOwnedTempRoot();
+  try {
+    const sourceRoot = join(historyRoot, "history-source");
+    const snapshotRoot = join(historyRoot, "history-snapshot");
+    mkdirSync(sourceRoot);
+    mkdirSync(join(sourceRoot, ".changeset"));
+    writeFileSync(join(sourceRoot, ".changeset/example.md"), "bounded change\n", "utf8");
+    writeFileSync(join(sourceRoot, "input.txt"), "before\n", "utf8");
+    initializeDisposableRepository(
+      sourceRoot,
+      [".changeset/example.md", "input.txt"],
+    );
+    const baseHead = runGitSync(["rev-parse", "HEAD"], sourceRoot).trim();
+    const changesetBytes = readFileSync(join(sourceRoot, ".changeset/example.md"));
+    rmSync(join(sourceRoot, ".changeset/example.md"));
+    writeFileSync(join(sourceRoot, "input.txt"), "after\n", "utf8");
+    runGitSync(["add", "--all"], sourceRoot);
+    runGitSync(["commit", "--quiet", "-m", "synthetic version commit"], sourceRoot);
+    const sourceHead = runGitSync(["rev-parse", "HEAD"], sourceRoot).trim();
+
+    mkdirSync(snapshotRoot);
+    copyTrackedFile(sourceRoot, snapshotRoot, "input.txt");
+    initializeDisposableRepository(snapshotRoot, ["input.txt"]);
+    const binding = attachSourceHistoryToSnapshot(snapshotRoot, sourceRoot);
+    runGitSync(["merge-base", "--is-ancestor", baseHead, "HEAD"], snapshotRoot);
+    assert(
+      binding.sourceHead === sourceHead &&
+        gitShowBuffer(baseHead, ".changeset/example.md", snapshotRoot)?.equals(
+          changesetBytes,
+        ) === true &&
+        runGitSync(["ls-files"], snapshotRoot).trim() === "input.txt" &&
+        readFileSync(join(snapshotRoot, "input.txt"), "utf8") === "after\n",
+      "history-backed snapshot did not preserve exact inputs and receipt ancestry",
+    );
+    pass("history-backed-version-receipt-snapshot");
+  } finally {
+    removeOwnedTempRoot(historyRoot);
+  }
+
   const duplicate = clone(register);
   duplicate.rows[1].id = duplicate.rows[0].id;
   assertThrows(
@@ -2006,7 +2090,7 @@ async function runSelfTest() {
   );
   pass("secure-child-environment-probe");
 
-  assert(controls === 33, `self-test control count drifted: ${controls}`);
+  assert(controls === 34, `self-test control count drifted: ${controls}`);
   assertOutputEndpoints(endpoints);
   console.log(`PHASE09_MUTATION_SELF_TEST_OK controls=${controls}`);
 }
@@ -2427,9 +2511,9 @@ async function mapLimit(items, limit, operation) {
   return results;
 }
 
-function gitShowBuffer(commit, path) {
+function gitShowBuffer(commit, path, root = ROOT) {
   const result = spawnSync("git", ["show", `${commit}:${path}`], {
-    cwd: ROOT,
+    cwd: root,
     encoding: null,
     env: childEnvironment(),
     maxBuffer: MAX_OUTPUT_BYTES,
@@ -2778,7 +2862,9 @@ async function runAll(jobs, { outerRoot, versioned = false } = {}) {
   ensureFinalInputs(ROOT, liveState.paths);
   const inheritedHashes = phase08Hashes(ROOT);
   const inherited = await verifyInheritedPhase08(outerRoot, inheritedHashes);
-  const baseline = await materializeBaseline(outerRoot, liveState.inputManifest);
+  const baseline = await materializeBaseline(outerRoot, liveState.inputManifest, {
+    preserveHistory: versioned,
+  });
   const rows = await mapLimit(register.rows, jobs, async (row, index) => {
     const result = await executeMutant(row, baseline, liveState, outerRoot);
     console.log(`[green ${index + 1}/${register.rows.length}] ${row.id}`);
