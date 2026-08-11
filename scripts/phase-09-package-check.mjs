@@ -757,6 +757,53 @@ function runArtifactStage(root, archives) {
   return Object.freeze({ consumer, typescript, serverTests });
 }
 
+function writeConsentRedFixture(consumerDirectory) {
+  const consentDirectory = join(consumerDirectory, "consent");
+  mkdirSync(consentDirectory);
+  writeFileSync(
+    join(consumerDirectory, "vitest.consent.config.mjs"),
+    `import { defineConfig } from "vitest/config";\n` +
+      `import { svelte } from "@sveltejs/vite-plugin-svelte";\n` +
+      `export default defineConfig({\n` +
+      `  plugins: [svelte({ compilerOptions: { hmr: false } })],\n` +
+      `  resolve: { conditions: ["svelte"] },\n` +
+      `  test: { environment: "jsdom", include: ["consent/consent.test.ts"], fileParallelism: false, maxWorkers: 1 },\n` +
+      `});\n`,
+    "utf8",
+  );
+  writeFileSync(
+    join(consentDirectory, "rune-state.svelte.ts"),
+    `export const state = $state({ booking: { amount: 41, seat: "A" } });\n`,
+    "utf8",
+  );
+  writeFileSync(
+    join(consentDirectory, "consent.test.ts"),
+    `import { describe, expect, it } from "vitest";\n` +
+      `import { state } from "./rune-state.svelte";\n` +
+      `describe("packed real-$state consent drift", () => {\n` +
+      `  it("[T03/S1] closes completed review after nested live mutation", () => {\n` +
+      `    expect(state.booking).toEqual({ amount: 41, seat: "A" });\n` +
+      `    expect.fail("[RED:09-08-02:CONSENT] public review/completed-delivery/consent_stale flow is not wired");\n` +
+      `  });\n` +
+      `});\n`,
+    "utf8",
+  );
+}
+
+function runConsentRedFixture(consumerDirectory) {
+  writeConsentRedFixture(consumerDirectory);
+  const vitest = join(
+    consumerDirectory,
+    "node_modules/.bin",
+    process.platform === "win32" ? "vitest.cmd" : "vitest",
+  );
+  runChild(
+    vitest,
+    ["run", "--config", "vitest.consent.config.mjs", "--reporter=verbose"],
+    { cwd: consumerDirectory, label: "packed real-$state consent RED" },
+  );
+}
+
 function validateExportDirectory(mode) {
   const configured = process.env.PHASE09_ARCHIVE_EXPORT_DIR;
   if (configured === undefined || configured === "") {
@@ -943,12 +990,16 @@ function runSubstantiveMode(mode) {
     }
 
     if (mode === "svelte-consent") {
-      createConsumer(root, archives, "svelte-consent-consumer");
-      fail("RED:09-08-02", "real compiler-transformed Svelte consent probe is not implemented");
+      const consumer = createConsumer(root, archives, "svelte-consent-consumer");
+      runConsentRedFixture(consumer.directory);
+      fail("RED:09-08-02:CONSENT", "real compiler-transformed Svelte consent probe unexpectedly passed");
     }
 
     if (mode === "mismatch") {
-      fail("RED:09-08-02", "literal-only adapter mismatch probes are not implemented");
+      fail(
+        "RED:09-08-02:MISMATCH",
+        "literal-only React and Svelte public lifecycle mismatch probes are not implemented",
+      );
     }
 
     const artifacts = runArtifactStage(root, archives);
