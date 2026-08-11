@@ -112,6 +112,11 @@ const EXPECTED_PHASE09_TEST_FILES = Object.freeze([
   "packages/concierge-svelte/test/artifact.test.ts",
   "packages/concierge-svelte/test/lifecycle.test.ts",
 ]);
+const PUBLIC_PACKAGES = Object.freeze([
+  "@fullselfbrowsing/concierge",
+  "@fullselfbrowsing/concierge-react",
+  "@fullselfbrowsing/concierge-svelte",
+]);
 const VERSIONED_REQUIRED_PATHS = Object.freeze([
   "packages/concierge/package.json",
   "packages/concierge/CHANGELOG.md",
@@ -331,7 +336,7 @@ const REGISTER_ROW_KEYS = Object.freeze([
 const USAGE =
   "Usage: node scripts/phase-09-mutation-battery.mjs " +
   "self-test|preflight <registered-id>|run <all|versioned> --jobs <1-4>|" +
-  "verify <evidence|release|all>";
+  "verify <evidence|release|all>|verify publish <archive-dir>";
 const TEMP_PREFIX = "concierge-phase09-mutation-";
 const OWNERSHIP_MARKER = ".concierge-phase09-mutation-owned-root";
 const MAX_OUTPUT_BYTES = 32 * 1024 * 1024;
@@ -444,6 +449,13 @@ function parseInvocation(arguments_) {
     ["evidence", "release", "all"].includes(arguments_[1])
   ) {
     return Object.freeze({ kind: `verify-${arguments_[1]}` });
+  }
+  if (
+    arguments_.length === 3 &&
+    arguments_[0] === "verify" &&
+    arguments_[1] === "publish"
+  ) {
+    return Object.freeze({ kind: "verify-publish", archiveDirectory: arguments_[2] });
   }
   throw new UsageError();
 }
@@ -693,7 +705,7 @@ function validateVersionedWorktree(root) {
   assert(lines.length > 0, "versioned release tree has no staged changes");
 
   const paths = [];
-  let consumedChangesets = 0;
+  const consumedChangesets = [];
   for (const line of lines) {
     const status = line.slice(0, 2);
     const path = line.slice(3).replace(/^"|"$/gu, "");
@@ -703,7 +715,12 @@ function validateVersionedWorktree(root) {
     );
     if (/^\.changeset\/[^/]+\.md$/u.test(path)) {
       assert(status[0] === "D", `versioned changeset must be consumed: ${line}`);
-      consumedChangesets += 1;
+      consumedChangesets.push(
+        Object.freeze({
+          path,
+          sha256: sha256(runGitSync(["show", `HEAD:${path}`], root)),
+        }),
+      );
     } else {
       assert(
         VERSIONED_REQUIRED_PATHS.includes(path) || path === "pnpm-lock.yaml",
@@ -715,7 +732,7 @@ function validateVersionedWorktree(root) {
   for (const path of VERSIONED_REQUIRED_PATHS) {
     assert(paths.includes(path), `versioned release omitted required path: ${path}`);
   }
-  assert(consumedChangesets > 0, "versioned release consumed no changeset");
+  assert(consumedChangesets.length > 0, "versioned release consumed no changeset");
 
   const versions = [
     "packages/concierge/package.json",
@@ -734,6 +751,10 @@ function validateVersionedWorktree(root) {
   return Object.freeze({
     paths: Object.freeze(paths),
     status: Object.freeze(lines),
+    sharedVersion: versions[0],
+    consumedChangesets: Object.freeze(
+      consumedChangesets.sort((left, right) => left.path.localeCompare(right.path)),
+    ),
   });
 }
 
@@ -749,6 +770,12 @@ function verifyLiveMutationState(liveState) {
     assert(
       JSON.stringify(current.status) === JSON.stringify(liveState.versionedStatus),
       "versioned release status changed during evidence generation",
+    );
+    assert(
+      current.sharedVersion === liveState.authorization.sharedVersion &&
+        stableJson(current.consumedChangesets) ===
+          stableJson(liveState.authorization.consumedChangesets),
+      "versioned release authorization changed during evidence generation",
     );
   }
 }
@@ -1249,6 +1276,21 @@ function mutationLiveState({
     allowedModifiedPaths,
     versioned: allowVersionedWorktree,
     versionedStatus: versionedState?.status ?? Object.freeze([]),
+    authorization: Object.freeze(
+      allowVersionedWorktree
+        ? {
+            mode: "versioned",
+            releaseAuthorization: true,
+            sharedVersion: versionedState.sharedVersion,
+            consumedChangesets: versionedState.consumedChangesets,
+          }
+        : {
+            mode: "feature",
+            releaseAuthorization: false,
+            sharedVersion: null,
+            consumedChangesets: Object.freeze([]),
+          },
+    ),
     outputEndpoints: outputEndpoints(),
   });
 }
@@ -1468,6 +1510,69 @@ async function runSelfTest() {
     "versioned invocation did not retain its worktree mode",
   );
   pass("versioned-cli");
+  const publishInvocation = parseInvocation([
+    "verify",
+    "publish",
+    "/tmp/phase09-archives",
+  ]);
+  assert(
+    publishInvocation.kind === "verify-publish" &&
+      publishInvocation.archiveDirectory === "/tmp/phase09-archives",
+    "publish verifier invocation drifted",
+  );
+  pass("publish-verifier-cli");
+
+  const featureAuthorization = {
+    mode: "feature",
+    releaseAuthorization: false,
+    sharedVersion: null,
+    consumedChangesets: [],
+  };
+  validateReleaseAuthorization(featureAuthorization, "synthetic feature");
+  pass("feature-evidence-non-authorizing");
+  assertThrows(
+    () =>
+      validateReleaseAuthorization(featureAuthorization, "synthetic feature", {
+        publishing: true,
+      }),
+    /cannot authorize publication/u,
+    "ordinary mode publication",
+  );
+  pass("ordinary-mode-publish-rejected");
+  assertThrows(
+    () =>
+      validateReleaseAuthorization(
+        {
+          mode: "versioned",
+          releaseAuthorization: true,
+          sharedVersion: "0.0.0",
+          consumedChangesets: [
+            { path: ".changeset/example.md", sha256: "a".repeat(64) },
+          ],
+        },
+        "synthetic zero version",
+        { publishing: true },
+      ),
+    /nonzero release authorization/u,
+    "zero release version",
+  );
+  pass("zero-version-publish-rejected");
+  assertThrows(
+    () =>
+      validateReleaseAuthorization(
+        {
+          mode: "versioned",
+          releaseAuthorization: true,
+          sharedVersion: "0.1.0",
+          consumedChangesets: [],
+        },
+        "synthetic removed changeset",
+        { publishing: true },
+      ),
+    /nonzero release authorization/u,
+    "removed changeset authorization",
+  );
+  pass("removed-changeset-publish-rejected");
 
   const pnpmConfig = await runCommand(
     "pnpm",
@@ -1481,7 +1586,7 @@ async function runSelfTest() {
   );
   pass("pnpm-pre-run-install-disabled");
 
-  assert(controls === 17, `self-test control count drifted: ${controls}`);
+  assert(controls === 22, `self-test control count drifted: ${controls}`);
   assertOutputEndpoints(endpoints);
   console.log(`PHASE09_MUTATION_SELF_TEST_OK controls=${controls}`);
 }
@@ -1542,12 +1647,63 @@ function validateGreenEvidenceRow(evidenceRow, registerRow, root = ROOT) {
   assert(SHA256.test(evidenceRow.revisionDigest), `${registerRow.id}: revision digest is malformed`);
 }
 
+function validateReleaseAuthorization(value, label, { publishing = false } = {}) {
+  assert(
+    ["feature", "versioned"].includes(value.mode),
+    `${label} mode must be feature or versioned`,
+  );
+  assert(
+    Array.isArray(value.consumedChangesets),
+    `${label} consumedChangesets must be an array`,
+  );
+  if (value.mode === "feature") {
+    assert(
+      value.releaseAuthorization === false &&
+        value.sharedVersion === null &&
+        value.consumedChangesets.length === 0,
+      `${label} feature evidence must be explicitly non-authorizing`,
+    );
+    assert(!publishing, `${label} feature evidence cannot authorize publication`);
+    return Object.freeze({
+      mode: value.mode,
+      releaseAuthorization: value.releaseAuthorization,
+      sharedVersion: value.sharedVersion,
+      consumedChangesets: value.consumedChangesets,
+    });
+  }
+  assert(
+    value.releaseAuthorization === true &&
+      typeof value.sharedVersion === "string" &&
+      /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(value.sharedVersion) &&
+      value.sharedVersion !== "0.0.0" &&
+      value.consumedChangesets.length > 0,
+    `${label} versioned evidence lacks nonzero release authorization`,
+  );
+  const paths = new Set();
+  for (const record of value.consumedChangesets) {
+    exactKeys(record, ["path", "sha256"], `${label} consumed changeset`);
+    assert(
+      /^\.changeset\/[^/]+\.md$/u.test(record.path) &&
+        SHA256.test(record.sha256) && !paths.has(record.path),
+      `${label} consumed changeset identity is malformed or duplicated`,
+    );
+    paths.add(record.path);
+  }
+  return Object.freeze({
+    mode: value.mode,
+    releaseAuthorization: value.releaseAuthorization,
+    sharedVersion: value.sharedVersion,
+    consumedChangesets: value.consumedChangesets,
+  });
+}
+
 function verifyMutationEvidence(root = ROOT, { quiet = false } = {}) {
   const path = join(root, ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json");
   assert(existsSync(path), "09-MUTATION-EVIDENCE.json is missing");
   const evidence = JSON.parse(readFileSync(path, "utf8"));
   verifySeal(evidence, "mutation evidence");
   assert(evidence.schemaVersion === 1 && evidence.phase === PHASE, "mutation evidence identity is invalid");
+  validateReleaseAuthorization(evidence, "mutation evidence");
   const register = validateRegister(readRegister(root), root);
   assert(evidence.registerDigest === registerDigest(root), "mutation evidence register digest is stale");
   assert(JSON.stringify(evidence.expectedIds) === JSON.stringify(EXPECTED_IDS), "mutation evidence IDs drifted");
@@ -1595,12 +1751,15 @@ function validateReleaseCommands(commands) {
   }
 }
 
-function verifyReleaseEvidence(root = ROOT, { quiet = false } = {}) {
+function verifyReleaseEvidence(root = ROOT, { quiet = false, publishing = false } = {}) {
   const path = join(root, ".planning/phases/09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json");
   assert(existsSync(path), "09-RELEASE-EVIDENCE.json is missing");
   const release = JSON.parse(readFileSync(path, "utf8"));
   verifySeal(release, "release evidence");
   assert(release.schemaVersion === 1 && release.phase === PHASE, "release evidence identity is invalid");
+  const authorization = validateReleaseAuthorization(release, "release evidence", {
+    publishing,
+  });
   assert(release.registerDigest === registerDigest(root), "release register digest is stale");
   verifyInputManifest(release.releaseInputs, root);
   assertPhase08Hashes(release.phase08.hashes, root);
@@ -1614,6 +1773,25 @@ function verifyReleaseEvidence(root = ROOT, { quiet = false } = {}) {
     release.tests.files > 0 && release.tests.tests > 0 && release.tests.assertions > 0,
     "release positive test counts are missing",
   );
+  if (authorization.mode === "versioned") {
+    const versions = [
+      "packages/concierge/package.json",
+      "packages/concierge-react/package.json",
+      "packages/concierge-svelte/package.json",
+    ].map((path) => JSON.parse(readFileSync(join(root, path), "utf8")).version);
+    assert(
+      versions.every((version) => version === authorization.sharedVersion),
+      `release package versions differ from sealed sharedVersion: ${versions.join(", ")}`,
+    );
+    for (const name of PUBLIC_PACKAGES) {
+      const expectedFile = `${name.replace(/^@/u, "").replace("/", "-")}-${authorization.sharedVersion}.tgz`;
+      assert(
+        release.archives[name]?.file === expectedFile &&
+          SHA256.test(release.archives[name]?.sha256),
+        `${name} release archive differs from sealed sharedVersion`,
+      );
+    }
+  }
   validateConsumerToolingEvidence(release.consumerTooling, root);
   assert(
     release.archives !== null && typeof release.archives === "object" &&
@@ -1631,6 +1809,102 @@ function verifyReleaseEvidence(root = ROOT, { quiet = false } = {}) {
   assert(release.validationDigest === sha256File(validationPath), "release validation digest is stale");
   assert(release.securityDigest === sha256File(securityPath), "release security digest is stale");
   if (!quiet) console.log("PHASE09_RELEASE_EVIDENCE_OK commands=15 archives=3 phase08=5");
+  return release;
+}
+
+function readPublishArchiveManifest(path) {
+  const result = spawnSync("tar", ["-xOzf", path, "package/package.json"], {
+    encoding: "utf8",
+    maxBuffer: MAX_OUTPUT_BYTES,
+    timeout: DEFAULT_TIMEOUT_MS,
+  });
+  assert(
+    result.error === undefined && result.signal === null && result.status === 0,
+    `could not read publish archive ${basename(path)}: ${boundedExcerpt(`${result.stdout ?? ""}${result.stderr ?? ""}`)}`,
+  );
+  try {
+    return JSON.parse(result.stdout);
+  } catch (error) {
+    throw new Error(
+      `${basename(path)} package manifest is invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+function verifyPublishEvidence(archiveDirectory, root = ROOT, { quiet = false } = {}) {
+  assert(isAbsolute(archiveDirectory), "publish archive directory must be absolute");
+  assert(
+    archiveDirectory === normalize(resolve(archiveDirectory)),
+    "publish archive directory must be normalized",
+  );
+  const directory = realpathSync(archiveDirectory);
+  assert(
+    directory === archiveDirectory && lstatSync(directory).isDirectory() &&
+      !isWithin(directory, root),
+    "publish archive directory must be a real directory outside the repository",
+  );
+  const release = verifyReleaseEvidence(root, { quiet: true, publishing: true });
+  const digestManifestName = "phase-09-archive-digests.json";
+  const digestManifestPath = join(directory, digestManifestName);
+  assert(
+    existsSync(digestManifestPath) && lstatSync(digestManifestPath).isFile() &&
+      realpathSync(digestManifestPath) === digestManifestPath,
+    "publish archive digest manifest is missing",
+  );
+  let digestManifest;
+  try {
+    digestManifest = JSON.parse(readFileSync(digestManifestPath, "utf8"));
+  } catch (error) {
+    throw new Error(
+      `publish archive digest manifest is invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  exactKeys(
+    digestManifest,
+    ["schemaVersion", "algorithm", "archives"],
+    "publish archive digest manifest",
+  );
+  assert(
+    digestManifest.schemaVersion === 1 && digestManifest.algorithm === "sha256",
+    "publish archive digest manifest identity is invalid",
+  );
+  exactKeys(digestManifest.archives, PUBLIC_PACKAGES, "publish archive set");
+  assert(
+    stableJson(digestManifest.archives) === stableJson(release.archives),
+    "publish archive manifest differs from tracked versioned release evidence",
+  );
+  const expectedEntries = [digestManifestName];
+  for (const name of PUBLIC_PACKAGES) {
+    const record = release.archives[name];
+    exactKeys(record, ["file", "sha256"], `${name} publish archive record`);
+    assert(
+      basename(record.file) === record.file && record.file.endsWith(".tgz") &&
+        SHA256.test(record.sha256),
+      `${name} publish archive record is malformed`,
+    );
+    const path = join(directory, record.file);
+    assert(
+      existsSync(path) && lstatSync(path).isFile() && realpathSync(path) === path &&
+        sha256File(path) === record.sha256,
+      `${name} publish archive bytes differ from tracked versioned release evidence`,
+    );
+    const manifest = readPublishArchiveManifest(path);
+    assert(
+      manifest.name === name && manifest.version === release.sharedVersion &&
+        manifest.private !== true,
+      `${name} publish archive identity/version differs from tracked release authorization`,
+    );
+    expectedEntries.push(record.file);
+  }
+  assert(
+    stableJson(readdirSync(directory).sort()) === stableJson(expectedEntries.sort()),
+    "publish archive directory is not the exact tracked triplet plus digest manifest",
+  );
+  if (!quiet) {
+    console.log(
+      `PHASE09_PUBLISH_EVIDENCE_OK mode=versioned version=${release.sharedVersion} archives=3`,
+    );
+  }
   return release;
 }
 
@@ -2069,6 +2343,7 @@ async function runAll(jobs, { versioned = false } = {}) {
     const mutationEvidence = sealedObject({
       schemaVersion: 1,
       phase: PHASE,
+      ...liveState.authorization,
       generatedAt: new Date().toISOString(),
       registerDigest: registerDigest(baseline.root),
       expectedIds: EXPECTED_IDS,
@@ -2104,6 +2379,7 @@ async function runAll(jobs, { versioned = false } = {}) {
     const releaseEvidence = sealedObject({
       schemaVersion: 1,
       phase: PHASE,
+      ...liveState.authorization,
       generatedAt: new Date().toISOString(),
       registerDigest: registerDigest(baseline.root),
       releaseInputs: baseline.inputManifest,
@@ -2176,6 +2452,10 @@ async function main(arguments_) {
   }
   if (invocation.kind === "verify-all") {
     verifyAll();
+    return;
+  }
+  if (invocation.kind === "verify-publish") {
+    verifyPublishEvidence(invocation.archiveDirectory);
     return;
   }
   throw new UsageError();
