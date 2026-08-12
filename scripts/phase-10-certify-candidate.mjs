@@ -826,6 +826,15 @@ function findReceiptArtifact(repository, runId, expectedName) {
   return matches[0];
 }
 
+function isOwnedNonemptyRegularFile(root, path) {
+  const metadata = lstatSync(path);
+  return (
+    metadata.isFile() &&
+    metadata.size > 0 &&
+    dirname(realpathSync(path)) === realpathSync(root)
+  );
+}
+
 function downloadAndValidateReceipt(candidate, expected) {
   findReceiptArtifact(candidate.repository, expected.runId, expected.artifactName);
   const temporaryRoot = mkdtempSync(
@@ -854,9 +863,8 @@ function downloadAndValidateReceipt(candidate, expected) {
       `receipt artifact file set differs: ${entries.join(", ")}`,
     );
     const path = join(temporaryRoot, entries[0]);
-    const metadata = lstatSync(path);
     assert(
-      metadata.isFile() && metadata.size > 0 && dirname(realpathSync(path)) === temporaryRoot,
+      isOwnedNonemptyRegularFile(temporaryRoot, path),
       "RECEIPT_FILES",
       "downloaded receipt is not one owned nonempty regular file",
     );
@@ -1166,7 +1174,11 @@ function runSelfTest() {
     const inside = join(ownedRoot, "probe.txt");
     assertOwnedWritePath(ownedRoot, inside);
     writeFileSync(inside, "fixture\n", { flag: "wx" });
-    assert(existsSync(inside), "SELF_TEST", "owned fixture write failed");
+    assert(
+      existsSync(inside) && isOwnedNonemptyRegularFile(ownedRoot, inside),
+      "SELF_TEST",
+      "owned fixture write or canonical-root validation failed",
+    );
     control("outside-owned-root", () => assertOwnedWritePath(ownedRoot, resolve(ownedRoot, "..", "escape.txt")), "OWNED_WRITE");
   } finally {
     rmSync(ownedRoot, { recursive: true });
