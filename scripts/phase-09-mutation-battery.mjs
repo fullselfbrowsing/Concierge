@@ -1180,9 +1180,8 @@ async function withOwnedChildEnvironment(operation) {
       "owned child environment requires PATH",
     );
     const toolDirectory = installOwnedSearchTool(root);
-    const secure = createSecureChildEnvironment(root, {
-      ...process.env,
-      PATH: `${toolDirectory}${pathDelimiter}${sourcePath}`,
+    const secure = createSecureChildEnvironment(root, process.env, {
+      executableDirectory: toolDirectory,
     });
     return await withChildEnvironment(secure.environment, () =>
       operation(root, secure),
