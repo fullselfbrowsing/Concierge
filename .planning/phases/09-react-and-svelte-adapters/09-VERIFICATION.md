@@ -1,6 +1,6 @@
 ---
 phase: 09-react-and-svelte-adapters
-verified: 2026-08-12T21:33:53Z
+verified: 2026-08-12T21:54:21Z
 status: passed
 score: 5/5 must-haves verified
 overrides_applied: 0
@@ -15,9 +15,9 @@ re_verification:
 # Phase 9: React and Svelte Adapters Verification Report
 
 **Phase Goal:** Two frameworks with opposite reactivity models drive the same core, through adapters small enough to prove that no load-bearing logic leaked out of it.
-**Verified:** 2026-08-12T21:33:53Z
+**Verified:** 2026-08-12T21:54:21Z
 **Status:** passed
-**Re-verification:** Yes — after the full-history CI repair and authoritative evidence reseal
+**Re-verification:** Yes — after the canonical receipt-root repair and successor-candidate evidence reseal
 
 ## Goal Achievement
 
@@ -37,11 +37,11 @@ The five roadmap success criteria are the controlling must-haves. The 61 more de
 
 ### Re-verification Delta
 
-The current bytes were re-verified after commits `840a302`, `72645cb`, and `9c8300d`. Commit `840a302` changes the CI build checkout to retain full Git history while remaining credential-free and bound to the exact GitHub SHA, and makes `scripts/phase-09-workflow-check.mjs` require that boundary. Commit `72645cb` regenerates all four authoritative Phase 9 outputs. Commit `9c8300d` records the repair and correctly excludes failed hosted run `31642179232` from certification evidence.
+The current bytes were re-verified after successor commits `5fbcb76`, `3dae3a4`, and `7ac71b2`, while retaining the previously verified full-history CI repair from `840a302`. Commit `5fbcb76` makes `scripts/phase-10-certify-candidate.mjs` compare the canonical real paths of both the downloaded receipt parent and its owned temporary root. Its self-test now exercises the real temporary-root boundary. Commit `3dae3a4` authoritatively regenerates all four Phase 9 outputs after that release-input change, and `7ac71b2` records the retry disposition.
 
-The mutation and release ledgers now contain the same 136-entry release-input digest, `797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4`. The current verifier accepts 17/17 green mutants, 15 successful release commands, three version `0.1.0` archives, and five unchanged inherited Phase 8 hashes. Static Git inspection also proves receipt base `a9187eda875a7dd7c6e555f1ccc8189987a3af4a` exists locally and is an ancestor of the inspected pre-report HEAD `9c8300daa8c3d250d1033e067fc558617dc34392`.
+The mutation and release ledgers now contain identical ordered 136-entry inventories and the same release-input digest, `1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d`. The current verifier accepts 17/17 green mutants, 15/15 successful release commands, three version `0.1.0` archives, and five unchanged inherited Phase 8 hashes. Static Git inspection also proves receipt base `a9187eda875a7dd7c6e555f1ccc8189987a3af4a` exists locally and is an ancestor of the inspected pre-report HEAD `7ac71b22ebd451a10d1d13923775324d77133a38`.
 
-The failed hosted run is diagnostic history only: it produced no candidate receipt and does not support this PASS verdict. The verdict rests on the current implementation and the newly resealed local evidence. No product artifact or roadmap behavior regressed.
+Hosted run `31643838443` completed successfully and produced a receipt for its exact earlier candidate. The later canonical-root repair and reseal created a successor candidate, so that run is correctly superseded and cannot certify the successor. This external lifecycle state is not a Phase 9 gap: the five Phase 9 roadmap outcomes remain proven by current local implementation and sealed evidence. Neither that run nor the earlier failed hosted run `31642179232` is used to support this PASS verdict.
 
 ### Plan-Level Coverage
 
@@ -80,10 +80,10 @@ All 37 artifact declarations across the plans passed `gsd-sdk query verify.artif
 | `examples/phase-09-astro-ssr/` | Ordinary two-adapter SSR fixture | ✓ VERIFIED | Public-entry app, official integrations, per-request construction, emitted evidence, and two fresh builds are present and exercised. |
 | `scripts/phase-09-package-check.mjs` | Packed-consumer and mismatch harness | ✓ VERIFIED | Substantive 2,029-line harness with exact archive identity, isolated install, singleton, consent, and public-lifecycle mismatch checks. |
 | `scripts/phase-09-mutation-battery.mjs` | Mutation runner and evidence verifier | ✓ VERIFIED | Current read-only evidence/release/all verification modes pass; generated-output inventory is closed. |
-| `.planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json` | Green mutation ledger | ✓ VERIFIED | Regenerated at `2026-08-12T21:30:23.780Z`; 17/17 rows green over the new 136-entry release-input digest, including all seven Phase 9 target mutations and supplemental current-byte controls. Every row records compilation, exact detector count, restoration, and unchanged live tree. |
-| `.planning/phases/09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json` | Versioned three-archive release ledger | ✓ VERIFIED | Regenerated at `2026-08-12T21:30:23.781Z`; version `0.1.0`, three exact archive identities/digests, fifteen successful commands, five inherited Phase 8 hashes, archive/lock/version seals, singleton, consent, and mismatch fingerprints. Its 136-entry digest matches mutation evidence exactly. |
+| `.planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json` | Green mutation ledger | ✓ VERIFIED | Regenerated at `2026-08-12T21:51:52.142Z`; 17/17 rows green over the successor 136-entry release-input digest, including all seven Phase 9 target mutations and supplemental current-byte controls. Every row records compilation, exact detector count, restoration, and unchanged live tree. |
+| `.planning/phases/09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json` | Versioned three-archive release ledger | ✓ VERIFIED | Regenerated at `2026-08-12T21:51:52.143Z`; version `0.1.0`, three exact archive identities/digests, fifteen successful commands, five inherited Phase 8 hashes, archive/lock/version seals, singleton, consent, and mismatch fingerprints. Its ordered 136-entry inventory and digest match mutation evidence exactly. |
 | `.planning/phases/09-react-and-svelte-adapters/09-VERSION-RECEIPT.json` | Trusted version-provenance receipt | ✓ VERIFIED | Records base SHA, run ID/attempt, artifact name/digest, shared version, and current manifest/lock digests. |
-| `.planning/phases/09-react-and-svelte-adapters/09-VALIDATION.md` and `09-SECURITY.md` | Independent validation/security ledgers | ✓ VERIFIED | Both were regenerated against release-input digest `797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4`, are sealed into release evidence, and are accepted by the release verifier. |
+| `.planning/phases/09-react-and-svelte-adapters/09-VALIDATION.md` and `09-SECURITY.md` | Independent validation/security ledgers | ✓ VERIFIED | Both were regenerated against release-input digest `1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d`, are sealed into release evidence, and are accepted by the release verifier. |
 | `.github/workflows/ci.yml` and `release.yml` | Ordered CI/release gates | ✓ VERIFIED | The build checkout specifies full history, disabled credential persistence, and the exact GitHub SHA. The workflow checker requires those properties and passed: 2 workflows, 8 jobs, 22 controls, 22 CI steps, and 42 release steps. |
 
 ### Key Link Verification
@@ -100,7 +100,7 @@ All 37 artifact declarations across the plans passed `gsd-sdk query verify.artif
 | Astro page | Both public adapters and shared core catalog | request-local factory plus React/Svelte islands | ✓ WIRED | Two fresh builds prove common catalog and distinct request-local instances with no registration leakage. |
 | Package harness | Three tarballs | one pack per package → archive inspection → isolated offline install → consumer execution | ✓ WIRED | The same original archive map is threaded through artifact, consent, and mismatch modes. |
 | CI build checkout | Version receipt base ancestry | full-history exact-SHA checkout with persisted credentials disabled | ✓ WIRED | The workflow and checker both require the boundary; independent Git checks resolve the receipt base and prove it is an ancestor of the inspected pre-report HEAD. |
-| Release evidence | Mutation, validation, security, version, lock, archive, and inherited Phase 8 inputs | content digests and exact input inventory | ✓ WIRED | `verify release` and `verify all` accept the committed bytes at the shared 136-entry digest `797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4`. |
+| Release evidence | Mutation, validation, security, version, lock, archive, and inherited Phase 8 inputs | content digests and exact input inventory | ✓ WIRED | `verify release` and `verify all` accept the committed bytes at the shared 136-entry digest `1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d`. |
 
 ### Data-Flow Trace (Level 4)
 
@@ -125,6 +125,7 @@ All 37 artifact declarations across the plans passed `gsd-sdk query verify.artif
 | Lifecycle and artifact tests pass from declared projects | Node execution of `scripts/phase-09-test-check.mjs` | `PHASE09_TEST_CHECK_OK projects=3 files=5 suites=10 tests=11` | ✓ PASS |
 | CI/release gate wiring is complete | Node execution of `scripts/phase-09-workflow-check.mjs` | `PHASE09_WORKFLOW_CHECK_OK workflows=2 jobs=8 controls=22 ciSteps=22 releaseSteps=42` | ✓ PASS |
 | Regenerated evidence and ledgers agree | Current `verify all` mode in `scripts/phase-09-mutation-battery.mjs` | `PHASE09_MUTATION_VERIFY_ALL_OK evidence=green release=green ledgers=green` | ✓ PASS |
+| Canonical receipt ownership is non-vacuously checked | Self-test mode in `scripts/phase-10-certify-candidate.mjs` | `PHASE10_CERTIFY_SELF_TEST_OK controls=29` | ✓ PASS |
 | Receipt base is available through inspected history | Git object and merge-base ancestry checks | Base `a9187eda875a7dd7c6e555f1ccc8189987a3af4a` exists and is an ancestor of the inspected pre-report HEAD | ✓ PASS |
 | Verification references remain resolvable | GSD reference validation for this report | `valid: true`, 21 found, zero missing | ✓ PASS |
 
@@ -162,9 +163,9 @@ None. This phase is a headless adapter, package, and SSR contract phase. Every r
 
 ### Gaps Summary
 
-No blocking or warning gaps were found. The live implementation, built artifacts, lifecycle wiring, dynamic data flow, closed budget inventories, ordinary SSR fixture, exact three-archive consumer, singleton topology, version mismatch behavior, mutation detectors, full-history CI ancestry boundary, and resealed release inputs collectively achieve the Phase 9 goal. There are no Phase 9 items to defer to a later milestone phase.
+No blocking or warning gaps were found. The live implementation, built artifacts, lifecycle wiring, dynamic data flow, closed budget inventories, ordinary SSR fixture, exact three-archive consumer, singleton topology, version mismatch behavior, mutation detectors, full-history CI ancestry boundary, canonical receipt-root check, and successor-candidate release seal collectively achieve the Phase 9 goal. Supersession of an earlier hosted receipt is Phase 10 candidate lifecycle state, not a Phase 9 requirement failure. There are no Phase 9 items to defer to a later milestone phase.
 
 ---
 
-_Verified: 2026-08-12T21:33:53Z_
+_Verified: 2026-08-12T21:54:21Z_
 _Verifier: the agent (gsd-verifier)_

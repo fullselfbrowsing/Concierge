@@ -1,6 +1,6 @@
 ---
 phase: 10-close-v0-1-release-certification-and-evidence-gaps
-verified: 2026-08-12T21:34:54Z
+verified: 2026-08-12T21:54:43Z
 status: gaps_found
 score: 11/12 must-haves verified
 overrides_applied: 0
@@ -15,14 +15,14 @@ gaps:
   - id: EXT-HOSTED-10
     truth: "The final clean candidate SHA has a matching successful hosted Ubuntu run and exact run-scoped receipt, with no later tracked repository write or publication."
     status: failed
-    reason: "Run 31642179232 failed before receipt creation and is not authoritative. Its shallow-checkout defect is repaired and all local evidence is resealed and green, but no later successful exact-SHA hosted run and matching receipt exist yet for the final committed candidate."
+    reason: "Run 31643838443 succeeded and created the exact receipt for candidate 9381f4a6bcc1e4c7f8f02160291df8c72f57da, but local validation stopped on a false /tmp-versus-/private/tmp ownership comparison. The canonical-path repair and reseal are later tracked writes, so that receipt cannot certify the current successor and no matching successful receipt exists yet for the final committed candidate."
     artifacts:
       - path: ".github/workflows/ci.yml"
-        issue: "The pinned hosted candidate-certification job now uses a full-history, credential-free, exact-SHA build checkout, but the repaired final handoff has not yet produced a successful run-scoped receipt."
+        issue: "The pinned hosted job succeeded for old candidate 9381f4a6bcc1e4c7f8f02160291df8c72f57da; no successful run-scoped receipt exists for the successor containing the canonical-path repair."
       - path: "scripts/phase-10-certify-candidate.mjs"
-        issue: "The local self-test and workflow-contract modes pass; the state-changing certify mode was intentionally not run during verification."
+        issue: "Owned receipt files are now checked by comparing the canonical file parent with the canonical temp root, and the real-temp self-test passes; certify mode was intentionally not run during verification."
       - path: ".planning/phases/10-close-v0-1-release-certification-and-evidence-gaps/10-CERTIFICATION.md"
-        issue: "The two-stage protocol correctly rejects failed run 31642179232 and records a later successful exact-SHA hosted receipt as the remaining authoritative external fact."
+        issue: "The two-stage protocol correctly rejects failed run 31642179232 and prevents successful old-candidate run 31643838443 from being reused after tracked repair commits."
     missing:
       - "Commit this re-verification and any downstream audit/bookkeeping update as one clean Stage A candidate SHA."
       - "Run `node scripts/phase-10-certify-candidate.mjs certify`, require the successful pinned Ubuntu job for that exact SHA/run/attempt, verify its run-scoped receipt, and preserve the no-later-write/no-publication condition."
@@ -32,13 +32,13 @@ gaps:
 
 **Phase Goal:** One exact clean commit is independently certifiable as the pre-publication candidate: all nine audit gaps closed, 62/62 requirements, 9/9 original implementation phases and 10/10 current phase directories verified, 12/12 integrations, 10/10 flows, Phase 9 Nyquist compliant, and a matching exact-SHA hosted Ubuntu receipt, with no later tracked write or publication.
 
-**Verified:** 2026-08-12T21:34:54Z
+**Verified:** 2026-08-12T21:54:43Z
 **Status:** gaps_found
-**Re-verification:** Yes — focused regression after the failed hosted attempt and Stage A checkout/evidence repair
+**Re-verification:** Yes — second focused regression after the successful old-candidate run and Stage A receipt-path repair
 
 ## Goal Achievement
 
-The prior report's locally passing truths received quick regression checks, while the failed hosted path and every changed artifact received full re-verification. Commits `840a302`, `72645cb`, and `9c8300d` change only the CI checkout contract, its checker, generated Phase 9 ledgers/validation/security records, and Phase 10 retry documentation; they do not change terminal, catalog, session, adapter, or package runtime source. The failed hosted run independently reached green install, build, typecheck, 455 tests, package, budget, and contract gates before the newly identified ancestry check, and the repaired tree passes the focused local gates below.
+The prior report's locally passing truths received quick regression checks, while the hosted receipt path and every changed artifact received full re-verification. Commits `5fbcb76`, `3dae3a4`, and `7ac71b2` change only the receipt ownership predicate, its real-system-temp self-test, generated Phase 9 ledgers/validation/security records, and Phase 10 retry documentation; they do not change terminal, catalog, session, adapter, or package runtime source. Hosted run `31643838443` passed all jobs and created the exact receipt for candidate `9381f4a6bcc1e4c7f8f02160291df8c72f57da`; local validation then exposed that `/tmp` and `/private/tmp` names for the same owned directory were compared textually. The repaired tree canonicalizes both sides and passes the focused local gates below, but its later tracked bytes form a successor candidate that requires a new hosted receipt.
 
 ### Observable Truths
 
@@ -50,12 +50,12 @@ The prior report's locally passing truths received quick regression checks, whil
 | 4 | Invalid action declarations are rejected before property access, diagnostics remain actionable, `explain()` reports exact provenance/tri-state information, and SEC-03 current-byte evidence is sealed without rewriting history. | ✓ VERIFIED | `catalog.ts` performs the null/non-object precheck before reads and emits indexed declaration/problem/fix details; catalog and explain tests cover hostile values, mixed aggregation, consent-vs-reference distinctions, shadowing, catalog stage, and bridge tri-state. Phase 3/4 correction addenda are append-only, and the release-input seal includes the current requirement bytes. |
 | 5 | Ordinary package verification cannot inherit mutation authority, while the authenticated mutation child retains only the exact explicit false override. | ✓ VERIFIED | The secure-environment parser case-folds exact keys, rejects duplicates, and accepts only the intended values. `check:phase09:packages` routes through the authoritative script; its real-child self-tests prove ordinary runs have no policy marker, credentials, hooks, or caller store, while the authenticated path retains only the explicit false marker. |
 | 6 | Tracked Astro build state is removed, ignored, regenerable in a clean tree, and excluded from the release seal. | ✓ VERIFIED | `/examples/adapter-ssr/.astro/` is root-anchored in `.gitignore`; no matching path is tracked or present in either release-input ledger. The independent Astro-regeneration verifier passed check/build with `tracked=0` and `sealed=0`. |
-| 7 | Hosted workflow and receipt infrastructure is deterministic, build-before-typecheck, non-publishing, and protected by exact workflow and identity checks. | ✓ VERIFIED | The repaired CI build checkout is pinned to `github.sha`, retains full history with `fetch-depth: 0`, and disables credential persistence. The checker requires all three conditions. Pinned CI/release ordering and authority separation remain intact; the workflow checker passes 22 controls and the certification self-test passes all 29 controls. |
-| 8 | The Version Packages receipt is bound into the final Phase 9 seal, all ten Phase 10 mutants are killed, and no later write changes a sealed release input. | ✓ VERIFIED | The receipt retains base SHA `a9187eda…`, run `31635983095` attempt 1, and version `0.1.0`. The original seven plus ten Phase 10 controls all compiled, were killed, restored their targets, and left the live tree unchanged. Both regenerated ledgers share the 136-entry digest `797d2739…`, contain the current requirements, exclude Astro/closeout-only paths, and `verify all` passes. |
+| 7 | Hosted workflow and receipt infrastructure is deterministic, build-before-typecheck, non-publishing, and protected by exact workflow and identity checks. | ✓ VERIFIED | The CI checkout remains exact-SHA, full-history, and credential-free; run `31643838443` demonstrates all hosted jobs and exact receipt creation. The local driver now compares `realpath` of both the downloaded file's parent and its owned temp root while retaining regular-file/nonempty checks. The real-temp fixture passes within all 29 controls, and the workflow checker passes all 22 controls. |
+| 8 | The Version Packages receipt is bound into the final Phase 9 seal, all ten Phase 10 mutants are killed, and no later write changes a sealed release input. | ✓ VERIFIED | The receipt retains base SHA `a9187eda…`, run `31635983095` attempt 1, and version `0.1.0`. The original seven plus ten Phase 10 controls all compiled, were killed, restored their targets, and left the live tree unchanged. Both regenerated ledgers share the 136-entry digest `1e20b475…`, contain the current requirements, exclude Astro/closeout-only paths, and `verify all` passes. |
 | 9 | Summary metadata drives a complete 62-row requirement ledger with the corrected ownership/provenance assignments. | ✓ VERIFIED | Phase 2 Plan 12 declares exactly `PKG-02`/`PKG-03`; Phase 3 Plan 8 declares exactly `CAT-02`, `CAT-05`, `CAT-06`, `CAT-07`, `SEC-01`, `SEC-05`, and `DX-03`. `REQUIREMENTS.md` parses as 62 unique checked rows and points SEC-03 and the Phase 9 requirements to their closing evidence. |
 | 10 | Local evidence supports 62/62 requirements, all nine original implementation phases plus all ten phase directories, 12/12 integrations, 10/10 flows, and Phase 9 Nyquist compliance. | ✓ VERIFIED | Phase inventory is exactly ten; Phase 10 plan/summary completeness is 7/7. The independent Phase 9 verifier passes 5/5, its validation frontmatter is complete with Nyquist and Wave 0 true, and its security report closes all modeled threats. Code/data-flow traces and focused gates substantiate every audit integration and flow locally; the downstream audit regeneration is intentionally ordered after this verifier. |
-| 11 | The final local validation matrix is exactly 14 unique rows, includes clean-clone proof, and hands certification off through a two-stage no-write protocol. | ✓ VERIFIED | `10-VALIDATION.md` retains exactly 14 unique green rows and records the retry repair. `10-CERTIFICATION.md` returns failed attempts to Stage A, explicitly rejects run `31642179232`, and keeps Stage B write-free. The live handoff check passes 7/7 plans/summaries, 62/62 requirements, 9/9 phases, 10/10 directories, 12/12 integrations, 10/10 flows, Phase 9 Nyquist, and the single external gap. |
-| 12 | The final clean candidate SHA has a matching successful hosted Ubuntu run and exact run-scoped receipt, with no later tracked write or publication. | ✗ FAILED | Run `31642179232` failed before candidate-receipt creation, so it cannot certify any candidate. The repaired Stage A bytes still require a new clean commit followed by a successful exact-SHA run and validated run-scoped receipt. |
+| 11 | The final local validation matrix is exactly 14 unique rows, includes clean-clone proof, and hands certification off through a two-stage no-write protocol. | ✓ VERIFIED | `10-VALIDATION.md` retains exactly 14 unique green rows and records both retry repairs. `10-CERTIFICATION.md` rejects failed run `31642179232`, records successful run `31643838443` only for its old SHA, returns later fixes to Stage A, and keeps Stage B write-free. The live handoff check passes 7/7 plans/summaries, 62/62 requirements, 9/9 phases, 10/10 directories, 12/12 integrations, 10/10 flows, Phase 9 Nyquist, and the single external gap. |
+| 12 | The final clean candidate SHA has a matching successful hosted Ubuntu run and exact run-scoped receipt, with no later tracked write or publication. | ✗ FAILED | Run `31643838443` and its receipt match old candidate `9381f4a6bcc1e4c7f8f02160291df8c72f57da`. Commits containing the canonical-path repair and resealed evidence are later tracked writes, so the current successor still requires its own successful exact-SHA run and validated receipt. |
 
 **Score:** 11/12 truths verified. All 11 locally decidable must-haves pass; the only unmet truth is the intentionally external exact-SHA hosted receipt.
 
@@ -71,15 +71,15 @@ The prior report's locally passing truths received quick regression checks, whil
 | [phase-09-package-check.mjs](../../../scripts/phase-09-package-check.mjs) | Ordinary-vs-authenticated pnpm authority boundary | ✓ VERIFIED | Authoritative package gate and real-child environment controls pass. |
 | `.gitignore` | Root-anchored Astro exclusion | ✓ VERIFIED | Exact adapter `.astro` path is ignored. |
 | `scripts/phase-09-mutation-battery.mjs` | Mutation/evidence and Astro regeneration verifier | ✓ VERIFIED | Final verification modes pass; all 17 controls are green. |
-| `.github/workflows/ci.yml` | Pinned candidate-certification Ubuntu job | ✓ VERIFIED locally | Build checkout now retains full receipt ancestry while remaining credential-free and exact-SHA; its later successful external run is the sole remaining gap. |
+| `.github/workflows/ci.yml` | Pinned candidate-certification Ubuntu job | ✓ VERIFIED locally | Build checkout retains full receipt ancestry while remaining credential-free and exact-SHA; run `31643838443` passed and produced the old candidate's exact receipt. |
 | `.github/workflows/release.yml` | Build-first release gate with publish-only OIDC | ✓ VERIFIED | Ordering and authority separation pass workflow checks. |
-| `scripts/phase-10-certify-candidate.mjs` | Exact-SHA, exact-run certification driver | ✓ VERIFIED locally | Handoff, receipt, remote-equality, and no-write controls are substantive; 29 self-tests pass. |
+| `scripts/phase-10-certify-candidate.mjs` | Exact-SHA, exact-run certification driver | ✓ VERIFIED locally | Handoff, receipt, remote-equality, and no-write controls remain substantive; canonical temp-root ownership is pinned by a real-temp fixture and all 29 controls pass. |
 | [09-MUTATION-REGISTER.json](../09-react-and-svelte-adapters/09-MUTATION-REGISTER.json) | Canonical 17-control register | ✓ VERIFIED | Original seven plus ten Phase 10 controls, with exact ordering. |
-| [09-MUTATION-EVIDENCE.json](../09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json) | Final green mutation and release-input seal | ✓ VERIFIED | Every control compiled and was killed; restored targets and live-tree invariance recorded; release-input digest is `797d2739…`. |
-| [09-RELEASE-EVIDENCE.json](../09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json) | Final package/release-input evidence | ✓ VERIFIED | The same `797d2739…` digest covers 136 inputs; 15 commands pass and three archives are sealed. |
+| [09-MUTATION-EVIDENCE.json](../09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json) | Final green mutation and release-input seal | ✓ VERIFIED | Every control compiled and was killed; restored targets and live-tree invariance recorded; release-input digest is `1e20b475…`. |
+| [09-RELEASE-EVIDENCE.json](../09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json) | Final package/release-input evidence | ✓ VERIFIED | The same `1e20b475…` digest covers 136 inputs; all 15 commands pass and three archives are sealed. |
 | [09-VERSION-RECEIPT.json](../09-react-and-svelte-adapters/09-VERSION-RECEIPT.json) | Hosted Version Packages receipt | ✓ VERIFIED | Base SHA, run/attempt, version, and final digest links match both regenerated Phase 9 ledgers. |
 | [09-VERIFICATION.md](../09-react-and-svelte-adapters/09-VERIFICATION.md) | Independent Phase 9 verification | ✓ VERIFIED | Passed 5/5 with requirement, artifact, link, flow, and spot-check evidence. |
-| [09-VALIDATION.md](../09-react-and-svelte-adapters/09-VALIDATION.md) | Nyquist-complete validation | ✓ VERIFIED | Complete, Nyquist true, Wave 0 true; regenerated after the checkout repair. |
+| [09-VALIDATION.md](../09-react-and-svelte-adapters/09-VALIDATION.md) | Nyquist-complete validation | ✓ VERIFIED | Complete, Nyquist true, Wave 0 true; regenerated after the canonical receipt-path repair. |
 | `.planning/REQUIREMENTS.md` | Closed 62-row ledger | ✓ VERIFIED | Exactly 62 unique checked requirement IDs. |
 | `.planning/phases/10-close-v0-1-release-certification-and-evidence-gaps/10-VALIDATION.md` | Exact final local validation matrix | ✓ VERIFIED | Exactly 14 unique green rows, including clean-clone proof. |
 | `.planning/phases/10-close-v0-1-release-certification-and-evidence-gaps/10-CERTIFICATION.md` | Two-stage handoff contract | ✓ VERIFIED | Stage A writes are isolated from Stage B no-write certification and later publication. |
@@ -97,9 +97,9 @@ The generic artifact checker reported two literal-pattern false negatives in Pla
 | Catalog candidate | Safe snapshot/issue | Type guard before declaration reads | ✓ WIRED | Hostile primitive/accessor inputs cannot be evaluated before rejection. |
 | Ordinary pnpm child | Secure environment | Case-folded exact-key filtering | ✓ WIRED | Mutation authority and credentials are absent from ordinary verification. |
 | Tracked source tree | Regenerated Astro cache | Clean-clone build and ignore rule | ✓ WIRED | Regeneration succeeds while tracked and sealed counts stay zero. |
-| Version Packages receipt | Final release ledgers | Receipt hash, retained base-SHA ancestry, and release-input digest | ✓ WIRED | Both regenerated ledgers share digest `797d2739…` and the same receipt identity. |
+| Version Packages receipt | Final release ledgers | Receipt hash, retained base-SHA ancestry, and release-input digest | ✓ WIRED | Both regenerated ledgers share digest `1e20b475…` and the same receipt identity. |
 | Summary metadata | Requirement ledger | Exact requirement arrays and traceability rows | ✓ WIRED | All 62 checked IDs are unique and owned. |
-| Final candidate commit | Hosted receipt | Certification script selects exact SHA/run/attempt | ✗ NOT YET EXECUTED | The wiring is complete, but the external fact cannot exist before Stage A's final commit. |
+| Final candidate commit | Hosted receipt | Certification script selects exact SHA/run/attempt and validates canonical temp ownership | ✗ CURRENT SHA NOT YET EXECUTED | The wiring worked through receipt creation for old SHA `9381f4a…`; the repaired successor has no matching run yet. |
 
 ### Data-Flow Trace (Level 4)
 
@@ -108,8 +108,8 @@ The generic artifact checker reported two literal-pattern false negatives in Pla
 | `session.ts` | Terminal action outcome | Actual handler result captured by `executeDispatchBatch` | Yes | ✓ FLOWING |
 | `catalog.ts` | Declaration issue and `explain()` provenance | Actual caller declarations, normalized catalog, bridge state | Yes | ✓ FLOWING |
 | `09-MUTATION-EVIDENCE.json` | Killed/restored mutation rows | Compiled real-child mutation runs against canonical register | Yes — 17/17 green | ✓ FLOWING |
-| `09-RELEASE-EVIDENCE.json` | Release-input digest and package evidence | 136 tracked input bytes, 15 verified commands, three archives, and receipt | Yes — digest `797d2739…` | ✓ FLOWING |
-| `phase-10-certify-candidate.mjs` | Hosted receipt identity | Git remote plus exact GitHub run/artifact | Not until handoff | ✗ EXTERNAL FACT ABSENT |
+| `09-RELEASE-EVIDENCE.json` | Release-input digest and package evidence | 136 tracked input bytes, 15 verified commands, three archives, and receipt | Yes — digest `1e20b475…` | ✓ FLOWING |
+| `phase-10-certify-candidate.mjs` | Hosted receipt identity | Git remote plus exact GitHub run/artifact, then canonical owned-file validation | Old SHA flowed; successor pending | ✗ CURRENT EXTERNAL FACT ABSENT |
 
 ### Behavioral Spot-Checks
 
@@ -125,7 +125,7 @@ The generic artifact checker reported two literal-pattern false negatives in Pla
 | Phase/ledger shape | Phase-completeness and exact-row parsers | 7/7 plans/summaries; 14 unique validation rows; 62 unique checked requirements | ✓ PASS |
 | Full-history checkout repair | `node` [phase-09-workflow-check.mjs](../../../scripts/phase-09-workflow-check.mjs) | `PHASE09_WORKFLOW_CHECK_OK`; 22/22 controls | ✓ PASS |
 | Regenerated final seal | `node scripts/phase-09-mutation-battery.mjs verify all` | Evidence, release, and ledgers all green | ✓ PASS |
-| Retry/failure receipt semantics | `node scripts/phase-10-certify-candidate.mjs self-test` | `PHASE10_CERTIFY_SELF_TEST_OK controls=29` | ✓ PASS |
+| Retry/failure and canonical-temp receipt semantics | `node scripts/phase-10-certify-candidate.mjs self-test` | `PHASE10_CERTIFY_SELF_TEST_OK controls=29`; real system temp-root predicate passes | ✓ PASS |
 | Complete Stage A handoff | `node scripts/phase-10-certify-candidate.mjs handoff-check` | 7/7, 62/62, 9/9, 10/10 directories, 12/12, 10/10, Nyquist compliant, one hosted gap | ✓ PASS |
 
 ### Probe Execution
@@ -155,9 +155,9 @@ None. The outstanding criterion is machine-verifiable external CI evidence, not 
 
 ### Gaps Summary
 
-All local Phase 10 must-haves, all 62 requirements, the 14-row validation matrix, the clean-clone evidence, Phase 9 Nyquist evidence, the full-history checkout repair, the regenerated `797d2739…` seal, and the two-stage no-write handoff are verified. Failed run `31642179232` is correctly treated as diagnostic only: it created no candidate receipt and cannot be reused. One blocker remains—after this report and downstream audit/bookkeeping are committed as the final clean candidate, that exact SHA must receive a successful pinned Ubuntu candidate-certification run and matching run-scoped receipt. No publication or later tracked write may follow the certified candidate.
+All local Phase 10 must-haves, all 62 requirements, the 14-row validation matrix, clean-clone evidence, Phase 9 Nyquist evidence, both retry repairs, the regenerated `1e20b475…` seal, and the two-stage no-write handoff are verified. Run `31643838443` proves that the hosted jobs and receipt creation succeed, but its receipt belongs only to old candidate `9381f4a6bcc1e4c7f8f02160291df8c72f57da`. The canonical-path repair and reseal are later tracked writes, so one blocker remains: after this report and downstream audit/bookkeeping are committed as the final clean successor candidate, that exact SHA must receive its own successful pinned Ubuntu run and matching receipt. No publication or later tracked write may follow the certified candidate.
 
 ---
 
-_Verified: 2026-08-12T21:34:54Z_
+_Verified: 2026-08-12T21:54:43Z_
 _Verifier: the agent (gsd-verifier)_
