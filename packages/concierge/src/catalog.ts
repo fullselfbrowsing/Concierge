@@ -110,6 +110,7 @@ import type {
  * unmoved by this.
  */
 export type CatalogIssueCode =
+  | "invalid_declaration"
   | "duplicate_action_name"
   | "schema_not_emittable"
   | "schema_root_not_object"
@@ -1052,7 +1053,19 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
   // about to be renamed produces advice about a declaration that will not exist.
   const declared: AnyActionDefinition[] = [];
 
-  for (const action of actions) {
+  for (let actionIndex: number = 0; actionIndex < actions.length; actionIndex += 1) {
+    const candidate: unknown = actions[actionIndex];
+    if (candidate === null || typeof candidate !== "object") {
+      issues.push({
+        code: "invalid_declaration",
+        action: `declaration at index ${actionIndex}`,
+        problem: "The declaration is not a readable action object.",
+        fix: "Pass an action declaration object with a nonempty name and valid schema, redaction, consent, and handler fields.",
+      });
+      continue;
+    }
+    const action: AnyActionDefinition = candidate as AnyActionDefinition;
+
     // CAT-01 — a duplicate name makes the agent's address space ambiguous.
     //
     // The `fix` states the SCOPE as well as the remedy, because scope is the one
