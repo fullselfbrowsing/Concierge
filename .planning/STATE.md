@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: release certification and evidence gaps
 status: executing
-stopped_at: Completed 10-03-PLAN.md
-last_updated: "2026-08-12T17:42:46.187Z"
+stopped_at: Completed 10-04-PLAN.md
+last_updated: "2026-08-12T18:08:36.842Z"
 last_activity: 2026-08-12
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 93
-  completed_plans: 89
+  completed_plans: 90
   percent: 90
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-08-10)
 ## Current Position
 
 Phase: 10 (close-v0-1-release-certification-and-evidence-gaps) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Status: Ready to execute
 Last activity: 2026-08-12
 
@@ -83,6 +83,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 10 P01 | 16m | 2 tasks | 8 files |
 | Phase 10 P02 | 7m | 2 tasks | 6 files |
 | Phase 10 P03 | 7m | 2 tasks | 6 files |
+| Phase 10 P04 | 24m | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -196,6 +197,8 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 10]: Preserve historical verifier findings verbatim and append dated current-byte corrections. — Append-only corrections retain the original audit trail while making superseded conclusions explicit.
 - [Phase 10]: Consume exact pnpm false decoration without granting ordinary-child authority. — Only the independent exact mutation marker authenticates retention; ordinary pnpm callers remain usable without widening the child environment.
 - [Phase 10]: Treat pinned Astro regeneration, not generated declaration bytes, as release evidence. — Harness-local .astro output stays untracked, ignored at one exact path, and rejected from every release manifest and seal.
+- [Phase 10]: Build only public-package prerequisites before the pinned Astro regeneration pair. — Core and adapter declarations must exist for astro check, while the harness-local .astro directory must remain absent until the authoritative check then build proof.
+- [Phase 10]: Keep exact-SHA hosted truth in an attempt-scoped external receipt. — The final clean commit can be pushed, matched to one explicit run attempt, and certified without creating a self-invalidating successor commit.
 
 ### Pending Todos
 
@@ -224,6 +227,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-12T17:42:46.182Z
-Stopped at: Completed 10-03-PLAN.md
+Last session: 2026-08-12T18:08:36.838Z
+Stopped at: Completed 10-04-PLAN.md
 Resume file: None

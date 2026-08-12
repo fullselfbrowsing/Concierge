@@ -487,14 +487,14 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 7. Session and the transport seam | 7/7 | Complete    | 2026-08-10 |
 | 8. Consent kernel | 8/8 | Complete | 2026-08-10 |
 | 9. React and Svelte adapters | 12/13 | In Progress|  |
-| 10. Close v0.1 release certification and evidence gaps | 3/7 | In Progress|  |
+| 10. Close v0.1 release certification and evidence gaps | 4/7 | In Progress|  |
 
 ### Phase 10: Close v0.1 release certification and evidence gaps
 
 **Goal:** One exact clean commit is independently certifiable as the pre-publication candidate: all nine audit gaps closed, 62/62 requirements, 9/9 original implementation phases and 10/10 current phase directories verified, 12/12 integrations, 10/10 flows, Phase 9 Nyquist compliant, and a matching exact-SHA hosted Ubuntu receipt, with no later tracked write or publication.
 **Requirements**: No new requirement IDs — closes Audit 1–9 and repairs evidence for SEC-03, ADP-01–04, PKG-04, CAT-02, CAT-03, CAT-05–07, SEC-01, SEC-05, PKG-02–03, DX-01, DX-03.
 **Depends on:** Phase 9
-**Plans:** 3/7 plans executed
+**Plans:** 4/7 plans executed
 **Certification status:** Awaiting implementation, ordinary GSD closeout, and the post-GSD exact-SHA hosted receipt.
 
 Plans:
@@ -506,7 +506,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 10-04-PLAN.md — Prove clean Astro regeneration, repair hosted build ordering, and create push-bound exact-SHA receipt tooling.
+- [x] 10-04-PLAN.md — Prove clean Astro regeneration, repair hosted build ordering, and create push-bound exact-SHA receipt tooling.
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
