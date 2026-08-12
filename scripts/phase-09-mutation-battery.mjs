@@ -101,6 +101,16 @@ const EXPECTED_IDS = Object.freeze([
   "M-09-B1",
   "M-09-P1",
   "M-09-C1",
+  "M-10-T01",
+  "M-10-T02",
+  "M-10-T03",
+  "M-10-T04",
+  "M-10-T05",
+  "M-10-T06",
+  "M-10-C01",
+  "M-10-E01",
+  "M-10-G01",
+  "M-10-W01",
 ]);
 const REQUIRED_TASK_IDS = Object.freeze(
   Array.from({ length: 13 }, (_, phaseIndex) =>
@@ -120,6 +130,16 @@ const REQUIRED_THREATS = Object.freeze([
   "T-09-07",
   "T-09-08",
   "T-09-SC",
+]);
+const SUPPLEMENTAL_PHASE10_THREATS = Object.freeze([
+  "T-10-01",
+  "T-10-02",
+  "T-10-03",
+  "T-10-04",
+  "T-10-05",
+  "T-10-06",
+  "T-10-07",
+  "T-10-08",
 ]);
 const EXPECTED_PHASE09_TEST_FILES = Object.freeze([
   "examples/adapter-ssr/test/ssr.test.ts",
@@ -153,6 +173,14 @@ const REQUIRED_FINAL_INPUT_PATHS = Object.freeze([
   "packages/concierge/package.json",
   "packages/concierge/src/index.ts",
   "packages/concierge/src/bridge.ts",
+  "packages/concierge/src/concierge.ts",
+  "packages/concierge/src/dispatch.ts",
+  "packages/concierge/src/session.ts",
+  "packages/concierge/src/catalog.ts",
+  "packages/concierge/test/dispatcher-batch.test.ts",
+  "packages/concierge/test/session-consent.test.ts",
+  "packages/concierge/test/session-lifecycle.test.ts",
+  "packages/concierge/test/catalog.test.ts",
   "packages/concierge-react/package.json",
   "packages/concierge-react/tsconfig.json",
   "packages/concierge-react/tsdown.config.ts",
@@ -190,6 +218,7 @@ const REQUIRED_FINAL_INPUT_PATHS = Object.freeze([
   "scripts/phase-09-secure-environment.mjs",
   "scripts/phase-09-publish-archives.mjs",
   "scripts/phase-09-version.mjs",
+  "scripts/phase-10-certify-candidate.mjs",
   ".changeset/config.json",
   CONSUMER_TOOLING_MANIFEST_PATH,
   CONSUMER_TOOLING_LOCK_PATH,
@@ -257,6 +286,45 @@ const TEST_HASH_PATHS = Object.freeze({
     CONSUMER_TOOLING_LOCK_PATH,
     "packages/concierge-react/test/lifecycle.test.tsx",
   ]),
+  "M-10-T01": Object.freeze([
+    "packages/concierge/test/dispatcher-batch.test.ts",
+    "vitest.config.ts",
+  ]),
+  "M-10-T02": Object.freeze([
+    "packages/concierge/test/dispatcher-batch.test.ts",
+    "vitest.config.ts",
+  ]),
+  "M-10-T03": Object.freeze([
+    "packages/concierge/test/dispatcher-batch.test.ts",
+    "vitest.config.ts",
+  ]),
+  "M-10-T04": Object.freeze([
+    "packages/concierge/test/session-consent.test.ts",
+    "vitest.config.ts",
+  ]),
+  "M-10-T05": Object.freeze([
+    "packages/concierge/test/session-lifecycle.test.ts",
+    "vitest.config.ts",
+  ]),
+  "M-10-T06": Object.freeze([
+    "packages/concierge/test/session-consent.test.ts",
+    "vitest.config.ts",
+  ]),
+  "M-10-C01": Object.freeze([
+    "packages/concierge/test/catalog.test.ts",
+    "vitest.config.ts",
+  ]),
+  "M-10-E01": Object.freeze([
+    "scripts/phase-09-package-check.mjs",
+    "scripts/phase-09-secure-environment.mjs",
+  ]),
+  "M-10-G01": Object.freeze([
+    "scripts/phase-09-contract-check.mjs",
+  ]),
+  "M-10-W01": Object.freeze([
+    "scripts/phase-09-contract-check.mjs",
+    "scripts/phase-09-workflow-check.mjs",
+  ]),
 });
 const EXPECTED_MAPPINGS = Object.freeze({
   "M-09-R1": Object.freeze({
@@ -301,6 +369,66 @@ const EXPECTED_MAPPINGS = Object.freeze({
     threat: "T-09-05",
     decisions: Object.freeze(["D-09-03", "D-09-16"]),
   }),
+  "M-10-T01": Object.freeze({
+    testId: "Q22",
+    requirement: "Audit-3",
+    threat: "T-10-02",
+    decisions: Object.freeze(["D-10-01", "D-10-02"]),
+  }),
+  "M-10-T02": Object.freeze({
+    testId: "Q20",
+    requirement: "DSP-07",
+    threat: "T-10-02",
+    decisions: Object.freeze(["D-10-03"]),
+  }),
+  "M-10-T03": Object.freeze({
+    testId: "Q21",
+    requirement: "SES-02",
+    threat: "T-10-01",
+    decisions: Object.freeze(["D-10-03"]),
+  }),
+  "M-10-T04": Object.freeze({
+    testId: "S09",
+    requirement: "CON-10",
+    threat: "T-10-03",
+    decisions: Object.freeze(["D-10-04"]),
+  }),
+  "M-10-T05": Object.freeze({
+    testId: "L06",
+    requirement: "SES-04",
+    threat: "T-10-03",
+    decisions: Object.freeze(["D-10-02", "D-10-04"]),
+  }),
+  "M-10-T06": Object.freeze({
+    testId: "S08",
+    requirement: "SES-02",
+    threat: "T-10-01",
+    decisions: Object.freeze(["D-10-03", "D-10-04"]),
+  }),
+  "M-10-C01": Object.freeze({
+    testId: "C34",
+    requirement: "DX-03",
+    threat: "T-10-05",
+    decisions: Object.freeze(["D-10-13", "D-10-14"]),
+  }),
+  "M-10-E01": Object.freeze({
+    testId: "E01",
+    requirement: "PKG-04",
+    threat: "T-10-04",
+    decisions: Object.freeze(["D-10-09"]),
+  }),
+  "M-10-G01": Object.freeze({
+    testId: "G01",
+    requirement: "ADP-04",
+    threat: "T-10-06",
+    decisions: Object.freeze(["D-10-05", "D-10-06", "D-10-07", "D-10-08"]),
+  }),
+  "M-10-W01": Object.freeze({
+    testId: "W01",
+    requirement: "PKG-04",
+    threat: "T-10-07",
+    decisions: Object.freeze(["D-10-09"]),
+  }),
 });
 const COMPILE_COMMANDS = Object.freeze({
   "M-09-R1": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge-react", "build"]),
@@ -310,6 +438,16 @@ const COMPILE_COMMANDS = Object.freeze({
   "M-09-B1": Object.freeze(["node", "--check", "scripts/phase-09-adapter-budget.mjs"]),
   "M-09-P1": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge-react", "build"]),
   "M-09-C1": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge-react", "build"]),
+  "M-10-T01": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge", "build"]),
+  "M-10-T02": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge", "build"]),
+  "M-10-T03": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge", "build"]),
+  "M-10-T04": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge", "build"]),
+  "M-10-T05": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge", "build"]),
+  "M-10-T06": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge", "build"]),
+  "M-10-C01": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge", "build"]),
+  "M-10-E01": Object.freeze(["node", "--check", "scripts/phase-09-package-check.mjs"]),
+  "M-10-G01": Object.freeze(["node", "--check", "scripts/phase-09-mutation-battery.mjs"]),
+  "M-10-W01": Object.freeze(["node", "--check", "scripts/phase-09-mutation-battery.mjs"]),
 });
 const KILLER_COMMANDS = Object.freeze({
   "M-09-R1": Object.freeze(["pnpm", "exec", "vitest", "run", "packages/concierge-react/test/lifecycle.test.tsx", "--project", "react-lifecycle", "--testNamePattern=T01/R1", "--reporter=json", "--outputFile={report}"]),
@@ -319,6 +457,16 @@ const KILLER_COMMANDS = Object.freeze({
   "M-09-B1": Object.freeze(["node", "scripts/phase-09-adapter-budget.mjs", "check"]),
   "M-09-P1": Object.freeze(["node", "scripts/phase-09-package-check.mjs", "artifacts"]),
   "M-09-C1": Object.freeze(["node", "scripts/phase-09-package-check.mjs", "mismatch"]),
+  "M-10-T01": Object.freeze(["pnpm", "exec", "vitest", "run", "packages/concierge/test/dispatcher-batch.test.ts", "--project", "node", "--testNamePattern=Q22", "--reporter=json", "--outputFile={report}"]),
+  "M-10-T02": Object.freeze(["pnpm", "exec", "vitest", "run", "packages/concierge/test/dispatcher-batch.test.ts", "--project", "node", "--testNamePattern=Q20 terminal", "--reporter=json", "--outputFile={report}"]),
+  "M-10-T03": Object.freeze(["pnpm", "exec", "vitest", "run", "packages/concierge/test/dispatcher-batch.test.ts", "--project", "node", "--testNamePattern=Q21", "--reporter=json", "--outputFile={report}"]),
+  "M-10-T04": Object.freeze(["pnpm", "exec", "vitest", "run", "packages/concierge/test/session-consent.test.ts", "--project", "node", "--testNamePattern=S09", "--reporter=json", "--outputFile={report}"]),
+  "M-10-T05": Object.freeze(["pnpm", "exec", "vitest", "run", "packages/concierge/test/session-lifecycle.test.ts", "--project", "node", "--testNamePattern=L06 terminal", "--reporter=json", "--outputFile={report}"]),
+  "M-10-T06": Object.freeze(["pnpm", "exec", "vitest", "run", "packages/concierge/test/session-consent.test.ts", "--project", "node", "--testNamePattern=S08", "--reporter=json", "--outputFile={report}"]),
+  "M-10-C01": Object.freeze(["pnpm", "exec", "vitest", "run", "packages/concierge/test/catalog.test.ts", "--project", "node", "--testNamePattern=C34", "--reporter=json", "--outputFile={report}"]),
+  "M-10-E01": Object.freeze(["node", "scripts/phase-09-package-check.mjs", "self-test"]),
+  "M-10-G01": Object.freeze(["node", "scripts/phase-09-contract-check.mjs", "phase10-static"]),
+  "M-10-W01": Object.freeze(["node", "scripts/phase-09-contract-check.mjs", "phase10-static"]),
 });
 const MUTANT_EXECUTION_ENV = Object.freeze({
   PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
@@ -352,6 +500,7 @@ const REGISTER_ROW_KEYS = Object.freeze([
 const USAGE =
   "Usage: node scripts/phase-09-mutation-battery.mjs " +
   "self-test|preflight <registered-id>|run all --jobs <1-4>|" +
+  "preflight versioned --jobs <1-4>|" +
   "finalize versioned --jobs <1-4>|" +
   "verify <evidence|release|all|astro-regeneration>|" +
   "verify publish <archive-dir>";
@@ -481,6 +630,22 @@ function parseInvocation(arguments_) {
   }
   if (
     arguments_.length === 4 &&
+    arguments_[0] === "preflight" &&
+    arguments_[1] === "versioned" &&
+    arguments_[2] === "--jobs"
+  ) {
+    const jobs = Number(arguments_[3]);
+    if (Number.isInteger(jobs) && jobs >= 1 && jobs <= 4) {
+      return Object.freeze({
+        kind: "run-all",
+        jobs,
+        versioned: true,
+        installOutputs: false,
+      });
+    }
+  }
+  if (
+    arguments_.length === 4 &&
     arguments_[0] === "run" &&
     arguments_[1] === "all" &&
     arguments_[2] === "--jobs"
@@ -491,6 +656,7 @@ function parseInvocation(arguments_) {
         kind: "run-all",
         jobs,
         versioned: false,
+        installOutputs: true,
       });
     }
   }
@@ -502,7 +668,12 @@ function parseInvocation(arguments_) {
   ) {
     const jobs = Number(arguments_[3]);
     if (Number.isInteger(jobs) && jobs >= 1 && jobs <= 4) {
-      return Object.freeze({ kind: "run-all", jobs, versioned: true });
+      return Object.freeze({
+        kind: "run-all",
+        jobs,
+        versioned: true,
+        installOutputs: true,
+      });
     }
   }
   if (
@@ -573,6 +744,7 @@ function validateRegister(register, root = ROOT, { requireTracked = true } = {})
   assert(new Set(ids).size === EXPECTED_IDS.length, "register has a duplicate ID");
 
   const identities = new Set();
+  const fingerprints = new Set();
   for (const row of register.rows) {
     exactKeys(row, REGISTER_ROW_KEYS, `${row.id} register row`);
     exactKeys(row.expectedCounts, ["files", "tests", "assertions"], `${row.id} expectedCounts`);
@@ -601,6 +773,11 @@ function validateRegister(register, root = ROOT, { requireTracked = true } = {})
       assert(typeof row[key] === "string" && row[key].length > 0, `${row.id}: ${key} is empty`);
     }
     assert(row.exactBefore !== row.exactAfter, `${row.id}: replacement is a no-op`);
+    assert(
+      !fingerprints.has(row.assertionFingerprint),
+      `${row.id}: assertion fingerprint is duplicated`,
+    );
+    fingerprints.add(row.assertionFingerprint);
     assert(!/(?:^|\/)test(?:-d)?\//u.test(row.target), `${row.id}: test source is a forbidden mutation target`);
     const identity = `${row.target}\0${row.exactBefore}\0${row.exactAfter}`;
     assert(!identities.has(identity), `${row.id}: duplicate mutation definition`);
@@ -1559,6 +1736,11 @@ async function executeMutant(row, baseline, liveState, outerRoot) {
   }
 
   assert(sha256File(targetPath) === originalTargetHash, `${row.id}: disposable target was not restored`);
+  verifyInputManifest(baseline.inputManifest, mutantRoot);
+  assertCleanReleaseInputs(
+    mutantRoot,
+    baseline.inputManifest.entries.map((entry) => entry.path),
+  );
   verifyInputManifest(baseline.inputManifest, baseline.root);
   verifyLiveMutationState(liveState);
   assertOutputEndpoints(liveState.outputEndpoints);
@@ -1783,7 +1965,7 @@ async function runSelfTest() {
     /unrelated nonzero/u,
     "unrelated failure",
   );
-  pass("unrelated-nonzero");
+  pass("generic-failure-impersonation");
   assertThrows(
     () => validateSemanticVerdict(row, syntheticCommand(0), syntheticCommand(0), goodObservation),
     /survived/u,
@@ -1812,6 +1994,15 @@ async function runSelfTest() {
     );
     pass("stale-input-digest");
     assertThrows(
+      () => {
+        writeFileSync(join(fixtureRoot, "input.txt"), "not-restored\n", "utf8");
+        verifyInputManifest(manifest, fixtureRoot, { verifyPathSet: false });
+      },
+      /digest is stale/u,
+      "dirty restoration",
+    );
+    pass("dirty-restoration");
+    assertThrows(
       () => assert(registerDigest() === "0".repeat(64), "register digest is stale"),
       /register digest is stale/u,
       "stale register digest",
@@ -1830,6 +2021,22 @@ async function runSelfTest() {
       "live tree write",
     );
     pass("live-tree-write");
+
+    const phase08Fixture = join(temporaryRoot, "phase08-fixture");
+    mkdirSync(phase08Fixture);
+    for (const path of PHASE08_PATHS) copyTrackedFile(ROOT, phase08Fixture, path);
+    const inheritedFixtureHashes = phase08Hashes(phase08Fixture);
+    writeFileSync(
+      join(phase08Fixture, PHASE08_PATHS[0]),
+      "synthetic inherited drift\n",
+      "utf8",
+    );
+    assertThrows(
+      () => assertPhase08Hashes(inheritedFixtureHashes, phase08Fixture),
+      /Phase 8 records drifted/u,
+      "inherited Phase 8 drift",
+    );
+    pass("inherited-phase08-drift");
   } finally {
     removeOwnedTempRoot(temporaryRoot);
   }
@@ -1881,6 +2088,39 @@ async function runSelfTest() {
     "duplicate ID",
   );
   pass("duplicate-id");
+  const missing = clone(register);
+  missing.expectedIds.pop();
+  missing.rows.pop();
+  assertThrows(
+    () => validateRegister(missing, ROOT, { requireTracked: false }),
+    /expectedIds.*missing|expectedIds.*reordered|expectedIds.*extra/u,
+    "missing ID",
+  );
+  pass("missing-id");
+  const extra = clone(register);
+  extra.expectedIds.push("M-10-EXTRA");
+  extra.rows.push({ ...extra.rows.at(-1), id: "M-10-EXTRA" });
+  assertThrows(
+    () => validateRegister(extra, ROOT, { requireTracked: false }),
+    /expectedIds.*missing|expectedIds.*reordered|expectedIds.*extra/u,
+    "extra ID",
+  );
+  pass("extra-id");
+  const reordered = clone(register);
+  [reordered.expectedIds[7], reordered.expectedIds[8]] = [
+    reordered.expectedIds[8],
+    reordered.expectedIds[7],
+  ];
+  [reordered.rows[7], reordered.rows[8]] = [
+    reordered.rows[8],
+    reordered.rows[7],
+  ];
+  assertThrows(
+    () => validateRegister(reordered, ROOT, { requireTracked: false }),
+    /expectedIds.*missing|expectedIds.*reordered|expectedIds.*extra/u,
+    "reordered IDs",
+  );
+  pass("reordered-ids");
   assertThrows(
     () => parseInvocation(["run", "all", "--jobs", "5"]),
     /Usage/u,
@@ -1936,6 +2176,63 @@ async function runSelfTest() {
     "versioned invocation did not retain its worktree mode",
   );
   pass("versioned-cli");
+  const versionedPreflightInvocation = parseInvocation([
+    "preflight",
+    "versioned",
+    "--jobs",
+    "4",
+  ]);
+  assert(
+    versionedPreflightInvocation.kind === "run-all" &&
+      versionedPreflightInvocation.jobs === 4 &&
+      versionedPreflightInvocation.versioned === true &&
+      versionedPreflightInvocation.installOutputs === false,
+    "versioned preflight invocation can install outputs",
+  );
+  pass("versioned-preflight-noninstalling-cli");
+
+  const canonicalValidation = makeValidationMarkdown({
+    releaseInputDigest: "a".repeat(64),
+    registerHash: "b".repeat(64),
+    mutationRows: register.rows,
+    archiveDigest: "c".repeat(64),
+    releaseCommandCount: 15,
+    releaseTests: { files: 5, tests: 10, assertions: 10 },
+    inheritedHashes: Object.fromEntries(
+      PHASE08_PATHS.map((path) => [path, "d".repeat(64)]),
+    ),
+  });
+  const canonicalValidationBody = verifyMarkdownSeal(
+    canonicalValidation,
+    "synthetic canonical validation",
+  );
+  validateValidationMetadata(canonicalValidationBody);
+  assertThrows(
+    () =>
+      validateValidationMetadata(
+        canonicalValidationBody.replace(
+          "nyquist_compliant: true",
+          "nyquist_compliant: false",
+        ),
+      ),
+    /validation metadata must be complete/u,
+    "malformed validation metadata",
+  );
+  pass("malformed-validation-metadata");
+
+  let preflightInstallCalls = 0;
+  const preflightInstalled = completeGeneratedOutputTransaction(ROOT, {
+    installOutputs: false,
+    expectedEndpoints: endpoints,
+    install: () => {
+      preflightInstallCalls += 1;
+    },
+  });
+  assert(
+    preflightInstalled === false && preflightInstallCalls === 0,
+    "non-installing preflight invoked the output installer",
+  );
+  pass("accidental-preflight-installation");
 
   const syntheticHome = join(SYSTEM_TEMP_ROOT, "phase09-finalization-self-test-home");
   for (const hostileEnvironment of [
@@ -2322,7 +2619,7 @@ async function runSelfTest() {
   );
   pass("secure-child-environment-probe");
 
-  assert(controls === 37, `self-test control count drifted: ${controls}`);
+  assert(controls === 45, `self-test control count drifted: ${controls}`);
   assertOutputEndpoints(endpoints);
   console.log(`PHASE09_MUTATION_SELF_TEST_OK controls=${controls}`);
 }
@@ -2483,14 +2780,18 @@ function verifyMutationEvidence(root = ROOT, { quiet = false } = {}) {
     assert(!revisions.has(row.revisionDigest), `${row.id}: revision digest is duplicated`);
     revisions.add(row.revisionDigest);
   }
-  if (!quiet) console.log("PHASE09_MUTATION_EVIDENCE_OK rows=7 green=7");
+  if (!quiet) {
+    console.log(
+      `PHASE09_MUTATION_EVIDENCE_OK rows=${EXPECTED_IDS.length} green=${EXPECTED_IDS.length}`,
+    );
+  }
   return evidence;
 }
 
 function validateReleaseCommands(commands) {
   const expectedNames = [
-    "typecheck",
     "build",
+    "typecheck",
     "test",
     "check:artifact",
     "check:deps",
@@ -2682,11 +2983,60 @@ function countToken(text, token) {
   return text.split(token).length - 1;
 }
 
+function validateValidationMetadata(validation) {
+  const exactFrontmatter =
+    "---\n" +
+    "phase: 09-react-and-svelte-adapters\n" +
+    "status: complete\n" +
+    "nyquist_compliant: true\n" +
+    "wave_0_complete: true\n" +
+    "---\n";
+  assert(
+    validation.startsWith(exactFrontmatter),
+    "validation metadata must be complete, Nyquist compliant, and Wave 0 complete",
+  );
+  assert(
+    !/MISSING|PENDING|TBD|NOT RUN/u.test(validation),
+    "validation metadata contains an incomplete marker",
+  );
+  for (const taskId of REQUIRED_TASK_IDS) {
+    assert(
+      countToken(validation, taskId) === 1,
+      `${taskId}: validation task trace count must equal one`,
+    );
+  }
+  for (let index = 1; index <= 17; index += 1) {
+    const decision = `D-09-${String(index).padStart(2, "0")}`;
+    assert(validation.includes(decision), `${decision}: decision evidence is missing`);
+  }
+  for (const threat of REQUIRED_THREATS) {
+    assert(validation.includes(threat), `${threat}: validation threat accounting is missing`);
+  }
+  for (const token of [
+    "## Requirement Closure",
+    "ADP-01",
+    "ADP-02",
+    "ADP-03",
+    "ADP-04",
+    "PKG-04",
+    "## Source and Research Accounting",
+    "09-CONTEXT.md",
+    "09-RESEARCH.md",
+    "## Measured Evidence",
+    "## Wave 0 Closure",
+    "## Sign-off",
+  ]) {
+    assert(validation.includes(token), `canonical validation is missing ${token}`);
+  }
+  return true;
+}
+
 function verifyLedgers(root = ROOT) {
   const validationText = readFileSync(join(root, ".planning/phases/09-react-and-svelte-adapters/09-VALIDATION.md"), "utf8");
   const securityText = readFileSync(join(root, ".planning/phases/09-react-and-svelte-adapters/09-SECURITY.md"), "utf8");
   const validation = verifyMarkdownSeal(validationText, "validation ledger");
   const security = verifyMarkdownSeal(securityText, "security ledger");
+  validateValidationMetadata(validation);
   const joined = `${validation}\n${security}`;
   assert(!/MISSING|PENDING|TBD|NOT RUN/u.test(joined), "terminal ledgers contain an incomplete marker");
   for (const taskId of REQUIRED_TASK_IDS) {
@@ -2696,8 +3046,11 @@ function verifyLedgers(root = ROOT) {
     const testId = `T${String(index).padStart(2, "0")}`;
     assert(validation.includes(testId), `${testId}: canonical validation meaning is missing`);
   }
-  for (const threat of REQUIRED_THREATS) {
+  for (const threat of [...REQUIRED_THREATS, ...SUPPLEMENTAL_PHASE10_THREATS]) {
     assert(security.includes(threat), `${threat}: security disposition is missing`);
+  }
+  for (const id of EXPECTED_IDS.slice(7)) {
+    assert(joined.includes(id), `${id}: supplemental current-byte evidence is missing`);
   }
   for (const token of [
     "@fullselfbrowsing/concierge",
@@ -2711,6 +3064,10 @@ function verifyLedgers(root = ROOT) {
   ]) {
     assert(joined.includes(token), `terminal ledgers are missing ${token}`);
   }
+  assert(
+    !GENERATED_PATHS.some((path) => path.endsWith("09-VERIFICATION.md")),
+    "independent Phase 09 verification cannot be generator-owned",
+  );
   return true;
 }
 
@@ -2937,8 +3294,8 @@ async function runReleaseGates(baseline, outerRoot) {
     return result;
   };
 
-  await run("typecheck", "pnpm", ["typecheck"]);
   await run("build", "pnpm", ["build"]);
+  await run("typecheck", "pnpm", ["typecheck"]);
   await run("test", "pnpm", ["test"]);
   await run("check:artifact", "pnpm", ["check:artifact"]);
   await run("check:deps", "pnpm", ["check:deps"]);
@@ -2989,7 +3346,15 @@ async function runReleaseGates(baseline, outerRoot) {
   });
 }
 
-function makeValidationMarkdown({ releaseInputDigest, registerHash, mutationRows, archiveDigest }) {
+function makeValidationMarkdown({
+  releaseInputDigest,
+  registerHash,
+  mutationRows,
+  archiveDigest,
+  releaseCommandCount,
+  releaseTests,
+  inheritedHashes,
+}) {
   const taskRows = REQUIRED_TASK_IDS.map(
     (id) => `| ${id} | passed | ${releaseInputDigest} |`,
   ).join("\n");
@@ -3013,7 +3378,107 @@ function makeValidationMarkdown({ releaseInputDigest, registerHash, mutationRows
         : `release revision ${releaseInputDigest}`;
     return `| ${id} | ${evidence} |`;
   }).join("\n");
-  return markdownSeal(`# Phase 09 Validation\n\nRevision-bound validation for @fullselfbrowsing/concierge, its React and Svelte adapters, and the inherited 08-consent-kernel records.\n\n## Task Traceability\n\n| Task | Result | Evidence |\n|---|---|---|\n${taskRows}\n\n## Canonical Test Meanings\n\n| Test | Locked meaning | Evidence |\n|---|---|---|\n${testRows}\n\n## Requirement Closure\n\n| Requirement | Evidence |\n|---|---|\n| ADP-01 | T01/M-09-R1 and T02/M-09-R2 |\n| ADP-02 | T03/M-09-S1 |\n| ADP-03 | T07/M-09-B1 only |\n| ADP-04 | T04/M-09-SSR1 normal Astro SSR |\n| PKG-04 | T05/T06 exact archive and contract proof |\n\n## Decision Evidence\n\n| Decision | Evidence |\n|---|---|\n${decisions}\n\n## Immutable Bindings\n\n- Release input digest: ${releaseInputDigest}\n- Mutation register digest: ${registerHash}\n- Exact archive manifest digest: ${archiveDigest}\n- Phase 8 evidence source: .planning/phases/08-consent-kernel/08-MUTATION-EVIDENCE.json (nested release member)\n`);
+  const threatRows = REQUIRED_THREATS.map(
+    (threat) => `| ${threat} | disposed in 09-SECURITY.md | ${releaseInputDigest} |`,
+  ).join("\n");
+  const supplementalRows = mutationRows
+    .filter((row) => row.id.startsWith("M-10-"))
+    .map(
+      (row) =>
+        `| ${row.id} | ${row.testId} | ${row.requirement} | ${row.threat} | ${row.decisions.join(", ")} |`,
+    )
+    .join("\n");
+  const inheritedRows = Object.entries(inheritedHashes)
+    .map(([path, digest]) => `| ${path} | ${digest} |`)
+    .join("\n");
+  return markdownSeal(`---
+phase: 09-react-and-svelte-adapters
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
+---
+
+# Phase 09 Validation
+
+Revision-bound validation for @fullselfbrowsing/concierge, its React and Svelte adapters, and the inherited 08-consent-kernel records.
+
+## Task Traceability
+
+| Task | Result | Evidence |
+|---|---|---|
+${taskRows}
+
+## Canonical Test Meanings
+
+| Test | Locked meaning | Evidence |
+|---|---|---|
+${testRows}
+
+## Requirement Closure
+
+| Requirement | Evidence |
+|---|---|
+| ADP-01 | T01/M-09-R1 and T02/M-09-R2 |
+| ADP-02 | T03/M-09-S1 |
+| ADP-03 | T07/M-09-B1 only |
+| ADP-04 | T04/M-09-SSR1 normal Astro SSR |
+| PKG-04 | T05/T06 exact archive and contract proof |
+
+The M-10 controls below are supplemental current-byte protection. They retain their Phase 10 audit owners and do not reassign Phase 9 requirements.
+
+## Decision Evidence
+
+| Decision | Evidence |
+|---|---|
+${decisions}
+
+## Threat Accounting
+
+| Threat | Disposition | Evidence |
+|---|---|---|
+${threatRows}
+
+## Source and Research Accounting
+
+| Source | Accounting |
+|---|---|
+| .planning/phases/09-react-and-svelte-adapters/09-CONTEXT.md | all D-09 decisions mapped above |
+| .planning/phases/09-react-and-svelte-adapters/09-RESEARCH.md | adapter, packaging, SSR, and release recommendations measured |
+| .planning/phases/08-consent-kernel/08-VALIDATION.md | inherited immutable evidence verified in an owned snapshot |
+
+| Inherited Phase 8 record | SHA-256 |
+|---|---|
+${inheritedRows}
+
+## Supplemental Phase 10 Current-Byte Controls
+
+| Mutant | Detector | Owner | Threat | Decisions |
+|---|---|---|---|---|
+${supplementalRows}
+
+## Measured Evidence
+
+- Mutation evidence: ${mutationRows.length} ordered green rows with positive exact detector counts.
+- Release evidence: ${releaseCommandCount} ordered commands; ${releaseTests.files} files, ${releaseTests.tests} tests, and ${releaseTests.assertions} assertions in the Phase 09 JSON test gate.
+- Exact archive manifest digest: ${archiveDigest}
+- Mutation register digest: ${registerHash}
+- Release input digest: ${releaseInputDigest}
+
+## Wave 0 Closure
+
+All Phase 09 test, mutation, package, adapter-budget, security, and inherited Phase 8 prerequisites are implemented and green. Wave 0 is complete.
+
+## Immutable Bindings
+
+- Release input digest: ${releaseInputDigest}
+- Mutation register digest: ${registerHash}
+- Exact archive manifest digest: ${archiveDigest}
+- Phase 8 evidence source: .planning/phases/08-consent-kernel/08-MUTATION-EVIDENCE.json (nested release member)
+
+## Sign-off
+
+Phase 09 validation is complete, Nyquist compliant, revision-bound, and ready for independent verification.
+`);
 }
 
 function makeSecurityMarkdown({
@@ -3037,6 +3502,14 @@ function makeSecurityMarkdown({
     "T-09-07": "budget inventory tampering",
     "T-09-08": "mutation verdict repudiation",
     "T-09-SC": "dependency supply-chain tampering",
+    "T-10-01": "terminal response disclosure",
+    "T-10-02": "terminal entry or serial-work tampering",
+    "T-10-03": "terminal outcome/stop denial of service",
+    "T-10-04": "pnpm child authority escalation",
+    "T-10-05": "catalog declaration containment tampering",
+    "T-10-06": "Astro generated-state release authority",
+    "T-10-07": "workflow/evidence order repudiation",
+    "T-10-08": "OIDC release authority escalation",
   });
   const rows = REQUIRED_THREATS.map((threat) => {
     const evidence = (byThreat.get(threat) ?? []).join(", ") ||
@@ -3047,7 +3520,31 @@ function makeSecurityMarkdown({
           : `credential-free preflight plus allowlisted nested child environments with owned empty npm/git configs and an owned pnpm store; pnpm fetch --frozen-lockfile --ignore-scripts before frozen offline installs; only authenticated disposable mutants retain PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN=false across package-check nesting; committed ${consumerTooling.lockFile} sha256=${consumerTooling.lockSha256}; npm ${consumerTooling.npmVersion}; lock-derived cache plus npm ci --ignore-scripts --offline`);
     return `| ${threat} | ${descriptions[threat]} | mitigated | ${evidence} |`;
   }).join("\n");
-  return markdownSeal(`# Phase 09 Security\n\nSecurity closure for @fullselfbrowsing/concierge adapter delivery at revision ${releaseInputDigest}.\n\n| Threat | Surface | Disposition | Evidence |\n|---|---|---|---|\n${rows}\n\nThe live Phase 8 records remain byte-identical and their release proof remains the nested release member of 08-consent-kernel/08-MUTATION-EVIDENCE.json.\n`);
+  const supplementalRows = SUPPLEMENTAL_PHASE10_THREATS.map((threat) => {
+    const evidence = (byThreat.get(threat) ?? []).join(", ") ||
+      (threat === "T-10-08"
+        ? "read-only candidate receipt job plus existing OIDC publication negatives"
+        : "Phase 10 current-byte static control");
+    return `| ${threat} | ${descriptions[threat]} | mitigated | ${evidence} |`;
+  }).join("\n");
+  return markdownSeal(`# Phase 09 Security
+
+Security closure for @fullselfbrowsing/concierge adapter delivery at revision ${releaseInputDigest}.
+
+| Threat | Surface | Disposition | Evidence |
+|---|---|---|---|
+${rows}
+
+## Supplemental Phase 10 Current-Byte Protection
+
+These controls protect the repaired current bytes without reassigning Phase 9 requirement ownership.
+
+| Threat | Surface | Disposition | Evidence |
+|---|---|---|---|
+${supplementalRows}
+
+The live Phase 8 records remain byte-identical and their release proof remains the nested release member of 08-consent-kernel/08-MUTATION-EVIDENCE.json.
+`);
 }
 
 function writeJson(path, value) {
@@ -3089,7 +3586,27 @@ function installOutputsTransactionally(sourceRoot) {
   }
 }
 
-async function runAll(jobs, { outerRoot, versioned = false } = {}) {
+function completeGeneratedOutputTransaction(
+  sourceRoot,
+  {
+    installOutputs,
+    expectedEndpoints,
+    install = installOutputsTransactionally,
+  },
+) {
+  assert(typeof installOutputs === "boolean", "output installation mode is invalid");
+  if (!installOutputs) {
+    assertOutputEndpoints(expectedEndpoints);
+    return false;
+  }
+  install(sourceRoot);
+  return true;
+}
+
+async function runAll(
+  jobs,
+  { outerRoot, versioned = false, installOutputs = true } = {},
+) {
   assertOwnedTempRoot(outerRoot);
   const register = validateRegister(readRegister());
   const liveState = mutationLiveState({ allowVersionedWorktree: versioned });
@@ -3133,6 +3650,9 @@ async function runAll(jobs, { outerRoot, versioned = false } = {}) {
     registerHash: registerDigest(baseline.root),
     mutationRows: rows,
     archiveDigest: archiveManifestDigest,
+    releaseCommandCount: releaseGates.commands.length,
+    releaseTests: releaseGates.tests,
+    inheritedHashes,
   });
   const security = makeSecurityMarkdown({
     consumerTooling: releaseGates.packageEvidence.consumerTooling,
@@ -3184,10 +3704,32 @@ async function runAll(jobs, { outerRoot, versioned = false } = {}) {
 
   assertPhase08Hashes(inheritedHashes, ROOT);
   verifyLiveMutationState(liveState);
-  installOutputsTransactionally(baseline.root);
-  verifyAll(ROOT, { quiet: true });
+  const prospectiveDigests = Object.freeze(
+    Object.fromEntries(
+      GENERATED_PATHS.map((path) => [path, sha256File(join(baseline.root, path))]),
+    ),
+  );
+  const installed = completeGeneratedOutputTransaction(baseline.root, {
+    installOutputs,
+    expectedEndpoints: liveState.outputEndpoints,
+  });
+  if (installed) {
+    verifyAll(ROOT, { quiet: true });
+    console.log(
+      `PHASE09_MUTATION_RUN_ALL_OK mutants=${EXPECTED_IDS.length} jobs=${jobs} commands=${releaseGates.commands.length} archives=3 phase08=${PHASE08_PATHS.length}`,
+    );
+    return;
+  }
+  assertOutputEndpoints(liveState.outputEndpoints);
+  const requirementsInput = baseline.inputManifest.entries.find(
+    (entry) => entry.path === ".planning/REQUIREMENTS.md",
+  );
+  assert(
+    requirementsInput !== undefined,
+    ".planning/REQUIREMENTS.md is not a tracked release input",
+  );
   console.log(
-    `PHASE09_MUTATION_RUN_ALL_OK mutants=7 jobs=${jobs} commands=15 archives=3 phase08=5`,
+    `PHASE09_MUTATION_PREFLIGHT_VERSIONED_OK mutants=${EXPECTED_IDS.length} jobs=${jobs} commands=${releaseGates.commands.length} archives=3 phase08=${PHASE08_PATHS.length} installed=false requirements=.planning/REQUIREMENTS.md requirementsSha256=${requirementsInput.sha256} outputDigests=${stableJson(prospectiveDigests)}`,
   );
 }
 
@@ -3210,6 +3752,7 @@ async function main(arguments_) {
           runAll(invocation.jobs, {
             outerRoot,
             versioned: invocation.versioned,
+            installOutputs: invocation.installOutputs,
           }),
         ),
       );

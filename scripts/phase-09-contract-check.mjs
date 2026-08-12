@@ -22,6 +22,7 @@ const MODES = Object.freeze([
   "baseline-verify",
   "post-skeleton",
   "final",
+  "phase10-static",
   "self-test",
 ]);
 
@@ -50,7 +51,7 @@ const POST_SKELETON_IDS = Object.freeze([
   "C09-11-MUTATION-CLOSURE",
 ]);
 
-const MUTATION_IDS = Object.freeze([
+const LEGACY_MUTATION_IDS = Object.freeze([
   "M-09-R1",
   "M-09-R2",
   "M-09-S1",
@@ -58,6 +59,22 @@ const MUTATION_IDS = Object.freeze([
   "M-09-B1",
   "M-09-P1",
   "M-09-C1",
+]);
+const PHASE10_MUTATION_IDS = Object.freeze([
+  "M-10-T01",
+  "M-10-T02",
+  "M-10-T03",
+  "M-10-T04",
+  "M-10-T05",
+  "M-10-T06",
+  "M-10-C01",
+  "M-10-E01",
+  "M-10-G01",
+  "M-10-W01",
+]);
+const MUTATION_IDS = Object.freeze([
+  ...LEGACY_MUTATION_IDS,
+  ...PHASE10_MUTATION_IDS,
 ]);
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -124,6 +141,7 @@ const FINAL_REQUIRED_PATHS = Object.freeze([
   "scripts/phase-09-secure-environment.mjs",
   "scripts/phase-09-publish-archives.mjs",
   "scripts/phase-09-version.mjs",
+  "scripts/phase-10-certify-candidate.mjs",
   "scripts/fixtures/phase-09-foreign-consumer/package.json",
   "scripts/fixtures/phase-09-foreign-consumer/package-lock.json",
   BASELINE_PATH,
@@ -503,6 +521,177 @@ function hasExactPackageChildEnvironmentClassification(source) {
     code.includes("invalid mutation parent marker") &&
     code.includes("ambiguous mutation parent marker")
   );
+}
+
+function validateCanonicalValidationDocument(source) {
+  const exactFrontmatter =
+    "---\n" +
+    "phase: 09-react-and-svelte-adapters\n" +
+    "status: complete\n" +
+    "nyquist_compliant: true\n" +
+    "wave_0_complete: true\n" +
+    "---\n";
+  if (!source.startsWith(exactFrontmatter)) {
+    throw new Error("Phase 09 validation metadata is missing or malformed");
+  }
+  if (/MISSING|PENDING|TBD|NOT RUN/u.test(source)) {
+    throw new Error("Phase 09 validation contains pending metadata");
+  }
+  for (let phaseIndex = 1; phaseIndex <= 13; phaseIndex += 1) {
+    for (let taskIndex = 1; taskIndex <= 2; taskIndex += 1) {
+      const taskId =
+        `09-${String(phaseIndex).padStart(2, "0")}-${String(taskIndex).padStart(2, "0")}`;
+      if (countOccurrences(source, taskId) !== 1) {
+        throw new Error(`${taskId}: canonical validation task trace count must equal one`);
+      }
+    }
+  }
+  for (const token of [
+    "## Requirement Closure",
+    "ADP-01",
+    "ADP-02",
+    "ADP-03",
+    "ADP-04",
+    "PKG-04",
+    "## Decision Evidence",
+    "D-09-01",
+    "D-09-17",
+    "## Threat Accounting",
+    "T-09-01",
+    "T-09-SC",
+    "## Source and Research Accounting",
+    "09-CONTEXT.md",
+    "09-RESEARCH.md",
+    "## Measured Evidence",
+    "## Wave 0 Closure",
+    "## Sign-off",
+  ]) {
+    if (!source.includes(token)) {
+      throw new Error(`Phase 09 validation is missing canonical token ${token}`);
+    }
+  }
+}
+
+function validatePhase10MutationStatic(root = ROOT) {
+  const register = JSON.parse(
+    requireRegularNonempty(
+      root,
+      `${PHASE_DIRECTORY}/09-MUTATION-REGISTER.json`,
+    ),
+  );
+  const ids = Array.isArray(register.rows)
+    ? register.rows.map((row) => row?.id)
+    : [];
+  if (!arrayEquals(ids, MUTATION_IDS) ||
+      !arrayEquals(register.expectedIds ?? [], MUTATION_IDS)) {
+    throw new Error("Phase 10 mutation register order drifted");
+  }
+
+  const runner = stripJsComments(
+    requireRegularNonempty(root, "scripts/phase-09-mutation-battery.mjs"),
+  );
+  for (const id of PHASE10_MUTATION_IDS) {
+    if (!runner.includes(id)) {
+      throw new Error(`mutation runner is missing ${id}`);
+    }
+  }
+  for (const decision of [
+    "D-10-01",
+    "D-10-02",
+    "D-10-03",
+    "D-10-04",
+    "D-10-05",
+    "D-10-06",
+    "D-10-07",
+    "D-10-08",
+    "D-10-09",
+    "D-10-13",
+    "D-10-14",
+  ]) {
+    if (!runner.includes(decision)) {
+      throw new Error(`mutation runner is missing decision owner ${decision}`);
+    }
+  }
+  const generatedBlock =
+    /const GENERATED_PATHS\s*=\s*Object\.freeze\(\[([\s\S]*?)\]\);/u.exec(
+      runner,
+    )?.[1] ?? "";
+  if (generatedBlock.includes("09-VERIFICATION.md")) {
+    throw new Error("mutation runner generator claimed independent verification");
+  }
+  const exactAstroGuard =
+    "function isAstroGeneratedPath(path) {\n" +
+    "  return (\n" +
+    "    path === ASTRO_GENERATED_DIRECTORY ||\n" +
+    "    path.startsWith(`${ASTRO_GENERATED_DIRECTORY}/`)\n" +
+    "  );\n" +
+    "}";
+  if (!runner.includes(exactAstroGuard)) {
+    throw new Error("mutation runner Astro release-input rejection drifted");
+  }
+  if (!runner.includes('if (isAstroGeneratedPath(path)) return false;')) {
+    throw new Error("mutation runner Astro release-input rejection drifted");
+  }
+  if (!hasOrderedTokens(runner, [
+    'await run("build", "pnpm", ["build"]);',
+    'await run("typecheck", "pnpm", ["typecheck"]);',
+    'await run("test", "pnpm", ["test"]);',
+  ])) {
+    throw new Error("mutation runner release gate order drifted");
+  }
+  for (const token of [
+    "status: complete",
+    "nyquist_compliant: true",
+    "wave_0_complete: true",
+    "Source and Research Accounting",
+    "Measured Evidence",
+    "Wave 0 Closure",
+    "Sign-off",
+    "preflight versioned --jobs",
+    "installOutputs",
+  ]) {
+    if (!runner.includes(token)) {
+      throw new Error(`mutation runner canonical renderer is missing ${token}`);
+    }
+  }
+
+  const certifier = requireRegularNonempty(
+    root,
+    "scripts/phase-10-certify-candidate.mjs",
+  );
+  const ci = requireRegularNonempty(root, ".github/workflows/ci.yml");
+  for (const token of [
+    "schema_version",
+    "workflow_name",
+    "workflow_path",
+    "head_sha",
+    "run_id",
+    "run_attempt",
+    "artifact_name",
+    "overall_conclusion",
+    "job_conclusions",
+    "evidence_digests",
+    "content_digest",
+    "push",
+    "workflow_dispatch",
+    "rerun",
+  ]) {
+    if (!certifier.includes(token)) {
+      throw new Error(`candidate certification policy is missing ${token}`);
+    }
+  }
+  for (const token of [
+    "workflow_dispatch:",
+    "candidate-certification:",
+    "needs: [build, node-floor]",
+    "persist-credentials: false",
+    "ref: ${{ github.sha }}",
+  ]) {
+    if (!ci.includes(token)) {
+      throw new Error(`candidate receipt workflow policy is missing ${token}`);
+    }
+  }
+  return true;
 }
 
 function evaluateContracts(root) {
@@ -1065,7 +1254,25 @@ function evaluateContracts(root) {
       for (const mode of ["inputs", "ledgers"]) {
         api.check(new RegExp(`["']verify["']\\s*,\\s*["']${mode}["']`, "u").test(runner), `mutation-runner-verify-${mode}`, "scripts/phase-09-mutation-battery.mjs", `exact Phase 8 verify ${mode} command`, "inspected");
       }
-      for (const id of MUTATION_IDS) {
+      let mutationEvidenceRecord = null;
+      try {
+        mutationEvidenceRecord = JSON.parse(mutationEvidence);
+      } catch {
+        api.check(false, "mutation-evidence-json", `${PHASE_DIRECTORY}/09-MUTATION-EVIDENCE.json`, "valid JSON", "parse failure");
+      }
+      const evidenceIds = Array.isArray(mutationEvidenceRecord?.expectedIds)
+        ? mutationEvidenceRecord.expectedIds
+        : [];
+      const evidenceIsLegacy = arrayEquals(evidenceIds, LEGACY_MUTATION_IDS);
+      const evidenceIsCurrent = arrayEquals(evidenceIds, MUTATION_IDS);
+      api.check(
+        evidenceIsLegacy || evidenceIsCurrent,
+        "mutation-evidence-generation",
+        `${PHASE_DIRECTORY}/09-MUTATION-EVIDENCE.json`,
+        "deferred seven-row seal or current seventeen-row seal",
+        JSON.stringify(evidenceIds),
+      );
+      for (const id of evidenceIsCurrent ? MUTATION_IDS : LEGACY_MUTATION_IDS) {
         api.check(mutationEvidence.includes(id), `mutation-evidence-${id}`, `${PHASE_DIRECTORY}/09-MUTATION-EVIDENCE.json`, "green row evidence", mutationEvidence.includes(id) ? "present" : "absent");
       }
       for (const token of ["@fullselfbrowsing/concierge", "08-consent-kernel", "phase-09-package-check", "phase-09-adapter-budget"]) {
@@ -1079,6 +1286,16 @@ function evaluateContracts(root) {
       }
       for (const threat of ["T-09-01", "T-09-02", "T-09-03", "T-09-04", "T-09-05", "T-09-06", "T-09-07", "T-09-08", "T-09-SC"]) {
         api.check(security.includes(threat), `security-${threat}`, `${PHASE_DIRECTORY}/09-SECURITY.md`, "disposed threat evidence", security.includes(threat) ? "present" : "absent");
+      }
+      if (evidenceIsCurrent) {
+        try {
+          validateCanonicalValidationDocument(validation);
+        } catch (error) {
+          api.check(false, "canonical-validation", `${PHASE_DIRECTORY}/09-VALIDATION.md`, "complete canonical metadata", error instanceof Error ? error.message : "validation failure");
+        }
+        for (const id of PHASE10_MUTATION_IDS) {
+          api.check(security.includes(id), `security-${id}`, `${PHASE_DIRECTORY}/09-SECURITY.md`, "supplemental Phase 10 control", security.includes(id) ? "present" : "absent");
+        }
       }
       api.check(!/MISSING|PENDING|TBD|NOT RUN/u.test(`${mutationEvidence}\n${releaseEvidence}\n${validation}\n${security}`), "terminal-no-placeholders", PHASE_DIRECTORY, "no incomplete marker", "inspected");
     }),
@@ -1245,6 +1462,36 @@ function runSelfTest() {
     assert.equal(requirePositiveMatches("positive fixture", "assertion marker", /assertion/gu).length, 1);
     assert.throws(() => requirePositiveMatches("vacuous fixture", "assertion marker", /never-matches/gu), /zero matches/u);
 
+    const canonicalTasks = Array.from({ length: 13 }, (_, phaseIndex) =>
+      [1, 2].map(
+        (taskIndex) =>
+          `09-${String(phaseIndex + 1).padStart(2, "0")}-${String(taskIndex).padStart(2, "0")}`,
+      ),
+    ).flat();
+    const canonicalValidation =
+      "---\n" +
+      "phase: 09-react-and-svelte-adapters\n" +
+      "status: complete\n" +
+      "nyquist_compliant: true\n" +
+      "wave_0_complete: true\n" +
+      "---\n" +
+      canonicalTasks.join("\n") +
+      "\n## Requirement Closure\nADP-01 ADP-02 ADP-03 ADP-04 PKG-04\n" +
+      "## Decision Evidence\nD-09-01 D-09-17\n" +
+      "## Threat Accounting\nT-09-01 T-09-SC\n" +
+      "## Source and Research Accounting\n09-CONTEXT.md 09-RESEARCH.md\n" +
+      "## Measured Evidence\nmeasured\n" +
+      "## Wave 0 Closure\nclosed\n" +
+      "## Sign-off\ncomplete\n";
+    assert.doesNotThrow(() => validateCanonicalValidationDocument(canonicalValidation));
+    assert.throws(
+      () =>
+        validateCanonicalValidationDocument(
+          canonicalValidation.replace("status: complete", "status: pending"),
+        ),
+      /metadata is missing or malformed/u,
+    );
+
     const packageCheckSource = requireRegularNonempty(
       ROOT,
       "scripts/phase-09-package-check.mjs",
@@ -1305,6 +1552,12 @@ function run(mode) {
     return;
   }
 
+  if (mode === "phase10-static") {
+    validatePhase10MutationStatic(ROOT);
+    console.log(`PASS: Phase 10 mutation static contract — ${MUTATION_IDS.length} ordered rows, canonical renderer, Astro rejection, build-first receipt policy`);
+    return;
+  }
+
   if (mode === "baseline-verify") {
     const record = readBaseline(ROOT);
     console.log(`PASS: Phase 09 immutable RED baseline verified — ${record.ids.length} assertion-observed IDs, digest ${record.sourceDigest}`);
@@ -1312,6 +1565,7 @@ function run(mode) {
   }
 
   if (mode === "final") {
+    validatePhase10MutationStatic(ROOT);
     requireFinalPaths(ROOT);
     readBaseline(ROOT);
     const evaluation = evaluateContracts(ROOT);
