@@ -26,3 +26,4 @@ pnpm-debug.log*
 .cache/
 .context/
 .svelte-kit/
+/examples/adapter-ssr/.astro/

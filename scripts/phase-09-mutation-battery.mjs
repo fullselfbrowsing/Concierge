@@ -61,6 +61,9 @@ const CONSUMER_TOOLING_LOCK_PATH =
   "scripts/fixtures/phase-09-foreign-consumer/package-lock.json";
 const CONSUMER_TOOLING_MANIFEST_PATH =
   "scripts/fixtures/phase-09-foreign-consumer/package.json";
+const ASTRO_GENERATED_DIRECTORY = "examples/adapter-ssr/.astro";
+const ASTRO_HARNESS_PACKAGE =
+  "@fullselfbrowsing/concierge-adapter-ssr";
 const GENERATED_PATHS = Object.freeze([
   ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json",
   ".planning/phases/09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json",
@@ -345,7 +348,8 @@ const USAGE =
   "Usage: node scripts/phase-09-mutation-battery.mjs " +
   "self-test|preflight <registered-id>|run all --jobs <1-4>|" +
   "finalize versioned --jobs <1-4>|" +
-  "verify <evidence|release|all>|verify publish <archive-dir>";
+  "verify <evidence|release|all|astro-regeneration>|" +
+  "verify publish <archive-dir>";
 const TEMP_PREFIX = "concierge-phase09-mutation-";
 const OWNERSHIP_MARKER = ".concierge-phase09-mutation-owned-root";
 const MAX_OUTPUT_BYTES = 32 * 1024 * 1024;
@@ -504,6 +508,13 @@ function parseInvocation(arguments_) {
     return Object.freeze({ kind: `verify-${arguments_[1]}` });
   }
   if (
+    arguments_.length === 2 &&
+    arguments_[0] === "verify" &&
+    arguments_[1] === "astro-regeneration"
+  ) {
+    return Object.freeze({ kind: "verify-astro-regeneration" });
+  }
+  if (
     arguments_.length === 3 &&
     arguments_[0] === "verify" &&
     arguments_[1] === "publish"
@@ -652,7 +663,22 @@ function testHashes(row, root = ROOT) {
   );
 }
 
+function isAstroGeneratedPath(path) {
+  return (
+    path === ASTRO_GENERATED_DIRECTORY ||
+    path.startsWith(`${ASTRO_GENERATED_DIRECTORY}/`)
+  );
+}
+
+function assertNoAstroReleaseAuthority(value, label) {
+  assert(
+    !stableJson(value).includes(ASTRO_GENERATED_DIRECTORY),
+    `${label} contains harness-local Astro generated state`,
+  );
+}
+
 function isReleaseInputPath(path) {
+  if (isAstroGeneratedPath(path)) return false;
   if (GENERATED_PATHS.includes(path)) return false;
   if (ROOT_INPUT_PATHS.has(path)) return true;
   return INPUT_DIRECTORY_PREFIXES.some((prefix) => path.startsWith(prefix));
@@ -660,14 +686,22 @@ function isReleaseInputPath(path) {
 
 function releaseInputPaths(root = ROOT) {
   const output = runGitSync(["ls-files", "-z"], root);
-  const paths = [...new Set(output.split("\0").filter(Boolean))]
+  const trackedPaths = [...new Set(output.split("\0").filter(Boolean))];
+  const trackedAstroPaths = trackedPaths.filter(isAstroGeneratedPath);
+  assert(
+    trackedAstroPaths.length === 0,
+    `tracked Astro generated state is forbidden: ${trackedAstroPaths.join(", ")}`,
+  );
+  const paths = trackedPaths
     .filter(isReleaseInputPath)
     .sort();
   assert(paths.length > 0, "release input manifest is empty");
+  assertNoAstroReleaseAuthority(paths, "release input path set");
   return Object.freeze(paths);
 }
 
 function makeInputManifest(root = ROOT, paths = releaseInputPaths(root)) {
+  assertNoAstroReleaseAuthority(paths, "release input manifest paths");
   const entries = paths.map((path) => {
     const absolutePath = join(root, path);
     assert(existsSync(absolutePath), `release input is missing: ${path}`);
@@ -686,6 +720,7 @@ function verifyInputManifest(
 ) {
   assert(expected !== null && typeof expected === "object", "input manifest is malformed");
   assert(Array.isArray(expected.entries), "input manifest entries are malformed");
+  assertNoAstroReleaseAuthority(expected, "release input manifest");
   assert(SHA256.test(expected.digest), "input manifest digest is malformed");
   const expectedPaths = expected.entries.map((entry) => entry.path);
   if (verifyPathSet) {
@@ -1170,6 +1205,121 @@ async function materializeBaseline(outerRoot, inputManifest, { preserveHistory =
     verifyInputManifest(inputManifest, baselineRoot);
   }
   return Object.freeze({ root: baselineRoot, inputManifest });
+}
+
+async function verifyAstroRegeneration(outerRoot) {
+  assertOwnedTempRoot(outerRoot);
+  const checkoutRoot = join(outerRoot, "astro-regeneration-checkout");
+  const sourceHead = runGitSync(["rev-parse", "HEAD"], ROOT).trim();
+  assert(COMMIT.test(sourceHead), "Astro regeneration source HEAD is malformed");
+
+  const cloneResult = await runCommand(
+    "git",
+    [
+      "clone",
+      "--local",
+      "--no-hardlinks",
+      "--no-tags",
+      "--no-checkout",
+      "--quiet",
+      ROOT,
+      checkoutRoot,
+    ],
+    { cwd: outerRoot },
+  );
+  assertSuccessfulCommand(cloneResult, "Astro regeneration clean clone");
+  runGitSync(["checkout", "--quiet", "--detach", sourceHead], checkoutRoot);
+  runGitSync(["remote", "remove", "origin"], checkoutRoot);
+  assert(
+    runGitSync(["rev-parse", "HEAD"], checkoutRoot).trim() === sourceHead &&
+      runGitSync(["status", "--porcelain=v1"], checkoutRoot).trim() === "",
+    "Astro regeneration checkout is not the exact clean committed HEAD",
+  );
+
+  const generatedDirectory = join(checkoutRoot, ASTRO_GENERATED_DIRECTORY);
+  assert(
+    !existsSync(generatedDirectory),
+    "clean Astro regeneration checkout already contains generated state",
+  );
+  assert(
+    runGitSync(
+      ["ls-files", "--", ASTRO_GENERATED_DIRECTORY],
+      checkoutRoot,
+    ).trim() === "",
+    "clean Astro regeneration checkout tracks generated state",
+  );
+  runGitSync(
+    [
+      "check-ignore",
+      "--quiet",
+      `${ASTRO_GENERATED_DIRECTORY}/types.d.ts`,
+    ],
+    checkoutRoot,
+  );
+
+  const manifest = JSON.parse(
+    readFileSync(
+      join(checkoutRoot, "examples/adapter-ssr/package.json"),
+      "utf8",
+    ),
+  );
+  assert(
+    manifest.name === ASTRO_HARNESS_PACKAGE &&
+      manifest.scripts?.check === "astro check" &&
+      manifest.scripts?.build === "astro build" &&
+      manifest.devDependencies?.astro === "7.2.0" &&
+      manifest.devDependencies?.["@astrojs/check"] === "0.9.10",
+    "Astro regeneration checkout does not retain the pinned package-local commands",
+  );
+
+  const inputPathsBefore = releaseInputPaths(checkoutRoot);
+  await prewarmOwnedPnpmStoreAndInstall(
+    checkoutRoot,
+    "Astro regeneration checkout",
+  );
+  assert(
+    !existsSync(generatedDirectory),
+    "dependency installation created Astro generated state before the proof",
+  );
+
+  const check = await runCommand(
+    "pnpm",
+    ["--filter", ASTRO_HARNESS_PACKAGE, "check"],
+    { cwd: checkoutRoot, timeoutMs: PACKAGE_TIMEOUT_MS },
+  );
+  assertSuccessfulCommand(check, "pinned Astro check");
+  const build = await runCommand(
+    "pnpm",
+    ["--filter", ASTRO_HARNESS_PACKAGE, "build"],
+    { cwd: checkoutRoot, timeoutMs: PACKAGE_TIMEOUT_MS },
+  );
+  assertSuccessfulCommand(build, "pinned Astro build");
+
+  assert(
+    existsSync(generatedDirectory) &&
+      lstatSync(generatedDirectory).isDirectory(),
+    "pinned Astro commands did not regenerate the harness-local state directory",
+  );
+  assert(
+    runGitSync(
+      ["ls-files", "--", ASTRO_GENERATED_DIRECTORY],
+      checkoutRoot,
+    ).trim() === "",
+    "Astro regeneration introduced tracked generated state",
+  );
+  const inputPathsAfter = releaseInputPaths(checkoutRoot);
+  assert(
+    JSON.stringify(inputPathsAfter) === JSON.stringify(inputPathsBefore),
+    "Astro regeneration changed the tracked release input path set",
+  );
+  assertNoAstroReleaseAuthority(
+    makeInputManifest(checkoutRoot, inputPathsAfter),
+    "regenerated release input manifest",
+  );
+
+  console.log(
+    `PHASE09_ASTRO_REGENERATION_OK head=${sourceHead} check=passed build=passed tracked=0 sealed=0`,
+  );
 }
 
 function replaceExactOnce(source, before, after, label) {
@@ -1718,6 +1868,36 @@ async function runSelfTest() {
     "undeclared CLI",
   );
   pass("exact-cli");
+  const astroRegenerationInvocation = parseInvocation([
+    "verify",
+    "astro-regeneration",
+  ]);
+  assert(
+    astroRegenerationInvocation.kind === "verify-astro-regeneration",
+    "Astro regeneration verifier invocation drifted",
+  );
+  pass("astro-regeneration-cli");
+  assert(
+    !isReleaseInputPath(
+      `${ASTRO_GENERATED_DIRECTORY}/content.d.ts`,
+    ),
+    "Astro generated declaration was admitted as a release input",
+  );
+  assertThrows(
+    () =>
+      assertNoAstroReleaseAuthority(
+        {
+          digestTable: {
+            path: `${ASTRO_GENERATED_DIRECTORY}/content.d.ts`,
+            sha256: "a".repeat(64),
+          },
+        },
+        "synthetic release seal",
+      ),
+    /contains harness-local Astro generated state/u,
+    "Astro generated state in release authority",
+  );
+  pass("astro-release-authority-rejected");
   const versionedInvocation = parseInvocation([
     "finalize",
     "versioned",
@@ -2090,7 +2270,7 @@ async function runSelfTest() {
   );
   pass("secure-child-environment-probe");
 
-  assert(controls === 34, `self-test control count drifted: ${controls}`);
+  assert(controls === 36, `self-test control count drifted: ${controls}`);
   assertOutputEndpoints(endpoints);
   console.log(`PHASE09_MUTATION_SELF_TEST_OK controls=${controls}`);
 }
@@ -2230,6 +2410,7 @@ function verifyMutationEvidence(root = ROOT, { quiet = false } = {}) {
   const path = join(root, ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json");
   assert(existsSync(path), "09-MUTATION-EVIDENCE.json is missing");
   const evidence = JSON.parse(readFileSync(path, "utf8"));
+  assertNoAstroReleaseAuthority(evidence, "mutation evidence seal");
   verifySeal(evidence, "mutation evidence");
   assert(evidence.schemaVersion === 1 && evidence.phase === PHASE, "mutation evidence identity is invalid");
   const authorization = validateReleaseAuthorization(evidence, "mutation evidence");
@@ -2287,6 +2468,7 @@ function verifyReleaseEvidence(root = ROOT, { quiet = false, publishing = false 
   const path = join(root, ".planning/phases/09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json");
   assert(existsSync(path), "09-RELEASE-EVIDENCE.json is missing");
   const release = JSON.parse(readFileSync(path, "utf8"));
+  assertNoAstroReleaseAuthority(release, "release evidence seal");
   verifySeal(release, "release evidence");
   assert(release.schemaVersion === 1 && release.phase === PHASE, "release evidence identity is invalid");
   const authorization = validateReleaseAuthorization(release, "release evidence", {
@@ -2988,6 +3170,12 @@ async function main(arguments_) {
     } else {
       await execute();
     }
+    return;
+  }
+  if (invocation.kind === "verify-astro-regeneration") {
+    await withOwnedChildEnvironment((outerRoot) =>
+      verifyAstroRegeneration(outerRoot),
+    );
     return;
   }
   if (invocation.kind === "verify-evidence") {
