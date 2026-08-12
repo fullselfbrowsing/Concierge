@@ -1,6 +1,6 @@
 # Phase 09 Security
 
-Security closure for @fullselfbrowsing/concierge adapter delivery at revision fda5ae2cfa58db865a0f728edb6d6a78a21a542222b87221c73bfa814aef495d.
+Security closure for @fullselfbrowsing/concierge adapter delivery at revision de5dd03bc1dad7ed6a3c95c4cbf5dea9fb4837c93d5d8a9d1b540c4cc7977c77.
 
 | Threat | Surface | Disposition | Evidence |
 |---|---|---|---|
@@ -14,6 +14,21 @@ Security closure for @fullselfbrowsing/concierge adapter delivery at revision fd
 | T-09-08 | mutation verdict repudiation | mitigated | T08 compile-first immutable runner |
 | T-09-SC | dependency supply-chain tampering | mitigated | credential-free preflight plus allowlisted nested child environments with owned empty npm/git configs and an owned pnpm store; pnpm fetch --frozen-lockfile --ignore-scripts before frozen offline installs; only authenticated disposable mutants retain PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN=false across package-check nesting; committed scripts/fixtures/phase-09-foreign-consumer/package-lock.json sha256=b8c4a5ef4449e17ad346b608f955b60102a8d6b8ea7c83afe279b6ab7cd0cddf; npm 11.11.0; lock-derived cache plus npm ci --ignore-scripts --offline |
 
+## Supplemental Phase 10 Current-Byte Protection
+
+These controls protect the repaired current bytes without reassigning Phase 9 requirement ownership.
+
+| Threat | Surface | Disposition | Evidence |
+|---|---|---|---|
+| T-10-01 | terminal response disclosure | mitigated | M-10-T03, M-10-T06 |
+| T-10-02 | terminal entry or serial-work tampering | mitigated | M-10-T01, M-10-T02 |
+| T-10-03 | terminal outcome/stop denial of service | mitigated | M-10-T04, M-10-T05 |
+| T-10-04 | pnpm child authority escalation | mitigated | M-10-E01 |
+| T-10-05 | catalog declaration containment tampering | mitigated | M-10-C01 |
+| T-10-06 | Astro generated-state release authority | mitigated | M-10-G01 |
+| T-10-07 | workflow/evidence order repudiation | mitigated | M-10-W01 |
+| T-10-08 | OIDC release authority escalation | mitigated | read-only candidate receipt job plus existing OIDC publication negatives |
+
 The live Phase 8 records remain byte-identical and their release proof remains the nested release member of 08-consent-kernel/08-MUTATION-EVIDENCE.json.
 
-<!-- content-sha256: 1ce4d6a75ac19993badf714490920d7a80ebba28d67d126bf5775131176a0d87 -->
+<!-- content-sha256: 96bc4c37c994d4d4e96aa082ff9747df30b61464209856e1c0daffd6755cf7cc -->
