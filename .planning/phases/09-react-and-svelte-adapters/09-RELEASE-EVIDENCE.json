@@ -20,7 +20,7 @@
     "runAttempt": 1,
     "artifactName": "phase09-version-31635983095-1-a9187eda875a7dd7c6e555f1ccc8189987a3af4a"
   },
-  "generatedAt": "2026-08-12T20:23:38.879Z",
+  "generatedAt": "2026-08-12T21:30:23.781Z",
   "registerDigest": "5bca286e1a13c34c835d7d6c1f3e880ff00ed6d328b19087f63d77a50ae4cad5",
   "releaseInputs": {
     "entries": [
@@ -30,7 +30,7 @@
       },
       {
         "path": ".github/workflows/ci.yml",
-        "sha256": "0a23198cb19c6324661042769f8c575c5779fd0c4e3a69bf990438842b2794f4"
+        "sha256": "4533fa0d91a71116714e908f2887883e2a238fc0e4b59f4ed09bb4b58c83062a"
       },
       {
         "path": ".github/workflows/release.yml",
@@ -550,7 +550,7 @@
       },
       {
         "path": "scripts/phase-09-workflow-check.mjs",
-        "sha256": "6af2a39364862a7a076cd7a6eb4751c4657e1abf8cf75626dfcc5750eb9dc819"
+        "sha256": "3cff08cfe85785f91b501e03bac81b9c41f14955db268866d6b844fdceeea325"
       },
       {
         "path": "scripts/phase-10-certify-candidate.mjs",
@@ -569,11 +569,11 @@
         "sha256": "90b02f12185a4f364de7afd9a607ca19d1d6c4e36767fab398f40947de06266b"
       }
     ],
-    "digest": "de5dd03bc1dad7ed6a3c95c4cbf5dea9fb4837c93d5d8a9d1b540c4cc7977c77"
+    "digest": "797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4"
   },
-  "mutationEvidenceDigest": "02b0b78ac87e82c7ad80771340ca625118b5e32dba4df9a951ea62ff1e27e337",
-  "validationDigest": "88e238c6f6bfcfd5caa155254189c7e363a9bda637dbeef8aef2cd2cc376926e",
-  "securityDigest": "0fac3cc214a87314edd691628762edd59dd310eaf1b247a2baeda99bf338a079",
+  "mutationEvidenceDigest": "8bd32c047ded9ac0c20a88435f00261da93f0640a40dd85a1d11c13efe1b7d60",
+  "validationDigest": "e5a07821ad78ee1faf55e0ee642b761fcbd31eade664e6a596ad8a48f741acf7",
+  "securityDigest": "b9db8400e62d5ac1f70df6e7a276558fe9493ccf0b1956af16e0ba698e2ed46d",
   "phase08": {
     "sourceRevision": "237e77b5704b6d73ac97ad940be513ae087b84a7",
     "hashes": {
@@ -609,21 +609,21 @@
       "name": "build",
       "command": "pnpm build",
       "exitCode": 0,
-      "outputDigest": "40304bab68ad6752749ac66ee79e9f317ddff21614dd4d59973b96a322d927cd",
-      "fingerprint": "t in 51ms\nexamples/adapter-ssr build: 15:22:33 [build] Rearranging server assets...\nexamples/adapter-ssr build:  generating static routes \nexamples/adapter-ssr build: 15:22:33   ├─ /index.html (+8ms) \nexamples/adapter-ssr build: 15:22:33 ✓ Completed in 36ms.\nexamples/adapter-ssr build: 15:22:33 [build] ✓ Completed in 200ms.\nexamples/adapter-ssr build: 15:22:33 [build] 1 page(s) built in 248ms\nexamples/adapter-ssr build: 15:22:33 [build] Complete!\nexamples/adapter-ssr build: Done\n$ pnpm -r build\n"
+      "outputDigest": "27bd6e426845230cf10f0ea392987f95d5e860c69125743abc3f92e2a1cc112e",
+      "fingerprint": "t in 53ms\nexamples/adapter-ssr build: 16:29:16 [build] Rearranging server assets...\nexamples/adapter-ssr build:  generating static routes \nexamples/adapter-ssr build: 16:29:16   ├─ /index.html (+8ms) \nexamples/adapter-ssr build: 16:29:16 ✓ Completed in 37ms.\nexamples/adapter-ssr build: 16:29:16 [build] ✓ Completed in 209ms.\nexamples/adapter-ssr build: 16:29:16 [build] 1 page(s) built in 260ms\nexamples/adapter-ssr build: 16:29:16 [build] Complete!\nexamples/adapter-ssr build: Done\n$ pnpm -r build\n"
     },
     {
       "name": "typecheck",
       "command": "pnpm typecheck",
       "exitCode": 0,
-      "outputDigest": "d1abb4fc46974a3b7d96e5452354f4a88bca95be723ef03308a87e9d0dba218f",
-      "fingerprint": "nfig.json --noEmit\npackages/concierge-svelte typecheck$ svelte-check --tsconfig ./tsconfig.json\npackages/concierge-react typecheck: Done\npackages/concierge-svelte typecheck: Loading svelte-check in workspace: /private/tmp/concierge-phase09-mutation-qRu9qi/baseline/packages/concierge-svelte\npackages/concierge-svelte typecheck: Getting Svelte diagnostics...\npackages/concierge-svelte typecheck: svelte-check found 0 errors and 0 warnings\npackages/concierge-svelte typecheck: Done\n$ pnpm -r typecheck\n"
+      "outputDigest": "de524509f41a06b2ecde332d3a54fea8711913ee553eb90396cf1d8365fe33eb",
+      "fingerprint": "nfig.json --noEmit\npackages/concierge-svelte typecheck$ svelte-check --tsconfig ./tsconfig.json\npackages/concierge-react typecheck: Done\npackages/concierge-svelte typecheck: Loading svelte-check in workspace: /private/tmp/concierge-phase09-mutation-LkvZM7/baseline/packages/concierge-svelte\npackages/concierge-svelte typecheck: Getting Svelte diagnostics...\npackages/concierge-svelte typecheck: svelte-check found 0 errors and 0 warnings\npackages/concierge-svelte typecheck: Done\n$ pnpm -r typecheck\n"
     },
     {
       "name": "test",
       "command": "pnpm test",
       "exitCode": 0,
-      "outputDigest": "7cd7118684dccb47f21ad1e7b5f516ac58fde4d62ed6824bb6d358511d6665c3",
+      "outputDigest": "c381c63dba8f89fb9bbd657b6b9f2b91d0c9b84852e591279291c4e9ba287c92",
       "fingerprint": "action is reversible.\n\nstderr | packages/concierge/test/concierge.test.ts > DX-01 — explain() answers \"why didn't my action fire\" > S17 — explain().stage agrees with stageFor() when a stage matches, when none does, and when a matcher throws\nconcierge: [stage_match] stage \"boom\": its `match(ctx)` threw, so the stage was skipped and its actions are absent from the catalog for this context. Fix: make `match` total — it runs on every navigation, so it must not assume any field of `ctx` is present.\n\n"
     },
     {
@@ -637,22 +637,22 @@
       "name": "check:deps",
       "command": "pnpm check:deps",
       "exitCode": 0,
-      "outputDigest": "98558b75a3629eecadfffd16c9ca966613d73511823213577ddf492275e387f6",
+      "outputDigest": "31c9894e4578a273b35757cd13743fcc2ba0877115c89d8598fab4fae681fbd9",
       "fingerprint": "xternal imports: []\n  Assertion A: PASS\n\nAssertion B (PKG-05b) — ESM runtime entry byte size of each dependency\n  @standard-schema/spec  0 bytes\n    resolved via exports[\".\"] -> packages/concierge/node_modules/@standard-schema/spec/dist/index.js\n    note: its `require` entry is 754 bytes and is unreachable through core, which is ESM-only\n  Assertion B: PASS\n\ncore's dependencies contribute zero bytes to a consumer bundle\n$ node scripts/pkg05-zero-runtime-deps.mjs packages/concierge/dist/index.js\n"
     },
     {
       "name": "check:pack",
       "command": "pnpm check:pack",
       "exitCode": 0,
-      "outputDigest": "bbabe7660513db63c60d0a1057c26dfe57631dc1f93da196905886d754dcaf18",
+      "outputDigest": "b4943afb083490ec3b9cfe2fea84abf7e3967a73e8aa1a5ee190722046ebe3d8",
       "fingerprint": "ge@0.1.0\n└── typescript@7.0.2\n\n==> typechecking the probe against the shipped .d.ts (skipLibCheck: false)\n==> importing the shipped runtime\n==> wall time: 3s\nPACK_EVIDENCE tar_entries=21 tar_entries_sha256=bf8a250bffa403c2523e2ebb4adcb423326360ed6d5cff230b2ddc7fd51cb064 forbidden_entries=absent foreign_typecheck=passed foreign_runtime=passed\nPASS: a foreign project installed the tarball, typechecked the shipped declarations, and imported the runtime\n$ bash scripts/pack-install-check.sh\n$ tsdown\n"
     },
     {
       "name": "check:node-floor",
       "command": "pnpm check:node-floor",
       "exitCode": 0,
-      "outputDigest": "786d8264f9e1461e565d74cb7556a6abab6c55216b3672191683f43cd4747735",
-      "fingerprint": "No problems found (155ms)\n✔ [publint] No issues found (167ms)\n==> tarball: /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/tmp.1W3AUohKSM/fullselfbrowsing-concierge-0.1.0.tgz\n==> installing the tarball with npm on the floor runtime\n\nadded 2 packages in 178ms\n==> asserting the runtime is the floor\nv22.12.0\n==> importing the artifact on the floor runtime\n==> wall time: 3s\nPASS: the published artifact installed with npm and imported on a pinned v22.12.0\n$ bash scripts/node-floor-check.sh\n$ tsdown\n"
+      "outputDigest": "1caeed7eff7a71d571eaa5d78b152e23abfc17bd731fd14b0a07e007c155bba6",
+      "fingerprint": "No problems found (153ms)\n✔ [publint] No issues found (165ms)\n==> tarball: /var/folders/4h/mqykc1_s1hs0hpnxcc315j180000gp/T/tmp.KRBfWOn6Kj/fullselfbrowsing-concierge-0.1.0.tgz\n==> installing the tarball with npm on the floor runtime\n\nadded 2 packages in 186ms\n==> asserting the runtime is the floor\nv22.12.0\n==> importing the artifact on the floor runtime\n==> wall time: 2s\nPASS: the published artifact installed with npm and imported on a pinned v22.12.0\n$ bash scripts/node-floor-check.sh\n$ tsdown\n"
     },
     {
       "name": "test:phase09",
@@ -665,29 +665,29 @@
       "name": "astro-check",
       "command": "pnpm --filter @fullselfbrowsing/concierge-adapter-ssr check",
       "exitCode": 0,
-      "outputDigest": "568530def7541c4c5565491fbb4748792f46fca39cee947a31a549de54c620aa",
-      "fingerprint": "15:23:01 [vite] Re-optimizing dependencies because vite config has changed\n15:23:01 [types] Generated 90ms\n15:23:01 [check] Getting diagnostics for Astro files in /private/tmp/concierge-phase09-mutation-qRu9qi/baseline/examples/adapter-ssr...\nResult (6 files): \n- 0 errors\n- 0 warnings\n- 0 hints\n\n$ astro check\n"
+      "outputDigest": "56df4e146c8a4d165a179917cb28d4cb66661efa04c76a380b2f3504f3e62e4f",
+      "fingerprint": "16:29:45 [vite] Re-optimizing dependencies because vite config has changed\n16:29:45 [types] Generated 89ms\n16:29:45 [check] Getting diagnostics for Astro files in /private/tmp/concierge-phase09-mutation-LkvZM7/baseline/examples/adapter-ssr...\nResult (6 files): \n- 0 errors\n- 0 warnings\n- 0 hints\n\n$ astro check\n"
     },
     {
       "name": "astro-build",
       "command": "pnpm --filter @fullselfbrowsing/concierge-adapter-ssr build",
       "exitCode": 0,
-      "outputDigest": "01a1c651cc320bd3bc979e57ba1064a79870c0ac7516317e4c8ea086d73d511b",
-      "fingerprint": "ion-qRu9qi/baseline/examples/adapter-ssr/dist/\n15:23:03 [build] Collecting build info...\n15:23:03 [build] ✓ Completed in 47ms.\n15:23:03 [build] Building static entrypoints...\n15:23:03 [vite] ✓ built in 91ms\n15:23:03 [vite] ✓ built in 51ms\n15:23:03 [build] Rearranging server assets...\n\n generating static routes \n15:23:03   ├─ /index.html (+8ms) \n15:23:03 ✓ Completed in 36ms.\n\n15:23:03 [build] ✓ Completed in 206ms.\n15:23:03 [build] 1 page(s) built in 254ms\n15:23:03 [build] Complete!\n$ astro build\n"
+      "outputDigest": "b977412efd6c82d249721ed2cd3b2593daf649447a17056b51353133d787614b",
+      "fingerprint": "ion-LkvZM7/baseline/examples/adapter-ssr/dist/\n16:29:47 [build] Collecting build info...\n16:29:47 [build] ✓ Completed in 43ms.\n16:29:47 [build] Building static entrypoints...\n16:29:47 [vite] ✓ built in 89ms\n16:29:47 [vite] ✓ built in 53ms\n16:29:47 [build] Rearranging server assets...\n\n generating static routes \n16:29:47   ├─ /index.html (+8ms) \n16:29:47 ✓ Completed in 37ms.\n\n16:29:47 [build] ✓ Completed in 203ms.\n16:29:47 [build] 1 page(s) built in 247ms\n16:29:47 [build] Complete!\n$ astro build\n"
     },
     {
       "name": "phase09-vitest-json",
-      "command": "pnpm exec vitest run --project react-lifecycle --project svelte-lifecycle --project node-artifact-ssr --reporter=json --outputFile=/private/tmp/concierge-phase09-mutation-qRu9qi/phase09-tests.json",
+      "command": "pnpm exec vitest run --project react-lifecycle --project svelte-lifecycle --project node-artifact-ssr --reporter=json --outputFile=/private/tmp/concierge-phase09-mutation-LkvZM7/phase09-tests.json",
       "exitCode": 0,
-      "outputDigest": "6438ff9c85ed02e6ed06531e9afcf6227502e6f19133016e5adc187b95089188",
-      "fingerprint": "JSON report written to /private/tmp/concierge-phase09-mutation-qRu9qi/phase09-tests.json\n"
+      "outputDigest": "21558c1352fce66dd813a89f873005ea5f9c2da36d2de4f9b4173831880e3f42",
+      "fingerprint": "JSON report written to /private/tmp/concierge-phase09-mutation-LkvZM7/phase09-tests.json\n"
     },
     {
       "name": "phase-09-package-check all",
       "command": "node scripts/phase-09-package-check.mjs all",
       "exitCode": 0,
-      "outputDigest": "de11b8081cc5f01036372795fa6fa911b47b959f5e2fbfad8569056cb434c98b",
-      "fingerprint": ":{\"files\":2,\"suites\":4,\"tests\":2},\"physicalCore\":\"/private/tmp/concierge-phase09-mutation-qRu9qi/child-environment/tmp/concierge-phase09-pack-9MmLNw/artifact-consumer/node_modules/@fullselfbrowsing/concierge\",\"consent\":{\"files\":1,\"suites\":2,\"tests\":1},\"mismatch\":{\"coreSha256\":\"4fa647dfc2314898c87854ac4651e36bdb22595c6473d256e5eef64dde34f6ed\",\"expectedContractVersion\":999,\"foundContractVersion\":1,\"react\":{\"files\":1,\"suites\":2,\"tests\":1},\"svelte\":{\"files\":1,\"suites\":2,\"tests\":1}},\"exported\":true}\n"
+      "outputDigest": "fb9684f992df27de2610b3b4a454ec97cb4ee8bc25f70f49f80efb6a995a8d23",
+      "fingerprint": ":{\"files\":2,\"suites\":4,\"tests\":2},\"physicalCore\":\"/private/tmp/concierge-phase09-mutation-LkvZM7/child-environment/tmp/concierge-phase09-pack-MNUC3c/artifact-consumer/node_modules/@fullselfbrowsing/concierge\",\"consent\":{\"files\":1,\"suites\":2,\"tests\":1},\"mismatch\":{\"coreSha256\":\"4fa647dfc2314898c87854ac4651e36bdb22595c6473d256e5eef64dde34f6ed\",\"expectedContractVersion\":999,\"foundContractVersion\":1,\"react\":{\"files\":1,\"suites\":2,\"tests\":1},\"svelte\":{\"files\":1,\"suites\":2,\"tests\":1}},\"exported\":true}\n"
     },
     {
       "name": "phase-09-adapter-budget check",
@@ -744,5 +744,5 @@
   "archiveManifestDigest": "88f7250e2380c044bca083a548bba5b6926d8e5452f00fd472c3d0a9c4ee8c8a",
   "packageGate": "node scripts/phase-09-package-check.mjs all",
   "budgetGate": "node scripts/phase-09-adapter-budget.mjs check",
-  "contentDigest": "7c676997b746565883967f5b4236c67ceef140fa89487c36fd54a54d9b951652"
+  "contentDigest": "9ce9f29319a97e5d54a67402590390a9ff4be8d15c9bace3f2592104c0a34b2a"
 }
