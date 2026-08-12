@@ -237,13 +237,27 @@ function requireUse(steps, action, label = action) {
   return requireOneStep(steps, (step) => step.uses === action, label);
 }
 
-function requireOrder(entries, label) {
+function requireOrder(entries, label, code = "STEP_ORDER") {
   const indexes = entries.map((entry) => entry.index);
   assert(
     indexes.every((value, index) => index === 0 || value > indexes[index - 1]),
-    "STEP_ORDER",
+    code,
     `${label} order drifted: ${indexes.join(" -> ")}`,
   );
+}
+
+function requireBuildBeforeTypecheckChain(steps, { code, label }) {
+  const install = requireExactRun(steps, "pnpm install --frozen-lockfile");
+  const build = requireExactRun(steps, "pnpm build");
+  const typecheck = requireExactRun(steps, "pnpm typecheck");
+  const test = requireExactRun(steps, "pnpm test");
+  const release = requireExactRun(steps, "pnpm run check:phase09:release");
+  requireOrder(
+    [install, build, typecheck, test, release],
+    `${label} build-before-typecheck chain`,
+    code,
+  );
+  return Object.freeze({ build, install, release, test, typecheck });
 }
 
 function validateBlocking(workflow, path) {
@@ -730,14 +744,13 @@ function validateCi(workflow) {
       step.run.includes('test "$(npm --version)" = "11.11.0"'),
     "CI pinned npm assertion",
   );
-  const install = requireExactRun(workflow.steps, "pnpm install --frozen-lockfile");
-  const typecheck = requireExactRun(workflow.steps, "pnpm typecheck");
-  const build = requireExactRun(workflow.steps, "pnpm build");
-  const test = requireExactRun(workflow.steps, "pnpm test");
+  const chain = requireBuildBeforeTypecheckChain(workflow.steps, {
+    code: "CI_BUILD_BEFORE_TYPECHECK",
+    label: "CI",
+  });
   const artifact = requireExactRun(workflow.steps, "pnpm run check:artifact");
   const dependencies = requireExactRun(workflow.steps, "pnpm run check:deps");
   const pack = requireExactRun(workflow.steps, "pnpm run check:pack");
-  const phase09 = requireExactRun(workflow.steps, "pnpm run check:phase09");
   const floorPack = requireExactRun(
     workflow.steps,
     'pnpm pack --pack-destination "${{ runner.temp }}"',
@@ -747,14 +760,14 @@ function validateCi(workflow) {
   requireOrder(
     [
       tooling,
-      install,
-      typecheck,
-      build,
-      test,
+      chain.install,
+      chain.build,
+      chain.typecheck,
+      chain.test,
       artifact,
       dependencies,
       pack,
-      phase09,
+      chain.release,
       floorPack,
       upload,
       download,
@@ -875,13 +888,15 @@ function validateRelease(workflow) {
     `${RELEASE_PATH}#verify`,
   );
   validateCheckoutIsolation(verify, { fetchDepth: 0 });
-  const install = requireExactRun(verify.steps, "pnpm install --frozen-lockfile");
-  const inherited = requireExactRun(verify.steps, "pnpm typecheck && pnpm build && pnpm test");
+  const chain = requireBuildBeforeTypecheckChain(verify.steps, {
+    code: "RELEASE_BUILD_BEFORE_TYPECHECK",
+    label: "release verify",
+  });
   const artifact = requireExactRun(verify.steps, "pnpm run check:artifact");
   const dependencies = requireExactRun(verify.steps, "pnpm run check:deps");
   const pack = requireExactRun(verify.steps, "pnpm run check:pack");
   const floor = requireExactRun(verify.steps, "pnpm run check:node-floor");
-  const gate = requireExactRun(verify.steps, "pnpm run check:phase09:release");
+  const gate = chain.release;
   const publishEvidence = requireExactRun(
     verify.steps,
     "node scripts/phase-09-mutation-battery.mjs verify publish\n" +
@@ -906,8 +921,10 @@ function validateRelease(workflow) {
   assert(uploads.length === 2, "STEP_COUNT", "verify must upload exactly two artifacts");
   requireOrder(
     [
-      install,
-      inherited,
+      chain.install,
+      chain.build,
+      chain.typecheck,
+      chain.test,
       artifact,
       dependencies,
       pack,
@@ -1114,6 +1131,39 @@ function runDetectorControls() {
     "STEP_ORDER",
   );
   control(
+    "ci-build-before-typecheck",
+    () =>
+      requireBuildBeforeTypecheckChain(
+        [
+          step(1, { run: "pnpm install --frozen-lockfile" }),
+          step(2, { run: "pnpm typecheck" }),
+          step(3, { run: "pnpm build" }),
+          step(4, { run: "pnpm test" }),
+          step(5, { run: "pnpm run check:phase09:release" }),
+        ],
+        { code: "CI_BUILD_BEFORE_TYPECHECK", label: "CI" },
+      ),
+    "CI_BUILD_BEFORE_TYPECHECK",
+  );
+  control(
+    "release-build-before-typecheck",
+    () =>
+      requireBuildBeforeTypecheckChain(
+        [
+          step(11, { run: "pnpm install --frozen-lockfile" }),
+          step(12, { run: "pnpm typecheck" }),
+          step(13, { run: "pnpm build" }),
+          step(14, { run: "pnpm test" }),
+          step(15, { run: "pnpm run check:phase09:release" }),
+        ],
+        {
+          code: "RELEASE_BUILD_BEFORE_TYPECHECK",
+          label: "release verify",
+        },
+      ),
+    "RELEASE_BUILD_BEFORE_TYPECHECK",
+  );
+  control(
     "ignored-failure",
     () => validateBlocking({ executable: "steps:", steps: [step(1, { run: "gate || true" })] }, "synthetic"),
     "IGNORED_FAILURE",
@@ -1211,7 +1261,7 @@ function runDetectorControls() {
       ),
     "CONFIGURED_PUBLISH",
   );
-  assert(controls === 16, "CHECKER_SELF_TEST", `expected 16 controls, ran ${controls}`);
+  assert(controls === 18, "CHECKER_SELF_TEST", `expected 18 controls, ran ${controls}`);
   return controls;
 }
 

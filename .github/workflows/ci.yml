@@ -30,13 +30,13 @@ jobs:
           esac
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
       - run: pnpm build
+      - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm run check:artifact
       - run: pnpm run check:deps
       - run: pnpm run check:pack
-      - run: pnpm run check:phase09
+      - run: pnpm run check:phase09:release
 
       - name: Pack the tarball the floor job consumes
         run: pnpm pack --pack-destination "${{ runner.temp }}"

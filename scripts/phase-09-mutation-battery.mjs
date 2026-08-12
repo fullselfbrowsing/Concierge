@@ -64,6 +64,11 @@ const CONSUMER_TOOLING_MANIFEST_PATH =
 const ASTRO_GENERATED_DIRECTORY = "examples/adapter-ssr/.astro";
 const ASTRO_HARNESS_PACKAGE =
   "@fullselfbrowsing/concierge-adapter-ssr";
+const ASTRO_PREREQUISITE_BUILD_PACKAGES = Object.freeze([
+  "@fullselfbrowsing/concierge",
+  "@fullselfbrowsing/concierge-react",
+  "@fullselfbrowsing/concierge-svelte",
+]);
 const GENERATED_PATHS = Object.freeze([
   ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json",
   ".planning/phases/09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json",
@@ -1160,6 +1165,20 @@ async function prewarmOwnedPnpmStoreAndInstall(
   assertSuccessfulCommand(install, `${label} frozen offline install`);
 }
 
+async function buildAstroPrerequisites(
+  cwd,
+  run = runCommand,
+) {
+  for (const packageName of ASTRO_PREREQUISITE_BUILD_PACKAGES) {
+    const build = await run(
+      "pnpm",
+      ["--filter", packageName, "build"],
+      { cwd, timeoutMs: PACKAGE_TIMEOUT_MS },
+    );
+    assertSuccessfulCommand(build, `Astro prerequisite build ${packageName}`);
+  }
+}
+
 function cloneBaseline(source, destination) {
   mkdirSync(destination);
   let result = spawnSync("cp", ["-cR", `${source}/.`, destination], {
@@ -1280,6 +1299,12 @@ async function verifyAstroRegeneration(outerRoot) {
   assert(
     !existsSync(generatedDirectory),
     "dependency installation created Astro generated state before the proof",
+  );
+
+  await buildAstroPrerequisites(checkoutRoot);
+  assert(
+    !existsSync(generatedDirectory),
+    "prerequisite package builds created Astro generated state before the proof",
   );
 
   const check = await runCommand(
@@ -2185,6 +2210,33 @@ async function runSelfTest() {
   }
   pass("pnpm-fetch-failure-suppresses-install");
 
+  const astroPrerequisiteSequence = [];
+  await buildAstroPrerequisites(
+    ROOT,
+    async (executable, arguments_, options) => {
+      astroPrerequisiteSequence.push({
+        arguments_,
+        cwd: options.cwd,
+        executable,
+        timeoutMs: options.timeoutMs,
+      });
+      return syntheticCommand(0);
+    },
+  );
+  assert(
+    JSON.stringify(astroPrerequisiteSequence) ===
+      JSON.stringify(
+        ASTRO_PREREQUISITE_BUILD_PACKAGES.map((packageName) => ({
+          arguments_: ["--filter", packageName, "build"],
+          cwd: ROOT,
+          executable: "pnpm",
+          timeoutMs: PACKAGE_TIMEOUT_MS,
+        })),
+      ),
+    "Astro prerequisite package build order drifted",
+  );
+  pass("astro-prerequisite-build-order");
+
   assertThrows(
     () => childEnvironment({ PNPM_CONFIG_STORE_DIR: ROOT }),
     /rejected override PNPM_CONFIG_STORE_DIR/u,
@@ -2270,7 +2322,7 @@ async function runSelfTest() {
   );
   pass("secure-child-environment-probe");
 
-  assert(controls === 36, `self-test control count drifted: ${controls}`);
+  assert(controls === 37, `self-test control count drifted: ${controls}`);
   assertOutputEndpoints(endpoints);
   console.log(`PHASE09_MUTATION_SELF_TEST_OK controls=${controls}`);
 }
