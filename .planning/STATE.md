@@ -4,7 +4,7 @@ milestone: v0.1
 milestone_name: release certification and evidence gaps
 status: executing
 stopped_at: Awaiting exact-SHA hosted certification
-last_updated: "2026-08-12T21:21:00.246Z"
+last_updated: "2026-08-12T21:42:59.505Z"
 last_activity: 2026-08-12
 progress:
   total_phases: 1
@@ -235,6 +235,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-12T21:21:00.098Z
+Last session: 2026-08-12T21:42:59.341Z
 Stopped at: Awaiting exact-SHA hosted certification
 Resume file: None
