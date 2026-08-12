@@ -25,7 +25,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 6: Dispatcher** - A retried, malformed, aborted, or crashing call produces exactly one honest result and never fires an effect twice (completed 2026-08-06; **verification gap closure planned — plans 06-07–06-08**)
 - [x] **Phase 7: Session and the transport seam** - Something owns the loop between catalog and transport, driven by a stub with no network (completed 2026-08-10)
 - [x] **Phase 8: Consent kernel** - A consequential action runs only when a human, not the agent, confirmed this exact payload (completed 2026-08-10)
-- [ ] **Phase 9: React and Svelte adapters** - Two opposite reactivity models drive the same core through adapters small enough to prove no logic leaked out
+- [x] **Phase 9: React and Svelte adapters** - Two opposite reactivity models drive the same core through adapters small enough to prove no logic leaked out (completed 2026-08-12)
 
 ## Phase Details
 
@@ -441,7 +441,7 @@ Plans:
 
 **Wave 10** *(blocked on Wave 9 completion)*
 
-- [ ] 09-13-PLAN.md — Terminal mutation, release, validation, security, and Phase 8-preservation evidence
+- [x] 09-13-PLAN.md — Terminal mutation, release, validation, security, and Phase 8-preservation evidence
 
 **Cross-cutting constraints:**
 
@@ -486,15 +486,15 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Dispatcher | 8/8 | Complete   | 2026-08-07 |
 | 7. Session and the transport seam | 7/7 | Complete    | 2026-08-10 |
 | 8. Consent kernel | 8/8 | Complete | 2026-08-10 |
-| 9. React and Svelte adapters | 12/13 | In Progress|  |
-| 10. Close v0.1 release certification and evidence gaps | 5/7 | In Progress|  |
+| 9. React and Svelte adapters | 13/13 | Complete   | 2026-08-12 |
+| 10. Close v0.1 release certification and evidence gaps | 6/7 | In Progress|  |
 
 ### Phase 10: Close v0.1 release certification and evidence gaps
 
 **Goal:** One exact clean commit is independently certifiable as the pre-publication candidate: all nine audit gaps closed, 62/62 requirements, 9/9 original implementation phases and 10/10 current phase directories verified, 12/12 integrations, 10/10 flows, Phase 9 Nyquist compliant, and a matching exact-SHA hosted Ubuntu receipt, with no later tracked write or publication.
 **Requirements**: No new requirement IDs — closes Audit 1–9 and repairs evidence for SEC-03, ADP-01–04, PKG-04, CAT-02, CAT-03, CAT-05–07, SEC-01, SEC-05, PKG-02–03, DX-01, DX-03.
 **Depends on:** Phase 9
-**Plans:** 5/7 plans executed
+**Plans:** 6/7 plans executed
 **Certification status:** Awaiting implementation, ordinary GSD closeout, and the post-GSD exact-SHA hosted receipt.
 
 Plans:
@@ -514,7 +514,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 10-06-PLAN.md — Backfill summary/requirement metadata before the final release-input seal and synchronize registered roadmap/state accounting.
+- [x] 10-06-PLAN.md — Backfill summary/requirement metadata before the final release-input seal and synchronize registered roadmap/state accounting.
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
