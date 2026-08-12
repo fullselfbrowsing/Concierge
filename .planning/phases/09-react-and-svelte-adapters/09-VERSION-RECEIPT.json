@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "phase": "09-react-and-svelte-adapters",
+  "baseSha": "a9187eda875a7dd7c6e555f1ccc8189987a3af4a",
+  "repository": "fullselfbrowsing/Concierge",
+  "runId": "31635983095",
+  "runAttempt": 1,
+  "artifactName": "phase09-version-31635983095-1-a9187eda875a7dd7c6e555f1ccc8189987a3af4a",
+  "artifactDigest": "e02bc887f372effdc7c83317cf5d025bc01a9a47301016bd632ef8d0f7dec256",
+  "sharedVersion": "0.1.0",
+  "consumedChangesets": [
+    {
+      "path": ".changeset/bright-guides-connect.md",
+      "sha256": "1fa02b428ff41e0a28aa7fc59dd9658ee77996716d9862822389488207e4fafb"
+    }
+  ],
+  "finalDigests": {
+    "packages/concierge/package.json": "d64aac9e652807320d8509b931f02c36df4117a3ce02625a49a819184151a908",
+    "packages/concierge-react/package.json": "487fa596b821ac7cce02521fb5da7cbd8e4bd0bc50531ca04aa51e38f04cedaa",
+    "packages/concierge-svelte/package.json": "c5607779f637b410445c5430d61940bcaeeb10c0aa6d33c3780ed3f5f1660098",
+    "pnpm-lock.yaml": "84557941119f152e4d9ade95941bc90d72e1f2e0e64ecc8648b5dce0a1c0de38"
+  },
+  "contentDigest": "b7c32f3939fac4682b8d5e8d4750370508188709ccec6aa65ceeccd4efb01e06"
+}
