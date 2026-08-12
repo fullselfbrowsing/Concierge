@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: release certification and evidence gaps
 status: executing
-stopped_at: Completed 10-01-PLAN.md
-last_updated: "2026-08-12T17:22:22.977Z"
+stopped_at: Completed 10-02-PLAN.md
+last_updated: "2026-08-12T17:31:00.303Z"
 last_activity: 2026-08-12
 progress:
-  total_phases: 1
-  completed_phases: 0
-  total_plans: 7
-  completed_plans: 1
-  percent: 0
+  total_phases: 10
+  completed_phases: 9
+  total_plans: 93
+  completed_plans: 88
+  percent: 90
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-08-10)
 ## Current Position
 
 Phase: 10 (close-v0-1-release-certification-and-evidence-gaps) — EXECUTING
-Plan: 2 of 7
+Plan: 3 of 7
 Status: Ready to execute
 Last activity: 2026-08-12
 
@@ -81,6 +81,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 09 P12 | 34m | 2 tasks | 2 files |
 | Phase 09 P11 | 24min | 2 tasks | 5 files |
 | Phase 10 P01 | 16m | 2 tasks | 8 files |
+| Phase 10 P02 | 7m | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -189,6 +190,9 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 10]: Associate mutable terminal-entry state with the exact dispatch Promise so cache hits retain both Promise identity and terminal control state. — The public dispatch function must remain non-async and return the cached Promise by reference, while terminality stays out of all agent-visible result shapes.
 - [Phase 10]: Keep completed terminal rows only in a frozen internal outcome; public batch callers receive one shared frozen empty array. — Session needs the normalized terminal failure for app-owned presentation, but D-10-03 forbids every row from that occurrence from reaching a direct batch caller or transport.
 - [Phase 10]: Initiate cached Session teardown after failure presentation without awaiting the active pump's own drain. — Session.stop waits for the active pump; awaiting it from runWork would make the terminal occurrence wait on itself and deadlock.
+- [Phase 10]: Identify unreadable declarations by zero-based input index instead of inventing an action name. — The indexed subject is truthful for null, primitive, and otherwise unreadable runtime values while preserving the ordinary aggregate diagnostic path.
+- [Phase 10]: Treat exact structured fields, stable codes, truthful subjects, and actionable fixes as sufficient diagnostic legibility evidence. — D-10-14 closes the former subjective checkpoint with repeatable built-artifact assertions.
+- [Phase 10]: Preserve historical verifier findings verbatim and append dated current-byte corrections. — Append-only corrections retain the original audit trail while making superseded conclusions explicit.
 
 ### Pending Todos
 
@@ -217,6 +221,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-12T17:22:22.973Z
-Stopped at: Completed 10-01-PLAN.md
+Last session: 2026-08-12T17:31:00.299Z
+Stopped at: Completed 10-02-PLAN.md
 Resume file: None

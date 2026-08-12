@@ -84,7 +84,7 @@
 
 - [x] **SEC-01**: Redaction is required at declaration time for any action with a non-empty schema, and an unspecified policy defaults to dropping arguments
 - [x] **SEC-02**: Telemetry never carries thrown error messages, only error class names
-- [ ] **SEC-03**: The action registry is frozen after catalog build, so a handler cannot be replaced at runtime by third-party page script
+- [x] **SEC-03**: The action registry is frozen after catalog build, so a handler cannot be replaced at runtime by third-party page script
 - [x] **SEC-04**: Documentation states, with a worked example, that client-side consent is an assertion the server must re-verify
 - [x] **SEC-05**: An action that reads attacker-controllable content declares it, and catalog build reports an action that does so without a consent policy
 - [x] **SEC-06**: `ActionResult.message` is sanitized before it leaves the dispatcher — control characters stripped, whitespace collapsed, and length capped
@@ -143,6 +143,7 @@ evidence the original 57 did not have:
 
 - **Advisor research on the Phase 1 gray areas** produced SEC-05 — the `readsUntrusted` marker is
   only honest if something enforces it.
+
 - **A second prior implementation** was located and read: the `portfolio` repository, branch
   `audit-fsb-ai-control-loop` (2026-07-16). It is a shipped in-app AI control loop with typed action
   results, and it supplied DSP-09, SEC-06, CON-10, and TRN-05. This is distinct from the
