@@ -63,6 +63,16 @@ const ARCHIVE_ARTIFACT_NAME =
   "phase09-untrusted-archives-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}";
 const PUBLISHER_ARTIFACT_NAME =
   "phase09-publisher-tools-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}";
+const CANDIDATE_ARTIFACT_NAME =
+  "v0.1-candidate-certification-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}";
+const CANDIDATE_RECEIPT_PATH =
+  "${{ runner.temp }}/v0.1-candidate-certification/candidate-certification.json";
+const CANDIDATE_EVIDENCE_PATHS = Object.freeze([
+  ".planning/phases/10-close-v0-1-release-certification-and-evidence-gaps/10-VERIFICATION.md",
+  ".planning/v0.1-MILESTONE-AUDIT.md",
+  ".planning/phases/10-close-v0-1-release-certification-and-evidence-gaps/10-VALIDATION.md",
+  ".planning/phases/10-close-v0-1-release-certification-and-evidence-gaps/10-CERTIFICATION.md",
+]);
 
 function fail(code, message) {
   throw new Error(`[${code}] ${message}`);
@@ -205,6 +215,16 @@ function extractJob(source, name, path) {
     steps: parseWorkflowSteps(jobSource, `${path}#${name}`),
     start,
   });
+}
+
+function workflowJobNames(source, path) {
+  const lines = source.split(/\r?\n/u);
+  const jobs = lines.findIndex((line) => line === "jobs:");
+  assert(jobs >= 0, "JOB_LAYOUT", `${path} has no jobs block`);
+  return lines
+    .slice(jobs + 1)
+    .map((line) => /^  ([A-Za-z0-9_-]+):\s*$/u.exec(line)?.[1] ?? null)
+    .filter(Boolean);
 }
 
 function readWorkflow(path) {
@@ -653,6 +673,137 @@ function assertPermissions(job, expected) {
   );
 }
 
+function validateCiAuthority(workflow) {
+  assert(
+    !/(?:^|\n)\s*id-token\s*:/u.test(workflow.executable) &&
+      !/\b(?:npm|pnpm)\s+publish\b|\bgit\s+tag\b|--provenance\b|\bnpm\s+(?:access|dist-tag)\b/u.test(
+        workflow.executable,
+      ) &&
+      !/(?:^|\n)\s+(?:GITHUB_TOKEN|GH_TOKEN|NODE_AUTH_TOKEN|NPM_TOKEN):|secrets\./u.test(
+        workflow.executable,
+      ),
+    "CI_AUTHORITY",
+    "CI contains OIDC, publication, tagging, provenance, or secret authority",
+  );
+}
+
+function validateCandidateReceiptProgram(step) {
+  assert(step.run !== null, "CANDIDATE_RECEIPT", "candidate receipt program is missing");
+  for (const token of [
+    'schema_version: 1',
+    'workflow_path: ".github/workflows/ci.yml"',
+    'head.stdout.trim() !== headSha',
+    '["ls-files", "--error-unmatch", "--", ...evidencePaths]',
+    'artifactName !== expectedArtifact',
+    'content_digest: sha256(stableJson(body))',
+    'writeFileSync(',
+    '"candidate-certification.json"',
+    ...CANDIDATE_EVIDENCE_PATHS.map((path) => `"${path}"`),
+  ]) {
+    assert(
+      step.run.includes(token),
+      "CANDIDATE_RECEIPT",
+      `candidate receipt program is missing ${token}`,
+    );
+  }
+  const conclusions = [...step.run.matchAll(/overall_conclusion:\s*"([^"]+)"/gu)];
+  assert(
+    conclusions.length === 1 && conclusions[0][1] === "success",
+    "CANDIDATE_OVERALL",
+    "candidate receipt must state exactly one truthful success conclusion",
+  );
+  assert(
+    !/\b(?:npm|pnpm|gh|curl|wget)\b|\bgit\s+(?:push|tag)\b/u.test(step.run),
+    "CANDIDATE_AUTHORITY",
+    "candidate receipt program contains network, package, push, or tag authority",
+  );
+}
+
+function validateCandidateReceiptJob(job) {
+  assertPermissions(job, { contents: "read" });
+  assert(
+    job.executable.includes("needs: [build, node-floor]"),
+    "CANDIDATE_DEPENDENCIES",
+    "candidate receipt job must depend on every CI prerequisite",
+  );
+  requireExactUseSequence(
+    job.steps,
+    [CHECKOUT, UPLOAD],
+    `${CI_PATH}#candidate-certification`,
+  );
+  const checkout = requireUse(job.steps, CHECKOUT, "candidate receipt checkout");
+  assert(
+    checkout.raw.includes("fetch-depth: 1") &&
+      checkout.raw.includes("persist-credentials: false") &&
+      checkout.raw.includes("ref: ${{ github.sha }}"),
+    "CANDIDATE_CHECKOUT",
+    "candidate receipt checkout is not bound read-only to github.sha",
+  );
+  const receipt = requireOneStep(
+    job.steps,
+    (step) => step.name === "Create the exact candidate certification receipt",
+    "candidate receipt creation",
+  );
+  validateCandidateReceiptProgram(receipt);
+  for (const token of [
+    `CANDIDATE_ARTIFACT_NAME: ${CANDIDATE_ARTIFACT_NAME}`,
+    "CANDIDATE_BUILD_CONCLUSION: ${{ needs.build.result }}",
+    "CANDIDATE_NODE_FLOOR_CONCLUSION: ${{ needs['node-floor'].result }}",
+    "CANDIDATE_HEAD_SHA: ${{ github.sha }}",
+    "CANDIDATE_REF: ${{ github.ref }}",
+    "CANDIDATE_REPOSITORY: ${{ github.repository }}",
+    "CANDIDATE_RUN_ID: ${{ github.run_id }}",
+    "CANDIDATE_RUN_ATTEMPT: ${{ github.run_attempt }}",
+    "CANDIDATE_WORKFLOW_NAME: ${{ github.workflow }}",
+  ]) {
+    assert(
+      receipt.raw.includes(token),
+      "CANDIDATE_IDENTITY",
+      `candidate receipt environment is missing ${token}`,
+    );
+  }
+  const upload = requireUse(job.steps, UPLOAD, "candidate receipt upload");
+  assert(
+    upload.raw.includes(`name: ${CANDIDATE_ARTIFACT_NAME}`) &&
+      upload.raw.includes(`path: ${CANDIDATE_RECEIPT_PATH}`) &&
+      upload.raw.includes("if-no-files-found: error") &&
+      upload.raw.includes("retention-days: 90"),
+    "CANDIDATE_ARTIFACT",
+    "candidate receipt upload is not exact and attempt-scoped",
+  );
+}
+
+function validateCertificationScript() {
+  const source = readNonemptyFile("scripts/phase-10-certify-candidate.mjs");
+  for (const token of [
+    '"self-test"',
+    '"handoff-check"',
+    '"certify"',
+    '"verify-run"',
+    '["push", "--porcelain", candidate.remote, `HEAD:${candidate.ref}`]',
+    '"remote-equal-before"',
+    '"run-trigger-or-selection"',
+    '"select-explicit-run"',
+    '"verify-receipt"',
+    '"remote-equal-after"',
+    '"--untracked-files=all"',
+    'rmSync(temporaryRoot, { recursive: true })',
+  ]) {
+    assert(
+      source.includes(token),
+      "CERTIFICATION_SCRIPT",
+      `certification script is missing ${token}`,
+    );
+  }
+  assert(
+    !/\b(?:npm|pnpm)\s+publish\b|\bgit\s+tag\b|--provenance\b|phase\.complete|gsd-tools|phase-09-mutation-battery/u.test(
+      executableSource(source),
+    ),
+    "CERTIFICATION_SCRIPT",
+    "certification script contains publication, tag, GSD mutation, or evidence-regeneration authority",
+  );
+}
+
 function validateLiveContracts() {
   const rootManifest = JSON.parse(readNonemptyFile("package.json"));
   for (const [name, command] of Object.entries(EXACT_ROOT_SCRIPTS)) {
@@ -727,36 +878,66 @@ function validateLiveContracts() {
 }
 
 function validateCi(workflow) {
+  assert(
+    JSON.stringify(workflowJobNames(workflow.source, CI_PATH)) ===
+      JSON.stringify(["build", "node-floor", "candidate-certification"]),
+    "JOB_LAYOUT",
+    "CI job set or order drifted",
+  );
   requireExactUseSequence(
     workflow.steps,
-    [CHECKOUT, SETUP_PNPM, SETUP_NODE, UPLOAD, DOWNLOAD, SETUP_NODE],
+    [
+      CHECKOUT,
+      SETUP_PNPM,
+      SETUP_NODE,
+      UPLOAD,
+      DOWNLOAD,
+      SETUP_NODE,
+      CHECKOUT,
+      UPLOAD,
+    ],
     CI_PATH,
   );
   assert(
-    /(?:^|\n)permissions:\n  contents: read(?:\n|$)/u.test(workflow.executable),
+    /(?:^|\n)permissions:\n  contents: read(?:\n|$)/u.test(workflow.executable) &&
+      /(?:^|\n)  workflow_dispatch:\s*(?:\n|$)/u.test(workflow.executable),
     "CI_PERMISSIONS",
-    "CI must be globally read-only",
+    "CI must be globally read-only and explicitly dispatchable",
+  );
+  validateCiAuthority(workflow);
+  const buildJob = extractJob(workflow.source, "build", CI_PATH);
+  const floor = extractJob(workflow.source, "node-floor", CI_PATH);
+  const candidate = extractJob(
+    workflow.source,
+    "candidate-certification",
+    CI_PATH,
+  );
+  const buildCheckout = requireUse(buildJob.steps, CHECKOUT, "CI build checkout");
+  assert(
+    buildCheckout.raw.includes("persist-credentials: false") &&
+      buildCheckout.raw.includes("ref: ${{ github.sha }}"),
+    "CI_CHECKOUT",
+    "CI build checkout is not bound read-only to github.sha",
   );
   const tooling = requireOneStep(
-    workflow.steps,
+    buildJob.steps,
     (step) =>
       step.run?.includes("npm install -g npm@11.11.0") === true &&
       step.run.includes('test "$(npm --version)" = "11.11.0"'),
     "CI pinned npm assertion",
   );
-  const chain = requireBuildBeforeTypecheckChain(workflow.steps, {
+  const chain = requireBuildBeforeTypecheckChain(buildJob.steps, {
     code: "CI_BUILD_BEFORE_TYPECHECK",
     label: "CI",
   });
-  const artifact = requireExactRun(workflow.steps, "pnpm run check:artifact");
-  const dependencies = requireExactRun(workflow.steps, "pnpm run check:deps");
-  const pack = requireExactRun(workflow.steps, "pnpm run check:pack");
+  const artifact = requireExactRun(buildJob.steps, "pnpm run check:artifact");
+  const dependencies = requireExactRun(buildJob.steps, "pnpm run check:deps");
+  const pack = requireExactRun(buildJob.steps, "pnpm run check:pack");
   const floorPack = requireExactRun(
-    workflow.steps,
+    buildJob.steps,
     'pnpm pack --pack-destination "${{ runner.temp }}"',
   );
-  const upload = requireUse(workflow.steps, UPLOAD);
-  const download = requireUse(workflow.steps, DOWNLOAD);
+  const upload = requireUse(buildJob.steps, UPLOAD, "CI floor tarball upload");
   requireOrder(
     [
       tooling,
@@ -770,11 +951,9 @@ function validateCi(workflow) {
       chain.release,
       floorPack,
       upload,
-      download,
     ],
     "CI gate chain",
   );
-  const floor = extractJob(workflow.source, "node-floor", CI_PATH);
   assert(
     !/\bpnpm\b/u.test(floor.executable) &&
       floor.executable.includes("node-version: '22.12.0'") &&
@@ -784,6 +963,8 @@ function validateCi(workflow) {
     "CI_FLOOR",
     "the separate npm-only Node floor job drifted",
   );
+  validateCandidateReceiptJob(candidate);
+  validateEmbeddedNodePrograms(workflow, 1);
 }
 
 function validateRelease(workflow) {
@@ -1101,6 +1282,16 @@ function expectFailure(label, operation, expectedCode) {
 function runDetectorControls() {
   const step = (index, { uses = null, run = null, raw = "", name = null } = {}) =>
     ({ index, uses, run, raw, name });
+  const candidateFixture = extractJob(
+    readNonemptyFile(CI_PATH),
+    "candidate-certification",
+    CI_PATH,
+  );
+  const receiptFixture = requireOneStep(
+    candidateFixture.steps,
+    (candidate) => candidate.name === "Create the exact candidate certification receipt",
+    "candidate receipt fixture",
+  );
   let controls = 0;
   const control = (label, operation, code) => {
     expectFailure(label, operation, code);
@@ -1164,6 +1355,37 @@ function runDetectorControls() {
     "RELEASE_BUILD_BEFORE_TYPECHECK",
   );
   control(
+    "candidate-overall-omitted",
+    () =>
+      validateCandidateReceiptProgram({
+        ...receiptFixture,
+        run: receiptFixture.run.replace('overall_conclusion: "success",', ""),
+      }),
+    "CANDIDATE_OVERALL",
+  );
+  control(
+    "candidate-overall-misreported",
+    () =>
+      validateCandidateReceiptProgram({
+        ...receiptFixture,
+        run: receiptFixture.run.replace(
+          'overall_conclusion: "success"',
+          'overall_conclusion: "failure"',
+        ),
+      }),
+    "CANDIDATE_OVERALL",
+  );
+  control(
+    "ci-oidc-broadened",
+    () => validateCiAuthority({ executable: "permissions:\n  id-token: write" }),
+    "CI_AUTHORITY",
+  );
+  control(
+    "ci-publication-command",
+    () => validateCiAuthority({ executable: "run: npm publish ./package" }),
+    "CI_AUTHORITY",
+  );
+  control(
     "ignored-failure",
     () => validateBlocking({ executable: "steps:", steps: [step(1, { run: "gate || true" })] }, "synthetic"),
     "IGNORED_FAILURE",
@@ -1184,7 +1406,7 @@ function runDetectorControls() {
     "CHANGESETS_PUBLISH",
   );
   control(
-    "oidc-checkout",
+    "release-publish-checkout",
     () => validateOidcIsolation({ steps: [step(1, { uses: CHECKOUT })] }),
     "OIDC_ISOLATION",
   );
@@ -1261,7 +1483,7 @@ function runDetectorControls() {
       ),
     "CONFIGURED_PUBLISH",
   );
-  assert(controls === 18, "CHECKER_SELF_TEST", `expected 18 controls, ran ${controls}`);
+  assert(controls === 22, "CHECKER_SELF_TEST", `expected 22 controls, ran ${controls}`);
   return controls;
 }
 
@@ -1278,6 +1500,7 @@ validateConfiguredPublishSurface(
   [ci, release],
 );
 validateRepositoryPublisherSources();
+validateCertificationScript();
 validateCi(ci);
 validateRelease(release);
 runScriptSelfTest(
@@ -1288,8 +1511,12 @@ runScriptSelfTest(
   "scripts/phase-09-publish-archives.mjs",
   "PHASE09_PUBLISHER_SELF_TEST_OK controls=20",
 );
+runScriptSelfTest(
+  "scripts/phase-10-certify-candidate.mjs",
+  "PHASE10_CERTIFY_SELF_TEST_OK controls=29",
+);
 
 process.stdout.write(
-  `PHASE09_WORKFLOW_CHECK_OK workflows=2 jobs=7 controls=${controls} ` +
+  `PHASE09_WORKFLOW_CHECK_OK workflows=2 jobs=8 controls=${controls} ` +
     `ciSteps=${ci.steps.length} releaseSteps=${release.steps.length}\n`,
 );
