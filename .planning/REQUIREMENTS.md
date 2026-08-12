@@ -156,12 +156,12 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | REQ-ID | Phase | Status |
 |---|---|---|
 | CAT-01 | Phase 3 — Action declaration and build-time validation; **closed by Phase 4 — Stages, catalog assembly, and explain()** | Complete — Phase 3 shipped 4/5 derived artifacts; the fifth, `per-stage catalogs`, ships as `createConcierge().catalogFor` (plan 04-03, exported and implemented). Evidence: 04-05 S1/S2 |
-| CAT-02 | Phase 3 — Action declaration and build-time validation | Complete |
+| CAT-02 | Phase 3 — Action declaration and build-time validation | Complete — terminal ownership: `.planning/phases/03-action-declaration-and-build-time-validation/03-08-SUMMARY.md`; historical verifier: `.planning/phases/03-action-declaration-and-build-time-validation/03-VERIFICATION.md`. |
 | CAT-03 | Phase 4 — Stages, catalog assembly, and explain() | Complete — Phase 4 verification and the v0.1 milestone integration audit confirm missing consent targets are rejected with action-specific diagnostics. |
 | CAT-04 | Phase 8 — Consent kernel | Complete — 08-02 C27-C29 enforce the inherent delivered floor and aggregate grade/provenance/seam faults; M-08-C01/C04/C07 independently kill floor and capability regressions. |
-| CAT-05 | Phase 3 — Action declaration and build-time validation | Complete |
-| CAT-06 | Phase 3 — Action declaration and build-time validation | Complete |
-| CAT-07 | Phase 3 — Action declaration and build-time validation | Complete |
+| CAT-05 | Phase 3 — Action declaration and build-time validation | Complete — terminal ownership: `.planning/phases/03-action-declaration-and-build-time-validation/03-08-SUMMARY.md`; historical verifier: `.planning/phases/03-action-declaration-and-build-time-validation/03-VERIFICATION.md`. |
+| CAT-06 | Phase 3 — Action declaration and build-time validation | Complete — terminal ownership: `.planning/phases/03-action-declaration-and-build-time-validation/03-08-SUMMARY.md`; historical verifier: `.planning/phases/03-action-declaration-and-build-time-validation/03-VERIFICATION.md`. |
+| CAT-07 | Phase 3 — Action declaration and build-time validation | Complete — terminal ownership: `.planning/phases/03-action-declaration-and-build-time-validation/03-08-SUMMARY.md`; historical verifier: `.planning/phases/03-action-declaration-and-build-time-validation/03-VERIFICATION.md`. |
 | DSP-01 | Phase 6 — Dispatcher | Complete — R01/R02 prove valid string callIds retain exact same-Promise identity and failure reuse; R68 proves malformed metadata is contained as one honest result rather than being deduplicated or escaping. M-06-S01…S04/S35 discriminate these boundaries. |
 | DSP-02 | Phase 6 — Dispatcher | Complete — R05/R06/R69 prove cyclic, BigInt, and equal aliased arguments do not throw and do not deduplicate; R06a/R06b retain injective, prototype-safe collision evidence for keyable values. M-06-S07/S36/S37 discriminate the no-dedup boundary. |
 | DSP-03 | Phase 6 — Dispatcher | Complete — R34…R36 prove sync throws and rejections return only the generic authored result and leak no marker to result or console; M-06-S25 kills exception echo. |
@@ -199,21 +199,21 @@ TRN-05 is the one that could not have waited: `TransportCapabilities` is an inte
 | TRN-03 | Phase 8 — Consent kernel | Complete — 08-02 C29 and 08-05 S02 reject missing or weak human-turn provenance at build and actual-session boundaries; M-08-C02/C03/C05/C06 are green. |
 | TRN-04 | Phase 6 — Dispatcher | Complete — R19 drives one action and Q14 drives a batch directly from an application loop without constructing a Transport; the complete 62-row mutation register remains green. |
 | TRN-05 | Phase 1 — Type surface completion; runtime proof in Phase 8 — Consent kernel | Complete — 08-05 S02 proves the actual captured transport provenance must dominate the Concierge profile before subscription, publication, or batch effects; M-08-C05/C06 kill runtime dominance defects. |
-| ADP-01 | Phase 9 — React and Svelte adapters | Complete |
-| ADP-02 | Phase 9 — React and Svelte adapters | Complete |
-| ADP-03 | Phase 9 — React and Svelte adapters | Complete |
-| ADP-04 | Phase 9 — React and Svelte adapters | Complete |
-| SEC-01 | Phase 3 — Action declaration and build-time validation | Complete |
+| ADP-01 | Phase 9 — React and Svelte adapters | Complete — independent verifier authority: `.planning/phases/09-react-and-svelte-adapters/09-VERIFICATION.md`; Plan 10-07 must create and pass that report before final milestone scoring. |
+| ADP-02 | Phase 9 — React and Svelte adapters | Complete — independent verifier authority: `.planning/phases/09-react-and-svelte-adapters/09-VERIFICATION.md`; Plan 10-07 must create and pass that report before final milestone scoring. |
+| ADP-03 | Phase 9 — React and Svelte adapters | Complete — independent verifier authority: `.planning/phases/09-react-and-svelte-adapters/09-VERIFICATION.md`; Plan 10-07 must create and pass that report before final milestone scoring. |
+| ADP-04 | Phase 9 — React and Svelte adapters | Complete — independent verifier authority: `.planning/phases/09-react-and-svelte-adapters/09-VERIFICATION.md`; Plan 10-07 must create and pass that report before final milestone scoring. |
+| SEC-01 | Phase 3 — Action declaration and build-time validation | Complete — terminal ownership: `.planning/phases/03-action-declaration-and-build-time-validation/03-08-SUMMARY.md`; historical verifier: `.planning/phases/03-action-declaration-and-build-time-validation/03-VERIFICATION.md`. |
 | SEC-02 | Phase 6 — Dispatcher | Complete structurally — the TypeScript AST audit parses all 11 production files and proves Phase 6 defines no telemetry/onTelemetry/onError channel or emission and no bound exception forwarding path. R34…R36 prove at runtime that handler exception text reaches neither `ActionResult` nor console; M-06-S25 kills exception echo. |
-| SEC-03 | Phase 4 — Stages, catalog assembly, and explain() | Pending overall under Phase 4's recorded consumer-supplied `jsonSchema` getter carve-out. Phase 6 completes the dispatch-side lookup proof without remapping the requirement: R09/R10 execute zero handlers for `__proto__`/`constructor`, and M-06-S15 kills a prototype-bearing lookup. |
+| SEC-03 | Phase 4 — Stages, catalog assembly, and explain() | Complete — Phase 10 Plan 02's current-byte S15a/S15b evidence rejects root and nested explicit-JSON-Schema accessors as `schema_not_emittable` without invoking either getter; S15c proves emitted parameters are detached from caller mutation and their nested schema is frozen. The append-only correction is recorded in `.planning/phases/04-stages-catalog-assembly-and-explain/04-VERIFICATION.md`. Phase 6 separately completes prototype-safe dispatch lookup: R09/R10 execute zero handlers for `__proto__`/`constructor`, and M-06-S15 kills a prototype-bearing lookup. |
 | SEC-04 | Phase 8 — Consent kernel | Complete — 08-08 root README P03/P04 tests require untrusted-client wording and current-policy exact-action reauthorization immediately before the guarded effect; M-08-P03/P04 are green. |
-| SEC-05 | Phase 3 — Action declaration and build-time validation | Complete |
+| SEC-05 | Phase 3 — Action declaration and build-time validation | Complete — terminal ownership: `.planning/phases/03-action-declaration-and-build-time-validation/03-08-SUMMARY.md`; historical verifier: `.planning/phases/03-action-declaration-and-build-time-validation/03-VERIFICATION.md`. |
 | SEC-06 | Phase 6 — Dispatcher | Complete — R47…R51 prove C0/C1 replacement, whitespace normalization, the shared length cap, surrogate-pair preservation, and fresh sanitized constants; M-06-S30…S33 kill every sanitizer boundary. |
 | PKG-01 | Phase 2 — Packaging, build, and release | Complete |
-| PKG-02 | Phase 2 — Packaging, build, and release | Complete |
-| PKG-03 | Phase 2 — Packaging, build, and release | Complete |
-| PKG-04 | Phase 2 — Packaging, build, and release | Complete |
+| PKG-02 | Phase 2 — Packaging, build, and release | Complete — terminal ownership: `.planning/phases/02-packaging-build-and-release/02-12-SUMMARY.md`; historical verifier: `.planning/phases/02-packaging-build-and-release/02-VERIFICATION.md`. |
+| PKG-03 | Phase 2 — Packaging, build, and release | Complete — terminal ownership: `.planning/phases/02-packaging-build-and-release/02-12-SUMMARY.md`; historical verifier: `.planning/phases/02-packaging-build-and-release/02-VERIFICATION.md`. |
+| PKG-04 | Phase 2 — Packaging, build, and release | Complete — Phase 2 ownership is carried through the real adapters; independent terminal verifier authority: `.planning/phases/09-react-and-svelte-adapters/09-VERIFICATION.md`. Plan 10-07 must create and pass that report before final milestone scoring. |
 | PKG-05 | Phase 2 — Packaging, build, and release | Complete |
 | DX-01 | Phase 4 — Stages, catalog assembly, and explain() | Complete — Phase 4 verification confirms `explain()` reports stage, bridge status, and the live catalog. |
 | DX-02 | Phase 5 — Bridge registry and the no-bridge path | Complete — proven in both variants: a stage declaring no bridge, and a stage declaring one with nothing registered. Both run their handler, which returns `{ok:true}` with `ctx.bridge` null; core never auto-fails an action over an unmounted bridge. Evidence: 05-05 D20/D21, 05-02 `resolveBridge` |
-| DX-03 | Phase 3 — Action declaration and build-time validation | Complete |
+| DX-03 | Phase 3 — Action declaration and build-time validation | Complete — terminal ownership: `.planning/phases/03-action-declaration-and-build-time-validation/03-08-SUMMARY.md`; historical verifier and append-only current-byte correction: `.planning/phases/03-action-declaration-and-build-time-validation/03-VERIFICATION.md`. |

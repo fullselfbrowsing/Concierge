@@ -63,7 +63,7 @@ key-decisions:
 patterns-established:
   - "Extract every verification-map row's command mechanically and execute it, so a Status is an observation rather than an inference from the plan having run"
 
-requirements-completed: []
+requirements-completed: [PKG-02, PKG-03]
 
 # Metrics
 duration: 22min

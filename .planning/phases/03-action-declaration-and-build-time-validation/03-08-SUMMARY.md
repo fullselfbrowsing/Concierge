@@ -39,6 +39,7 @@ decisions:
   - "M-03-13 runs as `warnHost(` → `String(`. The plan's `void (` form is a parse error and its failure presents as a PASS."
   - "No type in types.ts was amended. Every changed line is inside a doc comment or is one of the three freeze initializer lines."
   - "SEC-03 is recorded as HALF closed. The `catalogFor` re-freeze is still open and ROADMAP/REQUIREMENTS should keep mapping SEC-03 to Phase 4."
+requirements-completed: [CAT-02, CAT-05, CAT-06, CAT-07, SEC-01, SEC-05, DX-03]
 metrics:
   duration: "~55 min"
   completed: 2026-07-29
