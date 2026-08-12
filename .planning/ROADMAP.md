@@ -487,20 +487,20 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 7. Session and the transport seam | 7/7 | Complete    | 2026-08-10 |
 | 8. Consent kernel | 8/8 | Complete | 2026-08-10 |
 | 9. React and Svelte adapters | 12/13 | In Progress|  |
-| 10. Close v0.1 release certification and evidence gaps | 0/7 | Planned |  |
+| 10. Close v0.1 release certification and evidence gaps | 1/7 | In Progress|  |
 
 ### Phase 10: Close v0.1 release certification and evidence gaps
 
 **Goal:** One exact clean commit is independently certifiable as the pre-publication candidate: all nine audit gaps closed, 62/62 requirements, 9/9 original implementation phases and 10/10 current phase directories verified, 12/12 integrations, 10/10 flows, Phase 9 Nyquist compliant, and a matching exact-SHA hosted Ubuntu receipt, with no later tracked write or publication.
 **Requirements**: No new requirement IDs — closes Audit 1–9 and repairs evidence for SEC-03, ADP-01–04, PKG-04, CAT-02, CAT-03, CAT-05–07, SEC-01, SEC-05, PKG-02–03, DX-01, DX-03.
 **Depends on:** Phase 9
-**Plans:** 7 plans in 5 waves
+**Plans:** 1/7 plans executed
 **Certification status:** Awaiting implementation, ordinary GSD closeout, and the post-GSD exact-SHA hosted receipt.
 
 Plans:
 **Wave 1**
 
-- [ ] 10-01-PLAN.md — Commit terminality at handler entry, suppress the whole batch, and stop safely after app-owned outcome capture.
+- [x] 10-01-PLAN.md — Commit terminality at handler entry, suppress the whole batch, and stop safely after app-owned outcome capture.
 - [ ] 10-02-PLAN.md — Aggregate invalid declarations structurally and correct SEC-03 evidence against current built bytes.
 - [ ] 10-03-PLAN.md — Separate benign pnpm decoration from authenticated child authority, remove tracked Astro state, and wire the committed-snapshot proof.
 

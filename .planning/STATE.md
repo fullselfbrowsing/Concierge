@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: release certification and evidence gaps
 status: executing
-stopped_at: Phase 10 context gathered
-last_updated: "2026-08-12T02:04:58.169Z"
-last_activity: 2026-08-12 -- Phase 10 planning complete
+stopped_at: Completed 10-01-PLAN.md
+last_updated: "2026-08-12T17:22:22.977Z"
+last_activity: 2026-08-12
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 7
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-10)
 
 **Core value:** An agent can take a consequential action in a real app — and it is structurally guaranteed that a human, not the agent, confirmed this specific payload, or the action does not run.
-**Current focus:** Phase 09 — react-and-svelte-adapters
+**Current focus:** Phase 10 — close-v0-1-release-certification-and-evidence-gaps
 
 ## Current Position
 
-Phase: 09 (react-and-svelte-adapters) — EXECUTING
-Plan: 13 of 13
+Phase: 10 (close-v0-1-release-certification-and-evidence-gaps) — EXECUTING
+Plan: 2 of 7
 Status: Ready to execute
-Last activity: 2026-08-12 -- Phase 10 planning complete
+Last activity: 2026-08-12
 
-Progress: [██████████] 99%
+Progress: [█░░░░░░░░░] 14%
 
 ## Performance Metrics
 
@@ -80,6 +80,7 @@ Progress: [██████████] 99%
 | Phase 09 P10 | 10m | 2 tasks | 4 files |
 | Phase 09 P12 | 34m | 2 tasks | 2 files |
 | Phase 09 P11 | 24min | 2 tasks | 5 files |
+| Phase 10 P01 | 16m | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -185,6 +186,9 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 09]: Run the repository-local Vitest executable directly for the exact Phase 09 test gate. — This keeps stdout strict JSON by avoiding the pnpm workspace-selection prelude.
 - [Phase 09]: Resolve release uploads from the checked Phase 09 digest manifest and rehash every file. — The release uploads exactly the already-verified core, React, and Svelte archives without repacking.
 - [Phase 09]: Enforce CI and release workflow invariants with dependency-free structured parsing and six negative controls. — Action pins, gate order, failure propagation, Node floor, OIDC permissions, and exact uploads remain statically provable without a new dependency.
+- [Phase 10]: Associate mutable terminal-entry state with the exact dispatch Promise so cache hits retain both Promise identity and terminal control state. — The public dispatch function must remain non-async and return the cached Promise by reference, while terminality stays out of all agent-visible result shapes.
+- [Phase 10]: Keep completed terminal rows only in a frozen internal outcome; public batch callers receive one shared frozen empty array. — Session needs the normalized terminal failure for app-owned presentation, but D-10-03 forbids every row from that occurrence from reaching a direct batch caller or transport.
+- [Phase 10]: Initiate cached Session teardown after failure presentation without awaiting the active pump's own drain. — Session.stop waits for the active pump; awaiting it from runWork would make the terminal occurrence wait on itself and deadlock.
 
 ### Pending Todos
 
@@ -213,6 +217,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-11T20:18:37.631Z
-Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-close-v0-1-release-certification-and-evidence-gaps/10-CONTEXT.md
+Last session: 2026-08-12T17:22:22.973Z
+Stopped at: Completed 10-01-PLAN.md
+Resume file: None
