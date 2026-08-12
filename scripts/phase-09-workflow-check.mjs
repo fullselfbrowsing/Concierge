@@ -914,10 +914,11 @@ function validateCi(workflow) {
   );
   const buildCheckout = requireUse(buildJob.steps, CHECKOUT, "CI build checkout");
   assert(
-    buildCheckout.raw.includes("persist-credentials: false") &&
+    buildCheckout.raw.includes("fetch-depth: 0") &&
+      buildCheckout.raw.includes("persist-credentials: false") &&
       buildCheckout.raw.includes("ref: ${{ github.sha }}"),
     "CI_CHECKOUT",
-    "CI build checkout is not bound read-only to github.sha",
+    "CI build checkout must retain receipt ancestry and remain bound read-only to github.sha",
   );
   const tooling = requireOneStep(
     buildJob.steps,
