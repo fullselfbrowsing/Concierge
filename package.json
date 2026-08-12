@@ -12,16 +12,42 @@
   "bugs": {
     "url": "https://github.com/fullselfbrowsing/concierge/issues"
   },
-  "packageManager": "pnpm@10.33.0",
+  "packageManager": "pnpm@11.17.0",
   "engines": {
     "node": ">=22.12.0"
   },
   "scripts": {
     "build": "pnpm -r build",
-    "test": "pnpm -r test",
-    "typecheck": "pnpm -r typecheck"
+    "test": "vitest run",
+    "typecheck": "pnpm -r typecheck",
+    "check:artifact": "pnpm --filter @fullselfbrowsing/concierge exec publint --strict && pnpm exec attw --pack packages/concierge --profile esm-only",
+    "check:deps": "node scripts/pkg05-zero-runtime-deps.mjs packages/concierge/dist/index.js",
+    "check:pack": "bash scripts/pack-install-check.sh",
+    "check:node-floor": "bash scripts/node-floor-check.sh",
+    "test:phase09": "node scripts/phase-09-test-check.mjs",
+    "check:phase09:packages": "node scripts/phase-09-package-check.mjs all",
+    "check:phase09:budget": "node scripts/phase-09-adapter-budget.mjs check",
+    "check:phase09:static": "node scripts/phase-09-contract-check.mjs final",
+    "check:phase09:evidence": "node scripts/phase-09-mutation-battery.mjs verify all",
+    "check:phase09": "pnpm run test:phase09 && pnpm --filter @fullselfbrowsing/concierge-adapter-ssr check && pnpm --filter @fullselfbrowsing/concierge-adapter-ssr build && pnpm run check:phase09:packages && pnpm run check:phase09:budget && pnpm run check:phase09:static && pnpm run check:phase09:evidence",
+    "check:phase09:release": "pnpm run check:phase09 && node scripts/phase-09-workflow-check.mjs",
+    "version:phase09": "node scripts/phase-09-version.mjs",
+    "release": "node scripts/phase-09-publish-archives.mjs"
   },
   "devDependencies": {
-    "typescript": "^5.7.0"
+    "@arethetypeswrong/cli": "0.18.5",
+    "@changesets/cli": "2.31.1",
+    "@sveltejs/vite-plugin-svelte": "7.2.0",
+    "@testing-library/svelte": "5.4.2",
+    "@vitejs/plugin-react": "5.2.0",
+    "fs-native-extensions": "1.5.0",
+    "jsdom": "29.1.1",
+    "publint": "0.3.22",
+    "rolldown": "1.2.0",
+    "svelte": "5.56.8",
+    "tsdown": "0.22.14",
+    "typescript": "7.0.2",
+    "vite": "8.1.5",
+    "vitest": "4.1.10"
   }
 }

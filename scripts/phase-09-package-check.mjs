@@ -1,0 +1,2029 @@
+#!/usr/bin/env node
+
+import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import {
+  copyFileSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  normalize,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  createSecureChildEnvironment,
+  mergeSecureChildEnvironment,
+  PHASE09_PUBLIC_NPM_REGISTRY,
+} from "./phase-09-secure-environment.mjs";
+
+const MODES = Object.freeze([
+  "artifacts",
+  "svelte-consent",
+  "mismatch",
+  "all",
+  "self-test",
+]);
+
+const REPOSITORY_ROOT = realpathSync(
+  fileURLToPath(new URL("../", import.meta.url)),
+);
+const SYSTEM_TEMP_ROOT = realpathSync(tmpdir());
+const TEMP_PREFIX = "concierge-phase09-pack-";
+const OWNERSHIP_MARKER = ".concierge-phase09-owned-root";
+const CHILD_TIMEOUT_MS = 180_000;
+const CHILD_MAX_BUFFER = 32 * 1024 * 1024;
+const PNPM = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const NPM = process.platform === "win32" ? "npm.cmd" : "npm";
+const PACK_COMMAND = "pnpm pack";
+const MUTATION_RUNNER_PARENT_MARKER = "PHASE09_CREDENTIAL_FREE_ENV";
+const MUTATION_RUNNER_PNPM_POLICY = "PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN";
+const CORE_NAME = "@fullselfbrowsing/concierge";
+const REACT_NAME = "@fullselfbrowsing/concierge-react";
+const SVELTE_NAME = "@fullselfbrowsing/concierge-svelte";
+const FIRST_RELEASE_CORE_PEER = "workspace:^0.0.0 || ^0.1.0";
+const CONSUMER_TOOLING_FIXTURE = join(
+  REPOSITORY_ROOT,
+  "scripts/fixtures/phase-09-foreign-consumer",
+);
+const CONSUMER_TOOLING_LOCK = join(
+  CONSUMER_TOOLING_FIXTURE,
+  "package-lock.json",
+);
+const CONSUMER_TOOLING_MANIFEST = join(
+  CONSUMER_TOOLING_FIXTURE,
+  "package.json",
+);
+const MUTATION_REGISTER = join(
+  REPOSITORY_ROOT,
+  ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-REGISTER.json",
+);
+const CONSUMER_TOOLING_LOCK_REPOSITORY_PATH =
+  "scripts/fixtures/phase-09-foreign-consumer/package-lock.json";
+const PINNED_NPM_VERSION = "11.11.0";
+const PACKAGE_SPECS = Object.freeze([
+  Object.freeze({
+    key: "core",
+    name: CORE_NAME,
+    directory: join(REPOSITORY_ROOT, "packages/concierge"),
+  }),
+  Object.freeze({
+    key: "react",
+    name: REACT_NAME,
+    directory: join(REPOSITORY_ROOT, "packages/concierge-react"),
+  }),
+  Object.freeze({
+    key: "svelte",
+    name: SVELTE_NAME,
+    directory: join(REPOSITORY_ROOT, "packages/concierge-svelte"),
+  }),
+]);
+const PACKAGE_BY_NAME = new Map(PACKAGE_SPECS.map((spec) => [spec.name, spec]));
+const CONSUMER_TOOL_VERSIONS = Object.freeze({
+  "@sveltejs/vite-plugin-svelte": "7.2.0",
+  "@testing-library/react": "16.3.2",
+  "@testing-library/svelte": "5.4.2",
+  "@types/react": "19.2.18",
+  "@types/react-dom": "19.2.4",
+  "@vitejs/plugin-react": "5.2.0",
+  jsdom: "29.1.1",
+  react: "19.2.8",
+  "react-dom": "19.2.8",
+  svelte: "5.56.8",
+  typescript: "7.0.2",
+  vite: "8.1.5",
+  vitest: "4.1.10",
+});
+let activeChildEnvironment = null;
+
+function fail(code, message) {
+  throw new Error(`[${code}] ${message}`);
+}
+
+function assert(condition, code, message) {
+  if (!condition) {
+    fail(code, message);
+  }
+}
+
+function readMode(argv) {
+  if (argv.length !== 1 || !MODES.includes(argv[0])) {
+    fail(
+      "CLI_MODE",
+      `usage: node scripts/phase-09-package-check.mjs ${MODES.join("|")}`,
+    );
+  }
+
+  return argv[0];
+}
+
+function isPathWithin(candidate, parent) {
+  const pathFromParent = relative(parent, candidate);
+  return (
+    pathFromParent === "" ||
+    (pathFromParent !== ".." && !pathFromParent.startsWith(`..${sep}`))
+  );
+}
+
+function assertOutsideRepository(candidate, label) {
+  const resolvedCandidate = realpathSync(candidate);
+  assert(
+    !isPathWithin(resolvedCandidate, REPOSITORY_ROOT),
+    "WORKSPACE_REALPATH",
+    `${label} resolved inside the repository: ${resolvedCandidate}`,
+  );
+  return resolvedCandidate;
+}
+
+function assertOwnedTempRoot(root) {
+  assert(isAbsolute(root), "TEMP_ROOT", "owned root must be absolute");
+  assert(root === normalize(resolve(root)), "TEMP_ROOT", "owned root must be normalized");
+  assert(
+    dirname(root) === SYSTEM_TEMP_ROOT,
+    "TEMP_ROOT",
+    "owned root must be a direct child of the system temporary directory",
+  );
+  assert(
+    basename(root).startsWith(TEMP_PREFIX) &&
+      basename(root).length > TEMP_PREFIX.length,
+    "TEMP_ROOT",
+    "owned root must retain its nonempty package-check prefix",
+  );
+  assert(statSync(root).isDirectory(), "TEMP_ROOT", "owned root must be a directory");
+  assertOutsideRepository(root, "owned root");
+  const marker = join(root, OWNERSHIP_MARKER);
+  assert(
+    statSync(marker).isFile() && readFileSync(marker, "utf8") === basename(root),
+    "TEMP_ROOT",
+    "owned root marker is missing or invalid",
+  );
+}
+
+function createOwnedTempRoot() {
+  const root = mkdtempSync(join(SYSTEM_TEMP_ROOT, TEMP_PREFIX));
+  writeFileSync(join(root, OWNERSHIP_MARKER), basename(root), {
+    encoding: "utf8",
+    flag: "wx",
+  });
+  assertOwnedTempRoot(root);
+  return root;
+}
+
+function removeOwnedTempRoot(root) {
+  assertOwnedTempRoot(root);
+  rmSync(root, { recursive: true, force: false });
+  assert(!existsSync(root), "TEMP_CLEANUP", "owned root survived cleanup");
+}
+
+function withOwnedChildEnvironment(operation) {
+  const root = createOwnedTempRoot();
+  try {
+    const secure = createPackageChildEnvironment(root, process.env);
+    return withChildEnvironment(secure.environment, () =>
+      operation(root, secure),
+    );
+  } finally {
+    removeOwnedTempRoot(root);
+  }
+}
+
+function boundedExcerpt(value) {
+  const text = value ?? "";
+  return text.length <= 4_000 ? text : text.slice(text.length - 4_000);
+}
+
+function childEnvironment(overrides = {}, secureEnvironment = activeChildEnvironment) {
+  assert(
+    secureEnvironment !== null,
+    "CHILD_ENVIRONMENT",
+    "secure child environment is not initialized",
+  );
+  return mergeSecureChildEnvironment(secureEnvironment, overrides);
+}
+
+function sourceEnvironmentValue(sourceEnvironment, expectedName) {
+  assert(
+    sourceEnvironment !== null &&
+      typeof sourceEnvironment === "object" &&
+      !Array.isArray(sourceEnvironment),
+    "CHILD_ENVIRONMENT",
+    "package child source environment must be an object",
+  );
+  const normalizedExpected = expectedName.toLowerCase();
+  const matches = Object.entries(sourceEnvironment).filter(
+    ([name]) => name.toLowerCase() === normalizedExpected,
+  );
+  assert(
+    matches.length <= 1,
+    "CHILD_ENVIRONMENT",
+    `package child source environment has ambiguous ${expectedName} variants`,
+  );
+  if (matches.length === 0 || matches[0][1] === undefined) return undefined;
+  return String(matches[0][1]);
+}
+
+function mutationRunnerPnpmChildOverride(sourceEnvironment) {
+  const policy = sourceEnvironmentValue(
+    sourceEnvironment,
+    MUTATION_RUNNER_PNPM_POLICY,
+  );
+  const parentMarker = sourceEnvironmentValue(
+    sourceEnvironment,
+    MUTATION_RUNNER_PARENT_MARKER,
+  );
+  assert(
+    parentMarker === undefined || parentMarker === "1",
+    "CHILD_ENVIRONMENT",
+    "mutation-runner parent marker must be absent or exactly 1",
+  );
+  assert(
+    policy === undefined || policy === "false",
+    "CHILD_ENVIRONMENT",
+    "pnpm dependency-verification policy must be absent or exactly false",
+  );
+  if (parentMarker !== "1" || policy !== "false") {
+    return Object.freeze({});
+  }
+  return Object.freeze({ [MUTATION_RUNNER_PNPM_POLICY]: "false" });
+}
+
+function createPackageChildEnvironment(ownedRoot, sourceEnvironment, options) {
+  const mutationRunnerOverride = mutationRunnerPnpmChildOverride(sourceEnvironment);
+  const secure = createSecureChildEnvironment(
+    ownedRoot,
+    sourceEnvironment,
+    options,
+  );
+  const environment = Object.freeze(
+    mergeSecureChildEnvironment(secure.environment, mutationRunnerOverride),
+  );
+  return Object.freeze({ environment, paths: secure.paths, root: secure.root });
+}
+
+function withChildEnvironment(environment, operation) {
+  assert(
+    activeChildEnvironment === null,
+    "CHILD_ENVIRONMENT",
+    "secure child environment is already active",
+  );
+  activeChildEnvironment = environment;
+  try {
+    return operation();
+  } finally {
+    activeChildEnvironment = null;
+  }
+}
+
+function runChild(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd ?? REPOSITORY_ROOT,
+    encoding: "utf8",
+    env: childEnvironment(options.env, options.secureEnvironment),
+    maxBuffer: CHILD_MAX_BUFFER,
+    timeout: options.timeout ?? CHILD_TIMEOUT_MS,
+  });
+  const label = options.label ?? [command, ...args].join(" ");
+
+  assert(
+    result.error === undefined,
+    "CHILD_PROCESS",
+    `${label} process error: ${result.error?.message ?? "unknown"}`,
+  );
+  assert(
+    result.signal === null,
+    "CHILD_PROCESS",
+    `${label} exceeded its bounded runtime or received ${String(result.signal)}`,
+  );
+  assert(
+    result.status === 0,
+    "CHILD_PROCESS",
+    `${label} exited ${String(result.status)}\nstdout:\n${boundedExcerpt(result.stdout)}\nstderr:\n${boundedExcerpt(result.stderr)}`,
+  );
+  assert(
+    result.stdout.length <= CHILD_MAX_BUFFER &&
+      result.stderr.length <= CHILD_MAX_BUFFER,
+    "CHILD_OUTPUT",
+    `${label} exceeded the output bound`,
+  );
+
+  return Object.freeze({ stdout: result.stdout, stderr: result.stderr });
+}
+
+function writeJson(path, value) {
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function sha256File(path) {
+  return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+function readArchiveText(archivePath, entry) {
+  return runChild("tar", ["-xOzf", archivePath, entry], {
+    label: `tar read ${basename(archivePath)} ${entry}`,
+  }).stdout;
+}
+
+function readArchiveManifest(archivePath) {
+  try {
+    return JSON.parse(readArchiveText(archivePath, "package/package.json"));
+  } catch (error) {
+    fail(
+      "ARCHIVE_MANIFEST",
+      `${basename(archivePath)} has no parseable package/package.json: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+function listArchiveEntries(archivePath) {
+  const entries = runChild("tar", ["-tzf", archivePath], {
+    label: `tar list ${basename(archivePath)}`,
+  }).stdout
+    .split(/\r?\n/u)
+    .filter(Boolean);
+  assert(entries.length > 0, "ARCHIVE_EMPTY", `${basename(archivePath)} is empty`);
+  return entries;
+}
+
+function enumerateExactArchives(archiveDirectory) {
+  const archivePaths = readdirSync(archiveDirectory)
+    .filter((entry) => entry.endsWith(".tgz"))
+    .map((entry) => join(archiveDirectory, entry))
+    .sort();
+  assert(
+    archivePaths.length === PACKAGE_SPECS.length,
+    "ARCHIVE_COUNT",
+    `expected exactly three archives, found ${archivePaths.length}`,
+  );
+
+  const seenNames = new Set();
+  const archives = archivePaths.map((path) => {
+    assert(statSync(path).isFile(), "ARCHIVE_FILE", `${path} is not a regular file`);
+    assert(statSync(path).size > 0, "ARCHIVE_FILE", `${path} is empty`);
+    const manifest = readArchiveManifest(path);
+    const spec = PACKAGE_BY_NAME.get(manifest.name);
+    assert(spec !== undefined, "ARCHIVE_IDENTITY", `foreign archive identity ${String(manifest.name)}`);
+    assert(
+      !seenNames.has(manifest.name),
+      "ARCHIVE_IDENTITY",
+      `duplicate archive identity ${manifest.name}`,
+    );
+    seenNames.add(manifest.name);
+    return Object.freeze({
+      key: spec.key,
+      name: spec.name,
+      path,
+      manifest,
+      sha256: sha256File(path),
+    });
+  });
+
+  for (const spec of PACKAGE_SPECS) {
+    assert(seenNames.has(spec.name), "ARCHIVE_MISSING", `missing archive for ${spec.name}`);
+  }
+
+  return Object.freeze(
+    Object.fromEntries(archives.map((archive) => [archive.key, archive])),
+  );
+}
+
+function buildAndPackTriplet(root) {
+  const archiveDirectory = join(root, "archives");
+  mkdirSync(archiveDirectory);
+  const packCounts = new Map(PACKAGE_SPECS.map((spec) => [spec.name, 0]));
+
+  for (const spec of PACKAGE_SPECS) {
+    runChild(PNPM, ["--filter", spec.name, "build"], {
+      label: `build ${spec.name}`,
+    });
+  }
+
+  for (const spec of PACKAGE_SPECS) {
+    runChild(PNPM, ["pack", "--pack-destination", archiveDirectory], {
+      cwd: spec.directory,
+      label: `${PACK_COMMAND} ${spec.name}`,
+    });
+    packCounts.set(spec.name, (packCounts.get(spec.name) ?? 0) + 1);
+  }
+
+  for (const spec of PACKAGE_SPECS) {
+    assert(
+      packCounts.get(spec.name) === 1,
+      "PACK_COUNT",
+      `${spec.name} was not packed exactly once`,
+    );
+  }
+
+  return enumerateExactArchives(archiveDirectory);
+}
+
+function collectManifestTargets(manifest) {
+  const targets = new Set();
+  const visit = (value) => {
+    if (typeof value === "string" && value.startsWith("./")) {
+      targets.add(`package/${value.slice(2)}`);
+      return;
+    }
+    if (value !== null && typeof value === "object") {
+      for (const child of Object.values(value)) {
+        visit(child);
+      }
+    }
+  };
+  visit(manifest.main);
+  visit(manifest.types);
+  visit(manifest.svelte);
+  visit(manifest.exports);
+  return targets;
+}
+
+function validateArchiveContents(archive, liveManifestOverride = null) {
+  const entries = listArchiveEntries(archive.path);
+  const entrySet = new Set(entries);
+  for (const entry of entries) {
+    assert(
+      entry.startsWith("package/") && !entry.includes("../"),
+      "TAR_ENTRY",
+      `${archive.name} contains a foreign or traversing entry: ${entry}`,
+    );
+    assert(
+      !/(?:^|\/)(?:__tests__|fixtures|test|tests)(?:\/|$)|\.(?:spec|test)\.[^/]+$|stub-transport/iu.test(
+        entry,
+      ),
+      "TAR_PRIVATE",
+      `${archive.name} contains private test material: ${entry}`,
+    );
+  }
+
+  for (const target of collectManifestTargets(archive.manifest)) {
+    assert(
+      entrySet.has(target),
+      "TAR_TARGET",
+      `${archive.name} is missing exported target ${target}`,
+    );
+  }
+
+  const liveManifest = liveManifestOverride ?? JSON.parse(
+    readFileSync(join(PACKAGE_BY_NAME.get(archive.name).directory, "package.json"), "utf8"),
+  );
+  assert(
+    archive.manifest.version === liveManifest.version,
+    "ARCHIVE_VERSION",
+    `${archive.name} archive version does not match its live manifest`,
+  );
+
+  if (archive.key !== "core") {
+    const expectedLiveCorePeer = liveManifest.version === "0.0.0"
+      ? FIRST_RELEASE_CORE_PEER
+      : "workspace:^";
+    const expectedPackedCorePeer = liveManifest.version === "0.0.0"
+      ? "^0.0.0 || ^0.1.0"
+      : `^${liveManifest.version}`;
+    const expectedFrameworkPeers =
+      archive.key === "react"
+        ? Object.freeze({
+            react: "^18.2.0 || ^19.0.0",
+            "react-dom": "^18.2.0 || ^19.0.0",
+          })
+        : Object.freeze({ svelte: "^5.0.0" });
+    assert(
+      liveManifest.peerDependencies?.[CORE_NAME] === expectedLiveCorePeer &&
+        liveManifest.devDependencies?.[CORE_NAME] === "workspace:*" &&
+        liveManifest.dependencies?.[CORE_NAME] === undefined,
+      "ADAPTER_MANIFEST",
+      `${archive.name} live manifest must keep core peer+dev only`,
+    );
+    assert(
+      archive.manifest.peerDependencies?.[CORE_NAME] === expectedPackedCorePeer &&
+        archive.manifest.dependencies?.[CORE_NAME] === undefined,
+      "ADAPTER_MANIFEST",
+      `${archive.name} packed manifest must contain exact core peer ${expectedPackedCorePeer}`,
+    );
+    for (const [name, range] of Object.entries(expectedFrameworkPeers)) {
+      assert(
+        liveManifest.peerDependencies?.[name] === range &&
+          archive.manifest.peerDependencies?.[name] === range &&
+          liveManifest.dependencies?.[name] === undefined &&
+          archive.manifest.dependencies?.[name] === undefined,
+        "ADAPTER_MANIFEST",
+        `${archive.name} must retain its reviewed ${name} peer range`,
+      );
+    }
+    for (const entry of entries) {
+      assert(
+        !/^package\/(?:node_modules\/)?@fullselfbrowsing\/concierge\//u.test(entry) &&
+          !/^package\/src\/(?:bridge|catalog|concierge|consent-evidence|consent-profile|contract|define-action|dispatch|host|json-schema|message|session|types)\.ts$/u.test(
+            entry,
+          ),
+        "BUNDLED_CORE",
+        `${archive.name} contains bundled core material: ${entry}`,
+      );
+    }
+  }
+
+  return entries.length;
+}
+
+function validateTripletArtifacts(archives) {
+  const tarEntryCounts = {};
+  for (const spec of PACKAGE_SPECS) {
+    const archive = archives[spec.key];
+    tarEntryCounts[spec.key] = validateArchiveContents(archive);
+    runChild(PNPM, ["exec", "publint", "run", archive.path, "--strict"], {
+      label: `publint ${archive.name}`,
+    });
+    runChild(PNPM, ["exec", "attw", archive.path, "--profile", "esm-only"], {
+      label: `attw ${archive.name}`,
+    });
+  }
+  return Object.freeze(tarEntryCounts);
+}
+
+function walkForRepositorySymlinks(directory) {
+  for (const entry of readdirSync(directory)) {
+    const path = join(directory, entry);
+    const stat = lstatSync(path);
+    if (stat.isSymbolicLink()) {
+      assertOutsideRepository(path, `installed symlink ${path}`);
+    } else if (stat.isDirectory()) {
+      walkForRepositorySymlinks(path);
+    }
+  }
+}
+
+function assertOnePhysicalCore(coreManifestPaths) {
+  const coreRoots = coreManifestPaths.map((path) => realpathSync(dirname(path)));
+  assert(
+    new Set(coreRoots).size === 1,
+    "DUPLICATE_CORE",
+    `expected one physical core, found ${[...new Set(coreRoots)].join(", ")}`,
+  );
+  return coreRoots[0];
+}
+
+function inspectInstalledTopology(consumerDirectory) {
+  const consumerManifest = join(consumerDirectory, "package.json");
+  const consumerRequire = createRequire(pathToFileURL(consumerManifest));
+  const coreManifest = consumerRequire.resolve(`${CORE_NAME}/package.json`);
+  const reactManifest = consumerRequire.resolve(`${REACT_NAME}/package.json`);
+  const svelteManifest = consumerRequire.resolve(`${SVELTE_NAME}/package.json`);
+  const reactRequire = createRequire(pathToFileURL(reactManifest));
+  const svelteRequire = createRequire(pathToFileURL(svelteManifest));
+  const reactCoreManifest = reactRequire.resolve(`${CORE_NAME}/package.json`);
+  const svelteCoreManifest = svelteRequire.resolve(`${CORE_NAME}/package.json`);
+  const physicalCore = assertOnePhysicalCore([
+    coreManifest,
+    reactCoreManifest,
+    svelteCoreManifest,
+  ]);
+
+  for (const path of [coreManifest, reactManifest, svelteManifest, physicalCore]) {
+    assertOutsideRepository(path, "installed package realpath");
+  }
+  for (const manifestPath of [reactManifest, svelteManifest]) {
+    const nestedCore = join(
+      dirname(manifestPath),
+      "node_modules/@fullselfbrowsing/concierge/package.json",
+    );
+    assert(
+      !existsSync(nestedCore),
+      "DUPLICATE_CORE",
+      `adapter contains a nested core: ${nestedCore}`,
+    );
+  }
+
+  walkForRepositorySymlinks(join(consumerDirectory, "node_modules"));
+  const graphResult = runChild(NPM, ["ls", "--all", "--json"], {
+    cwd: consumerDirectory,
+    label: "npm dependency graph",
+  });
+  const graph = JSON.parse(graphResult.stdout);
+  assert(
+    !Array.isArray(graph.problems) || graph.problems.length === 0,
+    "NPM_GRAPH",
+    `npm graph reported problems: ${JSON.stringify(graph.problems)}`,
+  );
+  const graphText = JSON.stringify(graph);
+  for (const name of [CORE_NAME, REACT_NAME, SVELTE_NAME]) {
+    assert(graphText.includes(name), "NPM_GRAPH", `npm graph omitted ${name}`);
+  }
+
+  return Object.freeze({
+    coreManifest,
+    reactManifest,
+    svelteManifest,
+    physicalCore,
+  });
+}
+
+function loadConsumerToolingFixture(
+  manifestPath = CONSUMER_TOOLING_MANIFEST,
+  lockPath = CONSUMER_TOOLING_LOCK,
+) {
+  for (const path of [manifestPath, lockPath]) {
+    const metadata = lstatSync(path);
+    assert(
+      metadata.isFile() && metadata.size > 0 && realpathSync(path) === path,
+      "CONSUMER_TOOLING",
+      `${relative(REPOSITORY_ROOT, path)} must be a nonempty regular file`,
+    );
+  }
+
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const lockText = readFileSync(lockPath, "utf8");
+  const lock = JSON.parse(lockText);
+  assert(
+    manifest.packageManager === `npm@${PINNED_NPM_VERSION}`,
+    "CONSUMER_TOOLING",
+    `consumer tooling must pin npm@${PINNED_NPM_VERSION}`,
+  );
+  assert(
+    JSON.stringify(manifest.dependencies) ===
+      JSON.stringify(CONSUMER_TOOL_VERSIONS),
+    "CONSUMER_TOOLING",
+    "consumer tooling manifest dependencies differ from the reviewed versions",
+  );
+  assert(
+    lock.lockfileVersion === 3 &&
+      JSON.stringify(lock.packages?.[""]?.dependencies) ===
+        JSON.stringify(CONSUMER_TOOL_VERSIONS) &&
+      Object.keys(lock.packages ?? {}).length > 1,
+    "CONSUMER_TOOLING",
+    "consumer tooling lock is incomplete or differs from its manifest",
+  );
+  assert(
+    !lockText.includes("workspace:") &&
+      !lockText.includes(REPOSITORY_ROOT) &&
+      !/"link"\s*:\s*true/u.test(lockText),
+    "CONSUMER_TOOLING",
+    "consumer tooling lock contains workspace or repository linkage",
+  );
+
+  return Object.freeze({
+    lockSha256: sha256File(lockPath),
+    manifest,
+  });
+}
+
+function prepareConsumerTooling(root) {
+  const fixture = loadConsumerToolingFixture();
+  const npmVersion = runChild(NPM, ["--version"], {
+    label: "pinned consumer npm version",
+  }).stdout.trim();
+  assert(
+    npmVersion === PINNED_NPM_VERSION,
+    "NPM_VERSION",
+    `expected npm ${PINNED_NPM_VERSION}, received ${npmVersion}`,
+  );
+
+  const cacheDirectory = join(
+    root,
+    `consumer-npm-cache-${fixture.lockSha256.slice(0, 16)}`,
+  );
+  const populationDirectory = join(root, "consumer-cache-population");
+  mkdirSync(cacheDirectory);
+  mkdirSync(populationDirectory);
+  assertOutsideRepository(cacheDirectory, "consumer tooling cache");
+  assertOutsideRepository(populationDirectory, "consumer cache population");
+  copyFileSync(
+    CONSUMER_TOOLING_MANIFEST,
+    join(populationDirectory, "package.json"),
+  );
+  copyFileSync(
+    CONSUMER_TOOLING_LOCK,
+    join(populationDirectory, "package-lock.json"),
+  );
+  runChild(
+    NPM,
+    [
+      "ci",
+      "--ignore-scripts",
+      "--cache",
+      cacheDirectory,
+      "--no-audit",
+      "--no-fund",
+      "--loglevel=error",
+    ],
+    {
+      cwd: populationDirectory,
+      label: "populate consumer cache from committed lock",
+    },
+  );
+  assert(
+    sha256File(join(populationDirectory, "package-lock.json")) ===
+      fixture.lockSha256,
+    "CONSUMER_LOCK",
+    "cache population changed the committed consumer lock",
+  );
+  rmSync(join(populationDirectory, "node_modules"), {
+    recursive: true,
+    force: false,
+  });
+
+  return Object.freeze({
+    cacheDirectory,
+    evidence: Object.freeze({
+      lockFile: CONSUMER_TOOLING_LOCK_REPOSITORY_PATH,
+      lockSha256: fixture.lockSha256,
+      npmVersion,
+      offlineCi: true,
+    }),
+    manifest: fixture.manifest,
+  });
+}
+
+function createConsumer(root, archives, label, tooling) {
+  const consumerDirectory = join(root, label);
+  mkdirSync(consumerDirectory);
+  assertOutsideRepository(consumerDirectory, `${label} consumer`);
+  const manifestPath = join(consumerDirectory, "package.json");
+  const lockPath = join(consumerDirectory, "package-lock.json");
+  copyFileSync(CONSUMER_TOOLING_MANIFEST, manifestPath);
+  copyFileSync(CONSUMER_TOOLING_LOCK, lockPath);
+  runChild(
+    NPM,
+    [
+      "ci",
+      "--ignore-scripts",
+      "--offline",
+      "--cache",
+      tooling.cacheDirectory,
+      "--no-audit",
+      "--no-fund",
+      "--loglevel=error",
+    ],
+    { cwd: consumerDirectory, label: `offline npm ci ${label}` },
+  );
+  assert(
+    sha256File(lockPath) === tooling.evidence.lockSha256,
+    "CONSUMER_LOCK",
+    "offline npm ci changed the committed consumer lock",
+  );
+
+  const dependencies = {
+    [CORE_NAME]: `file:${archives.core.path}`,
+    [REACT_NAME]: `file:${archives.react.path}`,
+    [SVELTE_NAME]: `file:${archives.svelte.path}`,
+    ...CONSUMER_TOOL_VERSIONS,
+  };
+  const archivePaths = PACKAGE_SPECS.map((spec) => archives[spec.key].path);
+  runChild(
+    NPM,
+    [
+      "install",
+      "--ignore-scripts",
+      "--offline",
+      "--cache",
+      tooling.cacheDirectory,
+      "--no-audit",
+      "--no-fund",
+      "--loglevel=error",
+      "--legacy-peer-deps",
+      "--no-save",
+      ...archivePaths,
+    ],
+    { cwd: consumerDirectory, label: `offline local archives ${label}` },
+  );
+  assert(
+    sha256File(lockPath) === tooling.evidence.lockSha256,
+    "CONSUMER_LOCK",
+    "local archive installation changed the committed consumer lock",
+  );
+  writeJson(manifestPath, {
+    ...tooling.manifest,
+    name: `concierge-phase09-${label}`,
+    dependencies,
+  });
+  const lockText = readFileSync(lockPath, "utf8");
+  assert(
+    !lockText.includes("workspace:") &&
+      !lockText.includes(REPOSITORY_ROOT) &&
+      !/"link"\s*:\s*true/u.test(lockText),
+    "WORKSPACE_LINK",
+    "consumer lockfile contains workspace or repository linkage",
+  );
+  const topology = inspectInstalledTopology(consumerDirectory);
+  return Object.freeze({
+    directory: consumerDirectory,
+    lockSha256: tooling.evidence.lockSha256,
+    topology,
+  });
+}
+
+function writeDeclarationFixture(consumerDirectory) {
+  writeJson(join(consumerDirectory, "tsconfig.json"), {
+    compilerOptions: {
+      target: "ES2022",
+      lib: ["ES2022", "DOM", "DOM.Iterable"],
+      module: "node20",
+      strict: true,
+      exactOptionalPropertyTypes: true,
+      noEmit: true,
+      skipLibCheck: false,
+    },
+    include: ["public-entries.ts"],
+  });
+  writeFileSync(
+    join(consumerDirectory, "public-entries.ts"),
+    `import { createBridge, createConcierge, defineAction } from "${CORE_NAME}";\n` +
+      `import type { Bridge, BridgeRegistry, Concierge, SnapshotNormalizer } from "${CORE_NAME}";\n` +
+      `import * as reactRoot from "${REACT_NAME}";\n` +
+      `import { ConciergeProvider, useConcierge, useConciergeBridge, useConciergeValue } from "${REACT_NAME}/client";\n` +
+      `import * as svelteRoot from "${SVELTE_NAME}";\n` +
+      `import { provideConcierge, svelteSnapshotNormalizer, useConcierge as useSvelteConcierge, useConciergeBridge as useSvelteBridge } from "${SVELTE_NAME}/client.svelte";\n` +
+      `const concierge: Concierge = createConcierge({ stages: [] });\n` +
+      `const registry = createBridge("booking");\n` +
+      `const normalizer: SnapshotNormalizer = svelteSnapshotNormalizer;\n` +
+      `const bridge: Bridge = { actions: Object.freeze({}), snapshot: Object.freeze({}) };\n` +
+      `const typedRegistry: BridgeRegistry = registry;\n` +
+      `useSvelteBridge(() => typedRegistry, () => bridge);\n` +
+      `void [concierge, normalizer, bridge, typedRegistry, defineAction, reactRoot, ConciergeProvider, useConcierge, useConciergeBridge, useConciergeValue, svelteRoot, provideConcierge, useSvelteConcierge];\n`,
+    "utf8",
+  );
+}
+
+function runDeclarationCheck(consumerDirectory) {
+  writeDeclarationFixture(consumerDirectory);
+  const compiler = join(
+    consumerDirectory,
+    "node_modules/.bin",
+    process.platform === "win32" ? "tsc.cmd" : "tsc",
+  );
+  const version = runChild(compiler, ["--version"], {
+    cwd: consumerDirectory,
+    label: "consumer TypeScript version",
+  }).stdout.trim();
+  assert(
+    version === "Version 7.0.2",
+    "TYPESCRIPT_VERSION",
+    `expected TypeScript 7.0.2, received ${version}`,
+  );
+  runChild(compiler, ["-p", "tsconfig.json"], {
+    cwd: consumerDirectory,
+    label: "consumer public declaration typecheck (skipLibCheck false)",
+  });
+  return version;
+}
+
+function writeServerFixtures(consumerDirectory) {
+  const serverDirectory = join(consumerDirectory, "server");
+  mkdirSync(serverDirectory);
+  writeFileSync(
+    join(consumerDirectory, "vitest.server.config.mjs"),
+    `import { defineConfig } from "vitest/config";\n` +
+      `import react from "@vitejs/plugin-react";\n` +
+      `import { svelte } from "@sveltejs/vite-plugin-svelte";\n` +
+      `export default defineConfig({\n` +
+      `  plugins: [react(), svelte({ compilerOptions: { hmr: false } })],\n` +
+      `  resolve: { conditions: ["svelte"] },\n` +
+      `  test: {\n` +
+      `    environment: "node",\n` +
+      `    include: ["server/react-ssr.test.tsx", "server/svelte-ssr.test.ts"],\n` +
+      `    fileParallelism: false,\n` +
+      `    maxWorkers: 1,\n` +
+      `  },\n` +
+      `});\n`,
+    "utf8",
+  );
+  writeFileSync(
+    join(serverDirectory, "react-ssr.test.tsx"),
+    `import { createElement } from "react";\n` +
+      `import { renderToString } from "react-dom/server";\n` +
+      `import { describe, expect, it } from "vitest";\n` +
+      `import { createConcierge } from "${CORE_NAME}";\n` +
+      `import * as reactRoot from "${REACT_NAME}";\n` +
+      `import { ConciergeProvider, useConciergeBridge } from "${REACT_NAME}/client";\n` +
+      `describe("packed React public server entry", () => {\n` +
+      `  it("imports and renders without browser globals or registration", () => {\n` +
+      `    expect([Reflect.has(globalThis, "window"), Reflect.has(globalThis, "document"), Reflect.has(globalThis, "navigator")]).toEqual([false, false, false]);\n` +
+      `    let registerCount = 0;\n` +
+      `    const registry = { register() { registerCount += 1; return () => {}; }, read() { return null; } };\n` +
+      `    const bridge = { actions: Object.freeze({}), snapshot: Object.freeze({}) };\n` +
+      `    const concierge = createConcierge({ stages: [] });\n` +
+      `    function Probe() { useConciergeBridge(registry, bridge); return createElement("span", null, "react-server"); }\n` +
+      `    const html = renderToString(createElement(ConciergeProvider, { concierge }, createElement(Probe)));\n` +
+      `    expect(html).toContain("react-server");\n` +
+      `    expect(registerCount).toBe(0);\n` +
+      `    expect(Object.keys(reactRoot)).toEqual([]);\n` +
+      `  });\n` +
+      `});\n`,
+    "utf8",
+  );
+  writeFileSync(
+    join(serverDirectory, "SvelteProbe.svelte"),
+    `<script lang="ts">\n` +
+      `  import { provideConcierge, useConciergeBridge } from "${SVELTE_NAME}/client.svelte";\n` +
+      `  let { concierge, registry, bridge } = $props();\n` +
+      `  provideConcierge(concierge);\n` +
+      `  useConciergeBridge(() => registry, () => bridge);\n` +
+      `</script>\n` +
+      `<span>packed-svelte-server</span>\n`,
+    "utf8",
+  );
+  writeFileSync(
+    join(serverDirectory, "svelte-ssr.test.ts"),
+    `import { render } from "svelte/server";\n` +
+      `import { describe, expect, it } from "vitest";\n` +
+      `import { createConcierge } from "${CORE_NAME}";\n` +
+      `import * as svelteRoot from "${SVELTE_NAME}";\n` +
+      `import SvelteProbe from "./SvelteProbe.svelte";\n` +
+      `describe("packed Svelte public server entry", () => {\n` +
+      `  it("compiler-renders without browser globals or registration", () => {\n` +
+      `    expect([Reflect.has(globalThis, "window"), Reflect.has(globalThis, "document"), Reflect.has(globalThis, "navigator")]).toEqual([false, false, false]);\n` +
+      `    let registerCount = 0;\n` +
+      `    const registry = { register() { registerCount += 1; return () => {}; }, read() { return null; } };\n` +
+      `    const bridge = { actions: Object.freeze({}), snapshot: Object.freeze({}) };\n` +
+      `    const concierge = createConcierge({ stages: [] });\n` +
+      `    const output = render(SvelteProbe, { props: { concierge, registry, bridge } });\n` +
+      `    expect(output.body).toContain("packed-svelte-server");\n` +
+      `    expect(registerCount).toBe(0);\n` +
+      `    expect(Object.keys(svelteRoot)).toEqual([]);\n` +
+      `  });\n` +
+      `});\n`,
+    "utf8",
+  );
+}
+
+function validatePositiveVitestReport(reportPath, expectedTestFiles) {
+  const report = JSON.parse(readFileSync(reportPath, "utf8"));
+  assert(report.success === true, "VITEST_REPORT", "Vitest JSON success was not true");
+  assert(
+    Number.isInteger(report.numTotalTestSuites) && report.numTotalTestSuites > 0,
+    "VITEST_ZERO",
+    "Vitest collected zero test suites",
+  );
+  assert(
+    Number.isInteger(report.numTotalTests) && report.numTotalTests > 0,
+    "VITEST_ZERO",
+    "Vitest collected zero tests",
+  );
+  assert(
+    Array.isArray(report.testResults) && report.testResults.length > 0,
+    "VITEST_ZERO",
+    "Vitest collected zero test files",
+  );
+  assert(
+    report.numFailedTests === 0 && report.numPassedTests === report.numTotalTests,
+    "VITEST_FAILURE",
+    "Vitest JSON contains failed or non-passing tests",
+  );
+  const actualFiles = report.testResults.map((result) => basename(result.name)).sort();
+  assert(
+    JSON.stringify(actualFiles) === JSON.stringify([...expectedTestFiles].sort()),
+    "VITEST_FILES",
+    `Vitest ran unexpected files: ${actualFiles.join(", ")}`,
+  );
+  for (const result of report.testResults) {
+    assert(
+      Array.isArray(result.assertionResults) && result.assertionResults.length > 0,
+      "VITEST_ZERO",
+      `${result.name} reported zero assertions`,
+    );
+    assert(
+      result.assertionResults.every((assertion) => assertion.status === "passed"),
+      "VITEST_FAILURE",
+      `${result.name} contains a non-passing assertion`,
+    );
+  }
+  return Object.freeze({
+    files: report.testResults.length,
+    suites: report.numTotalTestSuites,
+    tests: report.numTotalTests,
+  });
+}
+
+function runServerTests(consumerDirectory) {
+  writeServerFixtures(consumerDirectory);
+  const reportPath = join(consumerDirectory, "vitest-server.json");
+  const vitest = join(
+    consumerDirectory,
+    "node_modules/.bin",
+    process.platform === "win32" ? "vitest.cmd" : "vitest",
+  );
+  const nodeOptions = "--no-experimental-global-navigator";
+  runChild(
+    vitest,
+    [
+      "run",
+      "--config",
+      "vitest.server.config.mjs",
+      "--reporter=json",
+      `--outputFile=${reportPath}`,
+    ],
+    {
+      cwd: consumerDirectory,
+      env: { NODE_OPTIONS: nodeOptions },
+      label: "packed public server Vitest",
+    },
+  );
+  return validatePositiveVitestReport(reportPath, [
+    "react-ssr.test.tsx",
+    "svelte-ssr.test.ts",
+  ]);
+}
+
+function runArtifactStage(root, archives, tooling) {
+  const consumer = createConsumer(
+    root,
+    archives,
+    "artifact-consumer",
+    tooling,
+  );
+  const typescript = runDeclarationCheck(consumer.directory);
+  const serverTests = runServerTests(consumer.directory);
+  return Object.freeze({ consumer, typescript, serverTests });
+}
+
+function writeConsentFixture(consumerDirectory) {
+  const consentDirectory = join(consumerDirectory, "consent");
+  mkdirSync(consentDirectory);
+  writeFileSync(
+    join(consumerDirectory, "vitest.consent.config.mjs"),
+    `import { defineConfig } from "vitest/config";\n` +
+      `import { svelte } from "@sveltejs/vite-plugin-svelte";\n` +
+      `export default defineConfig({\n` +
+      `  plugins: [svelte({ compilerOptions: { hmr: false } })],\n` +
+      `  resolve: { conditions: ["svelte"] },\n` +
+      `  test: { environment: "jsdom", include: ["consent/consent.test.ts"], fileParallelism: false, maxWorkers: 1 },\n` +
+      `});\n`,
+    "utf8",
+  );
+  writeFileSync(
+    join(consentDirectory, "rune-state.svelte.ts"),
+    `export function createRuneState() {\n` +
+      `  const state = $state({ booking: { amount: 41, seat: "A" } });\n` +
+      `  return {\n` +
+      `    state,\n` +
+      `    mutate() { state.booking.amount = 42; state.booking.seat = "B"; },\n` +
+      `  };\n` +
+      `}\n`,
+    "utf8",
+  );
+  writeFileSync(
+    join(consentDirectory, "consent.test.ts"),
+    `import { describe, expect, it } from "vitest";\n` +
+      `import { createBridge, createConcierge, defineAction } from "${CORE_NAME}";\n` +
+      `import { svelteSnapshotNormalizer } from "${SVELTE_NAME}/client.svelte";\n` +
+      `import { createRuneState } from "./rune-state.svelte";\n` +
+      `const schema = { "~standard": { version: 1, vendor: "phase09-packed-consent", validate: (value) => ({ value }) } };\n` +
+      `const review = defineAction({ name: "reviewBooking", description: "Review the current booking.", schema, jsonSchema: { type: "object" }, redact: "drop", effects: { readOnly: true }, handler: () => ({ ok: true, message: "Booking reviewed." }) });\n` +
+      `async function exercise(normalizeSnapshot) {\n` +
+      `  const rune = createRuneState();\n` +
+      `  const registry = createBridge("booking");\n` +
+      `  let handlerCount = 0;\n` +
+      `  let delivered;\n` +
+      `  const confirm = defineAction({\n` +
+      `    name: "confirmBooking",\n` +
+      `    description: "Confirm the reviewed booking.",\n` +
+      `    schema,\n` +
+      `    jsonSchema: { type: "object" },\n` +
+      `    redact: "drop",\n` +
+      `    effects: { destructive: true },\n` +
+      `    consent: { requires: "reviewBooking", bindTo: "response", minGrade: "relayed" },\n` +
+      `    handler: () => { handlerCount += 1; return { ok: true, message: "Booking confirmed." }; },\n` +
+      `  });\n` +
+      `  const bridge = { actions: Object.freeze({}), snapshot: Object.freeze({ booking: () => rune.state }) };\n` +
+      `  const unregister = registry.register(bridge);\n` +
+      `  const concierge = createConcierge({\n` +
+      `    stages: [{ id: "booking", match: () => true, actions: [review, confirm], bridge: registry }],\n` +
+      `    consentProfile: { consentGrade: "relayed", userTurnIdentity: "human-attested" },\n` +
+      `    normalizeSnapshot,\n` +
+      `    commitWindowMs: 0,\n` +
+      `  });\n` +
+      `  const reviewResult = await concierge.dispatch({}, "reviewBooking", { amount: 41, seat: "A" }, {\n` +
+      `    callId: "review-call",\n` +
+      `    responseId: "review-response",\n` +
+      `    deferUntilDelivered(effect) { delivered = effect; },\n` +
+      `  });\n` +
+      `  expect(reviewResult).toEqual({ ok: true, message: "Booking reviewed." });\n` +
+      `  expect(delivered).toBeTypeOf("function");\n` +
+      `  delivered({ responseId: "review-response", outcome: "completed" });\n` +
+      `  rune.mutate();\n` +
+      `  expect(registry.read()).toBe(bridge);\n` +
+      `  expect(registry.read().snapshot.booking()).toEqual({ booking: { amount: 42, seat: "B" } });\n` +
+      `  const confirmResult = await concierge.dispatch({}, "confirmBooking", {}, { callId: "confirm-call", responseId: "confirm-response" });\n` +
+      `  unregister();\n` +
+      `  return { confirmResult, handlerCount };\n` +
+      `}\n` +
+      `describe("packed real-$state consent drift", () => {\n` +
+      `  it("[T03/S1] closes completed review after nested live mutation", async () => {\n` +
+      `    const detached = await exercise(svelteSnapshotNormalizer);\n` +
+      `    expect(detached).toEqual({\n` +
+      `      confirmResult: { ok: false, reason: "consent_stale", message: "The reviewed state changed before this action could run." },\n` +
+      `      handlerCount: 0,\n` +
+      `    });\n` +
+      `    const identity = await exercise((value) => value);\n` +
+      `    expect(identity).toEqual({ confirmResult: { ok: true, message: "Booking confirmed." }, handlerCount: 1 });\n` +
+      `  });\n` +
+      `});\n`,
+    "utf8",
+  );
+}
+
+function runSvelteConsentStage(consumerDirectory) {
+  writeConsentFixture(consumerDirectory);
+  const vitest = join(
+    consumerDirectory,
+    "node_modules/.bin",
+    process.platform === "win32" ? "vitest.cmd" : "vitest",
+  );
+  const reportPath = join(consumerDirectory, "vitest-consent.json");
+  runChild(
+    vitest,
+    [
+      "run",
+      "--config",
+      "vitest.consent.config.mjs",
+      "--reporter=json",
+      `--outputFile=${reportPath}`,
+    ],
+    { cwd: consumerDirectory, label: "packed real-$state consent" },
+  );
+  return validatePositiveVitestReport(reportPath, ["consent.test.ts"]);
+}
+
+function hashRegularFileTree(directory) {
+  const hashes = new Map();
+  const visit = (current) => {
+    for (const entry of readdirSync(current).sort()) {
+      const path = join(current, entry);
+      const stat = lstatSync(path);
+      assert(
+        !stat.isSymbolicLink(),
+        "MISMATCH_TREE",
+        `disposable adapter tree contains a symlink: ${path}`,
+      );
+      if (stat.isDirectory()) {
+        visit(path);
+      } else if (stat.isFile()) {
+        hashes.set(relative(directory, path), sha256File(path));
+      } else {
+        fail("MISMATCH_TREE", `unsupported disposable adapter entry: ${path}`);
+      }
+    }
+  };
+  visit(directory);
+  return hashes;
+}
+
+function changedTreePaths(before, after) {
+  const paths = new Set([...before.keys(), ...after.keys()]);
+  return [...paths]
+    .filter((path) => before.get(path) !== after.get(path))
+    .sort();
+}
+
+function replaceUniqueLiteral(source, before, after, label) {
+  const occurrences = source.split(before).length - 1;
+  assert(
+    occurrences === 1,
+    "EXPECTED_CONTRACT_VERSION",
+    `${label} expected one adapter-owned version literal, found ${occurrences}`,
+  );
+  return source.replace(before, after);
+}
+
+function repackMismatchedAdapter(root, archives, adapterKey) {
+  const archive = archives[adapterKey];
+  const mutationRoot = join(root, `${adapterKey}-mismatch`);
+  const unpackRoot = join(mutationRoot, "unpacked");
+  const packedRoot = join(mutationRoot, "packed");
+  mkdirSync(unpackRoot, { recursive: true });
+  mkdirSync(packedRoot);
+  runChild("tar", ["-xzf", archive.path, "-C", unpackRoot], {
+    label: `unpack ${archive.name} for mismatch`,
+  });
+  const packageRoot = join(unpackRoot, "package");
+  assert(statSync(packageRoot).isDirectory(), "MISMATCH_TREE", "unpacked package root is missing");
+  const clientRelative =
+    adapterKey === "react" ? "dist/client.js" : "dist/client.svelte.js";
+  const clientPath = join(packageRoot, clientRelative);
+  const beforeTree = hashRegularFileTree(packageRoot);
+  const originalClient = readFileSync(clientPath, "utf8");
+  const originalLiteral = "const EXPECTED_CONTRACT_VERSION = 1;";
+  const incompatibleLiteral = "const EXPECTED_CONTRACT_VERSION = 999;";
+  writeFileSync(
+    clientPath,
+    replaceUniqueLiteral(
+      originalClient,
+      originalLiteral,
+      incompatibleLiteral,
+      archive.name,
+    ),
+    "utf8",
+  );
+  const afterTree = hashRegularFileTree(packageRoot);
+  assert(
+    JSON.stringify(changedTreePaths(beforeTree, afterTree)) ===
+      JSON.stringify([clientRelative]),
+    "MISMATCH_LITERAL_ONLY",
+    `${archive.name} mismatch changed more than ${clientRelative}`,
+  );
+  runChild(
+    NPM,
+    ["pack", "--ignore-scripts", "--pack-destination", packedRoot],
+    { cwd: packageRoot, label: `repack disposable ${archive.name}` },
+  );
+  const packedFiles = readdirSync(packedRoot).filter((entry) =>
+    entry.endsWith(".tgz"),
+  );
+  assert(
+    packedFiles.length === 1,
+    "MISMATCH_ARCHIVE",
+    `${archive.name} disposable repack produced ${packedFiles.length} archives`,
+  );
+  const path = join(packedRoot, packedFiles[0]);
+  const manifest = readArchiveManifest(path);
+  assert(
+    manifest.name === archive.name && manifest.version === archive.manifest.version,
+    "MISMATCH_ARCHIVE",
+    `${archive.name} disposable archive identity changed`,
+  );
+  const packedClient = readArchiveText(path, `package/${clientRelative}`);
+  assert(
+    packedClient.includes(incompatibleLiteral) &&
+      !packedClient.includes(originalLiteral),
+    "MISMATCH_ARCHIVE",
+    `${archive.name} disposable archive did not retain the unique mismatch literal`,
+  );
+  return Object.freeze({
+    ...archive,
+    path,
+    manifest,
+    sha256: sha256File(path),
+  });
+}
+
+function writeReactMismatchFixture(consumerDirectory) {
+  const testDirectory = join(consumerDirectory, "mismatch");
+  mkdirSync(testDirectory);
+  writeFileSync(
+    join(consumerDirectory, "vitest.mismatch.config.mjs"),
+    `import { defineConfig } from "vitest/config";\n` +
+      `import react from "@vitejs/plugin-react";\n` +
+      `export default defineConfig({ plugins: [react()], test: { environment: "jsdom", include: ["mismatch/react-mismatch.test.tsx"], fileParallelism: false, maxWorkers: 1 } });\n`,
+    "utf8",
+  );
+  writeFileSync(
+    join(testDirectory, "react-mismatch.test.tsx"),
+    `import { createElement } from "react";\n` +
+      `import { cleanup, render } from "@testing-library/react";\n` +
+      `import { afterEach, describe, expect, it } from "vitest";\n` +
+      `import { CONTRACT_VERSION } from "${CORE_NAME}";\n` +
+      `import { useConciergeBridge } from "${REACT_NAME}/client";\n` +
+      `afterEach(() => cleanup());\n` +
+      `describe("disposable packed React mismatch", () => {\n` +
+      `  it("fails through the public hook before registry registration", () => {\n` +
+      `    let registerCount = 0;\n` +
+      `    const registry = { register() { registerCount += 1; return () => {}; }, read() { return null; } };\n` +
+      `    const bridge = { actions: Object.freeze({}), snapshot: Object.freeze({}) };\n` +
+      `    function Probe() { useConciergeBridge(registry, bridge); return null; }\n` +
+      `    let thrown;\n` +
+      `    try { render(createElement(Probe)); } catch (error) { thrown = error; }\n` +
+      `    expect(CONTRACT_VERSION).toBe(1);\n` +
+      `    expect(thrown).toBeInstanceOf(Error);\n` +
+      `    expect(thrown.message).toBe("${REACT_NAME} expected core contract v999 but found v1; upgrade or reinstall ${REACT_NAME} and ${CORE_NAME} together.");\n` +
+      `    expect(registerCount).toBe(0);\n` +
+      `  });\n` +
+      `});\n`,
+    "utf8",
+  );
+}
+
+function writeSvelteMismatchFixture(consumerDirectory) {
+  const testDirectory = join(consumerDirectory, "mismatch");
+  mkdirSync(testDirectory);
+  writeFileSync(
+    join(consumerDirectory, "vitest.mismatch.config.mjs"),
+    `import { defineConfig } from "vitest/config";\n` +
+      `import { svelte } from "@sveltejs/vite-plugin-svelte";\n` +
+      `import { svelteTesting } from "@testing-library/svelte/vite";\n` +
+      `export default defineConfig({ plugins: [svelte({ compilerOptions: { hmr: false } }), svelteTesting()], test: { environment: "jsdom", include: ["mismatch/svelte-mismatch.test.ts"], fileParallelism: false, maxWorkers: 1 } });\n`,
+    "utf8",
+  );
+  writeFileSync(
+    join(testDirectory, "MismatchProbe.svelte"),
+    `<script>\n` +
+      `  import { useConciergeBridge } from "${SVELTE_NAME}/client.svelte";\n` +
+      `  let { registry, bridge } = $props();\n` +
+      `  useConciergeBridge(() => registry, () => bridge);\n` +
+      `</script>\n`,
+    "utf8",
+  );
+  writeFileSync(
+    join(testDirectory, "svelte-mismatch.test.ts"),
+    `import { cleanup, render } from "@testing-library/svelte";\n` +
+      `import { afterEach, describe, expect, it } from "vitest";\n` +
+      `import { CONTRACT_VERSION } from "${CORE_NAME}";\n` +
+      `import MismatchProbe from "./MismatchProbe.svelte";\n` +
+      `afterEach(() => cleanup());\n` +
+      `describe("disposable packed Svelte mismatch", () => {\n` +
+      `  it("fails through the compiled public effect before registry registration", () => {\n` +
+      `    let registerCount = 0;\n` +
+      `    const registry = { register() { registerCount += 1; return () => {}; }, read() { return null; } };\n` +
+      `    const bridge = { actions: Object.freeze({}), snapshot: Object.freeze({}) };\n` +
+      `    let thrown;\n` +
+      `    try { render(MismatchProbe, { registry, bridge }); } catch (error) { thrown = error; }\n` +
+      `    expect(CONTRACT_VERSION).toBe(1);\n` +
+      `    expect(thrown).toBeInstanceOf(Error);\n` +
+      `    const expectedMessage = "${SVELTE_NAME} expected core contract v999 but found v1; upgrade or reinstall ${SVELTE_NAME} and ${CORE_NAME} together.";\n` +
+      `    expect(thrown.message.split("\\n\\n", 1)[0]).toBe(expectedMessage);\n` +
+      `    expect(registerCount).toBe(0);\n` +
+      `  });\n` +
+      `});\n`,
+    "utf8",
+  );
+}
+
+function runMismatchFixture(consumerDirectory, adapterKey) {
+  if (adapterKey === "react") {
+    writeReactMismatchFixture(consumerDirectory);
+  } else {
+    writeSvelteMismatchFixture(consumerDirectory);
+  }
+  const reportPath = join(
+    consumerDirectory,
+    `vitest-${adapterKey}-mismatch.json`,
+  );
+  const vitest = join(
+    consumerDirectory,
+    "node_modules/.bin",
+    process.platform === "win32" ? "vitest.cmd" : "vitest",
+  );
+  try {
+    runChild(
+      vitest,
+      [
+        "run",
+        "--config",
+        "vitest.mismatch.config.mjs",
+        "--reporter=json",
+        `--outputFile=${reportPath}`,
+      ],
+      { cwd: consumerDirectory, label: `${adapterKey} public mismatch lifecycle` },
+    );
+  } catch (error) {
+    const report = existsSync(reportPath)
+      ? boundedExcerpt(readFileSync(reportPath, "utf8"))
+      : "missing JSON report";
+    fail(
+      "MISMATCH_TEST",
+      `${error instanceof Error ? error.message : String(error)}\nreport:\n${report}`,
+    );
+  }
+  return validatePositiveVitestReport(reportPath, [
+    `${adapterKey}-mismatch.test.${adapterKey === "react" ? "tsx" : "ts"}`,
+  ]);
+}
+
+function runMismatchStage(root, archives, tooling) {
+  const originalCoreDigest = archives.core.sha256;
+  const results = {};
+  for (const adapterKey of ["react", "svelte"]) {
+    assert(
+      sha256File(archives.core.path) === originalCoreDigest,
+      "CORE_DIGEST",
+      "the original core archive changed before mismatch preparation",
+    );
+    const mismatchedAdapter = repackMismatchedAdapter(
+      root,
+      archives,
+      adapterKey,
+    );
+    const mismatchArchives = Object.freeze({
+      ...archives,
+      [adapterKey]: mismatchedAdapter,
+    });
+    const consumer = createConsumer(
+      root,
+      mismatchArchives,
+      `${adapterKey}-mismatch-consumer`,
+      tooling,
+    );
+    results[adapterKey] = runMismatchFixture(consumer.directory, adapterKey);
+    assert(
+      sha256File(archives.core.path) === originalCoreDigest,
+      "CORE_DIGEST",
+      `the original core archive changed during ${adapterKey} mismatch proof`,
+    );
+  }
+  return Object.freeze({
+    coreSha256: originalCoreDigest,
+    expectedContractVersion: 999,
+    foundContractVersion: 1,
+    react: results.react,
+    svelte: results.svelte,
+  });
+}
+
+function validateExportDirectory(mode) {
+  const configured = process.env.PHASE09_ARCHIVE_EXPORT_DIR;
+  if (configured === undefined || configured === "") {
+    return null;
+  }
+  assert(mode === "all", "ARCHIVE_EXPORT", "archive export is valid only in all mode");
+  assert(isAbsolute(configured), "ARCHIVE_EXPORT", "archive export path must be absolute");
+  assert(
+    configured === normalize(resolve(configured)),
+    "ARCHIVE_EXPORT",
+    "archive export path must be normalized",
+  );
+  assert(statSync(configured).isDirectory(), "ARCHIVE_EXPORT", "archive export path must exist");
+  const resolved = assertOutsideRepository(configured, "archive export directory");
+  assert(
+    readdirSync(resolved).length === 0,
+    "ARCHIVE_EXPORT",
+    "archive export directory must be empty",
+  );
+  return resolved;
+}
+
+function exportArchives(exportDirectory, archives) {
+  const digestManifest = {};
+  for (const spec of PACKAGE_SPECS) {
+    const archive = archives[spec.key];
+    const destination = join(exportDirectory, basename(archive.path));
+    copyFileSync(archive.path, destination, 0);
+    assert(
+      sha256File(destination) === archive.sha256,
+      "ARCHIVE_EXPORT",
+      `${archive.name} export digest changed`,
+    );
+    digestManifest[archive.name] = Object.freeze({
+      file: basename(destination),
+      sha256: archive.sha256,
+    });
+  }
+  const manifestPath = join(exportDirectory, "phase-09-archive-digests.json");
+  writeJson(manifestPath, {
+    schemaVersion: 1,
+    algorithm: "sha256",
+    archives: digestManifest,
+  });
+  assert(
+    readdirSync(exportDirectory).length === 4,
+    "ARCHIVE_EXPORT",
+    "archive export must contain exactly three tarballs and one digest manifest",
+  );
+}
+
+function expectFailure(label, expectedCode, operation, expectedFingerprint = null) {
+  try {
+    operation();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    assert(
+      message.includes(`[${expectedCode}]`),
+      "SELF_TEST",
+      `${label} failed for the wrong reason: ${message}`,
+    );
+    if (expectedFingerprint !== null) {
+      assert(
+        message.includes(expectedFingerprint),
+        "SELF_TEST",
+        `${label} missed the semantic fingerprint: ${message}`,
+      );
+    }
+    return message;
+  }
+  fail("SELF_TEST", `${label} unexpectedly passed`);
+}
+
+function createSyntheticArchive(directory, name, suffix, version = "0.0.0") {
+  const staging = join(directory, `staging-${suffix}`);
+  const packageDirectory = join(staging, "package");
+  mkdirSync(packageDirectory, { recursive: true });
+  writeJson(join(packageDirectory, "package.json"), {
+    name,
+    version,
+    type: "module",
+  });
+  const archive = join(directory, `${suffix}.tgz`);
+  runChild("tar", ["-czf", archive, "-C", staging, "package"], {
+    label: `self-test archive ${suffix}`,
+  });
+  return archive;
+}
+
+function runVersionedP1SemanticRegression(
+  root,
+  authenticatedSecureEnvironment,
+) {
+  const policyProbe = runChild(
+    PNPM,
+    ["config", "get", "verify-deps-before-run"],
+    {
+      label: "versioned P1 nested pnpm policy probe",
+      secureEnvironment: authenticatedSecureEnvironment,
+    },
+  );
+  assert(
+    policyProbe.stdout.trim() === "false",
+    "SELF_TEST",
+    "versioned P1 fixture did not retain the reviewed pnpm policy",
+  );
+
+  const register = JSON.parse(readFileSync(MUTATION_REGISTER, "utf8"));
+  const row = register.rows?.find((candidate) => candidate.id === "M-09-P1");
+  assert(
+    row?.exactBefore === '  "peerDependencies": {' &&
+      row?.exactAfter === '  "dependencies": {' &&
+      row?.assertionFingerprint ===
+        `[ADAPTER_MANIFEST] ${REACT_NAME} live manifest must keep core peer+dev only`,
+    "SELF_TEST",
+    "registered M-09-P1 mutation contract drifted",
+  );
+
+  const replaceOnce = (source, before, after, label) => {
+    const occurrences = source.split(before).length - 1;
+    assert(
+      occurrences === 1,
+      "SELF_TEST",
+      `${label} expected one literal, found ${occurrences}`,
+    );
+    return source.replace(before, after);
+  };
+  let versionedSource = readFileSync(
+    join(REPOSITORY_ROOT, "packages/concierge-react/package.json"),
+    "utf8",
+  );
+  const liveVersion = JSON.parse(versionedSource).version;
+  if (liveVersion === "0.0.0") {
+    versionedSource = replaceOnce(
+      versionedSource,
+      '  "version": "0.0.0",',
+      '  "version": "0.1.0",',
+      "versioned P1 package version",
+    );
+    versionedSource = replaceOnce(
+      versionedSource,
+      `    "${CORE_NAME}": "workspace:^0.0.0 || ^0.1.0",`,
+      `    "${CORE_NAME}": "workspace:^",`,
+      "versioned P1 core peer",
+    );
+  } else {
+    assert(
+      /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(liveVersion) &&
+        JSON.parse(versionedSource).peerDependencies?.[CORE_NAME] ===
+          "workspace:^",
+      "SELF_TEST",
+      "versioned P1 fixture requires the reviewed nonzero adapter shape",
+    );
+  }
+  versionedSource = replaceOnce(
+    versionedSource,
+    row.exactBefore,
+    row.exactAfter,
+    "registered P1 mutation",
+  );
+  const versionedP1Manifest = JSON.parse(versionedSource);
+  assert(
+    versionedP1Manifest.version ===
+        (liveVersion === "0.0.0" ? "0.1.0" : liveVersion) &&
+      versionedP1Manifest.peerDependencies === undefined &&
+      versionedP1Manifest.dependencies?.[CORE_NAME] === "workspace:^" &&
+      versionedP1Manifest.devDependencies?.[CORE_NAME] === "workspace:*",
+    "SELF_TEST",
+    "versioned P1 manifest fixture does not match the registered mutation shape",
+  );
+
+  const archiveDirectory = join(root, "versioned-p1-semantic");
+  mkdirSync(archiveDirectory);
+  const archivePath = createSyntheticArchive(
+    archiveDirectory,
+    REACT_NAME,
+    "react-p1",
+    versionedP1Manifest.version,
+  );
+  const archive = Object.freeze({
+    key: "react",
+    name: REACT_NAME,
+    path: archivePath,
+    manifest: readArchiveManifest(archivePath),
+  });
+  const failure = expectFailure(
+    "versioned P1 semantic validation",
+    "ADAPTER_MANIFEST",
+    () => validateArchiveContents(archive, versionedP1Manifest),
+    row.assertionFingerprint,
+  );
+  assert(
+    !failure.includes("ERR_PNPM_OUTDATED_LOCKFILE"),
+    "SELF_TEST",
+    "versioned P1 fixture stopped at stale-lock infrastructure",
+  );
+}
+
+function runSelfTests(root, secure) {
+  assertOwnedTempRoot(root);
+  let controls = 0;
+  const missing = join(root, "missing");
+  mkdirSync(missing);
+  createSyntheticArchive(missing, CORE_NAME, "core");
+  createSyntheticArchive(missing, REACT_NAME, "react");
+  expectFailure("missing archive", "ARCHIVE_COUNT", () =>
+    enumerateExactArchives(missing),
+  );
+  controls += 1;
+
+  const extra = join(root, "extra");
+  mkdirSync(extra);
+  createSyntheticArchive(extra, CORE_NAME, "core");
+  createSyntheticArchive(extra, REACT_NAME, "react");
+  createSyntheticArchive(extra, SVELTE_NAME, "svelte");
+  createSyntheticArchive(extra, "@foreign/fourth", "fourth");
+  expectFailure("fourth archive", "ARCHIVE_COUNT", () =>
+    enumerateExactArchives(extra),
+  );
+  controls += 1;
+
+  const linkedTree = join(root, "workspace-realpath");
+  mkdirSync(linkedTree);
+  symlinkSync(REPOSITORY_ROOT, join(linkedTree, "repository-link"), "dir");
+  expectFailure("workspace realpath", "WORKSPACE_REALPATH", () =>
+    walkForRepositorySymlinks(linkedTree),
+  );
+  controls += 1;
+
+  const firstCore = join(root, "core-a");
+  const secondCore = join(root, "core-b");
+  mkdirSync(firstCore);
+  mkdirSync(secondCore);
+  writeJson(join(firstCore, "package.json"), { name: CORE_NAME });
+  writeJson(join(secondCore, "package.json"), { name: CORE_NAME });
+  expectFailure("duplicate core", "DUPLICATE_CORE", () =>
+    assertOnePhysicalCore([
+      join(firstCore, "package.json"),
+      join(secondCore, "package.json"),
+    ]),
+  );
+  controls += 1;
+
+  const zeroReport = join(root, "zero-tests.json");
+  writeJson(zeroReport, {
+    success: true,
+    numTotalTestSuites: 0,
+    numTotalTests: 0,
+    numPassedTests: 0,
+    numFailedTests: 0,
+    testResults: [],
+  });
+  expectFailure("zero-test JSON", "VITEST_ZERO", () =>
+    validatePositiveVitestReport(zeroReport, []),
+  );
+  controls += 1;
+
+  expectFailure("failed child", "CHILD_PROCESS", () =>
+    runChild(process.execPath, ["-e", "process.exit(23)"], {
+      label: "self-test failed child",
+    }),
+  );
+  controls += 1;
+
+  const sentinelRepositoryCredential = "phase09-secret-package-repository";
+  const sentinelNpmCredential = "phase09-secret-package-npm";
+  const nested = createPackageChildEnvironment(
+    root,
+    {
+      PATH: secure.environment.PATH,
+      LANG: secure.environment.LANG,
+      PHASE09_CREDENTIAL_FREE_ENV: "1",
+      NODE_OPTIONS: "--require=/hostile-package-hook.cjs",
+      PHASE09_MUTATION_CAPTURE_DIR: REPOSITORY_ROOT,
+      PNPM_CONFIG_STORE_DIR: REPOSITORY_ROOT,
+      gItHuB_ToKeN: sentinelRepositoryCredential,
+      nPm_CoNfIg_AuThToKeN: sentinelNpmCredential,
+      npm_config_registry: "https://hostile.invalid/",
+    },
+    { directoryName: "nested-child-environment" },
+  );
+  assert(
+    nested.environment.GITHUB_TOKEN === undefined &&
+      nested.environment.NODE_AUTH_TOKEN === undefined &&
+      nested.environment.NPM_CONFIG_AUTHTOKEN === undefined &&
+      nested.environment.NPM_CONFIG_REGISTRY === PHASE09_PUBLIC_NPM_REGISTRY &&
+      nested.environment.GIT_CONFIG_NOSYSTEM === "1" &&
+      nested.environment.PHASE09_CREDENTIAL_FREE_ENV === "1" &&
+      nested.environment.PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN === undefined &&
+      nested.environment.NODE_OPTIONS === undefined &&
+      nested.environment.PHASE09_MUTATION_CAPTURE_DIR === undefined &&
+      nested.environment.PNPM_CONFIG_STORE_DIR === nested.paths.pnpmStore &&
+      isPathWithin(nested.paths.home, root) &&
+      isPathWithin(nested.paths.pnpmStore, root) &&
+      !isPathWithin(nested.paths.home, REPOSITORY_ROOT) &&
+      !isPathWithin(nested.paths.pnpmStore, REPOSITORY_ROOT) &&
+      readFileSync(nested.paths.npmUserConfig, "utf8") === "" &&
+      readFileSync(nested.paths.npmGlobalConfig, "utf8") === "" &&
+      readFileSync(nested.paths.gitConfig, "utf8") === "",
+    "SELF_TEST",
+    "nested package child environment retained ambient authority or config",
+  );
+  controls += 1;
+
+  const environmentProbe = runChild(
+    process.execPath,
+    ["-e", "process.stdout.write(JSON.stringify(process.env))"],
+    {
+      label: "nested secure child environment probe",
+      secureEnvironment: nested.environment,
+    },
+  );
+  const observedEnvironment = JSON.parse(environmentProbe.stdout);
+  assert(
+    observedEnvironment.GITHUB_TOKEN === undefined &&
+      observedEnvironment.NODE_AUTH_TOKEN === undefined &&
+      observedEnvironment.NPM_CONFIG_AUTHTOKEN === undefined &&
+      observedEnvironment.NPM_CONFIG_REGISTRY === PHASE09_PUBLIC_NPM_REGISTRY &&
+      observedEnvironment.HOME === nested.paths.home &&
+      observedEnvironment.NPM_CONFIG_USERCONFIG ===
+        nested.paths.npmUserConfig &&
+      observedEnvironment.NPM_CONFIG_GLOBALCONFIG ===
+        nested.paths.npmGlobalConfig &&
+      observedEnvironment.GIT_CONFIG_GLOBAL === nested.paths.gitConfig &&
+      observedEnvironment.PNPM_CONFIG_STORE_DIR === nested.paths.pnpmStore &&
+      observedEnvironment.PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN === undefined &&
+      observedEnvironment.NODE_OPTIONS === undefined &&
+      observedEnvironment.PHASE09_MUTATION_CAPTURE_DIR === undefined &&
+      !environmentProbe.stdout.includes(sentinelRepositoryCredential) &&
+      !environmentProbe.stdout.includes(sentinelNpmCredential) &&
+      !environmentProbe.stdout.includes("hostile.invalid"),
+    "SELF_TEST",
+    "nested package child probe observed an ambient credential or config",
+  );
+  controls += 1;
+
+  const authenticated = createPackageChildEnvironment(
+    root,
+    {
+      PATH: secure.environment.PATH,
+      LANG: secure.environment.LANG,
+      PHASE09_CREDENTIAL_FREE_ENV: "1",
+      PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
+      NODE_OPTIONS: "--require=/hostile-authenticated-hook.cjs",
+      PHASE09_MUTATION_CAPTURE_DIR: REPOSITORY_ROOT,
+      PNPM_CONFIG_STORE_DIR: REPOSITORY_ROOT,
+      NPM_CONFIG_USERCONFIG: join(REPOSITORY_ROOT, ".npmrc"),
+      NPM_TOKEN: sentinelNpmCredential,
+      GITHUB_TOKEN: sentinelRepositoryCredential,
+    },
+    { directoryName: "authenticated-mutation-runner-child" },
+  );
+  const authenticatedProbe = runChild(
+    process.execPath,
+    ["-e", "process.stdout.write(JSON.stringify(process.env))"],
+    {
+      label: "authenticated mutation-runner child probe",
+      secureEnvironment: authenticated.environment,
+    },
+  );
+  const observedAuthenticated = JSON.parse(authenticatedProbe.stdout);
+  assert(
+    authenticated.environment.PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN === "false" &&
+      observedAuthenticated.PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN === "false" &&
+      observedAuthenticated.PHASE09_CREDENTIAL_FREE_ENV === "1" &&
+      authenticated.environment.PNPM_CONFIG_STORE_DIR ===
+        authenticated.paths.pnpmStore &&
+      observedAuthenticated.PNPM_CONFIG_STORE_DIR ===
+        authenticated.paths.pnpmStore &&
+      observedAuthenticated.NODE_OPTIONS === undefined &&
+      observedAuthenticated.PHASE09_MUTATION_CAPTURE_DIR === undefined &&
+      observedAuthenticated.NPM_TOKEN === undefined &&
+      observedAuthenticated.GITHUB_TOKEN === undefined &&
+      observedAuthenticated.NPM_CONFIG_USERCONFIG ===
+        authenticated.paths.npmUserConfig &&
+      !authenticatedProbe.stdout.includes(sentinelRepositoryCredential) &&
+      !authenticatedProbe.stdout.includes(sentinelNpmCredential) &&
+      !authenticatedProbe.stdout.includes("hostile-authenticated-hook") &&
+      !isPathWithin(authenticated.paths.home, REPOSITORY_ROOT) &&
+      !isPathWithin(authenticated.paths.pnpmStore, REPOSITORY_ROOT),
+    "SELF_TEST",
+    "authenticated package child propagated more than the reviewed pnpm policy",
+  );
+  controls += 1;
+
+  const ordinaryPnpmDecorated = createPackageChildEnvironment(
+    root,
+    {
+      PATH: secure.environment.PATH,
+      LANG: secure.environment.LANG,
+      PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
+      NODE_OPTIONS: "--require=/hostile-ordinary-hook.cjs",
+      PHASE09_MUTATION_CAPTURE_DIR: REPOSITORY_ROOT,
+      PNPM_CONFIG_STORE_DIR: REPOSITORY_ROOT,
+      NPM_TOKEN: sentinelNpmCredential,
+      GITHUB_TOKEN: sentinelRepositoryCredential,
+    },
+    { directoryName: "ordinary-pnpm-decorated-child" },
+  );
+  const ordinaryPnpmProbe = runChild(
+    process.execPath,
+    ["-e", "process.stdout.write(JSON.stringify(process.env))"],
+    {
+      label: "ordinary pnpm-decorated child probe",
+      secureEnvironment: ordinaryPnpmDecorated.environment,
+    },
+  );
+  const observedOrdinaryPnpm = JSON.parse(ordinaryPnpmProbe.stdout);
+  assert(
+    ordinaryPnpmDecorated.environment.PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN ===
+        undefined &&
+      observedOrdinaryPnpm.PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN === undefined &&
+      observedOrdinaryPnpm.PHASE09_CREDENTIAL_FREE_ENV === "1" &&
+      observedOrdinaryPnpm.PNPM_CONFIG_STORE_DIR ===
+        ordinaryPnpmDecorated.paths.pnpmStore &&
+      observedOrdinaryPnpm.NODE_OPTIONS === undefined &&
+      observedOrdinaryPnpm.PHASE09_MUTATION_CAPTURE_DIR === undefined &&
+      observedOrdinaryPnpm.NPM_TOKEN === undefined &&
+      observedOrdinaryPnpm.GITHUB_TOKEN === undefined &&
+      !ordinaryPnpmProbe.stdout.includes("hostile-ordinary-hook") &&
+      !ordinaryPnpmProbe.stdout.includes(sentinelNpmCredential) &&
+      !ordinaryPnpmProbe.stdout.includes(sentinelRepositoryCredential) &&
+      !isPathWithin(ordinaryPnpmDecorated.paths.pnpmStore, REPOSITORY_ROOT),
+    "SELF_TEST",
+    "ordinary pnpm decoration leaked into the child or granted ambient authority",
+  );
+  controls += 1;
+
+  expectFailure("wrong authenticated pnpm policy", "CHILD_ENVIRONMENT", () =>
+    createPackageChildEnvironment(
+      root,
+      {
+        PATH: secure.environment.PATH,
+        PHASE09_CREDENTIAL_FREE_ENV: "1",
+        PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "true",
+      },
+      { directoryName: "wrong-pnpm-policy" },
+    ),
+  );
+  controls += 1;
+
+  for (const policy of ["true", "", "0", "FALSE"]) {
+    expectFailure(
+      `wrong ordinary pnpm policy ${JSON.stringify(policy)}`,
+      "CHILD_ENVIRONMENT",
+      () =>
+        createPackageChildEnvironment(
+          root,
+          {
+            PATH: secure.environment.PATH,
+            PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: policy,
+          },
+          { directoryName: `wrong-ordinary-pnpm-policy-${policy || "empty"}` },
+        ),
+    );
+  }
+  controls += 1;
+
+  expectFailure("invalid mutation parent marker", "CHILD_ENVIRONMENT", () =>
+    createPackageChildEnvironment(
+      root,
+      {
+        PATH: secure.environment.PATH,
+        PHASE09_CREDENTIAL_FREE_ENV: "0",
+        PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
+      },
+      { directoryName: "invalid-mutation-parent-marker" },
+    ),
+  );
+  controls += 1;
+
+  expectFailure("ambiguous mutation parent marker", "CHILD_ENVIRONMENT", () =>
+    createPackageChildEnvironment(
+      root,
+      {
+        PATH: secure.environment.PATH,
+        PHASE09_CREDENTIAL_FREE_ENV: "1",
+        phase09_credential_free_env: "1",
+        PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
+      },
+      { directoryName: "ambiguous-mutation-parent-marker" },
+    ),
+  );
+  controls += 1;
+
+  expectFailure("ambiguous authenticated pnpm policy", "CHILD_ENVIRONMENT", () =>
+    createPackageChildEnvironment(
+      root,
+      {
+        PATH: secure.environment.PATH,
+        PHASE09_CREDENTIAL_FREE_ENV: "1",
+        PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
+        pnpm_config_verify_deps_before_run: "false",
+      },
+      { directoryName: "ambiguous-pnpm-policy" },
+    ),
+  );
+  controls += 1;
+
+  runVersionedP1SemanticRegression(root, authenticated.environment);
+  controls += 1;
+
+  const toolingDrift = join(root, "consumer-tooling-drift");
+  mkdirSync(toolingDrift);
+  const toolingManifest = join(toolingDrift, "package.json");
+  const toolingLock = join(toolingDrift, "package-lock.json");
+  copyFileSync(CONSUMER_TOOLING_MANIFEST, toolingManifest);
+  copyFileSync(CONSUMER_TOOLING_LOCK, toolingLock);
+  const driftedLock = JSON.parse(readFileSync(toolingLock, "utf8"));
+  driftedLock.packages[""].dependencies.vitest = "0.0.0";
+  writeJson(toolingLock, driftedLock);
+  expectFailure("consumer tooling lock drift", "CONSUMER_TOOLING", () =>
+    loadConsumerToolingFixture(toolingManifest, toolingLock),
+  );
+  controls += 1;
+
+  assert(
+    controls === 17,
+    "SELF_TEST",
+    `expected seventeen controls, ran ${controls}`,
+  );
+  console.log(
+    `PHASE09_PACKAGE_SELF_TEST ${JSON.stringify({ controls, status: "passed" })}`,
+  );
+}
+
+function archiveDigestSummary(archives) {
+  return Object.freeze(
+    Object.fromEntries(
+      PACKAGE_SPECS.map((spec) => [
+        archives[spec.key].name,
+        archives[spec.key].sha256,
+      ]),
+    ),
+  );
+}
+
+function runSubstantiveMode(mode, root) {
+  const exportDirectory = validateExportDirectory(mode);
+  assertOwnedTempRoot(root);
+  const consumerTooling = prepareConsumerTooling(root);
+  const archives = buildAndPackTriplet(root);
+  const tarEntryCounts = validateTripletArtifacts(archives);
+  const digests = archiveDigestSummary(archives);
+
+  if (mode === "artifacts") {
+    const artifacts = runArtifactStage(root, archives, consumerTooling);
+    console.log(
+      `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", consumerTooling: consumerTooling.evidence, digests, tarEntryCounts, typescript: artifacts.typescript, serverTests: artifacts.serverTests, physicalCore: artifacts.consumer.topology.physicalCore })}`,
+    );
+    return;
+  }
+
+  if (mode === "svelte-consent") {
+    const consumer = createConsumer(
+      root,
+      archives,
+      "svelte-consent-consumer",
+      consumerTooling,
+    );
+    const consent = runSvelteConsentStage(consumer.directory);
+    console.log(
+      `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", consumerTooling: consumerTooling.evidence, digests, tarEntryCounts, consent })}`,
+    );
+    return;
+  }
+
+  if (mode === "mismatch") {
+    const mismatch = runMismatchStage(root, archives, consumerTooling);
+    console.log(
+      `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", consumerTooling: consumerTooling.evidence, digests, tarEntryCounts, mismatch })}`,
+    );
+    return;
+  }
+
+  const artifacts = runArtifactStage(root, archives, consumerTooling);
+  const consent = runSvelteConsentStage(artifacts.consumer.directory);
+  const mismatch = runMismatchStage(root, archives, consumerTooling);
+
+  if (exportDirectory !== null) {
+    exportArchives(exportDirectory, archives);
+  }
+  console.log(
+    `PHASE09_PACKAGE_RESULT ${JSON.stringify({ mode, status: "passed", consumerTooling: consumerTooling.evidence, archives: Object.fromEntries(PACKAGE_SPECS.map((spec) => [archives[spec.key].name, { file: basename(archives[spec.key].path), sha256: archives[spec.key].sha256 }])), tarEntryCounts, typescript: artifacts.typescript, serverTests: artifacts.serverTests, physicalCore: artifacts.consumer.topology.physicalCore, consent, mismatch, exported: exportDirectory !== null })}`,
+  );
+}
+
+const mode = readMode(process.argv.slice(2));
+
+if (mode === "self-test") {
+  withOwnedChildEnvironment((root, secure) => runSelfTests(root, secure));
+} else {
+  withOwnedChildEnvironment((root) => runSubstantiveMode(mode, root));
+}

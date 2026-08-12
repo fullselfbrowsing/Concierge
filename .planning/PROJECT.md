@@ -18,7 +18,7 @@ Everything else (framework breadth, transport breadth, DX) is in service of that
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] **Phase 7 — Session and transport seam:** `createSession` owns catalog publication on stage change/reconnect and the `onToolBatch → dispatch → respond` loop, proven with a reusable no-network transport fixture.
 
 ### Active
 
@@ -30,13 +30,15 @@ Everything else (framework breadth, transport breadth, DX) is in service of that
 - [ ] Consent handshake: review → human responds in a genuinely new turn → confirm, with snapshot equality invalidating stale consent
 - [ ] Transports declare a consent grade; actions declare a minimum grade; mismatch fails at catalog build time
 - [ ] Consent snapshots are normalized out of framework reactivity before storage, so a proxy-backed store cannot make the drift check vacuously pass
-- [ ] `createSession` owns the transport loop — catalog push on stage change and reconnect, and `onToolBatch → dispatch → respond`
 - [ ] Actions declare side effects (`readOnly` / `destructive` / `idempotent`); a destructive action without a consent policy is a build warning
 - [ ] Server re-verifies consent rather than trusting the client's assertion
 - [ ] React adapter and Svelte adapter, shipped together
 - [ ] Fetch-standard server handlers that mount unchanged in Next, Nuxt, SvelteKit, Remix, Hono, Bun, Deno, and Workers
 - [ ] Catalog build validates emitted JSON Schema (root must be `type: "object"`) and throws naming the offending action
 - [ ] Redaction required for any action with a non-empty schema, defaulting to `drop`
+- [ ] An action reading attacker-controllable content declares it, and the build reports one that does so without a consent policy
+- [ ] A failed action's outcome reaches the human as the app composed it — the agent cannot substitute its own narration for a failure
+- [ ] A transport declares where its turn identity comes from, so one whose turns the agent can mint cannot satisfy the strongest binding
 - [ ] Dev overlay showing active stage, registered bridges, live catalog, and manual action firing
 
 ### Out of Scope
@@ -56,6 +58,8 @@ Everything else (framework breadth, transport breadth, DX) is in service of that
 ## Context
 
 **Provenance.** The design is extracted from a production system (`voyza-voice-browser-control-spec.md`, 2685 lines, captured 2026-07-27): 28 control actions across 6 stages, ~3,947 LOC non-test, 28 test files. That system shipped and its failure modes are documented, including a section on verified drift between its planning record and its implementation. Concierge is the generic ~60% of it — and per that spec's own assessment, it is the *hard* 60%: concurrency, cancellation, dedup, and consent semantics.
+
+**A second, independent implementation** was located and read on 2026-07-27: the `portfolio` repository, branch `audit-fsb-ai-control-loop` (2026-07-16, ~12.4k insertions, Next.js). It is a shipped in-app AI control loop with typed awaited results, correlated pending/success/failure, stale-completion suppression, and per-action display-arg allowlists. It is *lacklustre* against Concierge's ambition — no consent gate, no grades, no readback hash, no snapshot equality, no dedup by reference identity, and no `reason` field at all — but it corroborates the core shapes and it independently produced four things the design did not have: an `invalid_result` failure mode (handlers return junk, so there is a `normalizeControlResult` boundary), message sanitization with a hard length cap, an ASI09 mitigation that discards the agent's narration on failure, and recognizer-echo suppression, which is what exposed the turn-identity provenance hole. Two independent systems converging on the same shapes is stronger evidence than one.
 
 **Prior art — corrected after research (2026-07-27).** An earlier draft of this section was wrong in two ways and the errors flattered us, so they are recorded rather than quietly deleted:
 
@@ -91,8 +95,8 @@ OpenAI Agents JS is also closer than assumed — `needsApproval`, `interruptions
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Name it Concierge, not a voice-flavored name | The noun is agent actuation of a cooperating app; voice is one transport. Naming it for voice would cap the audience and misdescribe the core. | — Pending |
-| Transport interface from day one | Welding to OpenAI Realtime's event names makes the library a bet on one vendor's wire protocol. A text sidebar, MCP client, or command palette must be first-class. | — Pending |
-| Standard Schema v1, inlined, instead of a Zod peer dep | Keeps core dependency-free and open to Valibot/ArkType/Effect Schema. Ship a `@fullselfbrowsing/concierge-zod` bridge for JSON Schema emission. | — Pending |
+| Transport interface from day one | Welding to OpenAI Realtime's event names makes the library a bet on one vendor's wire protocol. A text sidebar, MCP client, or command palette must be first-class. | ✓ Resolved 2026-08-10 (Phase 7) |
+| Standard Schema v1 as a real dependency, instead of a Zod peer dep | Keeps core open to Valibot/ArkType/Effect Schema. `@standard-schema/spec` is depended on rather than inlined — research verified its ESM runtime entry is 0 bytes with zero dependencies, so "core is dependency-free" holds in substance while the inlined copy had already drifted from the spec in four places. No `concierge-zod` bridge: Standard JSON Schema (`~standard.jsonSchema`) makes it unnecessary, and the `jsonSchema?` escape hatch covers valibot, which does not implement the companion spec despite its docs. | ✓ Resolved 2026-07-27 |
 | Consent is *graded*, and mismatches fail at build time | "The human perceived the readback" is only guaranteed on some transports. Voice guarantees it; a text sidebar does not; headless has no human. Silent degradation here is the worst possible failure. | — Pending |
 | Ship a non-React adapter *with* v0.1, not after | Building React-first and porting later produces a hooks-shaped core. The non-React adapter is what forces React-isms out. | — Pending |
 | MIT + public over BSL 1.1 | FSB is BSL, but BSL on a library people are meant to `npm install` blocks production use without a commercial license. | — Pending |
@@ -104,7 +108,12 @@ OpenAI Agents JS is also closer than assumed — `needsApproval`, `interruptions
 | `engines.node: ">=22.12.0"` | Node 20 reached EOL 2026-04-30, and 22.12 is the exact floor where `require(esm)` is unflagged — the previous `>=20` promised CJS consumers a runtime that would throw `ERR_REQUIRE_ESM`. | — Pending |
 | `isolatedDeclarations: true` | TypeScript 7.0 ships no compiler API, which degrades dts generation. This routes the build through oxc: measured 25ms vs 1064ms, and it also removes the case for Turborepo (per-task overhead exceeds the build). | — Pending |
 | Consent grades are modality-free | Asking "how does `attested` work on voice" was the wrong question — it smuggled modality back into a contract that had already rejected it. The real axes are content provenance (agent paraphrase vs app-rendered payload) and confirmation provenance (inferred vs a human act bound to that payload's hash). `attested` requires an app-rendered raw-payload surface plus an observed act on it; whether the app also speaks is irrelevant. Every app has a surface, so no product class is capped below `attested`. | ✓ Resolved 2026-07-27 |
-| **OPEN — core as `peerDependency` of adapters** | Structurally forces a single core instance, which matters because a split instance splits the safety kernel. TanStack does the opposite. | ⚠️ Needs owner |
+| Turn identity has *provenance*, not just presence | A shipped implementation showed the microphone picks up the assistant's own TTS and the recognizer transcribes it as user speech. On a voice transport `userTurnId` is recognizer-derived — so the agent's own output can mint a new user turn, which is exactly what `bindTo: "userTurn"` accepts as proof a human acted. PITFALLS P2 covers a human barging in and prescribes turn classification, which does not catch this: an echoed readback transcribes as affirmative content, not as "stop". `TransportCapabilities` is implemented by consumers, so widening it after publish is breaking. | ✓ Resolved 2026-07-27 (TRN-05, Phase 1) |
+| `readsUntrusted` is enforced, not declared-only — and it is the only taint field | An unenforced safety marker sitting beside a redaction policy that genuinely fails closed is this project's named failure mode in miniature. `maxPerTurn` is runner-level in every framework checked; `impact` duplicates the already-gated `consent.minGrade`; `conflictsWith` has no prior art and is covered by stage scoping plus `requires` plus serial batch order. | ✓ Resolved 2026-07-27 (SEC-05, Phase 3) |
+| The server consent artifact is *inbound*, and v0.1 produces nothing | Every prior art puts minting authority where page JavaScript cannot reach — WebAuthn's challenge is server-generated *and server-stored*. A client-minted token, in a threat model where every third-party script has identical authority, is decorative and reads stronger than it is. So: reserve a server-issued, client-echoed `challenge?`, typed but never produced until v2. | ✓ Resolved 2026-07-27 (Phase 1) |
+| The readback sink returns a receipt, and core owns canonicalization | A bare hash string makes canonicalization the app's bug, and the collision is real: `JSON.stringify({amount: 4180, coupon: undefined})` is byte-identical to `{amount: 4180}`. JCS (RFC 8785) in core, digest injected via a `DigestLike` structural stand-in — `crypto`, `TextEncoder`, and `btoa` are all absent under `lib: ["ES2022"]`. Carrying the canonical bytes alongside the hash follows WebAuthn's reason for making `clientDataJSON` opaque: intermediaries must not parse-and-reserialize. | ✓ Resolved 2026-07-27 (Phase 1) |
+| The agent may not narrate a failure | A shipped implementation discards the model's text entirely when any result failed and speaks the app's own failure messages instead. This is a cheap, structural mitigation of the ASI09 reauthoring problem that sits below `attested` — and Concierge had nothing between `delivered` and `attested` doing it. | ✓ Resolved 2026-07-27 (CON-10, Phase 8) |
+| Core is a `peerDependency` of every adapter | Structurally forces a single core instance. Two instances is not a performance problem, it is a correctness one, and it breaks all three load-bearing subsystems at once: a component registers into instance A while a handler reads instance B, so `bridge` is `null` forever on a page that is definitely open; dedup by Promise reference identity gets two windows, so a retried call double-fires — precisely the double-payment the design exists to prevent; and consent armed on instance A is invisible to instance B, so the kernel either fails closed everywhere or splits the review/confirm pair. A pinned dependency permits duplicate installs to resolve silently; a peer range makes a mismatch an install-time error with an actionable message. Accepted cost: diverges from TanStack, which pins, and makes install docs marginally harder. Same invariant already served by ESM-only, `engines.node >=22.12.0`, and `isolatedDeclarations`. | ✓ Resolved 2026-07-28 (PKG-04, Phase 2) |
 
 ## Evolution
 
@@ -124,4 +133,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-27 after initialization*
+*Last updated: 2026-08-10 after verified Phase 7 completion*

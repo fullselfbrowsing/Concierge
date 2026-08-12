@@ -1,0 +1,229 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.1.0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Assert pinned package tooling
+        run: |
+          npm install -g npm@11.11.0
+          test "$(npm --version)" = "11.11.0"
+          case "$(pnpm --version)" in
+            11.*) ;;
+            *) echo "expected pnpm 11.x" >&2; exit 1 ;;
+          esac
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm run check:artifact
+      - run: pnpm run check:deps
+      - run: pnpm run check:pack
+      - run: pnpm run check:phase09:release
+
+      - name: Pack the tarball the floor job consumes
+        run: pnpm pack --pack-destination "${{ runner.temp }}"
+        working-directory: packages/concierge
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: tarball
+          path: ${{ runner.temp }}/*.tgz
+          if-no-files-found: error
+
+  node-floor:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: tarball
+          path: .
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '22.12.0'
+
+      - name: Assert the runtime is exactly the declared floor
+        run: |
+          node -e "if (process.version !== 'v22.12.0') throw new Error('floor drifted: ' + process.version)"
+
+      - name: Install the packed tarball with npm only
+        run: npm init -y && npm install --no-audit --no-fund ./*.tgz
+
+      - name: Import the published artifact on the floor runtime
+        run: |
+          node --input-type=module -e '
+            const m = await import("@fullselfbrowsing/concierge");
+            m.assertSingleInstance();
+            if (m.MESSAGE_MAX_CHARS !== 180) {
+              throw new Error("runtime binding erased: " + String(m.MESSAGE_MAX_CHARS));
+            }
+          '
+
+  candidate-certification:
+    needs: [build, node-floor]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Create the exact candidate certification receipt
+        env:
+          CANDIDATE_ARTIFACT_NAME: v0.1-candidate-certification-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          CANDIDATE_BUILD_CONCLUSION: ${{ needs.build.result }}
+          CANDIDATE_HEAD_SHA: ${{ github.sha }}
+          CANDIDATE_NODE_FLOOR_CONCLUSION: ${{ needs['node-floor'].result }}
+          CANDIDATE_REF: ${{ github.ref }}
+          CANDIDATE_REPOSITORY: ${{ github.repository }}
+          CANDIDATE_RUN_ATTEMPT: ${{ github.run_attempt }}
+          CANDIDATE_RUN_ID: ${{ github.run_id }}
+          CANDIDATE_WORKFLOW_NAME: ${{ github.workflow }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { spawnSync } from "node:child_process";
+          import { createHash } from "node:crypto";
+          import {
+            lstatSync,
+            mkdirSync,
+            readFileSync,
+            writeFileSync,
+          } from "node:fs";
+          import { join } from "node:path";
+
+          const evidencePaths = [
+            ".planning/phases/10-close-v0-1-release-certification-and-evidence-gaps/10-VERIFICATION.md",
+            ".planning/v0.1-MILESTONE-AUDIT.md",
+            ".planning/phases/10-close-v0-1-release-certification-and-evidence-gaps/10-VALIDATION.md",
+            ".planning/phases/10-close-v0-1-release-certification-and-evidence-gaps/10-CERTIFICATION.md",
+          ];
+          const stableJson = (value) => {
+            if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+            if (value !== null && typeof value === "object") {
+              return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
+            }
+            return JSON.stringify(value);
+          };
+          const sha256 = (value) =>
+            createHash("sha256").update(value).digest("hex");
+          const required = (name) => {
+            const value = process.env[name];
+            if (typeof value !== "string" || value.length === 0) {
+              throw new Error(`missing candidate identity ${name}`);
+            }
+            return value;
+          };
+
+          const headSha = required("CANDIDATE_HEAD_SHA");
+          const runId = required("CANDIDATE_RUN_ID");
+          const runAttempt = Number(required("CANDIDATE_RUN_ATTEMPT"));
+          const artifactName = required("CANDIDATE_ARTIFACT_NAME");
+          const jobConclusions = {
+            build: required("CANDIDATE_BUILD_CONCLUSION"),
+            "node-floor": required("CANDIDATE_NODE_FLOOR_CONCLUSION"),
+          };
+          if (
+            !/^[0-9a-f]{40}$/u.test(headSha) ||
+            !/^[1-9]\d*$/u.test(runId) ||
+            !Number.isSafeInteger(runAttempt) ||
+            runAttempt <= 0 ||
+            Object.values(jobConclusions).some((value) => value !== "success")
+          ) {
+            throw new Error("candidate identity or prerequisite conclusion is invalid");
+          }
+          const expectedArtifact =
+            `v0.1-candidate-certification-${headSha}-${runId}-${runAttempt}`;
+          if (artifactName !== expectedArtifact) {
+            throw new Error("candidate artifact identity is invalid");
+          }
+          const head = spawnSync("git", ["rev-parse", "HEAD"], {
+            encoding: "utf8",
+          });
+          const tracked = spawnSync(
+            "git",
+            ["ls-files", "--error-unmatch", "--", ...evidencePaths],
+            { encoding: "utf8" },
+          );
+          if (
+            head.error !== undefined ||
+            head.signal !== null ||
+            head.status !== 0 ||
+            head.stdout.trim() !== headSha ||
+            tracked.error !== undefined ||
+            tracked.signal !== null ||
+            tracked.status !== 0
+          ) {
+            throw new Error("candidate checkout or evidence tracking differs");
+          }
+          const evidenceDigests = {};
+          for (const path of evidencePaths) {
+            const metadata = lstatSync(path);
+            const bytes = readFileSync(path);
+            if (!metadata.isFile() || bytes.length === 0) {
+              throw new Error(`candidate evidence is not a nonempty file: ${path}`);
+            }
+            evidenceDigests[path] = sha256(bytes);
+          }
+          const body = {
+            schema_version: 1,
+            repository: required("CANDIDATE_REPOSITORY"),
+            workflow_name: required("CANDIDATE_WORKFLOW_NAME"),
+            workflow_path: ".github/workflows/ci.yml",
+            ref: required("CANDIDATE_REF"),
+            head_sha: headSha,
+            run_id: runId,
+            run_attempt: runAttempt,
+            artifact_name: artifactName,
+            overall_conclusion: "success",
+            job_conclusions: jobConclusions,
+            evidence_digests: evidenceDigests,
+          };
+          const receipt = {
+            ...body,
+            content_digest: sha256(stableJson(body)),
+          };
+          const directory = join(
+            process.env.RUNNER_TEMP,
+            "v0.1-candidate-certification",
+          );
+          mkdirSync(directory, { mode: 0o700 });
+          writeFileSync(
+            join(directory, "candidate-certification.json"),
+            `${JSON.stringify(receipt, null, 2)}\n`,
+            { flag: "wx", mode: 0o600 },
+          );
+          NODE
+
+      - name: Upload the exact candidate certification receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: v0.1-candidate-certification-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/v0.1-candidate-certification/candidate-certification.json
+          if-no-files-found: error
+          retention-days: 90

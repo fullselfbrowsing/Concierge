@@ -35,6 +35,7 @@
   },
   "files": [
     "dist",
+    "src",
     "README.md",
     "LICENSE"
   ],
@@ -48,6 +49,12 @@
     "@standard-schema/spec": "^1.0.0"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.test-d.json"
+  },
+  "devDependencies": {
+    "arktype": "2.2.3",
+    "valibot": "1.4.2",
+    "zod": "4.4.3"
   }
 }

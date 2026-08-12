@@ -1,3 +1,48 @@
 packages:
   - "packages/*"
   - "examples/*"
+  # `packages/*` matches ONE level only. The PKG-04c fixture adapters live at
+  # packages/concierge/test/fixtures/adapter-{alpha,beta}/ — three levels deeper
+  # — so the glob above does not match them. Without this third entry they are
+  # invisible to pnpm, neither gets a node_modules link for core, and the
+  # realpath-equality assertion in packages/concierge/test/fixtures.test.ts
+  # silently tests nothing while reporting green.
+  #
+  # This resolves 02-RESEARCH Open Question 4 in favour of REAL workspace
+  # packages rather than temp-directory synthesis. Synthesis would re-run
+  # `pnpm install` inside a test — slow, network-dependent, and it produces an
+  # install graph that is not the one that ships.
+  #
+  # Only directories containing a package.json are picked up, so plan 02-09's
+  # packages/concierge/test/fixtures/probe.ts is not swallowed by this glob.
+  - "packages/concierge/test/fixtures/*"
+
+allowBuilds:
+  esbuild: true
+
+# Version pins for the SECOND build toolchain, declared here before its consumer
+# exists. Nothing installs these today — a `catalog:` entry is a pin waiting for
+# a dependent, not a dependency — so `pnpm-lock.yaml` is unchanged by their
+# presence.
+#
+# They are written down in Phase 2 rather than discovered in Phase 9 because of
+# a failure that produces no error: `concierge-svelte` must be built with
+# `@sveltejs/package`, never with tsdown. Runes are compiler-transformed, and
+# pre-bundling them yields code that runs and is not reactive — no error, no
+# warning, and a symptom ("the snapshot doesn't update") indistinguishable from
+# a bridge bug. @sveltejs/package transpiles file-by-file, deliberately does not
+# bundle, and requires a `svelte` export condition.
+#
+# See CONTRIBUTING.md § Non-negotiables for the rule this pin serves, and for
+# why the build is deliberately NOT centralized.
+catalog:
+  svelte: ^5.0.0
+  "@sveltejs/package": ^2.5.8
+
+# @sveltejs/package dynamically imports TypeScript while omitting it from its
+# published dependencies. Bind that import to the Svelte package's compiler
+# domain instead of letting it fall through to the workspace's native TS 7.
+packageExtensions:
+  "@sveltejs/package@2.5.8":
+    dependencies:
+      typescript: 6.0.3

@@ -3,6 +3,7 @@ dist/
 build/
 coverage/
 *.tsbuildinfo
+*.tgz
 
 .DS_Store
 Icon?
@@ -24,3 +25,5 @@ pnpm-debug.log*
 .turbo/
 .cache/
 .context/
+.svelte-kit/
+/examples/adapter-ssr/.astro/

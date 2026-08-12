@@ -1,0 +1,13 @@
+{
+  // Typecheck-only program: src + test-d, under the exact production compiler flags.
+  // The build config (./tsconfig.json) is deliberately NOT edited — a sibling config keeps
+  // the type-test suite out of the emit program without an `exclude` clause.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // REQUIRED. `rootDir` is inherited as "./src" from the build config and is NOT relaxed
+    // by `noEmit`; omitting this override produces TS6059 naming the first test-d file.
+    "rootDir": "."
+  },
+  "include": ["src/**/*.ts", "test-d/**/*.ts"]
+}

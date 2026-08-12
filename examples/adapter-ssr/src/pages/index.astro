@@ -1,0 +1,80 @@
+---
+import ReactIsland from "../components/ReactIsland.js";
+import SvelteIsland from "../components/SvelteIsland.svelte";
+import { createRequestHarness } from "../shared/catalog.js";
+
+const renderId = process.env.ADAPTER_SSR_RENDER_ID ?? "normal-build";
+const harness = createRequestHarness(renderId);
+const globals = Object.freeze({
+  window: Reflect.has(globalThis, "window"),
+  document: Reflect.has(globalThis, "document"),
+  navigator: Reflect.has(globalThis, "navigator"),
+});
+
+const catalogJson = JSON.stringify(harness.react.catalog);
+let hash = 2_166_136_261;
+for (const character of catalogJson) {
+  hash ^= character.codePointAt(0) ?? 0;
+  hash = Math.imul(hash, 16_777_619);
+}
+const catalogDigest = (hash >>> 0).toString(16).padStart(8, "0");
+const evidenceJson = (): string =>
+  JSON.stringify({
+    schemaVersion: 1,
+    renderId: harness.renderId,
+    adapters: {
+      react: "@fullselfbrowsing/concierge-react/client",
+      svelte: "@fullselfbrowsing/concierge-svelte/client.svelte",
+    },
+    globals,
+    globalsAbsent: !globals.window && !globals.document && !globals.navigator,
+    identities: {
+      react: harness.react.identity,
+      svelte: harness.svelte.identity,
+      distinct: harness.react.identity !== harness.svelte.identity,
+    },
+    catalog: JSON.parse(catalogJson),
+    catalogDigest,
+    catalogsShared:
+      catalogJson === JSON.stringify(harness.svelte.catalog),
+    instancesDistinct:
+      harness.react.concierge !== harness.svelte.concierge &&
+      harness.react.registry !== harness.svelte.registry &&
+      harness.react.bridge !== harness.svelte.bridge,
+    registries: {
+      react: {
+        pre: harness.react.preRegistry,
+        post: harness.react.registry.read() === null ? null : "registered",
+      },
+      svelte: {
+        pre: harness.svelte.preRegistry,
+        post: harness.svelte.registry.read() === null ? null : "registered",
+      },
+    },
+  });
+---
+
+<ReactIsland
+  adapter={harness.react.adapter}
+  identity={harness.react.identity}
+  concierge={harness.react.concierge}
+  registry={harness.react.registry}
+  bridge={harness.react.bridge}
+  catalog={harness.react.catalog}
+  preRegistry={harness.react.preRegistry}
+/>
+<SvelteIsland
+  adapter={harness.svelte.adapter}
+  identity={harness.svelte.identity}
+  concierge={harness.svelte.concierge}
+  registry={harness.svelte.registry}
+  bridge={harness.svelte.bridge}
+  catalog={harness.svelte.catalog}
+  preRegistry={harness.svelte.preRegistry}
+/>
+<script
+  is:inline
+  id="adapter-ssr-evidence"
+  type="application/json"
+  set:html={evidenceJson()}
+></script>

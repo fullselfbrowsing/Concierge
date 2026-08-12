@@ -1,0 +1,8 @@
+{
+  "name": "@fullselfbrowsing/concierge-fixture-alpha",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "peerDependencies": { "@fullselfbrowsing/concierge": "workspace:^" },
+  "devDependencies": { "@fullselfbrowsing/concierge": "workspace:*" }
+}

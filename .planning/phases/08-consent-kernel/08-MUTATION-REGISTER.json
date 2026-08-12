@@ -1,0 +1,1576 @@
+{
+  "schemaVersion": 3,
+  "phase": "08-consent-kernel",
+  "sourceShapeReconciliation": "C07 targets the live rank-comparison/effectiveMinGrade ternary, which is semantically identical to the planned max(delivered, requested) floor. E15 is the post-review D-08-12 control that resurrects contradictory-attestation downgrade into relayed authority.",
+  "expectedGenerationIds": [
+    "M-08-G01",
+    "M-08-G02",
+    "M-08-G03",
+    "M-08-G04",
+    "M-08-G05",
+    "M-08-G06",
+    "M-08-G07",
+    "M-08-G08",
+    "M-08-G09",
+    "M-08-G10",
+    "M-08-G11",
+    "M-08-G12",
+    "M-08-G13",
+    "M-08-G14",
+    "M-08-G15"
+  ],
+  "expectedEvidenceIds": [
+    "M-08-E01",
+    "M-08-E02",
+    "M-08-E03",
+    "M-08-E04",
+    "M-08-E05",
+    "M-08-E06",
+    "M-08-E07",
+    "M-08-E08",
+    "M-08-E09",
+    "M-08-E10",
+    "M-08-E11",
+    "M-08-E12",
+    "M-08-E13",
+    "M-08-E14",
+    "M-08-E15"
+  ],
+  "expectedCapabilityIds": [
+    "M-08-C01",
+    "M-08-C02",
+    "M-08-C03",
+    "M-08-C04",
+    "M-08-C05",
+    "M-08-C06",
+    "M-08-C07"
+  ],
+  "expectedOutcomeIds": [
+    "M-08-O01",
+    "M-08-O02",
+    "M-08-O03",
+    "M-08-O04",
+    "M-08-O05",
+    "M-08-O06",
+    "M-08-O07"
+  ],
+  "expectedPackageIds": [
+    "M-08-P01",
+    "M-08-P02",
+    "M-08-P03",
+    "M-08-P04"
+  ],
+  "expectedIds": [
+    "M-08-G01",
+    "M-08-G02",
+    "M-08-G03",
+    "M-08-G04",
+    "M-08-G05",
+    "M-08-G06",
+    "M-08-G07",
+    "M-08-G08",
+    "M-08-G09",
+    "M-08-G10",
+    "M-08-G11",
+    "M-08-G12",
+    "M-08-G13",
+    "M-08-G14",
+    "M-08-G15",
+    "M-08-E01",
+    "M-08-E02",
+    "M-08-E03",
+    "M-08-E04",
+    "M-08-E05",
+    "M-08-E06",
+    "M-08-E07",
+    "M-08-E08",
+    "M-08-E09",
+    "M-08-E10",
+    "M-08-E11",
+    "M-08-E12",
+    "M-08-E13",
+    "M-08-E14",
+    "M-08-E15",
+    "M-08-C01",
+    "M-08-C02",
+    "M-08-C03",
+    "M-08-C04",
+    "M-08-C05",
+    "M-08-C06",
+    "M-08-C07",
+    "M-08-O01",
+    "M-08-O02",
+    "M-08-O03",
+    "M-08-O04",
+    "M-08-O05",
+    "M-08-O06",
+    "M-08-O07",
+    "M-08-P01",
+    "M-08-P02",
+    "M-08-P03",
+    "M-08-P04"
+  ],
+  "inputHashes": {
+    "package.json": "a8267855dba9a429225090c505a78c6169415e2978ce6fb8fcdd6b28e18d542a",
+    "packages/concierge/package.json": "5ed9d24829c2ac5bdcf69b57d4f4b503c226cee33f474ad07536521fec4112e4",
+    "pnpm-lock.yaml": "0e29065f823200f9bdb2284bdef721003f525f68fa60a2810046b1a7f720e0d4"
+  },
+  "registerDigest": "7d38c388e0918f2f2e4c1f06bebc7768c084ea116df24cacff7b7a3cafe9f244",
+  "mutants": [
+    {
+      "id": "M-08-G01",
+      "group": "generation",
+      "name": "synchronous delivery runs before pending authority is installed",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "    consentGenerations?.set(name, pendingDelivery);\n    try {\n      deliveryHook((report: DeliveryReport): void => {\n        void observeReviewDelivery(name, pendingDelivery, report);\n      });",
+      "replacement": "    try {\n      deliveryHook((report: DeliveryReport): void => {\n        void observeReviewDelivery(name, pendingDelivery, report);\n      });\n      consentGenerations?.set(name, pendingDelivery);",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-02"
+      ],
+      "decisions": [
+        "D-08-01"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "K03"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "K03",
+          "marker": "[RED:K03:synchronous-delivery-pending-ownership]"
+        }
+      ],
+      "definitionDigest": "60533f7798f0c5f833b154ecbd162d12282409f9bda71da73388ae41c325545d",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "2a72371f9ad9912fcf22d9e2bb6d834794dbbba20ae250d133fab9f3a47dfa45"
+    },
+    {
+      "id": "M-08-G02",
+      "group": "generation",
+      "name": "interrupted delivery is accepted as completed",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "      delivery.outcome !== \"completed\"",
+      "replacement": "      false",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-02"
+      ],
+      "decisions": [
+        "D-08-02"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "K04"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "K04",
+          "marker": "[RED:K04:interrupted-delivery-closes-authority]"
+        }
+      ],
+      "definitionDigest": "be0283a7a153a7518d613bc4021c7ed4f450384fca8fa948ec00fccf17558a6d",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "6f186f1a8aa909cbe6819c9823a5b1bb8170e8526debfb2fabe598456ec294f4"
+    },
+    {
+      "id": "M-08-G03",
+      "group": "generation",
+      "name": "delivery callback omits complete current-ledger ownership",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "      current?.generation !== pending.generation ||\n      current.status !== \"pendingDelivery\" ||\n      current.responseId !== pending.responseId",
+      "replacement": "      current === undefined ||\n      current.status !== \"pendingDelivery\" ||\n      false",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-02",
+        "T-08-07"
+      ],
+      "decisions": [
+        "D-08-03"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "E10"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "E10",
+          "marker": "[RED:E10:late-superseded-delivery-inert]"
+        }
+      ],
+      "definitionDigest": "edce7c6a1811b1863ecd9615540d9861da1bf7fbec110528a42cceafd4f8363c",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "613893cce40aaacea6c6bf03e19a1afb800a36813a44741517186581b6d0177e"
+    },
+    {
+      "id": "M-08-G04",
+      "group": "generation",
+      "name": "delivery report omits response ownership",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "      delivery.responseId !== pending.responseId ||",
+      "replacement": "      false ||",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-02",
+        "T-08-07"
+      ],
+      "decisions": [
+        "D-08-03"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "K07"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "K07",
+          "marker": "[RED:K07:delivery-response-ownership]"
+        }
+      ],
+      "definitionDigest": "2ace63d17620ffdd3276085f2262fa7e90e92fcc47faa13363918e0a44abd765",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "da1ea9da0b325b32ad145fdae30695692685f7d266aa573905030f481c64a909"
+    },
+    {
+      "id": "M-08-G05",
+      "group": "generation",
+      "name": "duplicate callback may reclaim verifying delivery",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "      current.status !== \"pendingDelivery\" ||",
+      "replacement": "      false ||",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-07"
+      ],
+      "decisions": [
+        "D-08-04"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "E09"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "E09",
+          "marker": "[RED:E09:single-delivery-verification-owner]"
+        }
+      ],
+      "definitionDigest": "8e7ed9b02986c1327b4fd9381f80f591c6a9c81abab29bb72653df064ba3fc2f",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "369459d54a77b02a76d66418797e56679de528b80154e54f1aaaa0cd5d10138d"
+    },
+    {
+      "id": "M-08-G06",
+      "group": "generation",
+      "name": "same human turn satisfies a fresh user-turn boundary",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "      review.userTurnId !== confirmTurnId;",
+      "replacement": "      review.userTurnId === confirmTurnId;",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-01"
+      ],
+      "decisions": [
+        "D-08-05"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "K14"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "K14",
+          "marker": "[RED:K14:fresh-human-turn-boundary]"
+        }
+      ],
+      "definitionDigest": "37443df176aecf9541a55ebeea4ffa3f09e14ff902c3456b8434d27430e0d377",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "42b5b0c3b6d56333d89bd53633f51b6d0ae8e6ad554d61cca80c29a7f8ae7d96"
+    },
+    {
+      "id": "M-08-G07",
+      "group": "generation",
+      "name": "fresh validated review does not invalidate older authority",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "      consentGenerations?.delete(name);",
+      "replacement": "      void name;",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-03",
+        "T-08-07"
+      ],
+      "decisions": [
+        "D-08-06"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "K26"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "K26",
+          "marker": "[RED:K26:fresh-review-invalidates-older-authority]"
+        }
+      ],
+      "definitionDigest": "097bf17d3caeee4152d4169acd2d627fd514426b8179d35868449245f6480cc0",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "b7861d8a2cd70a9f3d63f09d5c029840aef93a048df21719749e1f6856ae9683"
+    },
+    {
+      "id": "M-08-G08",
+      "group": "generation",
+      "name": "entry compares the reviewed snapshot to itself instead of live state",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "        const currentSnapshot: Readonly<Record<string, unknown>> =\n          captureResolvedSnapshot(index, bridge);",
+      "replacement": "        const currentSnapshot: Readonly<Record<string, unknown>> =\n          owned.snapshot;",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-03"
+      ],
+      "decisions": [
+        "D-08-06"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "K17"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "K17",
+          "marker": "[RED:K17:late-snapshot-drift-destroys-authority]"
+        }
+      ],
+      "definitionDigest": "0c9a9858df500ad80c884ea869c5fe3f97132c262da7f6fdce1eb86870573512",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "5cad98e9176bb3b1e9c9c1a2ef1a405a20ab491860a0304d0cf60c66a4a8c80d"
+    },
+    {
+      "id": "M-08-G09",
+      "group": "generation",
+      "name": "throwing snapshot comparator is treated as a match",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "      } catch {\n        snapshotsMatch = false;\n      }",
+      "replacement": "      } catch {\n        snapshotsMatch = true;\n      }",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-03",
+        "T-08-10"
+      ],
+      "decisions": [
+        "D-08-07"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "K18"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "K18",
+          "marker": "[RED:K18:throwing-snapshot-comparator-fails-closed]"
+        }
+      ],
+      "definitionDigest": "a3de866a0d38831fa1977d837979e26813c5bf9d86a0e91d1f0d021739408c67",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "1fab4663c30a9207fcfa41e21972240ff8d55f229b68e50f1daca7c1eabc8ce4"
+    },
+    {
+      "id": "M-08-G10",
+      "group": "generation",
+      "name": "snapshot mismatch no longer destroys authority",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "      if (!snapshotsMatch) {",
+      "replacement": "      if (false && !snapshotsMatch) {",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-03"
+      ],
+      "decisions": [
+        "D-08-07"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "K20"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "K20",
+          "marker": "[RED:K20:snapshot-mismatch-destroys-authority]"
+        }
+      ],
+      "definitionDigest": "fa6eb4089264d62e1ca0d8f68eeda5d658f278377467a85cf86628db7e10c6fa",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "ce0d09e8ce762210c89094fc78dcc57d6e046e3e156f78e1a73f1f1ce9f870a0"
+    },
+    {
+      "id": "M-08-G11",
+      "group": "generation",
+      "name": "ack payload is recomputed from confirm arguments",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "      consentAck = Object.freeze(\n        owned.achievedGrade === \"attested\"\n          ? {\n              grade: owned.achievedGrade,\n              payload: owned.payload,\n              readbackHash: owned.readbackHash as string,\n              responseId: owned.responseId,\n              snapshot: owned.snapshot,\n              userTurnId: owned.userTurnId,\n            }\n          : {\n              grade: owned.achievedGrade,\n              payload: owned.payload,\n              responseId: owned.responseId,\n              snapshot: owned.snapshot,\n              userTurnId: owned.userTurnId,\n            },\n      );",
+      "replacement": "      consentAck = Object.freeze(\n        owned.achievedGrade === \"attested\"\n          ? {\n              grade: owned.achievedGrade,\n              payload: validatedSnapshot.value,\n              readbackHash: owned.readbackHash as string,\n              responseId: owned.responseId,\n              snapshot: owned.snapshot,\n              userTurnId: owned.userTurnId,\n            }\n          : {\n              grade: owned.achievedGrade,\n              payload: validatedSnapshot.value,\n              responseId: owned.responseId,\n              snapshot: owned.snapshot,\n              userTurnId: owned.userTurnId,\n            },\n      );",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-03"
+      ],
+      "decisions": [
+        "D-08-08"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "K21"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "K21",
+          "marker": "[RED:K21:ack-reuses-reviewed-payload]"
+        }
+      ],
+      "definitionDigest": "b8f1f82eae0202cbea1bfdca4edc4048e1588099c9d864fda22504d7599f4cc8",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "d7b6cf95f7a8dd7746de0f925a7cbde6e268d9c2fa110928e251c00fd5b1da27"
+    },
+    {
+      "id": "M-08-G12",
+      "group": "generation",
+      "name": "authority is not consumed before handler reentry",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "      // Authority is one-shot across every action sharing this review name.\n      closeConsentGeneration(reviewName, owned.generation);",
+      "replacement": "      // Mutant: defer the one-shot consumption past the handler.\n      void owned;",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-07"
+      ],
+      "decisions": [
+        "D-08-08"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "K22"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "K22",
+          "marker": "[RED:K22:one-shot-consumption-before-handler]"
+        }
+      ],
+      "definitionDigest": "55e269e6f99115660bbc7e2d5e37e16b68525dca6005e8121897202266c6a7fe",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "bd209742ec0f22cd49e22fd6d041d9dd6c27c65a6fd60ff1b86cab74b2b26ddc"
+    },
+    {
+      "id": "M-08-G13",
+      "group": "generation",
+      "name": "declined delivery falls through and re-arms",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "    if (observedAct === \"declined\" || observedAct === \"dismissed\") {",
+      "replacement": "    if (observedAct === \"dismissed\") {",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-07"
+      ],
+      "decisions": [
+        "D-08-08"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "K24"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "K24",
+          "marker": "[RED:K24:decline-dismiss-terminal-one-shot]"
+        }
+      ],
+      "definitionDigest": "f3cbc7c882466283b7cf528133bd7cb5c8ea35f58ebdf8c545a2b6c11ecd4e14",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "be090ceab29538aff713c3b5dade386426c3066ac6a4a807837b3c72796feb45"
+    },
+    {
+      "id": "M-08-G14",
+      "group": "generation",
+      "name": "dismissed delivery falls through and re-arms",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "    if (observedAct === \"declined\" || observedAct === \"dismissed\") {",
+      "replacement": "    if (observedAct === \"declined\") {",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-07"
+      ],
+      "decisions": [
+        "D-08-08"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "K24"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "K24",
+          "marker": "[RED:K24:decline-dismiss-terminal-one-shot]"
+        }
+      ],
+      "definitionDigest": "8a78bdec7252e0e1ad8462565a0fad3f1418325b697b08365e406bc5b281f6de",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "97a9fd4bcf68a9db428060374b5e754d26e16c7eb6ba277424d217479d370225"
+    },
+    {
+      "id": "M-08-G15",
+      "group": "generation",
+      "name": "module-private measured-grade predicate accepts none",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "  return achievedGrade !== \"none\";",
+      "replacement": "  return true;",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-04"
+      ],
+      "decisions": [
+        "D-08-09"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "N01",
+        "N02"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "N01",
+          "marker": "[RED:N01:omitted-minimum-rejects-none-grade]"
+        },
+        {
+          "caseId": "N02",
+          "marker": "[RED:N02:explicit-none-rejects-none-grade]"
+        }
+      ],
+      "definitionDigest": "b5f39cbe9be109a205966aefbe27c5cc9131419fd6c1bd6e25a5979f37377314",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "f822f62f39409bae0b0a4c34ed02b870c395fcd8f0fd8ba9b960056dd12fb571"
+    },
+    {
+      "id": "M-08-E01",
+      "group": "evidence",
+      "name": "receipt algorithm claim is trusted",
+      "target": "packages/concierge/src/consent-evidence.ts",
+      "literalPattern": "    receipt.alg !== \"SHA-256\" ||",
+      "replacement": "    false ||",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-05"
+      ],
+      "decisions": [
+        "D-08-12"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/readback-canonicalization.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J11"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J11",
+          "marker": "[RED:J11:receipt-claim-verification]"
+        }
+      ],
+      "definitionDigest": "f60cc79d190af432da4088c2eb932342d1bb343027c9cda57f0e4e968664d876",
+      "originalTargetHash": "db1c4ed04cfeba558d83737e5c5fe8d51d38933c648aa40e3be282ec69560c38",
+      "mutantTargetHash": "14068738f37f0cc9db068ad59b4861f0853d6df169b69c07296c3c818c722c8e"
+    },
+    {
+      "id": "M-08-E02",
+      "group": "evidence",
+      "name": "receipt canonical bytes are not compared",
+      "target": "packages/concierge/src/consent-evidence.ts",
+      "literalPattern": "    !bytesEqual(prepared.canonical, receipt.canonical)",
+      "replacement": "    false",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-05"
+      ],
+      "decisions": [
+        "D-08-12"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/readback-canonicalization.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J11"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J11",
+          "marker": "[RED:J11:receipt-claim-verification]"
+        }
+      ],
+      "definitionDigest": "d8d82f124fa860a363f7e31f7f69a0503ecd883f0d93422bf0daf54f480bca0b",
+      "originalTargetHash": "db1c4ed04cfeba558d83737e5c5fe8d51d38933c648aa40e3be282ec69560c38",
+      "mutantTargetHash": "040f148136ae5d98a1d462ff52a6206664e7cdf43ef3528fe10527e338bac6dc"
+    },
+    {
+      "id": "M-08-E03",
+      "group": "evidence",
+      "name": "delivery report readbackHash is not bound to retained evidence",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "      delivery.readbackHash === verified.hash &&",
+      "replacement": "      typeof delivery.readbackHash === \"string\" &&",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-05",
+        "T-08-06"
+      ],
+      "decisions": [
+        "D-08-13"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "E02"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "E02",
+          "marker": "[RED:E02:complete-attested-delivery-tuple]"
+        }
+      ],
+      "definitionDigest": "ac320fb0fbdc7cd0b4104115b2a8c5d6843cf8ddee2153efab04d63990f6f775",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "bac32c72f634ddf6cf8a2a80ea953a9d5a19c0579461d42cd6a9662d561d49c8"
+    },
+    {
+      "id": "M-08-E04",
+      "group": "evidence",
+      "name": "attestation readbackHash is not bound to retained evidence",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "      attestation.readbackHash === verified.hash &&",
+      "replacement": "      typeof attestation.readbackHash === \"string\" &&",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-05",
+        "T-08-06"
+      ],
+      "decisions": [
+        "D-08-13"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "E02"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "E02",
+          "marker": "[RED:E02:complete-attested-delivery-tuple]"
+        }
+      ],
+      "definitionDigest": "e5f38c75bbac5eef4483f3d742a91ada756283c9d4cb55bf52cef5d9190f44f4",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "125459bb1ca2139e41b53f77e1d127dc5f9761d6a57ba512a7df495de16a4e2f"
+    },
+    {
+      "id": "M-08-E05",
+      "group": "evidence",
+      "name": "unknown attestation act is accepted as confirmed",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "      observedAct === \"confirmed\" &&",
+      "replacement": "      typeof observedAct === \"string\" &&",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-06"
+      ],
+      "decisions": [
+        "D-08-14"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "E02"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "E02",
+          "marker": "[RED:E02:complete-attested-delivery-tuple]"
+        }
+      ],
+      "definitionDigest": "1d35005b018028bd9fc331d54f97393b5008d866b88a6b2df53252b3c7eb3428",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "920e3584d15a3d48aa012b46874ac0287b7f3511054bb5a7f714f121e916ce34"
+    },
+    {
+      "id": "M-08-E06",
+      "group": "evidence",
+      "name": "review turn is accepted as the confirming turn",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "      attestation.userTurnId !== claimed.userTurnId",
+      "replacement": "      claimed.userTurnId.length >= 0",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-06"
+      ],
+      "decisions": [
+        "D-08-14"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "E02"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "E02",
+          "marker": "[RED:E02:complete-attested-delivery-tuple]"
+        }
+      ],
+      "definitionDigest": "cb6721c14dca6791cc28f6eb927bab01a95f17eb69d61ff728b8e61cda7535a3",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "28695a3e8e1482950e148c44e7c8d04a64ff21c29dd32ccbee194e3dfd450980"
+    },
+    {
+      "id": "M-08-E07",
+      "group": "evidence",
+      "name": "lone high surrogate is accepted",
+      "target": "packages/concierge/src/consent-evidence.ts",
+      "literalPattern": "      if (!(low >= 0xdc00 && low <= 0xdfff)) {\n        return null;\n      }",
+      "replacement": "      if (!(low >= 0xdc00 && low <= 0xdfff)) {\n        output += \"\\\\ud800\";\n        continue;\n      }",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-05"
+      ],
+      "decisions": [
+        "D-08-15"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/readback-canonicalization.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J09"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J09",
+          "marker": "[RED:J09:lone-surrogate-rejection]"
+        }
+      ],
+      "definitionDigest": "255ddec027ad5986ba862fb93096cb74efe3abcdb96d9ace56b65fe7aa4acf4e",
+      "originalTargetHash": "db1c4ed04cfeba558d83737e5c5fe8d51d38933c648aa40e3be282ec69560c38",
+      "mutantTargetHash": "0e647c10a65f04a7514a2cf11be5f2c8f2ddc47d9abfff4a4c7d65c13691e9c9"
+    },
+    {
+      "id": "M-08-E08",
+      "group": "evidence",
+      "name": "non-finite JSON number is accepted",
+      "target": "packages/concierge/src/consent-evidence.ts",
+      "literalPattern": "      if (!Number.isFinite(value)) {\n        return null;\n      }",
+      "replacement": "      if (false && !Number.isFinite(value)) {\n        return null;\n      }",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-05"
+      ],
+      "decisions": [
+        "D-08-15"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/readback-canonicalization.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J06"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J06",
+          "marker": "[RED:J06:non-finite-and-non-json-rejection]"
+        }
+      ],
+      "definitionDigest": "2dd0146f78ae1ef9cf4004d71f1f785363c3bb48b8e545c60d513fe1407fcf46",
+      "originalTargetHash": "db1c4ed04cfeba558d83737e5c5fe8d51d38933c648aa40e3be282ec69560c38",
+      "mutantTargetHash": "a6f86b8c98b76216a2877112579410ae1616c53e30706f29394c269f383d7f72"
+    },
+    {
+      "id": "M-08-E09",
+      "group": "evidence",
+      "name": "alias and cycle guard is disabled",
+      "target": "packages/concierge/src/consent-evidence.ts",
+      "literalPattern": "  if (seen.has(value)) {",
+      "replacement": "  if (false && seen.has(value)) {",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-05"
+      ],
+      "decisions": [
+        "D-08-15"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/readback-canonicalization.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J07"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J07",
+          "marker": "[RED:J07:alias-and-cycle-rejection]"
+        }
+      ],
+      "definitionDigest": "ce8cac26997868f0698b24f6368519efc261faa24529d939a787c76ae8e12b20",
+      "originalTargetHash": "db1c4ed04cfeba558d83737e5c5fe8d51d38933c648aa40e3be282ec69560c38",
+      "mutantTargetHash": "a0d54ead6c87e8024ff7dd89e0d0836ca95cee7a5b0cfa85a86b068341950ba6"
+    },
+    {
+      "id": "M-08-E10",
+      "group": "evidence",
+      "name": "object accessors are invoked while canonicalizing",
+      "target": "packages/concierge/src/consent-evidence.ts",
+      "literalPattern": "    if (\n      typeof key !== \"string\" ||\n      key === \"toJSON\" ||\n      descriptor === undefined ||\n      !(\"value\" in descriptor) ||\n      descriptor.enumerable !== true ||\n      quoteString(key) === null\n    ) {\n      return null;\n    }\n    const child: StrictValue | null = snapshotStrictValue(\n      descriptor.value,\n      seen,\n    );\n    if (child === null) {\n      return null;\n    }\n    entries.push({ canonical: child.canonical, key, value: child.value });",
+      "replacement": "    if (\n      typeof key !== \"string\" ||\n      key === \"toJSON\" ||\n      descriptor === undefined ||\n      descriptor.enumerable !== true ||\n      quoteString(key) === null\n    ) {\n      return null;\n    }\n    const child: StrictValue | null = snapshotStrictValue(\n      (value as Record<string, unknown>)[key as string],\n      seen,\n    );\n    if (child === null) {\n      return null;\n    }\n    entries.push({ canonical: child.canonical, key, value: child.value });",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-10"
+      ],
+      "decisions": [
+        "D-08-15"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/readback-canonicalization.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J08"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J08",
+          "marker": "[RED:J08:accessor-and-exotic-rejection]"
+        }
+      ],
+      "definitionDigest": "ffc9edd042e7d88c6d43e01c7c478d5d3824d8b2a9c152eca05c3bf4f357beb7",
+      "originalTargetHash": "db1c4ed04cfeba558d83737e5c5fe8d51d38933c648aa40e3be282ec69560c38",
+      "mutantTargetHash": "2671e1ad08808e06451c6c841ec12ab4439353692219951594ee26cafb0d9228"
+    },
+    {
+      "id": "M-08-E11",
+      "group": "evidence",
+      "name": "exotic object prototypes are accepted",
+      "target": "packages/concierge/src/consent-evidence.ts",
+      "literalPattern": "  if (shape.prototype !== Object.prototype && shape.prototype !== null) {\n    return null;\n  }\n  const entries: Array<{",
+      "replacement": "  if (false && shape.prototype !== Object.prototype && shape.prototype !== null) {\n    return null;\n  }\n  const entries: Array<{",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-10"
+      ],
+      "decisions": [
+        "D-08-15"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/readback-canonicalization.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J08"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J08",
+          "marker": "[RED:J08:accessor-and-exotic-rejection]"
+        }
+      ],
+      "definitionDigest": "40b0ae9c57f8749541824404539d38984d1686e6683c43752f2b187844d96144",
+      "originalTargetHash": "db1c4ed04cfeba558d83737e5c5fe8d51d38933c648aa40e3be282ec69560c38",
+      "mutantTargetHash": "d0300e4b0eb7d1168bfef4c0dbcc864587e19acc2494eff3879281e085d2b65a"
+    },
+    {
+      "id": "M-08-E12",
+      "group": "evidence",
+      "name": "four-byte UTF-8 scalar uses a broken lead byte",
+      "target": "packages/concierge/src/consent-evidence.ts",
+      "literalPattern": "        0xf0 | (scalar >> 18),",
+      "replacement": "        0xe0 | (scalar >> 18),",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-05"
+      ],
+      "decisions": [
+        "D-08-16"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/readback-canonicalization.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J04"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J04",
+          "marker": "[RED:J04:four-byte-utf8-scalar]"
+        }
+      ],
+      "definitionDigest": "c55ba03e6678a1564a586c465ed7352b3b8bbbf04c596408720516e68b0a948f",
+      "originalTargetHash": "db1c4ed04cfeba558d83737e5c5fe8d51d38933c648aa40e3be282ec69560c38",
+      "mutantTargetHash": "97bd69d6e2439a117f12a09f777ee159692af38df8047b505f9f0b50ff06a9b3"
+    },
+    {
+      "id": "M-08-E13",
+      "group": "evidence",
+      "name": "JCS object keys sort in reverse UTF-16 order",
+      "target": "packages/concierge/src/consent-evidence.ts",
+      "literalPattern": "  entries.sort((left, right) => compareUtf16(left.key, right.key));",
+      "replacement": "  entries.sort((left, right) => compareUtf16(right.key, left.key));",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-05"
+      ],
+      "decisions": [
+        "D-08-17"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/readback-canonicalization.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J02"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J02",
+          "marker": "[RED:J02:utf16-property-order]"
+        }
+      ],
+      "definitionDigest": "aa89e692a13270072eaa3ea34c16ca5596967e98b0bd2009e4233454333512ce",
+      "originalTargetHash": "db1c4ed04cfeba558d83737e5c5fe8d51d38933c648aa40e3be282ec69560c38",
+      "mutantTargetHash": "ec6e4dee66efb7f74fdf5acc155fed3845599a5b8152569c01f203ad7f994c61"
+    },
+    {
+      "id": "M-08-E14",
+      "group": "evidence",
+      "name": "negative zero keeps a non-JCS number spelling",
+      "target": "packages/concierge/src/consent-evidence.ts",
+      "literalPattern": "        canonical: Object.is(value, -0)\n          ? \"0\"\n          : NUMBER_TO_STRING.call(value),",
+      "replacement": "        canonical: Object.is(value, -0)\n          ? \"-0\"\n          : NUMBER_TO_STRING.call(value),",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-05"
+      ],
+      "decisions": [
+        "D-08-17"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/readback-canonicalization.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J03"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J03",
+          "marker": "[RED:J03:negative-zero-number-spelling]"
+        }
+      ],
+      "definitionDigest": "10c4f1251f7bd2f448baf33a624f5a17af144f045871316f51a8ddc466fc89dd",
+      "originalTargetHash": "db1c4ed04cfeba558d83737e5c5fe8d51d38933c648aa40e3be282ec69560c38",
+      "mutantTargetHash": "6bc359fa11eaaf9aa49f55471ad45ff51794d12eadacb2cd2d281c8fadcfeb2c"
+    },
+    {
+      "id": "M-08-E15",
+      "group": "evidence",
+      "name": "contradictory attested claim falls through to relayed authority",
+      "target": "packages/concierge/src/concierge.ts",
+      "literalPattern": "    if (hasAttestedClaim && !completeAttestedClaim) {",
+      "replacement": "    if (false) {",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-04",
+        "T-08-05",
+        "T-08-06"
+      ],
+      "decisions": [
+        "D-08-12"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/consent-kernel.test.ts"
+      ],
+      "intendedCaseIds": [
+        "E14"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "E14",
+          "marker": "[RED:E14:contradictory-attestation-closes-shared-generation]"
+        }
+      ],
+      "definitionDigest": "aee0520644ece90c58ce7b544e167ae243bb55249d2861c60878f849d3ffdcb3",
+      "originalTargetHash": "e2aecff5d38e0b29502fb3fbbebf70b5ddb0b2c6e7d3b6a823bcd031ad080e85",
+      "mutantTargetHash": "f0ee121b310c61aa52c5423740c9dd75d1d2de98c568fc4646f9a53e77d1813e"
+    },
+    {
+      "id": "M-08-C01",
+      "group": "capability",
+      "name": "catalog grade-unavailable issue is omitted",
+      "target": "packages/concierge/src/catalog.ts",
+      "literalPattern": "        gradeRank(effectiveMinGrade) > gradeRank(consentEvidence.consentGrade)",
+      "replacement": "        false",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-04"
+      ],
+      "decisions": [
+        "D-08-09"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C27"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C27",
+          "marker": "[RED:C27:consent-grade-floor-enforcement]"
+        }
+      ],
+      "definitionDigest": "6ed24deaeb0f3395a498ac5e610b14e223358c4dd91864b31dd9eed11e2827f3",
+      "originalTargetHash": "dcde946d1209f059cb4a59112240d062484e290691c0c6718da753676efd60a5",
+      "mutantTargetHash": "a41577dbf006aee594e60cab41fc226adb8f5ac83ab930d88ef0f17484aea4c0"
+    },
+    {
+      "id": "M-08-C02",
+      "group": "capability",
+      "name": "catalog user-turn provenance issue is omitted",
+      "target": "packages/concierge/src/catalog.ts",
+      "literalPattern": "        consentEvidence.userTurnIdentity !== \"human-attested\"",
+      "replacement": "        false",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-01"
+      ],
+      "decisions": [
+        "D-08-10"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C29"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C29",
+          "marker": "[RED:C29:captured-grade-and-provenance-validation]"
+        }
+      ],
+      "definitionDigest": "cbac846a228c882634f52a40130fbf5e0bd371da893c9bd12423d9de1348644f",
+      "originalTargetHash": "dcde946d1209f059cb4a59112240d062484e290691c0c6718da753676efd60a5",
+      "mutantTargetHash": "d17304c84ef83c220f11ed5487d00daabfe3731a292c83019b18db2d26202392"
+    },
+    {
+      "id": "M-08-C03",
+      "group": "capability",
+      "name": "captured profile provenance is forged as human-attested",
+      "target": "packages/concierge/src/catalog.ts",
+      "literalPattern": "      userTurnIdentity: isTurnIdentityProvenance(declaredProvenance)\n        ? declaredProvenance\n        : \"none\",",
+      "replacement": "      userTurnIdentity: \"human-attested\",",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-01"
+      ],
+      "decisions": [
+        "D-08-10"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C29"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C29",
+          "marker": "[RED:C29:captured-grade-and-provenance-validation]"
+        }
+      ],
+      "definitionDigest": "e65318ac73fb15377a38b2288c6a9d71d8c290c60695de8081e0bb0028722dce",
+      "originalTargetHash": "dcde946d1209f059cb4a59112240d062484e290691c0c6718da753676efd60a5",
+      "mutantTargetHash": "95c3ca78b0dd988ac1d69bee53a162c05056201226bc7e56f506eba7263b45b4"
+    },
+    {
+      "id": "M-08-C04",
+      "group": "capability",
+      "name": "any declared grade is copied upward to attested",
+      "target": "packages/concierge/src/catalog.ts",
+      "literalPattern": "      consentGrade: isConsentGrade(declaredGrade) ? declaredGrade : \"none\",",
+      "replacement": "      consentGrade: isConsentGrade(declaredGrade) ? \"attested\" : \"none\",",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-04"
+      ],
+      "decisions": [
+        "D-08-09"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C29"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C29",
+          "marker": "[RED:C29:captured-grade-and-provenance-validation]"
+        }
+      ],
+      "definitionDigest": "28faa51763a8bc0d9435347fe4750425785a3a55abd41db9d274e9853e52e334",
+      "originalTargetHash": "dcde946d1209f059cb4a59112240d062484e290691c0c6718da753676efd60a5",
+      "mutantTargetHash": "e5635ed63c15feacd606596fce0e48ca04bf1a57f617441042a23155255a2961"
+    },
+    {
+      "id": "M-08-C05",
+      "group": "capability",
+      "name": "weaker actual transport capability is accepted",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    if (!profileDominates(actualCapabilities, consentProfileOf(concierge))) {",
+      "replacement": "    if (false && !profileDominates(actualCapabilities, consentProfileOf(concierge))) {",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-04"
+      ],
+      "decisions": [
+        "D-08-11"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-consent.test.ts"
+      ],
+      "intendedCaseIds": [
+        "S02"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "S02",
+          "marker": "[RED:S02:weaker-profile-pre-effect]"
+        }
+      ],
+      "definitionDigest": "05e3565e14677552540fe444bc6fb77ecd689bdbe20763813a0d54affe81939e",
+      "originalTargetHash": "50ce9c5e3774a95fd0ac66967d479f0c4f7c40894e3bf8d0aafb5d13dff2a470",
+      "mutantTargetHash": "b61d9d857c164754bb106e10290fb7a6d62b53ca86fef7053aef5021293464b3"
+    },
+    {
+      "id": "M-08-C06",
+      "group": "capability",
+      "name": "transport capability validation happens after an observable effect",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "    actualCapabilities = captureTransportCapabilities(transport);",
+      "replacement": "    transport.setTools(EMPTY_CATALOG);\n    actualCapabilities = captureTransportCapabilities(transport);",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-04",
+        "T-08-10"
+      ],
+      "decisions": [
+        "D-08-11"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-consent.test.ts"
+      ],
+      "intendedCaseIds": [
+        "S02"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "S02",
+          "marker": "[RED:S02:weaker-profile-pre-effect]"
+        }
+      ],
+      "definitionDigest": "e215a9f6a82611f858336dd1212b4eb3940e92554689b44cb0a2161c7aed674e",
+      "originalTargetHash": "50ce9c5e3774a95fd0ac66967d479f0c4f7c40894e3bf8d0aafb5d13dff2a470",
+      "mutantTargetHash": "cd57d1d380f16396286b4b38c1a1878c3e1b9d54dbb6722ef5dbb21acf33f64a"
+    },
+    {
+      "id": "M-08-C07",
+      "group": "capability",
+      "name": "inherent delivered floor regresses to permissive requested none",
+      "target": "packages/concierge/src/catalog.ts",
+      "literalPattern": "    const effectiveMinGrade: ConsentGrade = gradeRank(requested) <\n        gradeRank(\"delivered\")\n      ? \"delivered\"\n      : requested;",
+      "replacement": "    const effectiveMinGrade: ConsentGrade = requested;",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-04"
+      ],
+      "decisions": [
+        "D-08-09"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/catalog.test.ts"
+      ],
+      "intendedCaseIds": [
+        "C27"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "C27",
+          "marker": "[RED:C27:consent-grade-floor-enforcement]"
+        }
+      ],
+      "definitionDigest": "cd182443b0aac24f3765e713a5cea66809ab87dba755468ffd36f11d9c3514c1",
+      "originalTargetHash": "dcde946d1209f059cb4a59112240d062484e290691c0c6718da753676efd60a5",
+      "mutantTargetHash": "1aa26f513eed2926e3ace84e5f44e8e89e31eb616888bb249373a4b23ed8ece2"
+    },
+    {
+      "id": "M-08-O01",
+      "group": "outcome",
+      "name": "results respond before app outcome completion",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "          const report: unknown = await presentOutcome(failureOutcome);",
+      "replacement": "          for (const earlyRow of rows) {\n            Reflect.apply(transport.respond, transport, [earlyRow.callId, earlyRow.result]);\n          }\n          const report: unknown = await presentOutcome(failureOutcome);",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-08"
+      ],
+      "decisions": [
+        "D-08-18"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-consent.test.ts"
+      ],
+      "intendedCaseIds": [
+        "S06"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "S06",
+          "marker": "[RED:S06:frozen-outcome-before-response]"
+        }
+      ],
+      "definitionDigest": "6bdf57c444bd694d61b30ffbdce3bb54c0afbcc72c95f372dc6953090c233fda",
+      "originalTargetHash": "50ce9c5e3774a95fd0ac66967d479f0c4f7c40894e3bf8d0aafb5d13dff2a470",
+      "mutantTargetHash": "b552747c306f12e47cfb88871aba07da3c0cbcd0b8beed39290a109eb1d1b07b"
+    },
+    {
+      "id": "M-08-O02",
+      "group": "outcome",
+      "name": "outcome discloses complete dispatch row and model arguments",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "      message: result.message,",
+      "replacement": "      message: JSON.stringify(row),",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-08"
+      ],
+      "decisions": [
+        "D-08-19"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-consent.test.ts"
+      ],
+      "intendedCaseIds": [
+        "S06"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "S06",
+          "marker": "[RED:S06:frozen-outcome-before-response]"
+        }
+      ],
+      "definitionDigest": "5c74bd0c063d6a19e17a2211df74e12658c015ae40a8ac7bf58019334c479a07",
+      "originalTargetHash": "50ce9c5e3774a95fd0ac66967d479f0c4f7c40894e3bf8d0aafb5d13dff2a470",
+      "mutantTargetHash": "ff5d3bcd99f0d5a61e7342c97e83aeb0add6bbc7a5c14fdf972d45f8f21f72c4"
+    },
+    {
+      "id": "M-08-O03",
+      "group": "outcome",
+      "name": "failed outcome sink is retried",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "        } catch {\n          completed = false;\n        }",
+      "replacement": "        } catch {\n          await presentOutcome(failureOutcome);\n          completed = false;\n        }",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-08",
+        "T-08-10"
+      ],
+      "decisions": [
+        "D-08-20"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-consent.test.ts"
+      ],
+      "intendedCaseIds": [
+        "S07"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "S07",
+          "marker": "[RED:S07:outcome-failure-matrix]"
+        }
+      ],
+      "definitionDigest": "928779149210d8dd5ecc829bad56706de9af93fa5aabaede74f3638a3d681ce8",
+      "originalTargetHash": "50ce9c5e3774a95fd0ac66967d479f0c4f7c40894e3bf8d0aafb5d13dff2a470",
+      "mutantTargetHash": "2d45298a18175286c06840f7f809a551441a566b7089c72ef6ca90801debdb6b"
+    },
+    {
+      "id": "M-08-O04",
+      "group": "outcome",
+      "name": "failed transport response is retried",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "        } catch {\n          diagnose(\"response_failed\");\n        }",
+      "replacement": "        } catch {\n          diagnose(\"response_failed\");\n          transport.respond(row.callId, row.result);\n        }",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-08"
+      ],
+      "decisions": [
+        "D-08-20"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-routing.test.ts"
+      ],
+      "intendedCaseIds": [
+        "J04"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "J04",
+          "marker": "[RED:J04:response-throw-no-retry]"
+        }
+      ],
+      "definitionDigest": "fc8ba36ef747d3e4e11583ae81d1ecc1be539ccffe7653592fc97ce4302c68c1",
+      "originalTargetHash": "50ce9c5e3774a95fd0ac66967d479f0c4f7c40894e3bf8d0aafb5d13dff2a470",
+      "mutantTargetHash": "61f3241edd9c3738e26cbd0c499f941c1497089e93ded1a4105e6cc299bc538b"
+    },
+    {
+      "id": "M-08-O05",
+      "group": "outcome",
+      "name": "interrupted outcome still releases results",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "        if (!completed) {\n          diagnose(\"outcome_presentation_failed\");\n          return;\n        }",
+      "replacement": "        if (!completed) {\n          diagnose(\"outcome_presentation_failed\");\n        }",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-08"
+      ],
+      "decisions": [
+        "D-08-18"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-consent.test.ts"
+      ],
+      "intendedCaseIds": [
+        "S07"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "S07",
+          "marker": "[RED:S07:outcome-failure-matrix]"
+        }
+      ],
+      "definitionDigest": "9eee28cc1dc58aa0fa09c937160fb105b92d4fe30e7ce90818984a77f050e8c6",
+      "originalTargetHash": "50ce9c5e3774a95fd0ac66967d479f0c4f7c40894e3bf8d0aafb5d13dff2a470",
+      "mutantTargetHash": "070aab627ad28159080cc077b31a073529d372d9029558f0a78ae48bf956dbfe"
+    },
+    {
+      "id": "M-08-O06",
+      "group": "outcome",
+      "name": "caught outcome error is echoed into a response",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "        } catch {\n          completed = false;\n        }",
+      "replacement": "        } catch (error) {\n          const firstRow = rows[0];\n          if (firstRow !== undefined) {\n            Reflect.apply(transport.respond, transport, [firstRow.callId, Object.freeze({ ok: false, message: String(error) })]);\n          }\n          completed = false;\n        }",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-10"
+      ],
+      "decisions": [
+        "D-08-19"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-consent.test.ts"
+      ],
+      "intendedCaseIds": [
+        "S07"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "S07",
+          "marker": "[RED:S07:outcome-failure-matrix]"
+        }
+      ],
+      "definitionDigest": "5e6670738ec3d1152ea9759de7e8e692ac827af02fdc37b547bf3031bf1e826d",
+      "originalTargetHash": "50ce9c5e3774a95fd0ac66967d479f0c4f7c40894e3bf8d0aafb5d13dff2a470",
+      "mutantTargetHash": "1cdba552d1fceaf5e9149ef5f2cd38fc1d89810f30cb9c9a1f85b87a25c9b0f3"
+    },
+    {
+      "id": "M-08-O07",
+      "group": "outcome",
+      "name": "all-success occurrence calls the outcome sink",
+      "target": "packages/concierge/src/session.ts",
+      "literalPattern": "      const failureOutcome: FailureOutcome | null = failureOutcomeFor(rows);",
+      "replacement": "      const failureOutcome: FailureOutcome = failureOutcomeFor(rows) ?? Object.freeze({ failures: Object.freeze([]) });",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-08"
+      ],
+      "decisions": [
+        "D-08-18"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/session-consent.test.ts"
+      ],
+      "intendedCaseIds": [
+        "S05"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "S05",
+          "marker": "[RED:S05:all-success-bypass]"
+        }
+      ],
+      "definitionDigest": "3c857b4f299f172ecfe840d379513606af6ae6c971b3cfc49c807aff15adc9ce",
+      "originalTargetHash": "50ce9c5e3774a95fd0ac66967d479f0c4f7c40894e3bf8d0aafb5d13dff2a470",
+      "mutantTargetHash": "62de9d6395b392f711b1b755582f7be3c740a876a058a385294cc84e60982004"
+    },
+    {
+      "id": "M-08-P01",
+      "group": "package",
+      "name": "test fixture factory is exported from production source",
+      "target": "packages/concierge/src/index.ts",
+      "literalPattern": "export { createBridge, captureSnapshot, offPageResult } from \"./bridge.js\";",
+      "replacement": "export { createBridge, captureSnapshot, offPageResult } from \"./bridge.js\";\nexport const createStubTransport: undefined = undefined;",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-SC"
+      ],
+      "decisions": [
+        "D-08-21"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/stub-transport.test.ts"
+      ],
+      "intendedCaseIds": [
+        "U08"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "U08",
+          "marker": "[RED:U08:test-only-boundary]"
+        }
+      ],
+      "definitionDigest": "465f858c80ec6d52f83c6d99f5a186b2a2bd7a09213f4a9bc07bf0db769bfab6",
+      "originalTargetHash": "1d4897a4bef0c5b3893fc1c7461e9217bd74467a2c863907877c3ba3441402cd",
+      "mutantTargetHash": "055fe4f84d60455a82a6e724c3509e287407ac14f2798113bdd156e5c16a556e"
+    },
+    {
+      "id": "M-08-P02",
+      "group": "package",
+      "name": "test fixtures are included in the published package",
+      "target": "packages/concierge/package.json",
+      "literalPattern": "    \"src\",\n    \"README.md\",",
+      "replacement": "    \"src\",\n    \"test/fixtures\",\n    \"README.md\",",
+      "detectorKind": "package",
+      "threats": [
+        "T-08-SC"
+      ],
+      "decisions": [
+        "D-08-22"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/stub-transport.test.ts"
+      ],
+      "intendedCaseIds": [
+        "P02"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "P02",
+          "marker": "[RED:P01:stub-tarball-exclusion]"
+        }
+      ],
+      "definitionDigest": "8e0dd53ea870290d3d0fc07920e6d9113cbc0372e6f8ad5c89f56f71da6d6ec4",
+      "originalTargetHash": "5ed9d24829c2ac5bdcf69b57d4f4b503c226cee33f474ad07536521fec4112e4",
+      "mutantTargetHash": "f3d2deeca438132c3edd1b41de75d554dd87105fbcedd95efa4ede5b5396cfd6"
+    },
+    {
+      "id": "M-08-P03",
+      "group": "package",
+      "name": "root README claims client consent authorizes a server action",
+      "target": "README.md",
+      "literalPattern": "The consent kernel does not authenticate a principal and does not authorize a server action.",
+      "replacement": "The consent kernel authenticates a principal and authorizes a server action.",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-09"
+      ],
+      "decisions": [
+        "D-08-23"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/readme-security.test.ts"
+      ],
+      "intendedCaseIds": [
+        "P03"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "P03",
+          "marker": "[RED:P03:client-consent-is-not-server-authority]"
+        }
+      ],
+      "definitionDigest": "53f070d81049ae2176e1fc94cdb6262a89d9ffc5053933b074e4756c953d22a5",
+      "originalTargetHash": "3ce510c1b048b3e79ffb48f19d8a4600f1f35025f4a2c1c6b41d0a27c8444be0",
+      "mutantTargetHash": "692bcee425a706e40663153ea9486fae573f5e0c3c2764a697ee0e9e318c5491"
+    },
+    {
+      "id": "M-08-P04",
+      "group": "package",
+      "name": "root README omits immediate current-policy exact-action reauthorization",
+      "target": "README.md",
+      "literalPattern": "    await authorizeUnderCurrentPolicy(authenticatedPrincipal, exactAction);",
+      "replacement": "    // current-policy exact-action authorization omitted",
+      "detectorKind": "vitest",
+      "threats": [
+        "T-08-09"
+      ],
+      "decisions": [
+        "D-08-23"
+      ],
+      "intendedTestFiles": [
+        "packages/concierge/test/readme-security.test.ts"
+      ],
+      "intendedCaseIds": [
+        "P04"
+      ],
+      "expectedFailureFingerprint": [
+        {
+          "caseId": "P04",
+          "marker": "[RED:P04:current-policy-reauthorization-order]"
+        }
+      ],
+      "definitionDigest": "0f566c6c7de024098b1c4f556c5f94d33b4a04455dfc6814590d822a1e744880",
+      "originalTargetHash": "3ce510c1b048b3e79ffb48f19d8a4600f1f35025f4a2c1c6b41d0a27c8444be0",
+      "mutantTargetHash": "12838117a3de36bd4a00fdaed54842095fe34799021147d285bb442c4622a7c3"
+    }
+  ]
+}
