@@ -272,9 +272,9 @@ Update the exact issue-code union/type tests and every static or mutation pin to
 
 ### Pattern 5: Generate Evidence Transactionally, Certify Externally
 
-**What:** Extend Phase 9's `finalize versioned --jobs <1-4>` path so it regenerates Phase 9 mutation/release/validation/security records from one final input manifest, verifies Phase 8's five inherited hashes, and validates the prospective outputs before committing them. Create independent Phase 9 and Phase 10 verification records after final generation, run the milestone audit, commit once, then use hosted Actions run metadata/artifacts as the final receipt. [VERIFIED: `scripts/phase-09-mutation-battery.mjs`; Phase 8 and Phase 9 evidence; Phase 10 CONTEXT.md]
+**What:** Extend Phase 9's `finalize versioned --jobs <1-4>` path so it regenerates Phase 9 mutation/release/validation/security records from one final input manifest only after the last `.planning/REQUIREMENTS.md` mutation, verifies Phase 8's five inherited hashes, and validates the prospective outputs before committing them. Invoke the registered independent Phase 9 verifier next. After all seven ordinary Phase 10 plans create normal SUMMARYs, allow execute-phase to create a truthful `gaps_found` Phase 10 verifier for the still-missing hosted fact, run the installed milestone audit with its supported `gaps_found` status, commit all verifier/audit/bookkeeping bytes, then use the external Actions run/receipt as the authoritative final certification fact without a later tracked write. [VERIFIED: installed execute-plan/execute-phase/verify-phase/audit-milestone lifecycle; `scripts/phase-09-mutation-battery.mjs`; Phase 10 CONTEXT.md]
 
-**Hosted receipt fields:** Store at least repository, workflow path/name, `github.sha`, `github.ref`, `github.run_id`, `github.run_attempt`, conclusion, and job conclusions in a run artifact. Query by `head_sha`, select one explicit successful run, and confirm the receipt values match the candidate. [CITED: https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2026-03-10] [CITED: https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts]
+**Hosted receipt fields:** Store repository, workflow path/name, `github.sha`, `github.ref`, `github.run_id`, `github.run_attempt`, explicit truthful `overall_conclusion`, required job conclusions, and tracked verifier/audit/validation/runbook digests in a run artifact. The terminal script explicitly pushes the clean branch, reasserts remote SHA equals local HEAD, selects one exact successful run/attempt, and confirms every receipt value matches API metadata and candidate bytes. [CITED: https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2026-03-10] [CITED: https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts]
 
 ### Anti-Patterns to Avoid
 
@@ -492,24 +492,24 @@ On the researched bytes this ran three tests and all three passed, covering root
 |---|-------|---------|---------------|
 | — | None. Design recommendations are derived from locked context, current source/tests, hosted run evidence, installed GSD behavior, or cited official documentation. | All | No user-confirmation checkpoint is required for an unverified technical claim. [VERIFIED: sources listed below] |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **How should the final audit phrase the phase denominator after adding Phase 10?**
+1. **RESOLVED — How should the final audit phrase the phase denominator after adding Phase 10?**
    - What we know: D-10-12 requires the original nine implementation phases to be 9/9, while the installed phase inventory now returns ten directories and the audit workflow treats a missing verifier in any discovered phase as a blocker. [VERIFIED: Phase 10 CONTEXT.md; `gsd-sdk query phases.list`; installed audit workflow]
    - What's unclear: Whether the generated audit template has a dedicated field for distinguishing implementation phases from the closure phase. [VERIFIED: local audit schema inspection did not expose such a dedicated field]
-   - Recommendation: Create `10-VERIFICATION.md` and state both scores explicitly—9/9 original implementation phases and 10/10 all current phase directories. This is a reporting detail, not a completion waiver. [VERIFIED: audit behavior]
+   - Resolution: Use only the installed audit status vocabulary. The final tracked audit remains `status: gaps_found` while hosted certification is outstanding, reports `scores.phases: 9/9` for the original implementation phases, and reports the separate current-directory inventory as 10/10 in its phase coverage section. The normal post-plan Phase 10 verifier also remains `gaps_found` for the one external exact-SHA gate. After the external gate succeeds, the run-scoped receipt is authoritative; no tracked audit/verifier rewrite follows it. [VERIFIED: installed execute-phase, verify-phase, phase-completeness, and milestone-audit lifecycle]
 
-2. **Where should the hosted certification receipt be retained?**
+2. **RESOLVED — Where should the hosted certification receipt be retained?**
    - What we know: A tracked receipt written after CI invalidates the certified SHA, while Actions artifacts and run metadata are external to the commit and queryable by head SHA. [CITED: GitHub workflow-run and artifact docs]
    - What's unclear: The desired artifact name and retention period are not locked in CONTEXT.md. [VERIFIED: Phase 10 CONTEXT.md]
-   - Recommendation: Add a final certification job/step that uploads a small JSON receipt named `v0.1-candidate-certification-<sha>` and rely on repository retention policy; the planner may choose the exact name. [CITED: https://docs.github.com/en/actions/concepts/workflows-and-actions/workflow-artifacts]
+   - Resolution: Upload one attempt-scoped Actions artifact named `v0.1-candidate-certification-<sha>-<run-id>-<attempt>`. Its JSON records repository, workflow, ref, head SHA, run ID, run attempt, schema version, truthful `overall_conclusion`, every required job conclusion, and tracked evidence digests. The local verifier downloads it only to an owned temporary directory and prints its digest; no receipt or run ID is committed. [CITED: https://docs.github.com/en/actions/concepts/workflows-and-actions/workflow-artifacts]
 
-3. **Can npm-side trusted-publisher registration be certified before publication?**
+3. **RESOLVED — Can npm-side trusted-publisher registration be certified before publication?**
    - What we know: The workflow can statically prove job permissions, supported Node/npm versions, archive selection, and no long-lived npm token; npm documents trusted publishing as OIDC-based and registry provenance is produced during publication. [CITED: https://docs.npmjs.com/trusted-publishers/]
    - What's unclear: The live npm package registration is external service state and no publication is authorized in Phase 10. [VERIFIED: D-10-10]
-   - Recommendation: Record the static workflow proof as Phase 10 evidence and preserve live registration/provenance inspection as an explicit post-certification release-ceremony checkpoint. [VERIFIED: D-10-10]
+   - Resolution: Phase 10 certifies only the static OIDC/job-permission/archive wiring and runs no publish job. Live npm registration and provenance inspection remain in the separately authorized post-certification release ceremony exactly per D-10-10. [VERIFIED: D-10-10]
 
-No open question blocks planning or implementation. [VERIFIED: all locked decisions have an actionable path above]
+All three questions are resolved above; none blocks planning or implementation. [VERIFIED: all locked decisions and installed lifecycle semantics have an actionable path]
 
 ## Environment Availability
 
@@ -574,7 +574,7 @@ No new formal requirement IDs were assigned to Phase 10; the binding test map th
 - **Per runtime task commit:** core build + focused runtime command + core typecheck. [VERIFIED: existing built-entry test architecture]
 - **Per release/evidence task commit:** the affected script self-test/static checker plus `node scripts/phase-09-mutation-battery.mjs verify all`; do not finalize versioned evidence until inputs are frozen. [VERIFIED: Phase 9 generator contract]
 - **Per wave merge:** frozen clean install, `pnpm build`, `pnpm typecheck`, `pnpm test`, `pnpm run check:phase09:release`. [VERIFIED: corrected clean-checkout order]
-- **Phase gate:** Phase 9 `finalize versioned`, all seal verification, Phase 9/10 validation and verification, final milestone audit, clean commit, then exact-SHA hosted CI success and receipt. [VERIFIED: D-10-09 through D-10-12]
+- **Phase gate:** After the final REQUIREMENTS write, run Phase 9 `finalize versioned` and its independent verifier; finish all seven ordinary Phase 10 SUMMARYs; record the truthful Phase 10 external gap and supported milestone audit; commit all bookkeeping; then explicitly push and obtain exact-SHA hosted CI success/receipt with no later repository write. [VERIFIED: D-10-09 through D-10-12 and installed GSD lifecycle]
 
 ### Wave 0 Gaps
 

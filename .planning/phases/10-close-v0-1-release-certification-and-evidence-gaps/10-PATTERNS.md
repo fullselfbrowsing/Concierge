@@ -430,6 +430,7 @@ Copy its report structure, not its claims:
 - `.planning/v0.1-MILESTONE-AUDIT.md`
 - Phase 10 `10-VALIDATION.md`
 - Phase 10 `10-VERIFICATION.md`
+- Phase 10 `10-CERTIFICATION.md`
 
 #### Summary frontmatter
 
@@ -458,15 +459,15 @@ The live files already expose the fields that must converge:
 - `STATE.md:1-35` currently mixes Phase 10 frontmatter with a Phase 9 Current Position.
 - `v0.1-MILESTONE-AUDIT.md:391-401` is the nine-item closure contract.
 
-Use registered GSD handlers for ROADMAP/STATE/requirement coverage and re-run the milestone audit after the source, generator, validation, and verification bytes are final. Do not make freehand counters disagree with `gsd-sdk query phases.list`.
+Use registered GSD handlers for ROADMAP/STATE/requirement coverage. After all seven ordinary Phase 10 SUMMARYs and the independent Phase 10 verifier exist, re-run the milestone audit as the final tracked pre-certification artifact. Do not make freehand counters disagree with `gsd-sdk query phases.list`.
 
-The audit must be regenerated from final evidence rather than edited from `gaps_found` to complete. The locked acceptance is 62/62 requirements, 9/9 implementation-phase verification, 10/10 phase directories, 12/12 integrations, and 10/10 flows.
+The audit must be workflow-regenerated from final evidence and use only installed status values. Before hosted certification it truthfully remains `gaps_found` for the exact external gate while reporting 62/62 requirements, 9/9 implementation-phase verification, a separate 10/10 phase-directory inventory, 12/12 integrations, 10/10 flows, and Phase 9 Nyquist compliance. The external receipt is authoritative after success; the audit is not rewritten afterward.
 
 #### Phase 10 validation and verification
 
-`10-VALIDATION.md:54-83` already maps tasks 10-01 through 10-07 and their Wave 0 gaps. Finalize those rows from observed commands; do not replace the map with narrative-only sign-off.
+`10-VALIDATION.md` maps exactly fourteen tasks across Plans 10-01 through 10-07 and their Wave 0 gaps. Finalize those rows from observed commands; do not replace the map with narrative-only sign-off or add an external pseudo-task.
 
-Create `10-VERIFICATION.md` using the Phase 8 verifier structure above. It must independently connect terminal entry → internal batch outcome → session outcome/stop, tracked-input removal → regenerated Phase 9 seal, workflow order → exact-SHA hosted receipt, and summary metadata → final audit totals.
+Allow execute-phase to create `10-VERIFICATION.md` through its registered independent verifier only after all seven SUMMARYs exist. It must connect terminal entry → internal batch outcome → session outcome/stop, tracked-input removal → regenerated Phase 9 seal, and summary metadata → audit totals, then use supported `status: gaps_found` solely because the exact-SHA hosted receipt is still absent. `10-CERTIFICATION.md` owns the subsequent audit/commit/push/run/receipt handoff and prohibits any tracked pass rewrite after success.
 
 ## Shared Patterns
 
@@ -541,12 +542,13 @@ Preserve the original verifier's status and observation. Add a dated correction 
 ## Planner Guardrails
 
 1. Keep the seven validation task clusters (`10-01` through `10-07`) or update `10-VALIDATION.md` in the same planning change so every task retains an automated row.
-2. Runtime work precedes evidence regeneration. The final tracked-input set must be stable before Phase 9 outputs are sealed.
+2. Runtime work and the final `.planning/REQUIREMENTS.md` edit precede evidence regeneration. The final tracked-input set must be stable before Phase 9 outputs are sealed.
 3. Build precedes aggregate typecheck in clean checkout, CI, release, and recorded release evidence.
-4. `09-VERIFICATION.md` and `10-VERIFICATION.md` are independent verifier artifacts, not generator-authored conclusions.
+4. `09-VERIFICATION.md` and `10-VERIFICATION.md` are registered independent verifier artifacts, not generator- or executor-authored conclusions; Phase 10 remains `gaps_found` until the external fact exists.
 5. Do not publish packages or perform registry writes. Phase 10 certifies a candidate; hosted CI may upload run artifacts only.
 6. Do not hand-edit generated Phase 9 ledgers after the generator runs.
 7. Do not rewrite old verifier conclusions in place; append correction addenda.
+8. No terminal PLAN may suppress SUMMARY/bookkeeping. Finish normal GSD closeout, commit the supported pre-certification gap records, then run the no-write external gate.
 
 ## Metadata
 
