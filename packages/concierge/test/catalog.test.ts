@@ -682,6 +682,9 @@ describe("CAT-03 — a consent policy naming an action that does not exist fails
     // developer to grep for an action that by definition does not exist.
     expect(error.issues[0].action).toBe("confirm");
     expect(error.issues[0].problem).toContain("reveiw");
+    expect(error.issues[0].fix.length).toBeGreaterThan(0);
+    expect(error.issues[0].fix).toContain('declare an action named "reveiw"');
+    expect(error.issues[0].fix).toContain("correct the spelling");
 
     // The mirror of C24's negative, and the pair is the mutual-exclusivity
     // claim written where each half of it can be read: a missing target is not
@@ -720,6 +723,24 @@ describe("CAT-03 — a consent policy naming an action that does not exist fails
 
     expect(error.issues).toHaveLength(1);
     expect(error.issues[0].code).toBe("consent_self_reference");
+    expect(error.issues[0].action).toBe("confirm");
+    expect(error.issues[0].problem).toContain('requires "confirm"');
+    expect(error.issues[0].fix.length).toBeGreaterThan(0);
+    expect(error.issues[0].fix).toContain(
+      "review action that should run first",
+    );
+
+    const missingTarget = catchBuild(
+      [
+        declare("review", zodObject, { redact: "drop" }),
+        declare("confirm", zodObject, {
+          redact: "drop",
+          consent: { requires: "reveiw" },
+        }),
+      ],
+      { consentProfile: DELIVERED_PROFILE },
+    );
+    expect(error.issues[0].fix).not.toBe(missingTarget.issues[0].fix);
 
     // The deliberate negative, asserted as a positive claim — the same register
     // C22 uses.
@@ -856,6 +877,91 @@ describe("CAT-03 — a consent policy naming an action that does not exist fails
       new Set(["confirm", "stringRoot", "noHatch", "unredacted"]),
     );
     expect(new Set(error.issues.map((issue) => issue.action)).size).toBe(4);
+  });
+});
+
+describe("DX-03 — unreadable declaration elements use the aggregate issue channel", () => {
+  const INVALID_DECLARATION_PROBLEM =
+    "The declaration is not a readable action object.";
+  const INVALID_DECLARATION_FIX =
+    "Pass an action declaration object with a nonempty name and valid schema, redaction, consent, and handler fields.";
+
+  it("C34 — a null declaration and an ordinary catalog fault aggregate in index order", () => {
+    const actions = [
+      null,
+      declare("stringRoot", zodStringRoot, { redact: "drop" }),
+    ];
+
+    expect(() => buildCatalog(actions)).toThrow(CatalogValidationError);
+    const error = catchBuild(actions, undefined, "[RED:C34:indexed-declaration]");
+
+    expect(error).toBeInstanceOf(CatalogValidationError);
+    expect(error).not.toBeInstanceOf(TypeError);
+    expect(error.issues).toHaveLength(2);
+    expect(error.issues[0]).toEqual({
+      code: "invalid_declaration",
+      action: "declaration at index 0",
+      problem: INVALID_DECLARATION_PROBLEM,
+      fix: INVALID_DECLARATION_FIX,
+    });
+    expect(error.issues[1]).toMatchObject({
+      code: "schema_root_not_object",
+      action: "stringRoot",
+    });
+    expect(error.issues.map(({ code, action }) => ({ code, action }))).toEqual([
+      {
+        code: "invalid_declaration",
+        action: "declaration at index 0",
+      },
+      { code: "schema_root_not_object", action: "stringRoot" },
+    ]);
+    expect(error.issues.every((issue) => issue.fix.length > 0)).toBe(true);
+    expect(error.message).toContain(`Fix: ${INVALID_DECLARATION_FIX}`);
+    expect(error.message).toContain(`Fix: ${error.issues[1].fix}`);
+  });
+
+  it("C35 — undefined, primitives, and callable declarations never reach a property read", () => {
+    let callableReads = 0;
+    const hostileCallable = new Proxy(function hostileDeclaration() {}, {
+      get() {
+        callableReads += 1;
+        throw new Error("PRIVATE-C35-CALLABLE-GETTER");
+      },
+    });
+    const cases = [
+      undefined,
+      "not-an-action",
+      42,
+      42n,
+      true,
+      Symbol("not-an-action"),
+      hostileCallable,
+    ];
+
+    const issues = cases.map((candidate, index) => {
+      const error = catchBuild(
+        [candidate],
+        undefined,
+        "[RED:C35:declaration-precheck]",
+      );
+      expect(error).toBeInstanceOf(CatalogValidationError);
+      expect(error).not.toBeInstanceOf(TypeError);
+      expect(error.issues).toHaveLength(1);
+      return {
+        index,
+        issue: error.issues[0],
+      };
+    });
+
+    expect(callableReads, "[RED:C35:no-property-read]").toBe(0);
+    expect(issues.map(({ issue }) => issue)).toEqual(
+      cases.map(() => ({
+        code: "invalid_declaration",
+        action: "declaration at index 0",
+        problem: INVALID_DECLARATION_PROBLEM,
+        fix: INVALID_DECLARATION_FIX,
+      })),
+    );
   });
 });
 
