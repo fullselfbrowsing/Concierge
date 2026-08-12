@@ -3,6 +3,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
+  chmodSync,
   closeSync,
   copyFileSync,
   existsSync,
@@ -3735,11 +3736,20 @@ async function runVersionedPreflight(jobs, outerRoot) {
   );
 
   const safeEnvironment = childEnvironment();
+  const toolDirectory = join(outerRoot, "preflight-tools");
+  mkdirSync(toolDirectory);
+  const searchToolPath = join(toolDirectory, "rg");
+  writeFileSync(
+    searchToolPath,
+    "#!/bin/sh\nexec /usr/bin/grep -R -E \"$@\"\n",
+    { encoding: "utf8", flag: "wx" },
+  );
+  chmodSync(searchToolPath, 0o755);
   const finalized = await runCommand(
     "env",
     [
       "-i",
-      `PATH=${safeEnvironment.PATH}`,
+      `PATH=${toolDirectory}:${safeEnvironment.PATH}`,
       `LANG=${safeEnvironment.LANG ?? "C.UTF-8"}`,
       "node",
       "scripts/phase-09-mutation-battery.mjs",
