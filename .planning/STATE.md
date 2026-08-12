@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: release certification and evidence gaps
 status: executing
-stopped_at: Completed 10-04-PLAN.md
-last_updated: "2026-08-12T18:08:36.842Z"
+stopped_at: Completed 10-05-PLAN.md
+last_updated: "2026-08-12T18:34:10.000Z"
 last_activity: 2026-08-12
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 93
-  completed_plans: 90
+  completed_plans: 91
   percent: 90
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-08-10)
 ## Current Position
 
 Phase: 10 (close-v0-1-release-certification-and-evidence-gaps) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 Status: Ready to execute
 Last activity: 2026-08-12
 
@@ -84,6 +84,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 10 P02 | 7m | 2 tasks | 6 files |
 | Phase 10 P03 | 7m | 2 tasks | 6 files |
 | Phase 10 P04 | 24m | 2 tasks | 5 files |
+| Phase 10 P05 | 26m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -199,6 +200,8 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 10]: Treat pinned Astro regeneration, not generated declaration bytes, as release evidence. — Harness-local .astro output stays untracked, ignored at one exact path, and rejected from every release manifest and seal.
 - [Phase 10]: Build only public-package prerequisites before the pinned Astro regeneration pair. — Core and adapter declarations must exist for astro check, while the harness-local .astro directory must remain absent until the authoritative check then build proof.
 - [Phase 10]: Keep exact-SHA hosted truth in an attempt-scoped external receipt. — The final clean commit can be pushed, matched to one explicit run attempt, and certified without creating a self-invalidating successor commit.
+- [Phase 10]: Keep Phase 10 mutants supplemental to Phase 9 requirement ownership. — Current-byte repairs gain exact discriminating evidence without rewriting the original Phase 9 requirement meanings.
+- [Phase 10]: Exercise pre-versioned finalization only in an owned scratch candidate. — The live changeset, package versions, receipt absence, and four tracked evidence endpoints remain unchanged until the final post-requirements seal.
 
 ### Pending Todos
 
@@ -227,6 +230,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-12T18:08:36.838Z
-Stopped at: Completed 10-04-PLAN.md
+Last session: 2026-08-12T18:34:10.000Z
+Stopped at: Completed 10-05-PLAN.md
 Resume file: None
