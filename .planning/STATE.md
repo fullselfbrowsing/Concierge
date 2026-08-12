@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: release certification and evidence gaps
-status: verifying
-stopped_at: Completed 10-07-PLAN.md
-last_updated: "2026-08-12T20:47:10.713Z"
+status: executing
+stopped_at: Awaiting exact-SHA hosted certification
+last_updated: "2026-08-12T21:21:00.246Z"
 last_activity: 2026-08-12
 progress:
   total_phases: 1
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-08-10)
 
 Phase: 10 (close-v0-1-release-certification-and-evidence-gaps) — EXECUTING
 Plan: 7 of 7
-Status: Phase complete — ready for verification
+Status: Executing — awaiting exact-SHA hosted certification
 Last activity: 2026-08-12
 
 Progress: [██████████] 100%
@@ -235,6 +235,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-12T20:47:10.708Z
-Stopped at: Completed 10-07-PLAN.md
+Last session: 2026-08-12T21:21:00.098Z
+Stopped at: Awaiting exact-SHA hosted certification
 Resume file: None
