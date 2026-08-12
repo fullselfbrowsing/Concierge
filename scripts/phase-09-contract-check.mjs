@@ -467,6 +467,44 @@ function hasOrderedTokens(text, tokens) {
   return true;
 }
 
+function hasExactPackageChildEnvironmentClassification(source) {
+  const code = stripJsComments(source);
+  return (
+    /const MUTATION_RUNNER_PARENT_MARKER\s*=\s*"PHASE09_CREDENTIAL_FREE_ENV"/u.test(
+      code,
+    ) &&
+    /const MUTATION_RUNNER_PNPM_POLICY\s*=\s*"PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN"/u.test(
+      code,
+    ) &&
+    /parentMarker\s*===\s*undefined\s*\|\|\s*parentMarker\s*===\s*"1"/u.test(
+      code,
+    ) &&
+    /policy\s*===\s*undefined\s*\|\|\s*policy\s*===\s*"false"/u.test(
+      code,
+    ) &&
+    /if\s*\(\s*parentMarker\s*!==\s*"1"\s*\|\|\s*policy\s*!==\s*"false"\s*\)\s*\{\s*return Object\.freeze\(\{\}\);\s*\}/u.test(
+      code,
+    ) &&
+    /return Object\.freeze\(\{\s*\[MUTATION_RUNNER_PNPM_POLICY\]\s*:\s*"false"\s*\}\)/u.test(
+      code,
+    ) &&
+    code.includes(
+      "const secure = createPackageChildEnvironment(root, process.env)",
+    ) &&
+    code.includes("ordinary pnpm-decorated child probe") &&
+    code.includes(
+      "observedOrdinaryPnpm.PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN === undefined",
+    ) &&
+    code.includes("authenticated mutation-runner child probe") &&
+    code.includes(
+      'observedAuthenticated.PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN === "false"',
+    ) &&
+    code.includes("wrong ordinary pnpm policy") &&
+    code.includes("invalid mutation parent marker") &&
+    code.includes("ambiguous mutation parent marker")
+  );
+}
+
 function evaluateContracts(root) {
   const inspector = createInspector(root);
   const results = [];
@@ -809,23 +847,10 @@ function evaluateContracts(root) {
         "inspected",
       );
       api.check(
-        /const MUTATION_RUNNER_PARENT_MARKER\s*=\s*"PHASE09_CREDENTIAL_FREE_ENV"/u.test(script) &&
-          /const MUTATION_RUNNER_PNPM_POLICY\s*=\s*"PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN"/u.test(script) &&
-          /parentMarker\s*===\s*"1"/u.test(script) &&
-          /policy\s*===\s*"false"/u.test(script) &&
-          /Object\.freeze\(\{\s*\[MUTATION_RUNNER_PNPM_POLICY\]\s*:\s*"false"\s*\}\)/u.test(script) &&
-          script.includes(
-            "const secure = createPackageChildEnvironment(root, process.env)",
-          ) &&
-          script.includes(
-            "observedEnvironment.PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN === undefined",
-          ) &&
-          script.includes(
-            'observedAuthenticated.PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN === "false"',
-          ),
-        "package-check-authenticated-mutation-pnpm-policy",
+        hasExactPackageChildEnvironmentClassification(script),
+        "package-check-classified-mutation-pnpm-policy",
         "scripts/phase-09-package-check.mjs",
-        "only exact authenticated false crosses the independently owned package boundary",
+        "ordinary exact false is consumed while only authenticated exact false crosses the independently owned package boundary",
         "inspected",
       );
       api.check(
@@ -1219,6 +1244,26 @@ function runSelfTest() {
     assert.throws(() => requireRegularNonempty(fixtureRoot, "missing.file"), /regular nonempty file/u);
     assert.equal(requirePositiveMatches("positive fixture", "assertion marker", /assertion/gu).length, 1);
     assert.throws(() => requirePositiveMatches("vacuous fixture", "assertion marker", /never-matches/gu), /zero matches/u);
+
+    const packageCheckSource = requireRegularNonempty(
+      ROOT,
+      "scripts/phase-09-package-check.mjs",
+    );
+    assert.equal(
+      hasExactPackageChildEnvironmentClassification(packageCheckSource),
+      true,
+    );
+    const authenticatedGuard =
+      'if (parentMarker !== "1" || policy !== "false") {';
+    assert.equal(countOccurrences(packageCheckSource, authenticatedGuard), 1);
+    const authorityLeakFixture = packageCheckSource.replace(
+      authenticatedGuard,
+      'if (policy !== "false") {',
+    );
+    assert.equal(
+      hasExactPackageChildEnvironmentClassification(authorityLeakFixture),
+      false,
+    );
 
     const inspector = createInspector(fixtureRoot);
     assert.throws(

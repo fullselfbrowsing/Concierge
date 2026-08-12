@@ -1816,15 +1816,46 @@ function runSelfTests(root, secure) {
   );
   controls += 1;
 
-  expectFailure("unauthenticated pnpm policy", "CHILD_ENVIRONMENT", () =>
-    createPackageChildEnvironment(
-      root,
-      {
-        PATH: secure.environment.PATH,
-        PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
-      },
-      { directoryName: "unauthenticated-pnpm-policy" },
-    ),
+  const ordinaryPnpmDecorated = createPackageChildEnvironment(
+    root,
+    {
+      PATH: secure.environment.PATH,
+      LANG: secure.environment.LANG,
+      PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
+      NODE_OPTIONS: "--require=/hostile-ordinary-hook.cjs",
+      PHASE09_MUTATION_CAPTURE_DIR: REPOSITORY_ROOT,
+      PNPM_CONFIG_STORE_DIR: REPOSITORY_ROOT,
+      NPM_TOKEN: sentinelNpmCredential,
+      GITHUB_TOKEN: sentinelRepositoryCredential,
+    },
+    { directoryName: "ordinary-pnpm-decorated-child" },
+  );
+  const ordinaryPnpmProbe = runChild(
+    process.execPath,
+    ["-e", "process.stdout.write(JSON.stringify(process.env))"],
+    {
+      label: "ordinary pnpm-decorated child probe",
+      secureEnvironment: ordinaryPnpmDecorated.environment,
+    },
+  );
+  const observedOrdinaryPnpm = JSON.parse(ordinaryPnpmProbe.stdout);
+  assert(
+    ordinaryPnpmDecorated.environment.PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN ===
+        undefined &&
+      observedOrdinaryPnpm.PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN === undefined &&
+      observedOrdinaryPnpm.PHASE09_CREDENTIAL_FREE_ENV === "1" &&
+      observedOrdinaryPnpm.PNPM_CONFIG_STORE_DIR ===
+        ordinaryPnpmDecorated.paths.pnpmStore &&
+      observedOrdinaryPnpm.NODE_OPTIONS === undefined &&
+      observedOrdinaryPnpm.PHASE09_MUTATION_CAPTURE_DIR === undefined &&
+      observedOrdinaryPnpm.NPM_TOKEN === undefined &&
+      observedOrdinaryPnpm.GITHUB_TOKEN === undefined &&
+      !ordinaryPnpmProbe.stdout.includes("hostile-ordinary-hook") &&
+      !ordinaryPnpmProbe.stdout.includes(sentinelNpmCredential) &&
+      !ordinaryPnpmProbe.stdout.includes(sentinelRepositoryCredential) &&
+      !isPathWithin(ordinaryPnpmDecorated.paths.pnpmStore, REPOSITORY_ROOT),
+    "SELF_TEST",
+    "ordinary pnpm decoration leaked into the child or granted ambient authority",
   );
   controls += 1;
 
@@ -1837,6 +1868,50 @@ function runSelfTests(root, secure) {
         PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "true",
       },
       { directoryName: "wrong-pnpm-policy" },
+    ),
+  );
+  controls += 1;
+
+  for (const policy of ["true", "", "0", "FALSE"]) {
+    expectFailure(
+      `wrong ordinary pnpm policy ${JSON.stringify(policy)}`,
+      "CHILD_ENVIRONMENT",
+      () =>
+        createPackageChildEnvironment(
+          root,
+          {
+            PATH: secure.environment.PATH,
+            PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: policy,
+          },
+          { directoryName: `wrong-ordinary-pnpm-policy-${policy || "empty"}` },
+        ),
+    );
+  }
+  controls += 1;
+
+  expectFailure("invalid mutation parent marker", "CHILD_ENVIRONMENT", () =>
+    createPackageChildEnvironment(
+      root,
+      {
+        PATH: secure.environment.PATH,
+        PHASE09_CREDENTIAL_FREE_ENV: "0",
+        PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
+      },
+      { directoryName: "invalid-mutation-parent-marker" },
+    ),
+  );
+  controls += 1;
+
+  expectFailure("ambiguous mutation parent marker", "CHILD_ENVIRONMENT", () =>
+    createPackageChildEnvironment(
+      root,
+      {
+        PATH: secure.environment.PATH,
+        PHASE09_CREDENTIAL_FREE_ENV: "1",
+        phase09_credential_free_env: "1",
+        PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
+      },
+      { directoryName: "ambiguous-mutation-parent-marker" },
     ),
   );
   controls += 1;
@@ -1873,9 +1948,9 @@ function runSelfTests(root, secure) {
   controls += 1;
 
   assert(
-    controls === 14,
+    controls === 17,
     "SELF_TEST",
-    `expected fourteen controls, ran ${controls}`,
+    `expected seventeen controls, ran ${controls}`,
   );
   console.log(
     `PHASE09_PACKAGE_SELF_TEST ${JSON.stringify({ controls, status: "passed" })}`,
