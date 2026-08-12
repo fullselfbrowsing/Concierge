@@ -510,6 +510,7 @@ const MAX_OUTPUT_BYTES = 32 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 240_000;
 const PACKAGE_TIMEOUT_MS = 600_000;
 const INSTALL_TIMEOUT_MS = 360_000;
+const FULL_PREFLIGHT_TIMEOUT_MS = 2_400_000;
 const PNPM_FETCH_ARGUMENTS = Object.freeze([
   "fetch",
   "--frozen-lockfile",
@@ -637,7 +638,7 @@ function parseInvocation(arguments_) {
     const jobs = Number(arguments_[3]);
     if (Number.isInteger(jobs) && jobs >= 1 && jobs <= 4) {
       return Object.freeze({
-        kind: "run-all",
+        kind: "preflight-versioned",
         jobs,
         versioned: true,
         installOutputs: false,
@@ -2183,7 +2184,7 @@ async function runSelfTest() {
     "4",
   ]);
   assert(
-    versionedPreflightInvocation.kind === "run-all" &&
+    versionedPreflightInvocation.kind === "preflight-versioned" &&
       versionedPreflightInvocation.jobs === 4 &&
       versionedPreflightInvocation.versioned === true &&
       versionedPreflightInvocation.installOutputs === false,
@@ -3603,6 +3604,181 @@ function completeGeneratedOutputTransaction(
   return true;
 }
 
+async function cloneCommittedHead(destination, label) {
+  const sourceHead = runGitSync(["rev-parse", "HEAD"], ROOT).trim();
+  const cloneResult = await runCommand(
+    "git",
+    [
+      "clone",
+      "--local",
+      "--no-hardlinks",
+      "--no-tags",
+      "--quiet",
+      ROOT,
+      destination,
+    ],
+    { cwd: dirname(destination), timeoutMs: PACKAGE_TIMEOUT_MS },
+  );
+  assertSuccessfulCommand(cloneResult, label);
+  assert(
+    runGitSync(["rev-parse", "HEAD"], destination).trim() === sourceHead,
+    `${label}: clone HEAD differs from the committed source HEAD`,
+  );
+  assert(
+    runGitSync(["status", "--porcelain=v1"], destination).trim() === "",
+    `${label}: clone is not clean`,
+  );
+  return sourceHead;
+}
+
+async function runVersionedPreflight(jobs, outerRoot) {
+  assertOwnedTempRoot(outerRoot);
+  if (existsSync(join(ROOT, VERSION_RECEIPT_RELATIVE_PATH))) {
+    await runAll(jobs, {
+      outerRoot,
+      versioned: true,
+      installOutputs: false,
+    });
+    return;
+  }
+
+  const endpoints = outputEndpoints();
+  const livePaths = releaseInputPaths(ROOT);
+  const liveManifest = makeInputManifest(ROOT, livePaths);
+  const inheritedHashes = phase08Hashes(ROOT);
+  assertCleanReleaseInputs(ROOT, livePaths);
+  assert(
+    !liveManifest.entries.some(
+      (entry) => entry.path === VERSION_RECEIPT_RELATIVE_PATH,
+    ),
+    "pre-versioned release inputs unexpectedly contain a version receipt",
+  );
+
+  const prepareRoot = join(outerRoot, "version-prepare");
+  const candidateRoot = join(outerRoot, "version-candidate");
+  const sourceHead = await cloneCommittedHead(
+    prepareRoot,
+    "prospective version preparation clone",
+  );
+  const candidateHead = await cloneCommittedHead(
+    candidateRoot,
+    "prospective version candidate clone",
+  );
+  assert(candidateHead === sourceHead, "prospective version clones disagree on HEAD");
+
+  await prewarmOwnedPnpmStoreAndInstall(
+    prepareRoot,
+    "prospective version preparation",
+  );
+  const artifactDirectory = join(outerRoot, "version-artifact");
+  mkdirSync(artifactDirectory);
+  const syntheticRunId = "9000000001";
+  const syntheticRunAttempt = "1";
+  const syntheticArtifactName =
+    `phase09-version-${syntheticRunId}-${syntheticRunAttempt}-${sourceHead}`;
+  const identityArguments = Object.freeze([
+    `PHASE09_BASE_SHA=${sourceHead}`,
+    `PHASE09_REPOSITORY=${EXPECTED_REPOSITORY}`,
+    `PHASE09_RUN_ID=${syntheticRunId}`,
+    `PHASE09_RUN_ATTEMPT=${syntheticRunAttempt}`,
+    `PHASE09_VERSION_ARTIFACT_NAME=${syntheticArtifactName}`,
+  ]);
+  const prepared = await runCommand(
+    "env",
+    [
+      ...identityArguments,
+      "node",
+      "scripts/phase-09-version.mjs",
+      "prepare",
+      artifactDirectory,
+    ],
+    { cwd: prepareRoot, timeoutMs: PACKAGE_TIMEOUT_MS },
+  );
+  assertSuccessfulCommand(prepared, "prospective semantic version preparation");
+  assert(
+    prepared.output.includes("PHASE09_VERSION_PREPARE_OK"),
+    "prospective semantic version preparation did not consume the changeset",
+  );
+
+  const applied = await runCommand(
+    "env",
+    [
+      ...identityArguments,
+      "node",
+      "scripts/phase-09-version.mjs",
+      "apply",
+      artifactDirectory,
+    ],
+    { cwd: candidateRoot, timeoutMs: PACKAGE_TIMEOUT_MS },
+  );
+  assertSuccessfulCommand(applied, "prospective semantic version apply");
+  assert(
+    applied.output.includes("PHASE09_VERSION_APPLY_OK"),
+    "prospective semantic version apply omitted its receipt fingerprint",
+  );
+  runGitSync(
+    ["config", "user.email", "phase09-preflight@example.invalid"],
+    candidateRoot,
+  );
+  runGitSync(
+    ["config", "user.name", "Phase 09 Versioned Preflight"],
+    candidateRoot,
+  );
+  runGitSync(["add", "--all"], candidateRoot);
+  runGitSync(
+    ["commit", "--quiet", "-m", "prospective versioned candidate"],
+    candidateRoot,
+  );
+  assert(
+    runGitSync(["status", "--porcelain=v1"], candidateRoot).trim() === "",
+    "prospective versioned candidate is dirty before finalization",
+  );
+
+  const safeEnvironment = childEnvironment();
+  const finalized = await runCommand(
+    "env",
+    [
+      "-i",
+      `PATH=${safeEnvironment.PATH}`,
+      `LANG=${safeEnvironment.LANG ?? "C.UTF-8"}`,
+      "node",
+      "scripts/phase-09-mutation-battery.mjs",
+      "finalize",
+      "versioned",
+      "--jobs",
+      String(jobs),
+    ],
+    { cwd: candidateRoot, timeoutMs: FULL_PREFLIGHT_TIMEOUT_MS },
+  );
+  assertSuccessfulCommand(finalized, "prospective exact versioned finalization");
+  assert(
+    finalized.output.includes(
+      `PHASE09_MUTATION_RUN_ALL_OK mutants=${EXPECTED_IDS.length}`,
+    ),
+    "prospective exact versioned finalization omitted its all-green fingerprint",
+  );
+
+  const prospectiveDigests = Object.freeze(
+    Object.fromEntries(
+      GENERATED_PATHS.map((path) => [path, sha256File(join(candidateRoot, path))]),
+    ),
+  );
+  const candidateInputs = makeInputManifest(candidateRoot);
+  const requirementsInput = candidateInputs.entries.find(
+    (entry) => entry.path === ".planning/REQUIREMENTS.md",
+  );
+  assert(
+    requirementsInput !== undefined,
+    ".planning/REQUIREMENTS.md is not a tracked prospective release input",
+  );
+  assertPhase08Hashes(inheritedHashes, ROOT);
+  verifyInputManifest(liveManifest, ROOT);
+  assertOutputEndpoints(endpoints);
+  console.log(
+    `PHASE09_MUTATION_PREFLIGHT_VERSIONED_OK mutants=${EXPECTED_IDS.length} jobs=${jobs} scratchFinalize=true installed=false requirements=.planning/REQUIREMENTS.md requirementsSha256=${requirementsInput.sha256} outputDigests=${stableJson(prospectiveDigests)}`,
+  );
+}
+
 async function runAll(
   jobs,
   { outerRoot, versioned = false, installOutputs = true } = {},
@@ -3742,6 +3918,20 @@ async function main(arguments_) {
   if (invocation.kind === "preflight") {
     await withOwnedChildEnvironment((outerRoot) =>
       withMutationLock(() => runPreflight(invocation.id, outerRoot)),
+    );
+    return;
+  }
+  if (invocation.kind === "preflight-versioned") {
+    const execute = () =>
+      withOwnedChildEnvironment((outerRoot) =>
+        withMutationLock(() =>
+          runVersionedPreflight(invocation.jobs, outerRoot),
+        ),
+      );
+    await runAfterCredentialFreeFinalizationPreflight(
+      process.env,
+      execute,
+      { repositoryRoot: ROOT },
     );
     return;
   }
