@@ -25,6 +25,7 @@ import {
 import { tmpdir } from "node:os";
 import {
   basename,
+  delimiter as pathDelimiter,
   dirname,
   isAbsolute,
   join,
@@ -1150,6 +1151,20 @@ function createOwnedTempRoot() {
   return root;
 }
 
+function installOwnedSearchTool(root) {
+  assertOwnedTempRoot(root);
+  const toolDirectory = join(root, "child-tools");
+  mkdirSync(toolDirectory, { mode: 0o700 });
+  const searchToolPath = join(toolDirectory, "rg");
+  writeFileSync(
+    searchToolPath,
+    "#!/bin/sh\nexec /usr/bin/grep -R -E \"$@\"\n",
+    { encoding: "utf8", flag: "wx" },
+  );
+  chmodSync(searchToolPath, 0o755);
+  return toolDirectory;
+}
+
 function removeOwnedTempRoot(root) {
   assertOwnedTempRoot(root);
   rmSync(root, { recursive: true, force: false });
@@ -1159,7 +1174,16 @@ function removeOwnedTempRoot(root) {
 async function withOwnedChildEnvironment(operation) {
   const root = createOwnedTempRoot();
   try {
-    const secure = createSecureChildEnvironment(root, process.env);
+    const sourcePath = process.env.PATH;
+    assert(
+      typeof sourcePath === "string" && sourcePath.length > 0,
+      "owned child environment requires PATH",
+    );
+    const toolDirectory = installOwnedSearchTool(root);
+    const secure = createSecureChildEnvironment(root, {
+      ...process.env,
+      PATH: `${toolDirectory}${pathDelimiter}${sourcePath}`,
+    });
     return await withChildEnvironment(secure.environment, () =>
       operation(root, secure),
     );
@@ -1917,7 +1941,8 @@ function syntheticCommand(exitCode, overrides = {}) {
   };
 }
 
-async function runSelfTest() {
+async function runSelfTest(outerRoot) {
+  assertOwnedTempRoot(outerRoot);
   const endpoints = outputEndpoints();
   const register = validateRegister(readRegister());
   const row = register.rows[0];
@@ -2574,6 +2599,23 @@ async function runSelfTest() {
     "pnpm did not observe the owned store and exact public registry",
   );
   pass("pnpm-owned-store-and-registry");
+
+  const ownedSearchTool = join(outerRoot, "child-tools", "rg");
+  const searchProbe = await runCommand(
+    "rg",
+    ["-n", "createStubTransport|stub-transport", "packages/concierge/src"],
+    { cwd: ROOT },
+  );
+  assert(
+    childEnvironment().PATH.split(pathDelimiter)[0] === dirname(ownedSearchTool) &&
+      existsSync(ownedSearchTool) &&
+      lstatSync(ownedSearchTool).isFile() &&
+      (statSync(ownedSearchTool).mode & 0o111) !== 0 &&
+      searchProbe.spawnError === null &&
+      searchProbe.exitCode === 1 &&
+      searchProbe.output === "",
+    "secure child environment did not provide the owned Phase 8 search tool",
+  );
 
   const sentinelEnvironment = Object.freeze({
     GITHUB_TOKEN: "phase09-secret-repository-probe",
@@ -3736,20 +3778,11 @@ async function runVersionedPreflight(jobs, outerRoot) {
   );
 
   const safeEnvironment = childEnvironment();
-  const toolDirectory = join(outerRoot, "preflight-tools");
-  mkdirSync(toolDirectory);
-  const searchToolPath = join(toolDirectory, "rg");
-  writeFileSync(
-    searchToolPath,
-    "#!/bin/sh\nexec /usr/bin/grep -R -E \"$@\"\n",
-    { encoding: "utf8", flag: "wx" },
-  );
-  chmodSync(searchToolPath, 0o755);
   const finalized = await runCommand(
     "env",
     [
       "-i",
-      `PATH=${toolDirectory}:${safeEnvironment.PATH}`,
+      `PATH=${safeEnvironment.PATH}`,
       `LANG=${safeEnvironment.LANG ?? "C.UTF-8"}`,
       "node",
       "scripts/phase-09-mutation-battery.mjs",
@@ -3922,7 +3955,7 @@ async function runAll(
 async function main(arguments_) {
   const invocation = parseInvocation(arguments_);
   if (invocation.kind === "self-test") {
-    await withOwnedChildEnvironment(() => runSelfTest());
+    await withOwnedChildEnvironment((outerRoot) => runSelfTest(outerRoot));
     return;
   }
   if (invocation.kind === "preflight") {
