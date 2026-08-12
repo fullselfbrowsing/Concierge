@@ -211,3 +211,47 @@ Two items are escalated for a human decision: whether the `dispatch` stub's `rea
 _Verified: 2026-07-31T03:10:55Z_
 _Verifier: Claude (gsd-verifier)_
 _Probes: `/tmp/cverify/probe1.mjs`, `probe2.mjs`, `probe3.mjs`, `probe4.mjs`, `mutate.sh`, `/tmp/cverify/rd/` — 113 assertions + 15 mutants, all against `dist/`_
+
+## Phase 10 correction addendum — 2026-08-12
+
+- **Original observations.** This verifier classified SEC-03 as partial because
+  an explicit JSON Schema accessor could execute and remain attached to emitted
+  parameters. It also left explain/CAT-03 message clarity for subjective human
+  judgment and warned that the then-current Phase 4 dispatch stub's honest
+  result shape had only a one-off probe.
+- **Current commands.** Task 10-02-02 ran
+  `CI=true pnpm --filter @fullselfbrowsing/concierge build`, followed by
+  `node_modules/.bin/vitest run packages/concierge/test/concierge.test.ts -t 'S15[abc]|S1[6-9]|S20'`
+  and
+  `node_modules/.bin/vitest run packages/concierge/test/catalog.test.ts -t 'C23|C24|C34'`
+  against `dist`. The focused results were 8/8 and 3/3 passing respectively.
+- **Current SEC-03 evidence.** S15a and S15b reject root and nested JSON Schema
+  accessors as `schema_not_emittable` without invoking either getter; both
+  invocation counts remain exactly zero. S15c proves published parameters are
+  detached from the caller's explicit schema, remain unchanged after caller
+  mutation, and have a frozen nested schema node. The former accessor/detachment
+  basis for the partial finding is therefore superseded on current bytes.
+- **Current explain and CAT-03 evidence.** S16 pins the exact top-level fields
+  `stage`, `stages`, and `catalog`; S17 keeps the active stage consistent
+  with `stageFor()` for matched, unmatched, and throwing-matcher cases; S18
+  pins exact current catalog names; S19 evaluates every matcher and exposes a
+  shadowed `matched: true` row while retaining the first active stage; and S20
+  pins bridge state as `null`, `{ id, registered: false }`, or
+  `{ id, registered: true }`. C23/C24 separately pin
+  `consent_target_missing` versus `consent_self_reference`, the referring
+  action as structured `action`, the missing/self target in `problem`, and
+  nonempty distinct fixes directing the developer either to declare/correct the
+  target or choose the preceding review action. Per D-10-14, these structured
+  assertions are sufficient mechanical actionability evidence; no subjective
+  prose checkpoint remains.
+- **Superseded dispatch-stub warning.** Phase 6 replaced the obsolete stub with
+  the real dispatcher. R37-R45 and the Q-series pin result normalization,
+  malformed and hostile returns, the closed reason vocabulary, and batch
+  behavior; `06-08-SUMMARY.md` records 57/57 compiled mutants killed with zero
+  pending rows. D-10-15 therefore closes the Phase 4 stub warning by current
+  implementation evidence rather than recreating a test for code that no longer
+  exists.
+- **Superseded conclusion.** The three original observations remain above as
+  the historical Phase 4 result. The current-byte SEC-03 evidence, mechanical
+  explain/CAT-03 evidence, and Phase 6 dispatcher evidence supersede those
+  conclusions under D-10-14 through D-10-16.

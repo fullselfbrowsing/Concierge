@@ -16,11 +16,13 @@
  *
  * **1. `assertSingleInstance()` is the first statement of {@link buildCatalog}'s
  * body, and must never be hoisted to module scope.** This package ships
- * `"sideEffects": false`, and 02-06 measured that a module-evaluation-time
- * registration is deleted from the consumer bundle outright — while remaining
- * present under `node dist/index.js`. Hoisted, PKG-04 tests green in Node and
- * does nothing in every React or Svelte app, which is the only place two copies
- * of core can collide. See `./contract.ts`'s header, constraint 1.
+ * `"sideEffects": false`, so module evaluation may be removed when no retained
+ * runtime reference keeps it reachable. 02-06 measured that exact vulnerable
+ * shape: a module-evaluation-time registration was deleted from the consumer
+ * bundle while remaining present under `node dist/index.js`. Keeping the guard
+ * inside a retained API's call graph makes its registry access reachable;
+ * hoisting it removes that protection. See `./contract.ts`'s header,
+ * constraint 1.
  *
  * **2. The freeze is recursive, and the shallow form is not a weaker version of
  * it — it is a breach that reports success.** Measured in ESM strict mode: with
@@ -446,18 +448,10 @@ type PropertyBag = Record<string, unknown>;
  * the freeze walk automatically and never needs to enter the `skip` set at all.
  * Only the object-shaped validators do.
  *
- * **Residual, deliberately not closed here — and narrower than first recorded.**
- * An `actions` array containing `null` or `undefined` throws a raw `TypeError` on
- * the `action.name` read before any rule runs. A structured issue needs an action
- * *name* to report, and that shape has none; inventing a sentinel would pollute
- * the `action` field that DX-03 tests assert on.
- *
- * This paragraph previously also claimed a **string** element throws. Measured at
- * phase close: it does not. `"x".name` is `undefined` rather than a throw, so a
- * string — and a number — reach the rules and produce a proper structured error.
- * Only `null` and `undefined` escape as a raw `TypeError`. The correction narrows
- * the documented exception to DX-03's "every build-time error names the action";
- * it does not widen it.
+ * Declaration shape is checked before this helper is called. Unreadable
+ * declarations therefore enter the ordinary aggregate diagnostic path under a
+ * truthful zero-based index instead of requiring a synthetic action name or
+ * escaping through a property-read `TypeError`.
  */
 function hasStandardSchema(action: AnyActionDefinition): boolean {
   const schema: unknown = action.schema;
@@ -956,11 +950,11 @@ export function deepFreeze<T>(value: T, skip: ReadonlySet<object>, seen: WeakSet
  *
  * Here rather than anywhere else, for three reasons in order of force:
  *
- * 1. **Module scope does not survive `"sideEffects": false`.** 02-06 measured a
+ * 1. **Module evaluation may be removed when no retained runtime reference
+ *    keeps it reachable.** With `"sideEffects": false`, 02-06 measured a
  *    module-evaluation-time registration deleted from the consumer bundle while
- *    remaining present under `node dist/index.js` — it would test green in Node
- *    and do nothing in every React or Svelte app, which is the only place two
- *    copies of core can collide.
+ *    remaining present under `node dist/index.js`. Keeping the registry access
+ *    on `buildCatalog`'s retained call path makes that access reachable instead.
  * 2. **`defineAction` would fire it once per action.** It is an identity
  *    function called N times per app; the guard is a once-per-process assertion.
  * 3. **`buildCatalog` is the earliest entry point every consumer necessarily

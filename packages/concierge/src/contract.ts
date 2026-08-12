@@ -7,15 +7,16 @@
  *
  * **1. Never call `assertSingleInstance` at module scope, and never move the
  * registry read out of its body.** This package ships `"sideEffects": false`,
- * which licenses a bundler to delete a module's evaluation outright. Measured
- * with rolldown 1.2.0 against a shape-faithful mirror of this package: a
- * module-evaluation-time registration is absent from the consumer bundle *even
- * when the consumer imports `CONTRACT_VERSION` itself*, because the constant is
- * inlined and the module's evaluation is then dropped entirely. That form is
- * still present under `node dist/index.js`, so it tests green in Node while
- * being absent from every React or Svelte app — which is the only place two
- * copies can collide. Hoisting this code to module scope looks like a
- * simplification. It is the single edit that silently disarms PKG-04.
+ * which licenses a bundler to delete module evaluation when no retained runtime
+ * reference keeps it reachable. Measured with rolldown 1.2.0 against a
+ * shape-faithful mirror of this package: a module-evaluation-time registration
+ * is absent from the consumer bundle *even when the consumer imports
+ * `CONTRACT_VERSION` itself*, because the constant is inlined and the module's
+ * evaluation is then dropped. A retained function that reads registry state
+ * keeps that state and read reachable, which is why the guard remains inside
+ * retained API call paths. The hoisted form still appears under
+ * `node dist/index.js`, so Node-only checks can miss the elision that silently
+ * disarms PKG-04.
  *
  * The tempting escape is not one. `"sideEffects": ["./dist/contract.js"]` would
  * keep the module-scope form alive, but tsdown emits a single bundled
@@ -109,9 +110,9 @@ type Holder = Record<symbol, ContractRecord | undefined>;
  * **Call this from the first reachable entry point** — `buildCatalog`,
  * `createBridge`, `createSession`, and each adapter's registration hook — and
  * never at module scope. `createConcierge` reaches it transitively through
- * `buildCatalog`. See constraint 1 in this file's header: module scope does not
- * survive `"sideEffects": false`, so a registration hoisted out of this body is
- * deleted from every bundled consumer.
+ * `buildCatalog`. See constraint 1 in this file's header: with
+ * `"sideEffects": false`, a registration hoisted out of this retained call
+ * path may have no runtime reference keeping its module evaluation reachable.
  *
  * **A same-version duplicate adopts rather than throws.** Two copies at the same
  * contract version share one record and therefore share state, which is exactly
@@ -123,9 +124,9 @@ type Holder = Record<symbol, ContractRecord | undefined>;
  * **The mismatch throws from here, not from module evaluation**, for three
  * reasons in order of force:
  *
- * 1. Module-scope code does not survive `"sideEffects": false`, so an
- *    import-time throw is not merely undesirable — it is unreachable in a
- *    bundle.
+ * 1. A module-scope registration with no retained runtime reference may be
+ *    removed under `"sideEffects": false`, so an import-time throw is not
+ *    reliably reachable in a bundled consumer.
  * 2. An import-time throw in ESM surfaces as a module-evaluation error with no
  *    useful frame, and under a metaframework's SSR it takes down the whole
  *    render rather than the one feature.

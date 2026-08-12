@@ -270,3 +270,28 @@ headline figures.
 
 _Verified: 2026-07-30T00:52:30Z_
 _Verifier: Claude (gsd-verifier)_
+
+## Phase 10 correction addendum — 2026-08-12
+
+- **Original observation.** The verifier found that `buildCatalog([null])`
+  escaped as a raw `TypeError` before the catalog could produce a named,
+  actionable issue. It therefore left one explicit DX-03 exception and treated
+  the absence of an action name as the reason a structured issue could not be
+  emitted.
+- **Current command.** Task 10-02-01 ran
+  `CI=true pnpm --filter @fullselfbrowsing/concierge build && node_modules/.bin/vitest run packages/concierge/test/catalog.test.ts && CI=true pnpm --filter @fullselfbrowsing/concierge typecheck`;
+  Task 10-02-02 then re-ran C23, C24, and C34 against the newly built artifact.
+- **Current evidence.** C34 proves that `null` at index 0 yields an exact
+  `invalid_declaration` issue with subject `declaration at index 0`, the
+  specified nonempty problem and actionable fix, and no raw `TypeError`; an
+  independent `schema_root_not_object` fault at index 1 remains present after it
+  in aggregate order. C35 proves that `undefined`, primitives, and a hostile
+  callable declaration all take the same indexed diagnostic path before any
+  property read; the callable getter count remains zero. The type-level equality
+  check pins `CatalogIssueCode` as an exact closed eleven-member union.
+- **Superseded conclusion.** The prior DX-03 null-declaration exception is
+  closed. D-10-13 supplies a truthful index when no action name exists, and
+  D-10-14 makes the stable code, index subject, nonempty problem, and actionable
+  fix sufficient mechanical evidence without inventing a name. The original
+  observation remains above as historical evidence; this append-only correction
+  follows D-10-16.
