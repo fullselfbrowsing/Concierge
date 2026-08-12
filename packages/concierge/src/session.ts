@@ -15,12 +15,14 @@
  */
 
 import { assertSingleInstance } from "./contract.js";
+import { dispatchBatchOutcomeFor } from "./concierge.js";
 import {
   consentProfileOf,
   profileDominates,
   snapshotConsentProfile,
 } from "./consent-profile.js";
 import { warnHost } from "./host.js";
+import type { InternalBatchOutcome } from "./dispatch.js";
 import type {
   ActionResult,
   AbortSignalLike,
@@ -630,27 +632,38 @@ export function createSession(config: SessionConfig): Session {
       return;
     }
     try {
-      const rows = await concierge.dispatchBatch(
+      const outcome: InternalBatchOutcome = await dispatchBatchOutcomeFor(
+        concierge,
         binding.context,
         envelopeFor(work),
       );
+      const rows: InternalBatchOutcome["rows"] = outcome.rows;
       if (!allowResponses || lifecycle !== "active") return;
-      const failureOutcome: FailureOutcome | null = failureOutcomeFor(rows);
-      if (!allowResponses || lifecycle !== "active") return;
-      if (failureOutcome !== null) {
-        let completed: boolean = false;
-        try {
-          const report: unknown = await presentOutcome(failureOutcome);
-          completed = outcomePresentationCompleted(report);
-        } catch {
-          completed = false;
-        }
-        if (!completed) {
-          diagnose("outcome_presentation_failed");
-          return;
-        }
+      let outcomeCompleted: boolean = true;
+      try {
+        const failureOutcome: FailureOutcome | null = failureOutcomeFor(rows);
         if (!allowResponses || lifecycle !== "active") return;
+        if (failureOutcome !== null) {
+          outcomeCompleted = false;
+          try {
+            const report: unknown = await presentOutcome(failureOutcome);
+            outcomeCompleted = outcomePresentationCompleted(report);
+          } catch {
+            outcomeCompleted = false;
+          }
+          if (!outcomeCompleted) {
+            diagnose("outcome_presentation_failed");
+          }
+        }
+      } finally {
+        if (outcome.terminalEntered) void stopNow();
       }
+      if (
+        outcome.terminalEntered ||
+        !outcomeCompleted ||
+        !allowResponses ||
+        lifecycle !== "active"
+      ) return;
       for (const row of rows) {
         if (!allowResponses || lifecycle !== "active") break;
         try {

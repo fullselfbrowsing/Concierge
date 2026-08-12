@@ -23,9 +23,11 @@
  * request's leaked state made every subsequent GET return a 307 until the
  * process was restarted. A module-scope catalog memo would be shared by every
  * `createConcierge` in the process, so two configs in one server would serve
- * each other's catalogs under colliding keys. Both mutable structures in this
- * file are therefore `let`s inside the factory body, `null` until first use;
- * module scope holds two immutable constants and nothing else.
+ * each other's catalogs under colliding keys. Per-instance mutable structures
+ * are therefore `let`s inside the factory body, `null` until first use. The
+ * sole module-level mutable association is a private `WeakMap` from a
+ * Concierge handle to its internal batch executor; weak keys prevent
+ * retention, and one instance's key cannot read another instance's executor.
  *
  * An earlier draft justified the same rule on bundler grounds instead — that a
  * module-scope structure is elided from a consumer build. Re-measured under
@@ -90,7 +92,11 @@ import {
   warnHost,
 } from "./host.js";
 import { USER_CANCELLED, USER_DECLINED } from "./types.js";
-import type { ArgumentValidation, CommitWaitOutcome } from "./dispatch.js";
+import type {
+  ArgumentValidation,
+  CommitWaitOutcome,
+  InternalBatchOutcome,
+} from "./dispatch.js";
 import type { InvocationValueSnapshot } from "./dispatch.js";
 import type { Catalog, CatalogEntry } from "./catalog.js";
 import type {
@@ -122,8 +128,20 @@ import type {
 } from "./types.js";
 
 // ---------------------------------------------------------------------------
-// Module scope — immutable constants only
+// Module scope — one private weak association and immutable constants
 // ---------------------------------------------------------------------------
+
+type InternalBatchDispatcher = (
+  ctx: StageContext,
+  batch: ToolBatch,
+) => Promise<InternalBatchOutcome>;
+
+const INTERNAL_BATCH_DISPATCHERS: WeakMap<Concierge, InternalBatchDispatcher> =
+  /* @__PURE__ */ new WeakMap<Concierge, InternalBatchDispatcher>();
+
+const EMPTY_BATCH_ROWS: ReadonlyArray<
+  Readonly<{ callId: string; result: ActionResult }>
+> = Object.freeze([]);
 
 /**
  * The `skip` set `explain()` hands to `deepFreeze`. Empty, because the object
@@ -144,6 +162,28 @@ import type {
  * bundler about a call with no observable effect, not a claim about behaviour.
  */
 const NO_SKIP: ReadonlySet<object> = /* @__PURE__ */ new Set<object>();
+
+/**
+ * Resolve the richer occurrence result only for a Concierge created by this
+ * module. Structural test doubles and compatible third-party implementations
+ * retain the public nonterminal behavior.
+ */
+export async function dispatchBatchOutcomeFor(
+  concierge: Concierge,
+  ctx: StageContext,
+  batch: ToolBatch,
+): Promise<InternalBatchOutcome> {
+  const internal: InternalBatchDispatcher | undefined =
+    INTERNAL_BATCH_DISPATCHERS.get(concierge);
+  if (internal !== undefined) return internal(ctx, batch);
+
+  const rows = await concierge.dispatchBatch(ctx, batch);
+  return Object.freeze({ rows, terminalEntered: false });
+}
+
+interface DispatchExecutionState {
+  terminalEntered: boolean;
+}
 
 type InvocationMetaSnapshot =
   | { readonly ok: true; readonly value: InvocationMeta }
@@ -931,6 +971,9 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   let dispatchPromises: Map<string, Promise<ActionResult>> | null = null;
   let dispatchSettledAt: Map<string, number> | null = null;
   let dispatchPending: Set<string> | null = null;
+  let dispatchExecutionStates:
+    | WeakMap<Promise<ActionResult>, DispatchExecutionState>
+    | null = null;
   let warnedDispatch: Set<string> | null = null;
   let consentGenerations: Map<string, ConsentGeneration> | null = null;
   let nextConsentGeneration: bigint = 0n;
@@ -1323,6 +1366,28 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     dispatchSettledAt.set(key, Date.now());
   }
 
+  /** Associate private control state without wrapping or replacing a Promise. */
+  function trackDispatchPromise(
+    promise: Promise<ActionResult>,
+    executionState: DispatchExecutionState,
+  ): Promise<ActionResult> {
+    dispatchExecutionStates ??=
+      new WeakMap<Promise<ActionResult>, DispatchExecutionState>();
+    dispatchExecutionStates.set(promise, executionState);
+    return promise;
+  }
+
+  function resolvedDispatch(result: ActionResult): Promise<ActionResult> {
+    return trackDispatchPromise(
+      Promise.resolve(result),
+      { terminalEntered: false },
+    );
+  }
+
+  function terminalEnteredFor(promise: Promise<ActionResult>): boolean {
+    return dispatchExecutionStates?.get(promise)?.terminalEntered === true;
+  }
+
   /** Execute one call after the synchronous deduplication boundary. */
   async function runDispatchPipeline(
     index: number | null,
@@ -1331,6 +1396,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     args: unknown,
     meta: InvocationMeta,
     argumentsMalformed: boolean,
+    executionState: DispatchExecutionState,
   ): Promise<ActionResult> {
     const handler: unknown = entry.action.handler;
     if (typeof handler !== "function") {
@@ -1618,6 +1684,9 @@ export function createConcierge(config: ConciergeConfig): Concierge {
 
     let handlerReturn: unknown;
     try {
+      if (entry.action.terminal === true) {
+        executionState.terminalEntered = true;
+      }
       handlerReturn = handler({
         args: validatedSnapshot.value,
         bridge,
@@ -1795,7 +1864,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     // null-prototype lookup. Authorization still stays ahead of the cache: a
     // key proves retry identity, never stage authority.
     if (!allowedNames.includes(name)) {
-      return Promise.resolve(
+      return resolvedDispatch(
         authoredResult(
           false,
           "This action is not available in the current stage.",
@@ -1806,7 +1875,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
 
     const entry: CatalogEntry | undefined = catalog.byName[name];
     if (entry === undefined) {
-      return Promise.resolve(
+      return resolvedDispatch(
         authoredResult(
           false,
           "This action is not available in the current stage.",
@@ -1817,7 +1886,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
 
     const argsSnapshot: InvocationValueSnapshot = snapshotInvocationValue(args);
     if (!argsSnapshot.ok) {
-      return Promise.resolve(
+      return resolvedDispatch(
         authoredResult(
           false,
           "The action arguments are invalid.",
@@ -1828,7 +1897,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
 
     const metaSnapshot: InvocationMetaSnapshot = snapshotInvocationMeta(meta);
     if (!metaSnapshot.ok) {
-      return Promise.resolve(
+      return resolvedDispatch(
         authoredResult(
           false,
           "The invocation metadata is invalid.",
@@ -1849,13 +1918,20 @@ export function createConcierge(config: ConciergeConfig): Concierge {
           ? `malformed:${derivedKey}`
           : derivedKey;
     if (key === null) {
-      return runDispatchPipeline(
-        index,
-        entry,
-        name,
-        argsSnapshot.value,
-        metaSnapshot.value,
-        argumentsMalformed,
+      const executionState: DispatchExecutionState = {
+        terminalEntered: false,
+      };
+      return trackDispatchPromise(
+        runDispatchPipeline(
+          index,
+          entry,
+          name,
+          argsSnapshot.value,
+          metaSnapshot.value,
+          argumentsMalformed,
+          executionState,
+        ),
+        executionState,
       );
     }
 
@@ -1869,6 +1945,9 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       return hit;
     }
 
+    const executionState: DispatchExecutionState = {
+      terminalEntered: false,
+    };
     const promise: Promise<ActionResult> = Promise.resolve().then(() =>
       runDispatchPipeline(
         index,
@@ -1877,8 +1956,10 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         argsSnapshot.value,
         metaSnapshot.value,
         argumentsMalformed,
+        executionState,
       ),
     );
+    trackDispatchPromise(promise, executionState);
     dispatchPromises.set(key, promise);
     dispatchSettledAt.delete(key);
     dispatchPending.add(key);
@@ -1891,12 +1972,22 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     return promise;
   }
 
-  /** Execute a copied, stably ordered ToolBatch through the same dispatch cache. */
+  /** Retain rows and terminal state until the caller chooses a projection. */
+  function dispatchBatchInternally(
+    ctx: StageContext,
+    batch: ToolBatch,
+  ): Promise<InternalBatchOutcome> {
+    return executeDispatchBatch(ctx, batch, dispatch, terminalEnteredFor);
+  }
+
+  /** Execute a copied batch while keeping terminal control state private. */
   async function dispatchBatch(
     ctx: StageContext,
     batch: ToolBatch,
   ): Promise<ReadonlyArray<Readonly<{ callId: string; result: ActionResult }>>> {
-    return executeDispatchBatch(ctx, batch, dispatch);
+    const outcome: InternalBatchOutcome =
+      await dispatchBatchInternally(ctx, batch);
+    return outcome.terminalEntered ? EMPTY_BATCH_ROWS : outcome.rows;
   }
 
   function catalogFor(ctx: StageContext): ReadonlyArray<EmittedTool> {
@@ -2017,5 +2108,11 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     stageFor,
     explain,
   };
-  return attachConsentProfile(concierge, capturedConsent.profile);
+  const configuredConcierge: Concierge =
+    attachConsentProfile(concierge, capturedConsent.profile);
+  INTERNAL_BATCH_DISPATCHERS.set(
+    configuredConcierge,
+    dispatchBatchInternally,
+  );
+  return configuredConcierge;
 }

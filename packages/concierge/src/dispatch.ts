@@ -46,6 +46,14 @@ type OwnArraySlotSnapshot =
   | Readonly<{ ok: true; present: true; value: unknown }>
   | Readonly<{ ok: false }>;
 
+/** Internal batch state retained until Session decides whether rows may escape. */
+export interface InternalBatchOutcome {
+  readonly rows: ReadonlyArray<
+    Readonly<{ callId: string; result: ActionResult }>
+  >;
+  readonly terminalEntered: boolean;
+}
+
 /** Read one hostile array length exactly once and validate it before use. */
 function snapshotArrayLength(
   value: ReadonlyArray<unknown>,
@@ -1010,13 +1018,15 @@ export async function executeDispatchBatch(
     meta?: InvocationMeta,
     argumentsMalformed?: boolean,
   ) => Promise<ActionResult>,
-): Promise<ReadonlyArray<Readonly<{ callId: string; result: ActionResult }>>> {
+  terminalEnteredFor: (promise: Promise<ActionResult>) => boolean,
+): Promise<InternalBatchOutcome> {
   const batchSnapshot: BatchMetadataSnapshot = snapshotBatchMetadata(batch);
   const ordered: ReadonlyArray<ToolCallSnapshot> = orderToolCallSnapshots(
     snapshotToolCalls(batch),
   );
 
   const rows: RuntimeBatchRow[] = [];
+  let terminalEntered: boolean = false;
   for (const call of ordered) {
     let result: ActionResult;
     if (!batchSnapshot.ok || !call.ok) {
@@ -1045,22 +1055,26 @@ export async function executeDispatchBatch(
         signal: batchSnapshot.signal,
         deferUntilDelivered: batchSnapshot.deferUntilDelivered,
       };
-      result = await dispatch(
+      const dispatchPromise: Promise<ActionResult> = dispatch(
         ctx,
         call.name,
         args,
         meta,
         argumentsMalformed,
       );
+      result = await dispatchPromise;
+      terminalEntered = terminalEnteredFor(dispatchPromise);
     }
 
     rows.push(batchRow(call.callId, result));
+    if (terminalEntered) break;
   }
 
   // Runtime-malformed callers may supply an observable non-string callId, or
   // make it unreadable and receive the documented positional sentinel. The
   // public string contract remains unchanged for every typed ToolBatch.
-  return Object.freeze(rows) as ReadonlyArray<
+  const frozenRows = Object.freeze(rows) as ReadonlyArray<
     Readonly<{ callId: string; result: ActionResult }>
   >;
+  return Object.freeze({ rows: frozenRows, terminalEntered });
 }
