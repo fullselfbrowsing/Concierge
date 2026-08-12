@@ -487,3 +487,20 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 7. Session and the transport seam | 7/7 | Complete    | 2026-08-10 |
 | 8. Consent kernel | 8/8 | Complete | 2026-08-10 |
 | 9. React and Svelte adapters | 12/13 | In Progress|  |
+
+### Phase 10: Close v0.1 release certification and evidence gaps
+
+**Goal:** One exact clean commit is independently certifiable as the pre-publication candidate: all nine audit gaps closed, 62/62 requirements, 9/9 original implementation phases and 10/10 current phase directories verified, 12/12 integrations, 10/10 flows, Phase 9 Nyquist compliant, and a matching exact-SHA hosted Ubuntu receipt, with no later tracked write or publication.
+**Requirements**: No new requirement IDs — closes Audit 1–9 and repairs evidence for SEC-03, ADP-01–04, PKG-04, CAT-02, CAT-05–07, SEC-01, SEC-05, PKG-02–03, DX-03.
+**Depends on:** Phase 9
+**Plans:** 8 plans in 6 waves
+
+Plans:
+- [ ] 10-01-PLAN.md — Commit terminality at handler entry, suppress the whole batch, and stop safely after app-owned outcome capture.
+- [ ] 10-02-PLAN.md — Aggregate invalid declarations structurally and correct SEC-03 evidence against current built bytes.
+- [ ] 10-03-PLAN.md — Separate benign pnpm decoration from authenticated child authority and prove disposable Astro regeneration.
+- [ ] 10-04-PLAN.md — Repair hosted build ordering and create exact-SHA run-scoped certification receipt tooling.
+- [ ] 10-05-PLAN.md — Register discriminating mutants and generate canonical Phase 9 validation and independent verification evidence.
+- [ ] 10-06-PLAN.md — Backfill summary requirement metadata/addenda and synchronize registered roadmap/state accounting.
+- [ ] 10-07-PLAN.md — Produce final local verification/audit records, prove a clean clone, and freeze the tracked candidate.
+- [ ] 10-08-PLAN.md — Run the exact-SHA hosted certification as a terminal external checkpoint with no tracked summary afterward.

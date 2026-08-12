@@ -53,19 +53,26 @@ created: 2026-08-11
 
 ## Per-Task Verification Map
 
-The task IDs below are the research projection. The planner must either preserve them or update this table before execution so every final task has one automated sampling row. Phase 10 has no newly assigned formal requirement IDs; `Audit 1` through `Audit 9` refer to the numbered closure list in `.planning/v0.1-MILESTONE-AUDIT.md`.
+Every final task has one automated sampling row. Phase 10 has no newly assigned formal requirement IDs; `Audit 1` through `Audit 9` refer to the numbered closure list in `.planning/v0.1-MILESTONE-AUDIT.md`. The terminal Plan 08 checkpoint consumes an external hosted receipt and intentionally creates no tracked summary after certification.
 
-| Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
-|---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 10-01-01 | 01 | 1 | Audit 3 | T-10-01 / T-10-02 / T-10-03 | Handler entry commits terminality; the whole occurrence is response-silent; outcome precedes nonblocking stop | unit + integration + type + mutation | Quick run command plus terminal named mutants | ❌ W0 cases | ⬜ pending |
-| 10-02-01 | 02 | 1 | Audit 4 | T-10-05 / — | Null or unreadable declarations enter the aggregate index-addressed actionable diagnostic channel | unit + type + mutation | `pnpm --filter @fullselfbrowsing/concierge build && pnpm exec vitest run packages/concierge/test/catalog.test.ts && pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ W0 cases | ⬜ pending |
-| 10-02-02 | 02 | 1 | Audit 5 | T-10-05 | Explicit and derived schemas are detached and accessors never execute | focused unit + independent evidence | `pnpm --filter @fullselfbrowsing/concierge build && pnpm exec vitest run packages/concierge/test/concierge.test.ts -t 'S15[abc]'` | ✅ tests; ❌ correction record | ⬜ pending |
-| 10-03-01 | 03 | 1 | Audit 1 | T-10-04 | Ordinary pnpm decoration is accepted only at the parent boundary and stripped from ordinary children; hostile authority remains rejected | script self-test + integration + mutation | `pnpm run check:phase09:packages` plus package-check self-tests and the registered negative mutant | ❌ W0 cases | ⬜ pending |
-| 10-03-02 | 03 | 1 | Audit 2 | Astro state regenerates from pinned inputs but remains untracked and unsealed | clean-checkout integration | `test ! -e examples/adapter-ssr/.astro && pnpm --filter @fullselfbrowsing/concierge-adapter-ssr check && pnpm --filter @fullselfbrowsing/concierge-adapter-ssr build && test -z "$(git ls-files -- examples/adapter-ssr/.astro)"` | ❌ W0 assertions | ⬜ pending |
-| 10-04-01 | 04 | 2 | Audit 9 | T-10-07 / T-10-08 | Clean hosted jobs build before aggregate typecheck and preserve release/OIDC negative controls | static + negative fixture + hosted CI | `node scripts/phase-09-workflow-check.mjs` followed at the phase gate by exact-SHA `gh run` verification | ❌ corrected fixtures/receipt | ⬜ pending |
-| 10-05-01 | 05 | 2 | Audit 6 / Audit 7 | T-10-05 / T-10-06 | One generator-owned input model produces canonical Phase 9 validation and independent verification without changing inherited Phase 8 seals | generator verification + phase verification | `node scripts/phase-09-mutation-battery.mjs finalize versioned --jobs 4 && node scripts/phase-09-mutation-battery.mjs verify all && pnpm run check:phase09:release` | ❌ canonical records | ⬜ pending |
-| 10-06-01 | 06 | 3 | Audit 8 | — | Historical records receive explicit addenda, missing requirement metadata is backfilled, and registered handlers synchronize ROADMAP/STATE | metadata + static audit | Frontmatter parse, `gsd-sdk query phases.list`, decision/requirement coverage handlers, and milestone audit | ❌ addenda/metadata | ⬜ pending |
-| 10-07-01 | 07 | 4 | Audit 9 | T-10-07 / T-10-08 | Final bytes produce Phase 10 validation/verification, 62/62 requirements, 9/9 implementation phases and 10/10 phase directories, 12/12 integrations, 10/10 flows, then one exact-SHA hosted receipt | full E2E + hosted CI + audit | Full suite, Phase 9 verify-all, Phase 9/10 GSD verification, milestone audit, and exact-head-SHA GitHub run/receipt match | ❌ final records/run | ⬜ pending |
+| Task ID | Plan | Wave | Requirement / gap | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
+|---------|------|------|-------------------|------------|-----------------|-----------|-------------------|-------------|--------|
+| 10-01-01 | 01 | 1 | Audit 3; DSP-07, SES-02, SES-04, CON-10 | T-10-01 / T-10-02 / T-10-03 | Handler entry commits terminality; the whole occurrence is response-silent; outcome precedes nonblocking stop | unit + integration + type | Focused terminal RED matrix, then the quick run command | ❌ W0 cases | ⬜ pending |
+| 10-01-02 | 01 | 1 | Audit 3; DSP-07, SES-02, SES-04, CON-10 | T-10-01 / T-10-02 / T-10-03 | Private terminal state stops later dispatch and queued occurrence admission without self-await | unit + integration + type | Quick run command | ✅ implementation; ❌ corrected cases | ⬜ pending |
+| 10-02-01 | 02 | 1 | Audit 4; CAT-02, CAT-06, DX-03 | T-10-05 | Null or unreadable declarations enter the aggregate index-addressed actionable diagnostic channel | unit + type | `pnpm --filter @fullselfbrowsing/concierge build && pnpm exec vitest run packages/concierge/test/catalog.test.ts && pnpm --filter @fullselfbrowsing/concierge typecheck` | ❌ W0 cases | ⬜ pending |
+| 10-02-02 | 02 | 1 | Audit 5; SEC-03 | T-10-05 | Explicit and derived schemas are detached and accessors never execute; stale evidence is corrected | focused unit + evidence | `pnpm --filter @fullselfbrowsing/concierge build && pnpm exec vitest run packages/concierge/test/concierge.test.ts -t 'S15[abc]'` | ✅ tests; ❌ correction record | ⬜ pending |
+| 10-03-01 | 03 | 1 | Audit 1; PKG-04 | T-10-04 | Ordinary pnpm decoration is accepted only at the parent boundary and stripped from ordinary children; hostile authority remains rejected | script self-test + mutation | Package-check self-tests plus registered negative mutant | ❌ W0 cases | ⬜ pending |
+| 10-03-02 | 03 | 1 | Audit 2 | T-10-06 | Astro state regenerates from pinned inputs but remains untracked and unsealed | clean-checkout integration | Disposable-checkout absence, `check`, `build`, tracked-path, and seal-input assertions | ❌ W0 assertions | ⬜ pending |
+| 10-04-01 | 04 | 2 | Audit 9 | T-10-07 / T-10-08 | Clean hosted jobs build before aggregate typecheck and preserve release/OIDC negative controls | static + negative fixture | `node scripts/phase-09-workflow-check.mjs` | ❌ corrected fixtures | ⬜ pending |
+| 10-04-02 | 04 | 2 | Audit 9 | T-10-07 | Certification binds repository, workflow, exact head SHA, run ID, attempt, conclusion, jobs, and immutable receipt without a repository write | script self-test | `node scripts/phase-10-certify-candidate.mjs self-test && node scripts/phase-09-workflow-check.mjs` | ❌ script/receipt contract | ⬜ pending |
+| 10-05-01 | 05 | 3 | Audit 3–5 | T-10-01–T-10-06 | Named mutants discriminate terminal, catalog, package, and Astro claims | mutation | `node scripts/phase-09-mutation-battery.mjs run named --jobs 4` for every M-10 mutant listed by Plan 05 | ❌ mutation rows | ⬜ pending |
+| 10-05-02 | 05 | 3 | Audit 6 / Audit 7 | T-10-05 / T-10-06 | One generator-owned input model produces canonical Phase 9 validation and independent verification without changing inherited Phase 8 seals | generator verification + phase verification | `node scripts/phase-09-mutation-battery.mjs finalize versioned --jobs 4 && node scripts/phase-09-mutation-battery.mjs verify all && pnpm run check:phase09:release` | ❌ canonical records | ⬜ pending |
+| 10-06-01 | 06 | 4 | Audit 8; PKG-02–03, CAT-02, CAT-05–07, SEC-01, SEC-05, DX-03 | — | Historical records receive explicit addenda and exact requirement metadata while historical verifier records stay append-only | metadata + static audit | Plan 06 frontmatter/addendum assertions | ❌ addenda/metadata | ⬜ pending |
+| 10-06-02 | 06 | 4 | Audit 8 | — | Registered handlers synchronize ROADMAP, STATE, and requirement coverage | GSD handler integration | `gsd-sdk query phases.list`, requirement coverage, roadmap analyze, and state load checks | ❌ synchronized metadata | ⬜ pending |
+| 10-07-01 | 07 | 5 | Audit 1–9 | T-10-01–T-10-08 | Final tracked records prove every decision, source, threat, test, and exact release criterion | full local E2E + audit | Full suite, Phase 9 verify-all, Phase 9/10 GSD verification, and milestone audit | ❌ final records | ⬜ pending |
+| 10-07-02 | 07 | 5 | Audit 9 | T-10-07 / T-10-08 | A clean clone proves the final tracked candidate and freezes all tracked bookkeeping before hosted execution | clean-clone E2E | Plan 07 clean-clone and status/SHA assertions | ❌ frozen candidate | ⬜ pending |
+| 10-08-01 | 08 | 6 | Audit 9 | T-10-07 / T-10-08 | One exact candidate commit already present on the configured remote is certified by the matching hosted Ubuntu run without any tracked write | hosted E2E | `node scripts/phase-10-certify-candidate.mjs certify` | ❌ hosted run/receipt | ⬜ pending |
+| 10-08-02 | 08 | 6 | Audit 9 | T-10-07 / T-10-08 | External receipt is revalidated and the repository remains byte-identical to the certified SHA | terminal external checkpoint | `node scripts/phase-10-certify-candidate.mjs verify-run <sha> <run-id> <attempt> && test "$(git rev-parse HEAD)" = "<sha>" && test -z "$(git status --porcelain=v1 --untracked-files=all)"` | ❌ external receipt | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -73,34 +80,37 @@ The task IDs below are the research projection. The planner must either preserve
 
 ## Wave 0 Requirements
 
-- [ ] Add terminal runtime/type/session tests and named mutation rows for handler-entry commitment, serial break, whole-batch suppression, outcome ordering, stop, and response leakage.
+- [ ] Add terminal runtime/type/session tests for handler-entry commitment, serial break, whole-batch suppression, outcome ordering, stop, and response leakage.
 - [ ] Add null-declaration aggregation tests, exact issue-code type assertions, actionability assertions, and a discriminating catalog mutant.
 - [ ] Add package-check self-tests and a negative/mutation fixture for ordinary pnpm decoration versus authenticated mutation-child authority.
 - [ ] Add clean-baseline `.astro/` absence, pinned regeneration, zero-tracked-path, and no-release-input assertions to the existing Phase 9 evidence generator.
-- [ ] Correct CI/release clean-checkout ordering and update exact workflow static assertions and negative fixtures.
-- [ ] Make the Phase 9 generator emit canonical `09-VALIDATION.md` metadata/source accounting and create independent `09-VERIFICATION.md` evidence.
-- [ ] Create Phase 10 verification and exact-SHA hosted certification receipt checks without committing a post-run receipt.
-- [ ] Backfill `02-12-SUMMARY.md` with `PKG-02`, `PKG-03`; backfill `03-08-SUMMARY.md` with `CAT-02`, `CAT-05`, `CAT-06`, `CAT-07`, `SEC-01`, `SEC-05`, `DX-03`; synchronize ROADMAP/STATE through registered handlers.
+- [ ] Correct CI/release clean-checkout ordering and add exact workflow static assertions and negative fixtures.
+- [ ] Add the dependency-free exact-SHA certification/receipt verifier with `self-test`, `certify`, and `verify-run` modes.
+- [ ] Register every named M-10 mutant and make the Phase 9 generator emit canonical `09-VALIDATION.md` metadata plus independent `09-VERIFICATION.md` evidence.
+- [ ] Backfill summary requirement metadata/addenda and synchronize ROADMAP/STATE through registered handlers.
+- [ ] Create Phase 10 verification/audit records on final tracked bytes, prove a clean clone, and freeze the candidate before hosted certification.
 
 ---
 
 ## Manual-Only Verifications
 
-No in-scope phase behavior is manual-only. Hosted GitHub Actions and its run-scoped receipt are externally executed automated gates and cannot be replaced by local evidence. Actual npm publication, live registry provenance inspection, and release tagging remain outside Phase 10 and require separate approval.
+No implementation behavior is manual-only. Plan 08 ends at a blocking terminal checkpoint because D-10-11 forbids any normal executor SUMMARY/verifier/audit/bookkeeping write after the hosted run certifies the exact SHA. The human checks the already automated external receipt result and ends execution; actual npm publication, registry provenance inspection, and release tagging remain outside Phase 10.
 
 ---
 
 ## Validation Sign-Off
 
-- [ ] Every final plan task has a matching row with an automated command or explicit Wave 0 dependency.
+- [ ] All 16 final task IDs have a matching automated sampling row.
 - [ ] Sampling continuity: no three consecutive tasks lack focused automated verification.
-- [ ] All Wave 0 cases, fixtures, mutants, metadata, and verifier files exist.
+- [ ] All Wave 0 cases, fixtures, mutants, metadata, scripts, and verifier files exist.
 - [ ] Focused runtime/type feedback completes within 180 seconds on the development machine.
 - [ ] Full clean-checkout local release gate is green in build-before-typecheck order.
 - [ ] Phase 9 finalization/verification and Phase 9/10 GSD validation/verification are green on final tracked bytes.
 - [ ] Milestone audit reports 62/62 requirements, 9/9 original implementation phases and 10/10 current phase directories, 12/12 integrations, 10/10 flows, and Phase 9 Nyquist compliance.
-- [ ] One hosted GitHub Actions run succeeds for the exact final candidate SHA and its receipt matches the run ID/attempt/jobs; no tracked change follows.
+- [ ] The candidate is committed and pushed with an empty worktree before hosted execution.
+- [ ] One hosted GitHub Actions run succeeds for that exact SHA and the run-scoped receipt matches repository, workflow, run ID, attempt, conclusion, and required jobs.
+- [ ] No tracked or untracked repository write follows certification; Plan 08 emits no tracked SUMMARY.
 - [ ] No watch-mode flags are used.
-- [ ] `wave_0_complete: true`, `nyquist_compliant: true`, and `status: complete` are set only after all rows are green.
+- [ ] The tracked validation record reaches `candidate_ready`; terminal external receipt completion is not written back into the candidate commit.
 
 **Approval:** pending
