@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: release certification and evidence gaps
 status: executing
-stopped_at: Completed 10-02-PLAN.md
-last_updated: "2026-08-12T17:31:00.303Z"
+stopped_at: Completed 10-03-PLAN.md
+last_updated: "2026-08-12T17:42:46.187Z"
 last_activity: 2026-08-12
 progress:
   total_phases: 10
   completed_phases: 9
   total_plans: 93
-  completed_plans: 88
+  completed_plans: 89
   percent: 90
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-08-10)
 ## Current Position
 
 Phase: 10 (close-v0-1-release-certification-and-evidence-gaps) — EXECUTING
-Plan: 3 of 7
+Plan: 4 of 7
 Status: Ready to execute
 Last activity: 2026-08-12
 
@@ -82,6 +82,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 09 P11 | 24min | 2 tasks | 5 files |
 | Phase 10 P01 | 16m | 2 tasks | 8 files |
 | Phase 10 P02 | 7m | 2 tasks | 6 files |
+| Phase 10 P03 | 7m | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -193,6 +194,8 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 10]: Identify unreadable declarations by zero-based input index instead of inventing an action name. — The indexed subject is truthful for null, primitive, and otherwise unreadable runtime values while preserving the ordinary aggregate diagnostic path.
 - [Phase 10]: Treat exact structured fields, stable codes, truthful subjects, and actionable fixes as sufficient diagnostic legibility evidence. — D-10-14 closes the former subjective checkpoint with repeatable built-artifact assertions.
 - [Phase 10]: Preserve historical verifier findings verbatim and append dated current-byte corrections. — Append-only corrections retain the original audit trail while making superseded conclusions explicit.
+- [Phase 10]: Consume exact pnpm false decoration without granting ordinary-child authority. — Only the independent exact mutation marker authenticates retention; ordinary pnpm callers remain usable without widening the child environment.
+- [Phase 10]: Treat pinned Astro regeneration, not generated declaration bytes, as release evidence. — Harness-local .astro output stays untracked, ignored at one exact path, and rejected from every release manifest and seal.
 
 ### Pending Todos
 
@@ -221,6 +224,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-12T17:31:00.299Z
-Stopped at: Completed 10-02-PLAN.md
+Last session: 2026-08-12T17:42:46.182Z
+Stopped at: Completed 10-03-PLAN.md
 Resume file: None
