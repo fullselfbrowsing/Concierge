@@ -10,7 +10,7 @@ This run-ID-free runbook separates ordinary GSD closeout from the terminal hoste
 
 ## Invariants
 
-- The final Phase 9 versioned seal has release-input digest `de5dd03bc1dad7ed6a3c95c4cbf5dea9fb4837c93d5d8a9d1b540c4cc7977c77` and includes `.planning/REQUIREMENTS.md` at SHA-256 `c75244549d68532f13980cc91bdbf67afc498bc3eacbaa265dd899f6561a3035`.
+- The final Phase 9 versioned seal has release-input digest `797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4` and includes `.planning/REQUIREMENTS.md` at SHA-256 `c75244549d68532f13980cc91bdbf67afc498bc3eacbaa265dd899f6561a3035`.
 - `09-VERIFICATION.md`, every Phase 10 closeout record, `ROADMAP.md`, `STATE.md`, and the milestone audit are outside the Phase 9 release-input inventory. They may be written during Stage A without invalidating the seal.
 - Hosted success cannot be written back into the candidate. A successor commit would be a different, uncertified SHA.
 - Certification proves a pre-publication candidate only. It does not publish to npm, inspect registry provenance, create a release tag, or authorize any later release ceremony.
@@ -77,6 +77,8 @@ The command performs the complete external transaction:
 7. refetches the branch, reasserts remote SHA equality, and proves local HEAD, branch, and full status are unchanged.
 
 Successful output begins with `PHASE10_CANDIDATE_CERTIFIED` and contains the exact external run URL and receipt digest.
+
+The first Stage B attempt, GitHub Actions run `31642179232`, was not authoritative because its `build` job failed before candidate-receipt creation. It exposed a shallow-checkout defect: Phase 9's sealed Version Packages receipt correctly requires its base SHA to be an ancestor, but the CI build checkout did not retain that history. Stage A therefore resumed, pinned `fetch-depth: 0` in the build job and its workflow contract, regenerated the complete versioned seal, and formed a new candidate. The failed run cannot be reused as certification evidence.
 
 ## Authoritative External Fact
 

@@ -62,7 +62,7 @@ The versioned Phase 9 candidate is transactionally sealed and independently pass
 
 - Consumed the hosted Version Packages result at version `0.1.0`, including its exact base SHA, changeset digest, manifest/lock digests, and tracked version receipt.
 - Ran the final credential-free versioned transaction after Plan 06's last REQUIREMENTS write: all five inherited Phase 8 records verified, all 17 mutants compiled and died for positive exact detectors, 15 release commands passed, and three exact archives were sealed.
-- Atomically installed the four Phase 9 generator outputs with release-input digest `de5dd03bc1dad7ed6a3c95c4cbf5dea9fb4837c93d5d8a9d1b540c4cc7977c77`; the manifest contains REQUIREMENTS SHA-256 `c75244549d68532f13980cc91bdbf67afc498bc3eacbaa265dd899f6561a3035`, no `.astro` path, and no later closeout artifact.
+- Atomically installed the four Phase 9 generator outputs with release-input digest `797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4`; the manifest contains REQUIREMENTS SHA-256 `c75244549d68532f13980cc91bdbf67afc498bc3eacbaa265dd899f6561a3035`, no `.astro` path, and no later closeout artifact.
 - Invoked a separate registered verifier that authored `09-VERIFICATION.md` with `status: passed`, 5/5 must-haves, ADP-01–04 and PKG-04 satisfied, and 21/21 references valid.
 - Replaced the projected Phase 10 map with exactly fourteen observed task rows and created the supported two-stage certification runbook.
 - Proved the committed candidate in a disposable clone through frozen install → build → typecheck → 25 files/455 tests → Phase 9 verify-all → Astro/package/budget/static/evidence/workflow release gates.
@@ -71,11 +71,12 @@ The versioned Phase 9 candidate is transactionally sealed and independently pass
 
 1. **Task 10-07-01: Seal final Phase 9 inputs and invoke its independent verifier** — `af4707d` (fix), `1b65257` (version), `baff704` (fix), `01a3d95` (fix), `594dd1f` (test), `d8ab5d4` (docs)
 2. **Task 10-07-02: Finalize local validation and the supported post-GSD certification handoff** — `af6457d` (docs)
+3. **Hosted certification retry repair: retain sealed receipt ancestry and reseal the changed inputs** — `840a302` (fix), `72645cb` (test)
 
 ## Final Evidence Identity
 
 - Shared package version: `0.1.0`.
-- Release-input digest: `de5dd03bc1dad7ed6a3c95c4cbf5dea9fb4837c93d5d8a9d1b540c4cc7977c77`.
+- Release-input digest: `797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4`.
 - REQUIREMENTS digest: `c75244549d68532f13980cc91bdbf67afc498bc3eacbaa265dd899f6561a3035`.
 - Mutation evidence: 17/17 green with byte-identical restoration.
 - Release evidence: 15 commands, three archives, five inherited Phase 8 hashes.
@@ -132,7 +133,15 @@ The versioned Phase 9 candidate is transactionally sealed and independently pass
 - **Verification:** Both secure-environment self-test suites and the complete 57-artifact contract passed; the four prior outputs again remained unchanged before the successful retry.
 - **Committed in:** `01a3d95`.
 
-**Total deviations:** 3 auto-fixed (1 bug, 2 blocking prerequisites). All were required for deterministic, fail-closed finalization; none broadened product scope.
+**4. [Rule 3 - Blocking] Retained the sealed Version Packages ancestry in hosted CI**
+
+- **Found during:** The first Stage B hosted certification attempt, run `31642179232`.
+- **Issue:** The build job passed install, build, typecheck, 455 tests, artifact, dependency, pack, package, budget, and contract gates, then failed when `verify all` could not name the sealed Version Packages base SHA in a shallow checkout.
+- **Fix:** Required `fetch-depth: 0` for the read-only exact-SHA build checkout, pinned that requirement in the workflow checker, and reran the full credential-free versioned evidence transaction.
+- **Verification:** The guard failed on the shallow workflow, passed after the fix, and the retry produced 17/17 green mutants, 15/15 release commands, three archives, and a matching 136-entry digest in both ledgers.
+- **Committed in:** `840a302`, `72645cb`.
+
+**Total deviations:** 4 auto-fixed (1 bug, 3 blocking prerequisites). All were required for deterministic, fail-closed finalization; none broadened product scope.
 
 ## Issues Encountered
 

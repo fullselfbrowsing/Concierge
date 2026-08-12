@@ -84,13 +84,14 @@ Each row has one exact automated command. Rows with a long mutation, regeneratio
 
 ## Measured Local Evidence
 
-- Final versioned seal: release-input digest `de5dd03bc1dad7ed6a3c95c4cbf5dea9fb4837c93d5d8a9d1b540c4cc7977c77`.
+- Final versioned seal: release-input digest `797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4`.
 - Final REQUIREMENTS bytes: SHA-256 `c75244549d68532f13980cc91bdbf67afc498bc3eacbaa265dd899f6561a3035`.
 - Mutation evidence: 17/17 compiled, positively selected, killed, and restored; 15 release commands; three version `0.1.0` archives; five inherited Phase 8 records unchanged.
 - Generated-state proof: zero tracked or sealed paths under `examples/adapter-ssr/.astro/`; pinned Astro check/build regenerates from clean state.
 - Independent Phase 9 verification: `status: passed`, 5/5 must-haves, ADP-01–04 and PKG-04 satisfied, 21/21 references valid.
 - Phase 10 certification self-test: 29/29 negative controls passed.
 - Workflow checker: two workflows, eight jobs, 22 controls, 22 CI steps, and 42 release steps.
+- Hosted retry repair: failed run `31642179232` proved the build checkout could not resolve the sealed receipt's base SHA; the workflow now retains full history, the checker pins that boundary, and all 17 mutants plus 15 release commands were resealed successfully.
 
 ## Wave 0 Closure
 
