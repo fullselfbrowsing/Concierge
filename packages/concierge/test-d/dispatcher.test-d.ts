@@ -21,6 +21,9 @@ type _dispatchSignature = Expect<Equals<Concierge["dispatch"], (ctx: StageContex
 type _dispatchBatchSignature = Expect<Equals<Concierge["dispatchBatch"], (ctx: StageContext, batch: ToolBatch) => Promise<ReadonlyArray<Readonly<{ callId: string; result: ActionResult }>>>>>;
 type _schedulerSignature = Expect<Equals<Scheduler, (fn: () => void, delayMs: number) => () => void>>;
 type _conciergeKeys = Expect<Equals<keyof Concierge, "dispatch" | "dispatchBatch" | "catalogFor" | "stageFor" | "explain">>;
+type _actionResultKeysExcludeTerminalControl = Expect<Equals<keyof ActionResult, "ok" | "reason" | "message">>;
+type _publicBatchRow = Awaited<ReturnType<Concierge["dispatchBatch"]>>[number];
+type _publicBatchRowKeysExcludeTerminalControl = Expect<Equals<keyof _publicBatchRow, "callId" | "result">>;
 type _toolCallEnvelopeIsReadonly = Expect<Equals<Pick<ToolCall, "callId" | "name" | "arguments" | "outputIndex">, { readonly callId: string; readonly name: string; readonly arguments: string; readonly outputIndex: number }>>;
 type _toolBatchEnvelopeIsReadonly = Expect<Equals<Pick<ToolBatch, "responseId" | "userTurnId" | "calls" | "signal" | "deferUntilDelivered">, { readonly responseId: string; readonly userTurnId?: string | undefined; readonly calls: ReadonlyArray<ToolCall>; readonly signal?: import("../src/types.js").AbortSignalLike | undefined; readonly deferUntilDelivered?: InvocationMeta["deferUntilDelivered"] }>>;
 type _deepReadonlyInvocationData = Expect<Equals<DeepReadonly<{ amount: number; nested: { currency: string }; tags: string[] }>, { readonly amount: number; readonly nested: { readonly currency: string }; readonly tags: readonly string[] }>>;

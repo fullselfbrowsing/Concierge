@@ -1343,3 +1343,303 @@ it("[Q20] bounds the calls array and never executes inherited numeric entries", 
     symbolRows: [],
   });
 });
+
+it("[Q20 terminal] silences an earlier result after terminal success", async () => {
+  const entries = [];
+  const concierge = conciergeFor([
+    action("before-terminal", ({ meta }) => {
+      entries.push(meta.callId);
+      return successful("earlier effect completed");
+    }),
+    action(
+      "terminal-success",
+      ({ meta }) => {
+        entries.push(meta.callId);
+        return successful("terminal effect completed");
+      },
+      { terminal: true },
+    ),
+    action("after-terminal", ({ meta }) => {
+      entries.push(meta.callId);
+      return successful("must not run");
+    }),
+  ]);
+
+  const rows = await concierge.dispatchBatch(
+    ACTIVE_CONTEXT,
+    toolBatch([
+      toolCall("before", "before-terminal", "{}", 0),
+      toolCall("terminal", "terminal-success", "{}", 1),
+      toolCall("after", "after-terminal", "{}", 2),
+    ]),
+  );
+
+  expect(
+    { entries, frozen: Object.isFrozen(rows), rows },
+    "[RED:Q20:terminal-success-whole-batch-silence]",
+  ).toEqual({ entries: ["before", "terminal"], frozen: true, rows: [] });
+});
+
+it("[Q21] commits terminality for an app-authored failure", async () => {
+  const entries = [];
+  const concierge = conciergeFor([
+    action(
+      "terminal-failure",
+      ({ meta }) => {
+        entries.push(meta.callId);
+        return {
+          ok: false,
+          reason: "declined",
+          message: "The application declined the terminal operation.",
+        };
+      },
+      { terminal: true },
+    ),
+    action("after-failure", ({ meta }) => {
+      entries.push(meta.callId);
+      return successful("must not run");
+    }),
+  ]);
+
+  const rows = await concierge.dispatchBatch(
+    ACTIVE_CONTEXT,
+    toolBatch([
+      toolCall("terminal-failure", "terminal-failure", "{}", 0),
+      toolCall("after-failure", "after-failure", "{}", 1),
+    ]),
+  );
+
+  expect({ entries, rows }, "[RED:Q21:terminal-returned-failure]").toEqual({
+    entries: ["terminal-failure"],
+    rows: [],
+  });
+});
+
+it("[Q22] commits terminality before a synchronous handler throw", async () => {
+  const entries = [];
+  const concierge = conciergeFor([
+    action(
+      "terminal-throw",
+      ({ meta }) => {
+        entries.push(meta.callId);
+        throw new Error("PRIVATE-Q22-TERMINAL-THROW");
+      },
+      { terminal: true },
+    ),
+    action("after-throw", ({ meta }) => {
+      entries.push(meta.callId);
+      return successful("must not run");
+    }),
+  ]);
+
+  const rows = await concierge.dispatchBatch(
+    ACTIVE_CONTEXT,
+    toolBatch([
+      toolCall("terminal-throw", "terminal-throw", "{}", 0),
+      toolCall("after-throw", "after-throw", "{}", 1),
+    ]),
+  );
+
+  expect({ entries, rows }, "[RED:Q22:terminal-marker-before-throw]").toEqual({
+    entries: ["terminal-throw"],
+    rows: [],
+  });
+});
+
+it("[Q23] commits terminality before an asynchronous handler rejection", async () => {
+  const entries = [];
+  const concierge = conciergeFor([
+    action(
+      "terminal-reject",
+      ({ meta }) => {
+        entries.push(meta.callId);
+        return Promise.reject(new Error("PRIVATE-Q23-TERMINAL-REJECTION"));
+      },
+      { terminal: true },
+    ),
+    action("after-reject", ({ meta }) => {
+      entries.push(meta.callId);
+      return successful("must not run");
+    }),
+  ]);
+
+  const rows = await concierge.dispatchBatch(
+    ACTIVE_CONTEXT,
+    toolBatch([
+      toolCall("terminal-reject", "terminal-reject", "{}", 0),
+      toolCall("after-reject", "after-reject", "{}", 1),
+    ]),
+  );
+
+  expect({ entries, rows }, "[RED:Q23:terminal-marker-before-reject]").toEqual({
+    entries: ["terminal-reject"],
+    rows: [],
+  });
+});
+
+it("[Q24] does not commit terminality for pre-entry argument, handler, or consent failures", async () => {
+  const entries = [];
+  const missingHandler = action("terminal-missing-handler", () => successful(), {
+    terminal: true,
+  });
+  delete missingHandler.handler;
+  const concierge = conciergeFor(
+    [
+      action("review-terminal", () => successful("unused review")),
+      action(
+        "terminal-invalid-args",
+        () => {
+          entries.push("invalid-entered");
+          return successful("must not run");
+        },
+        {
+          terminal: true,
+          validate: () => ({ issues: [{ message: "invalid" }] }),
+        },
+      ),
+      missingHandler,
+      action(
+        "terminal-consent-refused",
+        () => {
+          entries.push("consent-entered");
+          return successful("must not run");
+        },
+        {
+          terminal: true,
+          consent: { requires: "review-terminal", bindTo: "response" },
+        },
+      ),
+      action("after-pre-entry-failures", ({ meta }) => {
+        entries.push(meta.callId);
+        return successful("later handler ran");
+      }),
+    ],
+    {
+      consentProfile: {
+        consentGrade: "delivered",
+        userTurnIdentity: "agent-forgeable",
+      },
+    },
+  );
+
+  const rows = await concierge.dispatchBatch(
+    ACTIVE_CONTEXT,
+    toolBatch([
+      toolCall("invalid", "terminal-invalid-args", "{}", 0),
+      toolCall("missing", "terminal-missing-handler", "{}", 1),
+      toolCall("consent", "terminal-consent-refused", "{}", 2),
+      toolCall("later", "after-pre-entry-failures", "{}", 3),
+    ]),
+  );
+
+  expect(
+    {
+      entries,
+      reasons: rows.map(({ result }) => result.reason),
+      rowIds: rows.map(({ callId }) => callId),
+    },
+    "[RED:Q24:pre-entry-failures-remain-nonterminal]",
+  ).toEqual({
+    entries: ["later"],
+    reasons: ["invalid_args", undefined, "consent_required", undefined],
+    rowIds: ["invalid", "missing", "consent", "later"],
+  });
+});
+
+it("[Q25] keeps a pre-aborted terminal call nonterminal for later work", async () => {
+  const entries = [];
+  const controller = createAbortController(true);
+  const concierge = conciergeFor([
+    action(
+      "terminal-preaborted",
+      ({ meta }) => {
+        entries.push(meta.callId);
+        return successful("must not run");
+      },
+      { terminal: true },
+    ),
+    action("after-preabort", ({ meta }) => {
+      entries.push(meta.callId);
+      return successful("later batch ran");
+    }),
+  ]);
+
+  const abortedRows = await concierge.dispatchBatch(
+    ACTIVE_CONTEXT,
+    toolBatch(
+      [toolCall("preaborted", "terminal-preaborted", "{}", 0)],
+      { signal: controller.signal },
+    ),
+  );
+  const laterRows = await concierge.dispatchBatch(
+    ACTIVE_CONTEXT,
+    toolBatch([toolCall("later", "after-preabort", "{}", 0)]),
+  );
+
+  expect(
+    {
+      abortedReason: abortedRows[0]?.result.reason,
+      entries,
+      laterRows,
+    },
+    "[RED:Q25:preabort-before-terminal-entry]",
+  ).toEqual({
+    abortedReason: "aborted",
+    entries: ["later"],
+    laterRows: [{ callId: "later", result: { ok: true, message: "later batch ran" } }],
+  });
+});
+
+it("[Q26] preserves cached dispatch Promise identity when a batch reuses terminal work", async () => {
+  const entries = [];
+  const concierge = conciergeFor([
+    action(
+      "cached-terminal",
+      ({ meta }) => {
+        entries.push(meta.callId);
+        return successful("terminal cache result");
+      },
+      { terminal: true },
+    ),
+    action("after-cached-terminal", ({ meta }) => {
+      entries.push(meta.callId);
+      return successful("must not run");
+    }),
+  ]);
+  const meta = {
+    responseId: "response-batch",
+    userTurnId: undefined,
+    callId: "cached-terminal",
+    outputIndex: 0,
+    signal: undefined,
+    deferUntilDelivered: undefined,
+  };
+
+  const first = concierge.dispatch(ACTIVE_CONTEXT, "cached-terminal", {}, meta);
+  const retry = concierge.dispatch(ACTIVE_CONTEXT, "cached-terminal", {}, meta);
+  const directResult = await first;
+  const rows = await concierge.dispatchBatch(
+    ACTIVE_CONTEXT,
+    toolBatch([
+      toolCall("cached-terminal", "cached-terminal", "{}", 0),
+      toolCall("after", "after-cached-terminal", "{}", 1),
+    ]),
+  );
+
+  expect(
+    {
+      directResult,
+      entries,
+      frozen: Object.isFrozen(rows),
+      promiseIdentity: first === retry,
+      rows,
+    },
+    "[RED:Q26:terminal-cache-state-and-promise-identity]",
+  ).toEqual({
+    directResult: { ok: true, message: "terminal cache result" },
+    entries: ["cached-terminal"],
+    frozen: true,
+    promiseIdentity: true,
+    rows: [],
+  });
+});

@@ -381,6 +381,12 @@ const signOut = defineAction({
   terminal: true,
 });
 
+/** The public declaration keeps terminality as one optional boolean policy bit. */
+type _terminalIsOptionalBoolean = Expect<Equals<ActionDefinition["terminal"], boolean | undefined>>;
+
+/** Omitting terminal remains valid; runtime control must not turn it into a required field. */
+type _terminalRemainsOptional = Expect<Equals<{} extends Pick<ActionDefinition, "terminal"> ? true : false, true>>;
+
 /** `crossStage` is erased the same way, and must accept an action alongside the stages. */
 const _config: ConciergeConfig = {
   stages: [_stage],

@@ -183,7 +183,15 @@ function fixtureBackedPublicSession({ outcomeBehaviors = [] } = {}) {
   });
 }
 
-function runtimeSession({ dispatchBatch, onDiagnostic, presentOutcome, respond }) {
+function runtimeSession({
+  concierge: providedConcierge,
+  dispatchBatch,
+  onCleanup,
+  onDiagnostic,
+  onSetTools,
+  presentOutcome,
+  respond,
+}) {
   let batchSubscriber = null;
   const responses = [];
   const transport = Object.freeze({
@@ -196,14 +204,19 @@ function runtimeSession({ dispatchBatch, onDiagnostic, presentOutcome, respond }
     get status() {
       return "idle";
     },
-    setTools() {},
+    setTools(tools) {
+      onSetTools?.(tools);
+    },
     onStatusChange() {
-      return () => {};
+      return () => {
+        onCleanup?.("status");
+      };
     },
     onToolBatch(callback) {
       batchSubscriber = callback;
       return () => {
         if (batchSubscriber === callback) batchSubscriber = null;
+        onCleanup?.("batch");
       };
     },
     respond(callId, result) {
@@ -212,7 +225,7 @@ function runtimeSession({ dispatchBatch, onDiagnostic, presentOutcome, respond }
       respond?.(attempt, responses.length);
     },
   });
-  const concierge = {
+  const concierge = providedConcierge ?? {
     catalogFor: () => Object.freeze([]),
     stageFor: () => "consent",
     dispatchBatch,
@@ -233,6 +246,9 @@ function runtimeSession({ dispatchBatch, onDiagnostic, presentOutcome, respond }
     emitBatch(batch) {
       if (batchSubscriber === null) throw new Error("batch subscriber missing");
       batchSubscriber(batch);
+    },
+    subscribed() {
+      return batchSubscriber !== null;
     },
   });
 }
@@ -1146,4 +1162,234 @@ it("[T-08-08/T-08-10] contains fixture-injected outcome throw and rejection with
     await flow.session.stop();
     expect(flow.stub.subscriberCounts()).toEqual({ status: 0, batch: 0 });
   }
+});
+
+it("[S08] makes a terminal success occurrence and every queued successor response-silent", async () => {
+  const entries = [];
+  const cleanup = [];
+  const concierge = createConcierge({
+    stages: [
+      {
+        id: "terminal-session-success",
+        match: (context) => context.page === "consent",
+        actions: [
+          publicFlowAction(
+            "terminal-success",
+            ({ meta }) => {
+              entries.push(meta.callId);
+              return { ok: true, message: "The terminal operation completed." };
+            },
+            { terminal: true },
+          ),
+          publicFlowAction("must-not-run", ({ meta }) => {
+            entries.push(meta.callId);
+            return { ok: true, message: "This handler must not run." };
+          }),
+        ],
+      },
+    ],
+  });
+  const harness = runtimeSession({
+    concierge,
+    onCleanup: (kind) => cleanup.push(kind),
+    presentOutcome: completedOutcome,
+  });
+
+  harness.emitBatch(publicFlowBatch({
+    responseId: "terminal-success-occurrence",
+    userTurnId: "terminal-success-turn",
+    calls: [
+      publicFlowCall("terminal", "terminal-success", {}, 0),
+      publicFlowCall("same-batch-later", "must-not-run", {}, 1),
+    ],
+  }));
+  harness.emitBatch(publicFlowBatch({
+    responseId: "queued-successor-occurrence",
+    userTurnId: "queued-successor-turn",
+    calls: [publicFlowCall("queued-later", "must-not-run")],
+  }));
+  await waitForPublicFlow(() => !harness.subscribed(), "terminal success cleanup");
+  const firstStop = harness.session.stop();
+  const retryStop = harness.session.stop();
+  await firstStop;
+
+  expect(
+    {
+      cleanup,
+      entries,
+      responseCount: harness.responses.length,
+      stopIdentity: firstStop === retryStop,
+    },
+    "[RED:S08:terminal-success-session-silence]",
+  ).toEqual({
+    cleanup: ["status", "batch"],
+    entries: ["terminal"],
+    responseCount: 0,
+    stopIdentity: true,
+  });
+});
+
+it("[S09] completes the immutable terminal failure outcome before cleanup", async () => {
+  const entries = [];
+  const events = [];
+  const outcomeGate = deferred();
+  let observedOutcome;
+  const concierge = createConcierge({
+    stages: [
+      {
+        id: "terminal-session-failure",
+        match: (context) => context.page === "consent",
+        actions: [
+          publicFlowAction(
+            "terminal-failure",
+            ({ meta }) => {
+              entries.push(meta.callId);
+              return {
+                ok: false,
+                reason: "declined",
+                message: "The application declined the terminal operation.",
+              };
+            },
+            { terminal: true },
+          ),
+        ],
+      },
+    ],
+  });
+  const harness = runtimeSession({
+    concierge,
+    onCleanup(kind) {
+      events.push(`cleanup:${kind}`);
+    },
+    onSetTools(tools) {
+      if (tools.length === 0) events.push("cleanup:catalog");
+    },
+    presentOutcome(outcome) {
+      observedOutcome = outcome;
+      events.push("outcome:start");
+      return outcomeGate.promise.then(() => {
+        events.push("outcome:completed");
+        return COMPLETED_OUTCOME;
+      });
+    },
+  });
+
+  harness.emitBatch(publicFlowBatch({
+    responseId: "terminal-failure-occurrence",
+    userTurnId: "terminal-failure-turn",
+    calls: [publicFlowCall("terminal-failure", "terminal-failure")],
+  }));
+  await flushMicrotasks();
+  const beforeCompletion = {
+    events: [...events],
+    responses: harness.responses.length,
+    subscribed: harness.subscribed(),
+  };
+  outcomeGate.resolve();
+  await waitForPublicFlow(() => !harness.subscribed(), "terminal failure cleanup");
+  await harness.session.stop();
+
+  expect(
+    {
+      beforeCompletion,
+      entries,
+      events,
+      outcome: observedOutcome,
+      outcomeFrozen:
+        Object.isFrozen(observedOutcome) &&
+        Object.isFrozen(observedOutcome?.failures) &&
+        Object.isFrozen(observedOutcome?.failures?.[0]),
+      responses: harness.responses,
+    },
+    "[RED:S09:terminal-outcome-before-cleanup]",
+  ).toEqual({
+    beforeCompletion: {
+      events: ["outcome:start"],
+      responses: 0,
+      subscribed: true,
+    },
+    entries: ["terminal-failure"],
+    events: [
+      "outcome:start",
+      "outcome:completed",
+      "cleanup:status",
+      "cleanup:batch",
+      "cleanup:catalog",
+    ],
+    outcome: {
+      failures: [
+        {
+          callId: "terminal-failure",
+          reason: "declined",
+          message: "The application declined the terminal operation.",
+        },
+      ],
+    },
+    outcomeFrozen: true,
+    responses: [],
+  });
+});
+
+it("[S10] stops after a rejected terminal outcome without leaking or responding", async () => {
+  const sentinel = "PRIVATE-S10-TERMINAL-OUTCOME";
+  const diagnostics = [];
+  const cleanup = [];
+  const concierge = createConcierge({
+    stages: [
+      {
+        id: "terminal-session-rejection",
+        match: (context) => context.page === "consent",
+        actions: [
+          publicFlowAction(
+            "terminal-rejected-outcome",
+            () => ({
+              ok: false,
+              reason: "cancelled",
+              message: "The application cancelled the terminal operation.",
+            }),
+            { terminal: true },
+          ),
+        ],
+      },
+    ],
+  });
+  const harness = runtimeSession({
+    concierge,
+    onCleanup: (kind) => cleanup.push(kind),
+    onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+    presentOutcome: () => Promise.reject(new Error(sentinel)),
+  });
+
+  harness.emitBatch(publicFlowBatch({
+    responseId: "terminal-rejected-outcome",
+    userTurnId: "terminal-rejected-turn",
+    calls: [
+      publicFlowCall("terminal-rejected-outcome", "terminal-rejected-outcome"),
+    ],
+  }));
+  await waitForPublicFlow(() => !harness.subscribed(), "rejected outcome cleanup");
+  await harness.session.stop();
+
+  expect(
+    {
+      cleanup,
+      diagnostics,
+      leaked: JSON.stringify({ cleanup, diagnostics, responses: harness.responses }).includes(
+        sentinel,
+      ),
+      responses: harness.responses,
+    },
+    "[RED:S10:terminal-rejected-outcome-still-stops]",
+  ).toEqual({
+    cleanup: ["status", "batch"],
+    diagnostics: [
+      {
+        code: "outcome_presentation_failed",
+        message:
+          "The application could not present the failed outcome; no result was released.",
+      },
+    ],
+    leaked: false,
+    responses: [],
+  });
 });

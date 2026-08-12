@@ -46,6 +46,7 @@ const CATALOG_B = Object.freeze([]);
 const CATALOG_C = Object.freeze([]);
 
 let createRuntimeSession;
+let createRuntimeConcierge;
 
 beforeAll(async () => {
   if (!existsSync(DIST_PATH)) {
@@ -55,6 +56,7 @@ beforeAll(async () => {
   }
 
   const artifact = await import(DIST_URL.href);
+  createRuntimeConcierge = artifact.createConcierge;
   createRuntimeSession = artifact.createSession;
 });
 
@@ -116,6 +118,49 @@ function toolBatch(responseId, callIds = [responseId]) {
       callIds.map((callId, index) => toolCall(callId, index)),
     ),
   });
+}
+
+function lifecycleSchema(validate = (value) => ({ value })) {
+  return {
+    "~standard": {
+      version: 1,
+      vendor: "concierge-session-lifecycle-terminal-test",
+      validate,
+    },
+  };
+}
+
+function lifecycleAction(name, handler, extra = {}) {
+  return {
+    name,
+    description: `the ${name} lifecycle action`,
+    schema: lifecycleSchema(),
+    jsonSchema: { type: "object" },
+    redact: "drop",
+    effects: { readOnly: true },
+    handler,
+    ...extra,
+  };
+}
+
+function terminalConcierge(actions) {
+  return createRuntimeConcierge({
+    stages: [
+      {
+        id: "alpha",
+        match: (context) => context.page === CONTEXT_A.page,
+        actions,
+      },
+    ],
+  });
+}
+
+async function observeWithinMicrotasks(predicate) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if (predicate()) return true;
+    await Promise.resolve();
+  }
+  return false;
 }
 
 function thrownMessage(run) {
@@ -1750,4 +1795,331 @@ it("[L19] finalizes an interrupted outcome occurrence and runs its FIFO successo
     subscribers: { status: 1, batch: 1 },
   });
   await session.stop();
+});
+
+it("[L06 terminal] stops once and drains every later occurrence without handler entry", async () => {
+  const entries = [];
+  const transport = controlledTransport();
+  const session = createSession({
+    concierge: terminalConcierge([
+      lifecycleAction(
+        "terminal-success",
+        ({ meta }) => {
+          entries.push(meta.callId);
+          return result("terminal success");
+        },
+        { terminal: true },
+      ),
+      lifecycleAction("later", ({ meta }) => {
+        entries.push(meta.callId);
+        return result("must not run");
+      }),
+    ]),
+    transport: transport.transport,
+    initialContext: CONTEXT_A,
+  });
+
+  transport.emitBatch(Object.freeze({
+    responseId: "terminal-occurrence",
+    calls: Object.freeze([
+      Object.freeze({
+        callId: "terminal",
+        name: "terminal-success",
+        arguments: "{}",
+        outputIndex: 0,
+      }),
+      Object.freeze({
+        callId: "same-batch-later",
+        name: "later",
+        arguments: "{}",
+        outputIndex: 1,
+      }),
+    ]),
+  }));
+  transport.emitBatch(Object.freeze({
+    responseId: "queued-occurrence",
+    calls: Object.freeze([
+      Object.freeze({
+        callId: "queued-later",
+        name: "later",
+        arguments: "{}",
+        outputIndex: 0,
+      }),
+    ]),
+  }));
+
+  const stoppedByTerminal = await observeWithinMicrotasks(
+    () => transport.subscriberCounts().batch === 0,
+  );
+  const firstStop = session.stop();
+  const secondStop = session.stop();
+  let stopDidSettle = false;
+  void firstStop.then(() => {
+    stopDidSettle = true;
+  });
+  const stopSettled = await observeWithinMicrotasks(() => stopDidSettle);
+  await firstStop;
+
+  expect(
+    {
+      cleanupAttempts: transport.attempts,
+      entries,
+      responseCount: transport.responses.length,
+      stoppedByTerminal,
+      stopIdentity: firstStop === secondStop,
+      stopSettled,
+    },
+    "[RED:L06:terminal-queue-drain-once]",
+  ).toEqual({
+    cleanupAttempts: {
+      statusSubscribe: 1,
+      batchSubscribe: 1,
+      statusUnsubscribe: 1,
+      batchUnsubscribe: 1,
+    },
+    entries: ["terminal"],
+    responseCount: 0,
+    stoppedByTerminal: true,
+    stopIdentity: true,
+    stopSettled: true,
+  });
+});
+
+it("[L07 terminal] holds queued work behind the terminal failure outcome barrier", async () => {
+  const entries = [];
+  const events = [];
+  const outcomeGate = deferred();
+  const transport = controlledTransport();
+  const session = createSession({
+    concierge: terminalConcierge([
+      lifecycleAction(
+        "terminal-failure",
+        ({ meta }) => {
+          entries.push(meta.callId);
+          return Object.freeze({
+            ok: false,
+            reason: "declined",
+            message: "The application declined the terminal operation.",
+          });
+        },
+        { terminal: true },
+      ),
+      lifecycleAction("queued-later", ({ meta }) => {
+        entries.push(meta.callId);
+        return result("must not run");
+      }),
+    ]),
+    transport: transport.transport,
+    initialContext: CONTEXT_A,
+    presentOutcome() {
+      events.push("outcome:start");
+      return outcomeGate.promise.then(() => {
+        events.push("outcome:completed");
+        return COMPLETED_OUTCOME;
+      });
+    },
+  });
+
+  transport.emitBatch(Object.freeze({
+    responseId: "terminal-failure",
+    calls: Object.freeze([
+      Object.freeze({
+        callId: "terminal-failure",
+        name: "terminal-failure",
+        arguments: "{}",
+        outputIndex: 0,
+      }),
+    ]),
+  }));
+  transport.emitBatch(Object.freeze({
+    responseId: "queued-later",
+    calls: Object.freeze([
+      Object.freeze({
+        callId: "queued-later",
+        name: "queued-later",
+        arguments: "{}",
+        outputIndex: 0,
+      }),
+    ]),
+  }));
+  await flushMicrotasks();
+  const beforeOutcome = {
+    entries: [...entries],
+    events: [...events],
+    responses: transport.responses.length,
+    subscribers: transport.subscriberCounts(),
+  };
+  outcomeGate.resolve();
+  const stoppedByTerminal = await observeWithinMicrotasks(
+    () => transport.subscriberCounts().batch === 0,
+  );
+  const firstStop = session.stop();
+  const secondStop = session.stop();
+  await firstStop;
+
+  expect(
+    {
+      beforeOutcome,
+      entries,
+      events,
+      responses: transport.responses,
+      stoppedByTerminal,
+      stopIdentity: firstStop === secondStop,
+    },
+    "[RED:L07:terminal-outcome-admission-latch]",
+  ).toEqual({
+    beforeOutcome: {
+      entries: ["terminal-failure"],
+      events: ["outcome:start"],
+      responses: 0,
+      subscribers: { status: 1, batch: 1 },
+    },
+    entries: ["terminal-failure"],
+    events: ["outcome:start", "outcome:completed"],
+    responses: [],
+    stoppedByTerminal: true,
+    stopIdentity: true,
+  });
+});
+
+it("[L08 terminal] resolves teardown after terminal throw and rejection", async () => {
+  const observations = [];
+  for (const mode of ["throw", "reject"]) {
+    const entries = [];
+    const transport = controlledTransport();
+    const session = createSession({
+      concierge: terminalConcierge([
+        lifecycleAction(
+          `terminal-${mode}`,
+          ({ meta }) => {
+            entries.push(meta.callId);
+            if (mode === "throw") {
+              throw new Error("PRIVATE-L08-TERMINAL-THROW");
+            }
+            return Promise.reject(new Error("PRIVATE-L08-TERMINAL-REJECT"));
+          },
+          { terminal: true },
+        ),
+        lifecycleAction("after-settlement", ({ meta }) => {
+          entries.push(meta.callId);
+          return result("must not run");
+        }),
+      ]),
+      transport: transport.transport,
+      initialContext: CONTEXT_A,
+    });
+    transport.emitBatch(Object.freeze({
+      responseId: `terminal-${mode}`,
+      calls: Object.freeze([
+        Object.freeze({
+          callId: `terminal-${mode}`,
+          name: `terminal-${mode}`,
+          arguments: "{}",
+          outputIndex: 0,
+        }),
+        Object.freeze({
+          callId: `after-${mode}`,
+          name: "after-settlement",
+          arguments: "{}",
+          outputIndex: 1,
+        }),
+      ]),
+    }));
+
+    const stoppedByTerminal = await observeWithinMicrotasks(
+      () => transport.subscriberCounts().batch === 0,
+    );
+    const firstStop = session.stop();
+    const secondStop = session.stop();
+    await firstStop;
+    observations.push({
+      cleanupAttempts: { ...transport.attempts },
+      entries,
+      mode,
+      responses: transport.responses.length,
+      stoppedByTerminal,
+      stopIdentity: firstStop === secondStop,
+    });
+  }
+
+  expect(observations, "[RED:L08:terminal-settlement-no-self-deadlock]").toEqual(
+    ["throw", "reject"].map((mode) => ({
+      cleanupAttempts: {
+        statusSubscribe: 1,
+        batchSubscribe: 1,
+        statusUnsubscribe: 1,
+        batchUnsubscribe: 1,
+      },
+      entries: [`terminal-${mode}`],
+      mode,
+      responses: 0,
+      stoppedByTerminal: true,
+      stopIdentity: true,
+    })),
+  );
+});
+
+it("[L09 terminal] leaves the session live when terminal validation fails before entry", async () => {
+  const entries = [];
+  const transport = controlledTransport();
+  const session = createSession({
+    concierge: terminalConcierge([
+      lifecycleAction(
+        "terminal-invalid",
+        () => {
+          entries.push("invalid-entered");
+          return result("must not run");
+        },
+        {
+          terminal: true,
+          schema: lifecycleSchema(() => ({ issues: [{ message: "invalid" }] })),
+        },
+      ),
+      lifecycleAction("ordinary-successor", ({ meta }) => {
+        entries.push(meta.callId);
+        return result("ordinary successor completed");
+      }),
+    ]),
+    transport: transport.transport,
+    initialContext: CONTEXT_A,
+  });
+  transport.emitBatch(Object.freeze({
+    responseId: "pre-entry-terminal-failure",
+    calls: Object.freeze([
+      Object.freeze({
+        callId: "invalid-terminal",
+        name: "terminal-invalid",
+        arguments: "{}",
+        outputIndex: 0,
+      }),
+      Object.freeze({
+        callId: "ordinary-successor",
+        name: "ordinary-successor",
+        arguments: "{}",
+        outputIndex: 1,
+      }),
+    ]),
+  }));
+  const responded = await observeWithinMicrotasks(
+    () => transport.responses.length === 2,
+  );
+  const beforeManualStop = transport.subscriberCounts();
+  await session.stop();
+
+  expect(
+    {
+      beforeManualStop,
+      entries,
+      reasons: transport.responses.map(({ result: actionResult }) =>
+        actionResult.reason
+      ),
+      responded,
+    },
+    "[RED:L09:pre-entry-terminal-failure-stays-live]",
+  ).toEqual({
+    beforeManualStop: { status: 1, batch: 1 },
+    entries: ["ordinary-successor"],
+    reasons: ["invalid_args", undefined],
+    responded: true,
+  });
 });
