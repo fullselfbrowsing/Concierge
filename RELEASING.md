@@ -301,7 +301,7 @@ workflow cannot create it.
 1. Sign in to npmjs.com as a maintainer of the `@fullselfbrowsing` scope.
 2. On each of the three public packages' **Settings → Trusted publishers**, add a GitHub Actions publisher
    bound to:
-   - **Repository:** `fullselfbrowsing/concierge`
+   - **Repository:** `fullselfbrowsing/Concierge`
    - **Workflow file:** `release.yml`
 3. Confirm there is **no** `NPM_TOKEN` in this repository's secrets, in any environment
    this workflow uses, or in an org-level secret inherited by it. A stray token is not

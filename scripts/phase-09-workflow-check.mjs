@@ -16,7 +16,7 @@ const UPLOAD = "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
 const DOWNLOAD = "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093";
 const CHANGESETS = "changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d";
 const PUBLISHER_SHA256 =
-  "693d53138dfe953056024a0eabc61c4e1f9b25f422b77fa7077220de912d6c67";
+  "f5926fa197e8f31cded9de3d6710649d0151697125c8a227da5ce736c06b24a9";
 const NPM_INTEGRITY =
   "sha512-82gRxKrh/eY5UnNorkTFcdBQAGpgjWehkfGVqAGlJjejEtJZGGJUqjo3mbBTNbc5BTnPKGVtGPBZGhElujX5cw==";
 const FIRST_RELEASE_CORE_PEER = "workspace:^0.0.0 || ^0.1.0";
@@ -1505,7 +1505,7 @@ validateCi(ci);
 validateRelease(release);
 runScriptSelfTest(
   "scripts/phase-09-version.mjs",
-  "PHASE09_VERSION_SELF_TEST_OK controls=23",
+  "PHASE09_VERSION_SELF_TEST_OK controls=24",
 );
 runScriptSelfTest(
   "scripts/phase-09-publish-archives.mjs",

@@ -69,7 +69,7 @@ const VERSION_RECEIPT_DIGEST_PATHS = Object.freeze([
 const CANONICAL_CORE_PEER = "workspace:^";
 const MAX_CHANGESET_BYTES = 16 * 1024;
 const MAX_CHANGESET_SUMMARY_BYTES = 1_000;
-const EXPECTED_REPOSITORY = "fullselfbrowsing/concierge";
+const EXPECTED_REPOSITORY = "fullselfbrowsing/Concierge";
 const MAX_OUTPUT_BYTES = 32 * 1024 * 1024;
 const SHA256 = /^[0-9a-f]{64}$/u;
 const COMMIT = /^[0-9a-f]{40}$/u;
@@ -1238,6 +1238,13 @@ function expectFailure(label, operation, expectedCode) {
 
 function runSelfTest() {
   let controls = 0;
+  assert(
+    EXPECTED_REPOSITORY === "fullselfbrowsing/Concierge",
+    "SELF_TEST",
+    "run-bound repository identity does not match github.repository",
+  );
+  process.stdout.write("SELF_TEST_OK canonical-repository-case PASS\n");
+  controls += 1;
   const valid = [
     "M  packages/concierge/package.json",
     "A  packages/concierge/CHANGELOG.md",
@@ -1453,7 +1460,7 @@ function runSelfTest() {
   try {
     const identity = Object.freeze({
       baseSha: "a".repeat(40),
-      repository: "fullselfbrowsing/concierge",
+      repository: EXPECTED_REPOSITORY,
       runId: "123456",
       runAttempt: 1,
       artifactName: `phase09-version-123456-1-${"a".repeat(40)}`,
@@ -1557,7 +1564,7 @@ function runSelfTest() {
   process.stdout.write("SELF_TEST_OK token-stripped-from-prepare-children PASS\n");
   controls += 1;
 
-  assert(controls === 23, "SELF_TEST", `expected twenty-three controls, ran ${controls}`);
+  assert(controls === 24, "SELF_TEST", `expected twenty-four controls, ran ${controls}`);
   process.stdout.write(`PHASE09_VERSION_SELF_TEST_OK controls=${controls}\n`);
 }
 
