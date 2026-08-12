@@ -792,7 +792,7 @@ function expectedBindingsFromEnvironment() {
     outputArtifact: process.env.PHASE09_EXPECTED_SEALED_ARTIFACT,
   };
   assert(
-    expected.repository === "fullselfbrowsing/concierge" &&
+    expected.repository === "fullselfbrowsing/Concierge" &&
       RUN_ID.test(expected.runId) &&
       Number.isSafeInteger(expected.runAttempt) && expected.runAttempt > 0 &&
       COMMIT.test(expected.commit) && expected.sourceRef === SOURCE_REF &&
@@ -866,7 +866,7 @@ function makeSeal(root, records, overrides = {}) {
     schemaVersion: 1,
     mode: "versioned",
     releaseAuthorization: true,
-    repository: "fullselfbrowsing/concierge",
+    repository: "fullselfbrowsing/Concierge",
     runId: "123456",
     runAttempt: 1,
     commit: "a".repeat(40),

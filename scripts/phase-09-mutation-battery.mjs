@@ -527,7 +527,7 @@ const SHA256 = /^[0-9a-f]{64}$/u;
 const COMMIT = /^[0-9a-f]{40}$/u;
 const RUN_ID = /^[1-9]\d*$/u;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
-const EXPECTED_REPOSITORY = "fullselfbrowsing/concierge";
+const EXPECTED_REPOSITORY = "fullselfbrowsing/Concierge";
 let activeChildEnvironment = null;
 
 class UsageError extends Error {

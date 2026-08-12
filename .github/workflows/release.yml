@@ -273,7 +273,7 @@ jobs:
           const npmIntegrity = `sha512-${createHash("sha512")
             .update(readFileSync(npm))
             .digest("base64")}`;
-          if (publisherDigest !== "693d53138dfe953056024a0eabc61c4e1f9b25f422b77fa7077220de912d6c67") {
+          if (publisherDigest !== "f5926fa197e8f31cded9de3d6710649d0151697125c8a227da5ce736c06b24a9") {
             throw new Error("publisher source digest drifted");
           }
           if (npmIntegrity !== "sha512-82gRxKrh/eY5UnNorkTFcdBQAGpgjWehkfGVqAGlJjejEtJZGGJUqjo3mbBTNbc5BTnPKGVtGPBZGhElujX5cw==") {
@@ -695,7 +695,7 @@ jobs:
           }
           if (
             createHash("sha256").update(readFileSync(publisher)).digest("hex") !==
-              "693d53138dfe953056024a0eabc61c4e1f9b25f422b77fa7077220de912d6c67"
+              "f5926fa197e8f31cded9de3d6710649d0151697125c8a227da5ce736c06b24a9"
           ) {
             throw new Error("downloaded publisher source digest drifted");
           }
