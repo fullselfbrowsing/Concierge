@@ -487,15 +487,15 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 7. Session and the transport seam | 7/7 | Complete    | 2026-08-10 |
 | 8. Consent kernel | 8/8 | Complete | 2026-08-10 |
 | 9. React and Svelte adapters | 13/13 | Complete   | 2026-08-12 |
-| 10. Close v0.1 release certification and evidence gaps | 6/7 | In Progress|  |
+| 10. Close v0.1 release certification and evidence gaps | 7/7 | In Progress|  |
 
 ### Phase 10: Close v0.1 release certification and evidence gaps
 
 **Goal:** One exact clean commit is independently certifiable as the pre-publication candidate: all nine audit gaps closed, 62/62 requirements, 9/9 original implementation phases and 10/10 current phase directories verified, 12/12 integrations, 10/10 flows, Phase 9 Nyquist compliant, and a matching exact-SHA hosted Ubuntu receipt, with no later tracked write or publication.
 **Requirements**: No new requirement IDs — closes Audit 1–9 and repairs evidence for SEC-03, ADP-01–04, PKG-04, CAT-02, CAT-03, CAT-05–07, SEC-01, SEC-05, PKG-02–03, DX-01, DX-03.
 **Depends on:** Phase 9
-**Plans:** 6/7 plans executed
-**Certification status:** Awaiting implementation, ordinary GSD closeout, and the post-GSD exact-SHA hosted receipt.
+**Plans:** 7/7 plans complete
+**Certification status:** Awaiting exact-SHA hosted certification.
 
 Plans:
 **Wave 1**
@@ -518,6 +518,6 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 10-07-PLAN.md — Install the final Phase 9 seal, invoke its independent verifier, prove the clean local candidate, and write the supported post-GSD handoff.
+- [x] 10-07-PLAN.md — Install the final Phase 9 seal, invoke its independent verifier, prove the clean local candidate, and write the supported post-GSD handoff.
 
 **Post-GSD terminal gate (not a PLAN):** After all seven normal SUMMARYs, the independent Phase 10 verifier, registered ROADMAP/STATE bookkeeping, and a supported `gaps_found` milestone audit are committed, `10-CERTIFICATION.md` runs the external `certify` command. That command explicitly pushes the final clean commit, confirms the remote SHA, obtains and validates the exact hosted run/receipt, and makes no repository write afterward. The external run-scoped receipt is authoritative; tracked GSD status remains pending because marking it passed would create an uncertified successor commit.

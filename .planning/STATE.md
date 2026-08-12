@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v0.1
 milestone_name: release certification and evidence gaps
-status: executing
-stopped_at: Phase 10 evidence metadata synchronized
-last_updated: "2026-08-12T18:42:41.665Z"
+status: verifying
+stopped_at: Completed 10-07-PLAN.md
+last_updated: "2026-08-12T20:47:10.713Z"
 last_activity: 2026-08-12
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 7
-  completed_plans: 6
-  percent: 0
+  completed_plans: 7
+  percent: 100
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-08-10)
 ## Current Position
 
 Phase: 10 (close-v0-1-release-certification-and-evidence-gaps) — EXECUTING
-Plan: 6 of 7
-Status: Ready to execute
+Plan: 7 of 7
+Status: Phase complete — ready for verification
 Last activity: 2026-08-12
 
-Progress: [█████████░] 86%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -85,6 +85,7 @@ Progress: [█████████░] 86%
 | Phase 10 P03 | 7m | 2 tasks | 6 files |
 | Phase 10 P04 | 24m | 2 tasks | 5 files |
 | Phase 10 P05 | 26m | 2 tasks | 4 files |
+| Phase 10 P07 | 52m | 2 tasks | 22 files |
 
 ## Accumulated Context
 
@@ -202,6 +203,10 @@ Full log in PROJECT.md Key Decisions. Affecting current work:
 - [Phase 10]: Keep exact-SHA hosted truth in an attempt-scoped external receipt. — The final clean commit can be pushed, matched to one explicit run attempt, and certified without creating a self-invalidating successor commit.
 - [Phase 10]: Keep Phase 10 mutants supplemental to Phase 9 requirement ownership. — Current-byte repairs gain exact discriminating evidence without rewriting the original Phase 9 requirement meanings.
 - [Phase 10]: Exercise pre-versioned finalization only in an owned scratch candidate. — The live changeset, package versions, receipt absence, and four tracked evidence endpoints remain unchanged until the final post-requirements seal.
+- [Phase 10]: Bind final Phase 9 evidence to the hosted Version Packages receipt — The authoritative generator runs credential-free only after REQUIREMENTS settles.
+- [Phase 10]: Provision inherited verification tools only from an owned executable directory — The secure child constructor validates the direct-child path without ambient environment expansion.
+- [Phase 10]: Keep Phase 9 verification independently authored and outside generator outputs — Generator success cannot author its own requirement conclusion.
+- [Phase 10]: Treat the external exact-SHA receipt as the terminal certification fact — Writing a tracked pass afterward would create an uncertified successor SHA.
 
 ### Pending Todos
 
@@ -230,6 +235,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-08-12T18:42:41.661Z
-Stopped at: Phase 10 evidence metadata synchronized
-Resume file: .planning/phases/10-close-v0-1-release-certification-and-evidence-gaps/10-07-PLAN.md
+Last session: 2026-08-12T20:47:10.708Z
+Stopped at: Completed 10-07-PLAN.md
+Resume file: None
