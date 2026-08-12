@@ -245,21 +245,23 @@ function mutationRunnerPnpmChildOverride(sourceEnvironment) {
     sourceEnvironment,
     MUTATION_RUNNER_PNPM_POLICY,
   );
-  if (policy === undefined) return Object.freeze({});
   const parentMarker = sourceEnvironmentValue(
     sourceEnvironment,
     MUTATION_RUNNER_PARENT_MARKER,
   );
   assert(
-    parentMarker === "1",
+    parentMarker === undefined || parentMarker === "1",
     "CHILD_ENVIRONMENT",
-    "pnpm dependency-verification override requires an authenticated mutation-runner parent",
+    "mutation-runner parent marker must be absent or exactly 1",
   );
   assert(
-    policy === "false",
+    policy === undefined || policy === "false",
     "CHILD_ENVIRONMENT",
-    "authenticated mutation-runner pnpm dependency-verification policy must be exactly false",
+    "pnpm dependency-verification policy must be absent or exactly false",
   );
+  if (parentMarker !== "1" || policy !== "false") {
+    return Object.freeze({});
+  }
   return Object.freeze({ [MUTATION_RUNNER_PNPM_POLICY]: "false" });
 }
 
