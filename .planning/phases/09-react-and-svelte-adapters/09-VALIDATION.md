@@ -13,32 +13,32 @@ Revision-bound validation for @fullselfbrowsing/concierge, its React and Svelte 
 
 | Task | Result | Evidence |
 |---|---|---|
-| 09-01-01 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-01-02 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-02-01 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-02-02 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-03-01 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-03-02 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-04-01 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-04-02 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-05-01 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-05-02 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-06-01 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-06-02 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-07-01 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-07-02 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-08-01 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-08-02 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-09-01 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-09-02 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-10-01 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-10-02 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-11-01 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-11-02 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-12-01 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-12-02 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-13-01 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| 09-13-02 | passed | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
+| 09-01-01 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-01-02 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-02-01 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-02-02 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-03-01 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-03-02 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-04-01 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-04-02 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-05-01 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-05-02 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-06-01 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-06-02 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-07-01 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-07-02 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-08-01 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-08-02 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-09-01 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-09-02 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-10-01 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-10-02 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-11-01 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-11-02 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-12-01 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-12-02 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-13-01 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| 09-13-02 | passed | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
 
 ## Canonical Test Meanings
 
@@ -69,37 +69,37 @@ The M-10 controls below are supplemental current-byte protection. They retain th
 
 | Decision | Evidence |
 |---|---|
-| D-09-01 | release revision 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| D-09-02 | release revision 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| D-09-03 | release revision 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| D-09-04 | release revision 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| D-09-05 | release revision 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| D-09-06 | release revision 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| D-09-07 | release revision 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| D-09-08 | release revision 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| D-09-09 | release revision 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| D-09-10 | release revision 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| D-09-11 | release revision 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| D-09-12 | release revision 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| D-09-13 | release revision 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| D-09-14 | release revision 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
+| D-09-01 | release revision 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| D-09-02 | release revision 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| D-09-03 | release revision 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| D-09-04 | release revision 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| D-09-05 | release revision 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| D-09-06 | release revision 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| D-09-07 | release revision 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| D-09-08 | release revision 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| D-09-09 | release revision 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| D-09-10 | release revision 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| D-09-11 | release revision 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| D-09-12 | release revision 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| D-09-13 | release revision 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| D-09-14 | release revision 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
 | D-09-15 | fresh-process built Astro SSR (T04 / M-09-SSR1) |
 | D-09-16 | exact three-tarball isolated consumer (T05/T06 / M-09-P1/M-09-C1) |
-| D-09-17 | release revision 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
+| D-09-17 | release revision 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
 
 ## Threat Accounting
 
 | Threat | Disposition | Evidence |
 |---|---|---|
-| T-09-01 | disposed in 09-SECURITY.md | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| T-09-02 | disposed in 09-SECURITY.md | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| T-09-03 | disposed in 09-SECURITY.md | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| T-09-04 | disposed in 09-SECURITY.md | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| T-09-05 | disposed in 09-SECURITY.md | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| T-09-06 | disposed in 09-SECURITY.md | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| T-09-07 | disposed in 09-SECURITY.md | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| T-09-08 | disposed in 09-SECURITY.md | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
-| T-09-SC | disposed in 09-SECURITY.md | 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4 |
+| T-09-01 | disposed in 09-SECURITY.md | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| T-09-02 | disposed in 09-SECURITY.md | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| T-09-03 | disposed in 09-SECURITY.md | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| T-09-04 | disposed in 09-SECURITY.md | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| T-09-05 | disposed in 09-SECURITY.md | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| T-09-06 | disposed in 09-SECURITY.md | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| T-09-07 | disposed in 09-SECURITY.md | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| T-09-08 | disposed in 09-SECURITY.md | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
+| T-09-SC | disposed in 09-SECURITY.md | 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d |
 
 ## Source and Research Accounting
 
@@ -138,7 +138,7 @@ The M-10 controls below are supplemental current-byte protection. They retain th
 - Release evidence: 15 ordered commands; 5 files, 11 tests, and 11 assertions in the Phase 09 JSON test gate.
 - Exact archive manifest digest: 88f7250e2380c044bca083a548bba5b6926d8e5452f00fd472c3d0a9c4ee8c8a
 - Mutation register digest: 5bca286e1a13c34c835d7d6c1f3e880ff00ed6d328b19087f63d77a50ae4cad5
-- Release input digest: 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4
+- Release input digest: 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d
 
 ## Wave 0 Closure
 
@@ -146,7 +146,7 @@ All Phase 09 test, mutation, package, adapter-budget, security, and inherited Ph
 
 ## Immutable Bindings
 
-- Release input digest: 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4
+- Release input digest: 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d
 - Mutation register digest: 5bca286e1a13c34c835d7d6c1f3e880ff00ed6d328b19087f63d77a50ae4cad5
 - Exact archive manifest digest: 88f7250e2380c044bca083a548bba5b6926d8e5452f00fd472c3d0a9c4ee8c8a
 - Phase 8 evidence source: .planning/phases/08-consent-kernel/08-MUTATION-EVIDENCE.json (nested release member)
@@ -155,4 +155,4 @@ All Phase 09 test, mutation, package, adapter-budget, security, and inherited Ph
 
 Phase 09 validation is complete, Nyquist compliant, revision-bound, and ready for independent verification.
 
-<!-- content-sha256: 4cd84f1752243153a5f504bebc28cae726d5ee6a5ee92432803e7a1dae3bc987 -->
+<!-- content-sha256: 1f7cdeff4aff3a163fe5505826a9ab2fead134bc78ae3229f1dc85f2ee1cc9c2 -->

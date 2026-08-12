@@ -1,6 +1,6 @@
 # Phase 09 Security
 
-Security closure for @fullselfbrowsing/concierge adapter delivery at revision 797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4.
+Security closure for @fullselfbrowsing/concierge adapter delivery at revision 1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d.
 
 | Threat | Surface | Disposition | Evidence |
 |---|---|---|---|
@@ -31,4 +31,4 @@ These controls protect the repaired current bytes without reassigning Phase 9 re
 
 The live Phase 8 records remain byte-identical and their release proof remains the nested release member of 08-consent-kernel/08-MUTATION-EVIDENCE.json.
 
-<!-- content-sha256: 176201b141a41eec54277b43636e749feb7345aca8f089a4be30a28f3842619f -->
+<!-- content-sha256: 07ca4a6bb98d0def6bb82262c4a9d750b802d49f3d5981d86f5bf0c754394ff1 -->
