@@ -62,7 +62,7 @@ The versioned Phase 9 candidate is transactionally sealed and independently pass
 
 - Consumed the hosted Version Packages result at version `0.1.0`, including its exact base SHA, changeset digest, manifest/lock digests, and tracked version receipt.
 - Ran the final credential-free versioned transaction after Plan 06's last REQUIREMENTS write: all five inherited Phase 8 records verified, all 17 mutants compiled and died for positive exact detectors, 15 release commands passed, and three exact archives were sealed.
-- Atomically installed the four Phase 9 generator outputs with release-input digest `797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4`; the manifest contains REQUIREMENTS SHA-256 `c75244549d68532f13980cc91bdbf67afc498bc3eacbaa265dd899f6561a3035`, no `.astro` path, and no later closeout artifact.
+- Atomically installed the four Phase 9 generator outputs with release-input digest `1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d`; the manifest contains REQUIREMENTS SHA-256 `c75244549d68532f13980cc91bdbf67afc498bc3eacbaa265dd899f6561a3035`, no `.astro` path, and no later closeout artifact.
 - Invoked a separate registered verifier that authored `09-VERIFICATION.md` with `status: passed`, 5/5 must-haves, ADP-01–04 and PKG-04 satisfied, and 21/21 references valid.
 - Replaced the projected Phase 10 map with exactly fourteen observed task rows and created the supported two-stage certification runbook.
 - Proved the committed candidate in a disposable clone through frozen install → build → typecheck → 25 files/455 tests → Phase 9 verify-all → Astro/package/budget/static/evidence/workflow release gates.
@@ -72,11 +72,12 @@ The versioned Phase 9 candidate is transactionally sealed and independently pass
 1. **Task 10-07-01: Seal final Phase 9 inputs and invoke its independent verifier** — `af4707d` (fix), `1b65257` (version), `baff704` (fix), `01a3d95` (fix), `594dd1f` (test), `d8ab5d4` (docs)
 2. **Task 10-07-02: Finalize local validation and the supported post-GSD certification handoff** — `af6457d` (docs)
 3. **Hosted certification retry repair: retain sealed receipt ancestry and reseal the changed inputs** — `840a302` (fix), `72645cb` (test)
+4. **Hosted receipt validation repair: canonicalize the owned temp root and reseal the driver** — `5fbcb76` (fix), `3dae3a4` (test)
 
 ## Final Evidence Identity
 
 - Shared package version: `0.1.0`.
-- Release-input digest: `797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4`.
+- Release-input digest: `1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d`.
 - REQUIREMENTS digest: `c75244549d68532f13980cc91bdbf67afc498bc3eacbaa265dd899f6561a3035`.
 - Mutation evidence: 17/17 green with byte-identical restoration.
 - Release evidence: 15 commands, three archives, five inherited Phase 8 hashes.
@@ -141,7 +142,15 @@ The versioned Phase 9 candidate is transactionally sealed and independently pass
 - **Verification:** The guard failed on the shallow workflow, passed after the fix, and the retry produced 17/17 green mutants, 15/15 release commands, three archives, and a matching 136-entry digest in both ledgers.
 - **Committed in:** `840a302`, `72645cb`.
 
-**Total deviations:** 4 auto-fixed (1 bug, 3 blocking prerequisites). All were required for deterministic, fail-closed finalization; none broadened product scope.
+**5. [Rule 1 - Bug] Canonicalized the downloaded receipt's owned temp root**
+
+- **Found during:** The second Stage B hosted certification attempt, run `31643838443`.
+- **Issue:** All hosted jobs succeeded and the exact receipt artifact contained one nonempty regular file, but macOS resolved its parent through `/private/tmp` while the owned `mkdtemp` root retained `/tmp`; the alias-sensitive equality check rejected the same directory.
+- **Fix:** Compare the canonical file parent to the canonical owned root and exercise that predicate against the self-test's real system temp directory.
+- **Verification:** A diagnostic download reproduced `oldComparison: false` and `normalizedComparison: true`; the certification self-test remains 29/29, the workflow checker remains 22/22, and the full versioned transaction again passed 17 mutants and 15 release commands.
+- **Committed in:** `5fbcb76`, `3dae3a4`.
+
+**Total deviations:** 5 auto-fixed (2 bugs, 3 blocking prerequisites). All were required for deterministic, fail-closed finalization; none broadened product scope.
 
 ## Issues Encountered
 

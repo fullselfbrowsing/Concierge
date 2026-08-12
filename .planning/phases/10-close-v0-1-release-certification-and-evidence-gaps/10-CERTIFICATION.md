@@ -10,7 +10,7 @@ This run-ID-free runbook separates ordinary GSD closeout from the terminal hoste
 
 ## Invariants
 
-- The final Phase 9 versioned seal has release-input digest `797d2739d011b19735e9d30bc035acb9aebbf470ea9c637f2ba48a19c6c2f0f4` and includes `.planning/REQUIREMENTS.md` at SHA-256 `c75244549d68532f13980cc91bdbf67afc498bc3eacbaa265dd899f6561a3035`.
+- The final Phase 9 versioned seal has release-input digest `1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d` and includes `.planning/REQUIREMENTS.md` at SHA-256 `c75244549d68532f13980cc91bdbf67afc498bc3eacbaa265dd899f6561a3035`.
 - `09-VERIFICATION.md`, every Phase 10 closeout record, `ROADMAP.md`, `STATE.md`, and the milestone audit are outside the Phase 9 release-input inventory. They may be written during Stage A without invalidating the seal.
 - Hosted success cannot be written back into the candidate. A successor commit would be a different, uncertified SHA.
 - Certification proves a pre-publication candidate only. It does not publish to npm, inspect registry provenance, create a release tag, or authorize any later release ceremony.
@@ -79,6 +79,8 @@ The command performs the complete external transaction:
 Successful output begins with `PHASE10_CANDIDATE_CERTIFIED` and contains the exact external run URL and receipt digest.
 
 The first Stage B attempt, GitHub Actions run `31642179232`, was not authoritative because its `build` job failed before candidate-receipt creation. It exposed a shallow-checkout defect: Phase 9's sealed Version Packages receipt correctly requires its base SHA to be an ancestor, but the CI build checkout did not retain that history. Stage A therefore resumed, pinned `fetch-depth: 0` in the build job and its workflow contract, regenerated the complete versioned seal, and formed a new candidate. The failed run cannot be reused as certification evidence.
+
+The next Stage B attempt, GitHub Actions run `31643838443`, completed successfully and created the exact run-scoped receipt for candidate `9381f4a6bcc1e4c7f8f02160291df8c72f57da`. The local driver nevertheless stopped before its terminal success marker because macOS canonicalized the downloaded file under `/private/tmp` while the owned temp root retained its `/tmp` spelling. The artifact contained exactly one owned nonempty receipt; only the alias-sensitive comparison failed. Stage A resumed, canonicalized both sides of the ownership comparison, pinned that behavior with a real temp-root self-test, and resealed the changed driver. Because later tracked writes create a new candidate SHA, run `31643838443` cannot certify that successor candidate and must not be reused as its receipt.
 
 ## Authoritative External Fact
 
