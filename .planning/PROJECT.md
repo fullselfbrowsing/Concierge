@@ -19,26 +19,25 @@ Everything else (framework breadth, transport breadth, DX) is in service of that
 ### Validated
 
 - [x] **Phase 7 — Session and transport seam:** `createSession` owns catalog publication on stage change/reconnect and the `onToolBatch → dispatch → respond` loop, proven with a reusable no-network transport fixture.
+- [x] **Declarative action catalog:** one declaration derives names, literal unions, stage catalogs, emitted JSON Schema, redaction, and the handler boundary — v0.1.
+- [x] **Framework- and vendor-neutral core:** core has no DOM or framework dependency and uses no vendor event vocabulary — v0.1.
+- [x] **Reference-identity deduplication:** retried calls reuse the same Promise object while malformed fallback keys fail into an honest no-dedup path — v0.1.
+- [x] **Live bridge state:** handlers read current application state through getter-backed bridges with identity-safe mount and cleanup semantics — v0.1.
+- [x] **Stage-scoped catalogs:** only actions valid for the active stage, plus explicit cross-stage actions, are offered — v0.1.
+- [x] **Consent kernel:** review, completed human delivery, fresh human-bound confirmation, and late snapshot equality are required before a consequential effect runs — v0.1.
+- [x] **Graded consent:** transport capabilities and action minimum grades are checked at build time and again against the actual session transport — v0.1.
+- [x] **Detached reactive snapshots:** framework proxies are normalized before consent storage, including the real Svelte `$state` path — v0.1.
+- [x] **Effect declarations:** destructive actions without consent and untrusted-content actions without consent are reported during catalog build — v0.1.
+- [x] **React and Svelte adapters:** both ship as capability-thin lifecycle bindings over one canonical core instance — v0.1.
+- [x] **Schema validation:** emitted schemas require an object root, explicit JSON Schema overrides are supported, and errors name the offending action and fix — v0.1.
+- [x] **Fail-closed redaction:** non-empty schemas require a declared redaction policy and omission defaults to `drop` — v0.1.
+- [x] **App-authored failure outcomes:** failed action outcomes reach the human before agent response and cannot be replaced by agent narration — v0.1.
+- [x] **Turn-identity provenance:** transports declare where turn identity originates, and agent-forgeable identity cannot satisfy the strongest binding — v0.1.
 
 ### Active
 
-- [ ] Author declares an action once (name, description, schema, redaction, handler) and everything downstream is derived: name set, union type, per-stage catalogs, emitted JSON Schema, redaction policy
-- [ ] Core runs with zero DOM access, zero framework dependency, and zero vendor dependency
-- [ ] Dispatcher deduplicates retried calls by returning the same Promise by reference
-- [ ] Handlers read live app state through a bridge of getter functions, without prop-drilling and without re-rendering the app
-- [ ] Stage-scoped catalogs — the agent only sees actions valid for where the user is
-- [ ] Consent handshake: review → human responds in a genuinely new turn → confirm, with snapshot equality invalidating stale consent
-- [ ] Transports declare a consent grade; actions declare a minimum grade; mismatch fails at catalog build time
-- [ ] Consent snapshots are normalized out of framework reactivity before storage, so a proxy-backed store cannot make the drift check vacuously pass
-- [ ] Actions declare side effects (`readOnly` / `destructive` / `idempotent`); a destructive action without a consent policy is a build warning
 - [ ] Server re-verifies consent rather than trusting the client's assertion
-- [ ] React adapter and Svelte adapter, shipped together
 - [ ] Fetch-standard server handlers that mount unchanged in Next, Nuxt, SvelteKit, Remix, Hono, Bun, Deno, and Workers
-- [ ] Catalog build validates emitted JSON Schema (root must be `type: "object"`) and throws naming the offending action
-- [ ] Redaction required for any action with a non-empty schema, defaulting to `drop`
-- [ ] An action reading attacker-controllable content declares it, and the build reports one that does so without a consent policy
-- [ ] A failed action's outcome reaches the human as the app composed it — the agent cannot substitute its own narration for a failure
-- [ ] A transport declares where its turn identity comes from, so one whose turns the agent can mint cannot satisfy the strongest binding
 - [ ] Dev overlay showing active stage, registered bridges, live catalog, and manual action firing
 
 ### Out of Scope
@@ -56,6 +55,8 @@ Everything else (framework breadth, transport breadth, DX) is in service of that
 - **Card capture or credential entry by voice or by agent** — structurally refused, not merely discouraged.
 
 ## Context
+
+**Current state after v0.1 implementation (2026-08-12).** Concierge is a three-package TypeScript family: the DOM-free core plus React and Svelte adapters, all versioned `0.1.0`. The milestone completed 10 phases, 93 plans, and 215 planned tasks. The tracked TypeScript surface is approximately 42,003 lines excluding built `dist/` trees. The exact implementation candidate `161dfb81c1141d498bee6a6130c86984c023f522` passed the hosted Ubuntu certification gate before milestone archival; subsequent planning-only archival bookkeeping creates a successor commit and therefore is not covered by that receipt. npm publication and registry provenance remain operational release steps.
 
 **Provenance.** The design is extracted from a production system (`voyza-voice-browser-control-spec.md`, 2685 lines, captured 2026-07-27): 28 control actions across 6 stages, ~3,947 LOC non-test, 28 test files. That system shipped and its failure modes are documented, including a section on verified drift between its planning record and its implementation. Concierge is the generic ~60% of it — and per that spec's own assessment, it is the *hard* 60%: concurrency, cancellation, dedup, and consent semantics.
 
@@ -83,7 +84,7 @@ OpenAI Agents JS is also closer than assumed — `needsApproval`, `interruptions
 
 ## Constraints
 
-- **Tech stack**: TypeScript, pnpm workspace, Node ≥20. Core is dependency-free.
+- **Tech stack**: TypeScript, pnpm workspace, Node ≥22.12.0. Core adds zero runtime dependency bytes to consumer bundles.
 - **Compatibility**: Core must construct on the server under Next App Router, Nuxt, and SvelteKit with no environment guards — no top-level `window`, `document`, or `navigator`.
 - **Compatibility**: Framework adapters must stay around ~150 LOC. An adapter meaningfully larger than that means logic has leaked out of core, and is treated as a core bug.
 - **Security**: Redaction is required for any action with a non-empty schema and defaults to `drop`. Telemetry leaks must be opt-in.
@@ -94,19 +95,19 @@ OpenAI Agents JS is also closer than assumed — `needsApproval`, `interruptions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Name it Concierge, not a voice-flavored name | The noun is agent actuation of a cooperating app; voice is one transport. Naming it for voice would cap the audience and misdescribe the core. | — Pending |
+| Name it Concierge, not a voice-flavored name | The noun is agent actuation of a cooperating app; voice is one transport. Naming it for voice would cap the audience and misdescribe the core. | ✓ Resolved in v0.1 |
 | Transport interface from day one | Welding to OpenAI Realtime's event names makes the library a bet on one vendor's wire protocol. A text sidebar, MCP client, or command palette must be first-class. | ✓ Resolved 2026-08-10 (Phase 7) |
 | Standard Schema v1 as a real dependency, instead of a Zod peer dep | Keeps core open to Valibot/ArkType/Effect Schema. `@standard-schema/spec` is depended on rather than inlined — research verified its ESM runtime entry is 0 bytes with zero dependencies, so "core is dependency-free" holds in substance while the inlined copy had already drifted from the spec in four places. No `concierge-zod` bridge: Standard JSON Schema (`~standard.jsonSchema`) makes it unnecessary, and the `jsonSchema?` escape hatch covers valibot, which does not implement the companion spec despite its docs. | ✓ Resolved 2026-07-27 |
-| Consent is *graded*, and mismatches fail at build time | "The human perceived the readback" is only guaranteed on some transports. Voice guarantees it; a text sidebar does not; headless has no human. Silent degradation here is the worst possible failure. | — Pending |
-| Ship a non-React adapter *with* v0.1, not after | Building React-first and porting later produces a hooks-shaped core. The non-React adapter is what forces React-isms out. | — Pending |
-| MIT + public over BSL 1.1 | FSB is BSL, but BSL on a library people are meant to `npm install` blocks production use without a commercial license. | — Pending |
+| Consent is *graded*, and mismatches fail at build time | "The human perceived the readback" is only guaranteed on some transports. Voice guarantees it; a text sidebar does not; headless has no human. Silent degradation here is the worst possible failure. | ✓ Resolved 2026-08-10 (Phase 8) |
+| Ship a non-React adapter *with* v0.1, not after | Building React-first and porting later produces a hooks-shaped core. The non-React adapter is what forces React-isms out. | ✓ Resolved 2026-08-12 (Phase 9) |
+| MIT + public over BSL 1.1 | FSB is BSL, but BSL on a library people are meant to `npm install` blocks production use without a commercial license. | ✓ Resolved in v0.1 |
 | Devtools treated as a v0.3 deliverable, not a nice-to-have | Adoption risk is the instrumentation cost of bridges. People need to see the kernel working before instrumenting five pages. | — Pending |
-| Consent kernel moves into v0.1 | Framework-agnostic actuation is table stakes and WebMCP is commoditizing registration. Without consent, v0.1 is a strictly worse CopilotKit. Testable with a stub transport — no WebRTC needed. | — Pending |
-| The non-React adapter is Svelte, and ships with v0.1 | Svelte `$state` is a Proxy, so a stored consent snapshot is a live view and the drift check passes unconditionally. Invisible in a React-only suite. Solid would validate nothing — its `Accessor<T>` already *is* our contract. | — Pending |
-| Consent grades renamed: `perceived` → `relayed` / `attested` | `perceived` conflated "audio finished" with "the human learned the facts." `ActionResult.message` reaches the human *through* the agent, which reauthors it — OWASP ASI09. Only `attested` (raw payload rendered by the app) survives. | — Pending |
-| ESM-only | Dual-package hazard splits the bridge registry, dedup window, and consent kernel. Non-breaking to add CJS later. | — Pending |
-| `engines.node: ">=22.12.0"` | Node 20 reached EOL 2026-04-30, and 22.12 is the exact floor where `require(esm)` is unflagged — the previous `>=20` promised CJS consumers a runtime that would throw `ERR_REQUIRE_ESM`. | — Pending |
-| `isolatedDeclarations: true` | TypeScript 7.0 ships no compiler API, which degrades dts generation. This routes the build through oxc: measured 25ms vs 1064ms, and it also removes the case for Turborepo (per-task overhead exceeds the build). | — Pending |
+| Consent kernel moves into v0.1 | Framework-agnostic actuation is table stakes and WebMCP is commoditizing registration. Without consent, v0.1 is a strictly worse CopilotKit. Testable with a stub transport — no WebRTC needed. | ✓ Resolved 2026-08-10 (Phase 8) |
+| The non-React adapter is Svelte, and ships with v0.1 | Svelte `$state` is a Proxy, so a stored consent snapshot is a live view and the drift check passes unconditionally. Invisible in a React-only suite. Solid would validate nothing — its `Accessor<T>` already *is* our contract. | ✓ Resolved 2026-08-12 (Phase 9) |
+| Consent grades renamed: `perceived` → `relayed` / `attested` | `perceived` conflated "audio finished" with "the human learned the facts." `ActionResult.message` reaches the human *through* the agent, which reauthors it — OWASP ASI09. Only `attested` (raw payload rendered by the app) survives. | ✓ Resolved 2026-08-10 (Phase 8) |
+| ESM-only | Dual-package hazard splits the bridge registry, dedup window, and consent kernel. Non-breaking to add CJS later. | ✓ Resolved 2026-08-12 (Phases 2 and 9) |
+| `engines.node: ">=22.12.0"` | Node 20 reached EOL 2026-04-30, and 22.12 is the exact floor where `require(esm)` is unflagged — the previous `>=20` promised CJS consumers a runtime that would throw `ERR_REQUIRE_ESM`. | ✓ Resolved 2026-08-12 (Phases 2 and 9) |
+| `isolatedDeclarations: true` | TypeScript 7.0 ships no compiler API, which degrades dts generation. This routes the build through oxc: measured 25ms vs 1064ms, and it also removes the case for Turborepo (per-task overhead exceeds the build). | ✓ Resolved 2026-08-12 (Phases 2 and 9) |
 | Consent grades are modality-free | Asking "how does `attested` work on voice" was the wrong question — it smuggled modality back into a contract that had already rejected it. The real axes are content provenance (agent paraphrase vs app-rendered payload) and confirmation provenance (inferred vs a human act bound to that payload's hash). `attested` requires an app-rendered raw-payload surface plus an observed act on it; whether the app also speaks is irrelevant. Every app has a surface, so no product class is capped below `attested`. | ✓ Resolved 2026-07-27 |
 | Turn identity has *provenance*, not just presence | A shipped implementation showed the microphone picks up the assistant's own TTS and the recognizer transcribes it as user speech. On a voice transport `userTurnId` is recognizer-derived — so the agent's own output can mint a new user turn, which is exactly what `bindTo: "userTurn"` accepts as proof a human acted. PITFALLS P2 covers a human barging in and prescribes turn classification, which does not catch this: an echoed readback transcribes as affirmative content, not as "stop". `TransportCapabilities` is implemented by consumers, so widening it after publish is breaking. | ✓ Resolved 2026-07-27 (TRN-05, Phase 1) |
 | `readsUntrusted` is enforced, not declared-only — and it is the only taint field | An unenforced safety marker sitting beside a redaction policy that genuinely fails closed is this project's named failure mode in miniature. `maxPerTurn` is runner-level in every framework checked; `impact` duplicates the already-gated `consent.minGrade`; `conflictsWith` has no prior art and is covered by stage scoping plus `requires` plus serial batch order. | ✓ Resolved 2026-07-27 (SEC-05, Phase 3) |
@@ -114,6 +115,11 @@ OpenAI Agents JS is also closer than assumed — `needsApproval`, `interruptions
 | The readback sink returns a receipt, and core owns canonicalization | A bare hash string makes canonicalization the app's bug, and the collision is real: `JSON.stringify({amount: 4180, coupon: undefined})` is byte-identical to `{amount: 4180}`. JCS (RFC 8785) in core, digest injected via a `DigestLike` structural stand-in — `crypto`, `TextEncoder`, and `btoa` are all absent under `lib: ["ES2022"]`. Carrying the canonical bytes alongside the hash follows WebAuthn's reason for making `clientDataJSON` opaque: intermediaries must not parse-and-reserialize. | ✓ Resolved 2026-07-27 (Phase 1) |
 | The agent may not narrate a failure | A shipped implementation discards the model's text entirely when any result failed and speaks the app's own failure messages instead. This is a cheap, structural mitigation of the ASI09 reauthoring problem that sits below `attested` — and Concierge had nothing between `delivered` and `attested` doing it. | ✓ Resolved 2026-07-27 (CON-10, Phase 8) |
 | Core is a `peerDependency` of every adapter | Structurally forces a single core instance. Two instances is not a performance problem, it is a correctness one, and it breaks all three load-bearing subsystems at once: a component registers into instance A while a handler reads instance B, so `bridge` is `null` forever on a page that is definitely open; dedup by Promise reference identity gets two windows, so a retried call double-fires — precisely the double-payment the design exists to prevent; and consent armed on instance A is invisible to instance B, so the kernel either fails closed everywhere or splits the review/confirm pair. A pinned dependency permits duplicate installs to resolve silently; a peer range makes a mismatch an install-time error with an actionable message. Accepted cost: diverges from TanStack, which pins, and makes install docs marginally harder. Same invariant already served by ESM-only, `engines.node >=22.12.0`, and `isolatedDeclarations`. | ✓ Resolved 2026-07-28 (PKG-04, Phase 2) |
+| Cache the exact dispatch Promise together with terminal-entry state | Same-reference dedup must survive retries, including terminal failures, without exposing internal terminal rows to direct batch callers. | ✓ Resolved 2026-08-12 (Phases 6 and 10) |
+| Session authority is serialized, latest-wins, and cancellation-composed | Catalog publication, reconnect, stage change, stop, and hostile transport callbacks need one deterministic ownership model with no vendor vocabulary. | ✓ Resolved 2026-08-10 (Phase 7) |
+| Consent receipts retain canonical RFC 8785 bytes and arm only after completed delivery | A hash without canonical bytes or a review that arms before delivery cannot prove the human saw the payload later confirmed. | ✓ Resolved 2026-08-10 (Phase 8) |
+| Framework adapters remain thin and inject one application-owned core instance | React and Svelte own lifecycle/reactivity only; catalog, dispatch, session, consent, and transport logic stay in core. | ✓ Resolved 2026-08-12 (Phase 9) |
+| Exact-SHA hosted certification is an external terminal fact | Writing hosted success back into the repository creates a different SHA, so the run-scoped receipt remains external and any later repository write requires recertification. | ✓ Resolved 2026-08-12 (Phase 10) |
 
 ## Evolution
 
@@ -133,4 +139,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-08-10 after verified Phase 7 completion*
+*Last updated: 2026-08-12 after v0.1 milestone completion*

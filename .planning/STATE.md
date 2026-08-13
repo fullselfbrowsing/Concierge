@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v0.1
-milestone_name: release certification and evidence gaps
-status: executing
-stopped_at: Awaiting exact-SHA hosted certification
-last_updated: "2026-08-12T22:00:55.277Z"
-last_activity: 2026-08-12
+milestone_name: First Release
+status: Awaiting next milestone
+stopped_at: Milestone v0.1 complete
+last_updated: "2026-08-13T02:02:56.988Z"
+last_activity: 2026-08-12 — Milestone v0.1 completed and archived
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 7
-  completed_plans: 7
+  total_phases: 10
+  completed_phases: 10
+  total_plans: 93
+  completed_plans: 93
   percent: 100
 ---
 
@@ -18,25 +18,23 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-08-10)
+See: .planning/PROJECT.md (updated 2026-08-12)
 
 **Core value:** An agent can take a consequential action in a real app — and it is structurally guaranteed that a human, not the agent, confirmed this specific payload, or the action does not run.
-**Current focus:** Phase 10 — close-v0-1-release-certification-and-evidence-gaps
+**Current focus:** Planning the next milestone
 
 ## Current Position
 
-Phase: 10 (close-v0-1-release-certification-and-evidence-gaps) — EXECUTING
-Plan: 7 of 7
-Status: Executing — awaiting exact-SHA hosted certification
-Last activity: 2026-08-12
-
-Progress: [██████████] 100%
+Phase: Milestone v0.1 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-08-12 — Milestone v0.1 completed and archived
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 31
+- Total plans completed: 93
 - Average duration: —
 - Total execution time: —
 
@@ -224,6 +222,16 @@ None yet.
 
 ## Deferred Items
 
+Items acknowledged and deferred at milestone close on 2026-08-12:
+
+| Category | Item | Status |
+|----------|------|--------|
+| verification | Phase 02 — 02-VERIFICATION.md | human_needed |
+| verification | Phase 03 — 03-VERIFICATION.md | human_needed |
+| verification | Phase 04 — 04-VERIFICATION.md | human_needed |
+| verification | Phase 10 — 10-VERIFICATION.md | gaps_found |
+| todo | 2026-07-31-correct-the-over-broad-sideeffects-headline-inherited-from-p.md | pending |
+
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
 | Test coverage | M9 second, *named* detector for `snapshotEquality` method-syntax regression — its only current symptom is a lone TS2578 unused-directive, the failure mode a reviewer silently deletes. Verifier confirmed non-blocking: SC-7a as roadmap-worded is caught by 3× TS2322. | Deferred → Phase 2 | Phase 1 / plan 01-09 |
@@ -236,5 +244,9 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-08-12T22:00:55.127Z
-Stopped at: Awaiting exact-SHA hosted certification
+Stopped at: Milestone v0.1 complete
 Resume file: None
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
