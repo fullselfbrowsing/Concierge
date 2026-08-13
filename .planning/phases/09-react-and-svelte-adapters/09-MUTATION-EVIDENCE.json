@@ -1,0 +1,1349 @@
+{
+  "schemaVersion": 1,
+  "phase": "09-react-and-svelte-adapters",
+  "mode": "versioned",
+  "releaseAuthorization": true,
+  "runAttempt": 1,
+  "sharedVersion": "0.1.0",
+  "consumedChangesets": [
+    {
+      "path": ".changeset/bright-guides-connect.md",
+      "sha256": "1fa02b428ff41e0a28aa7fc59dd9658ee77996716d9862822389488207e4fafb"
+    }
+  ],
+  "versionReceipt": {
+    "path": ".planning/phases/09-react-and-svelte-adapters/09-VERSION-RECEIPT.json",
+    "sha256": "01eff481c12bd5b943e6cc505b824b9e46032b8192334a0843807442c9ccfd05",
+    "baseSha": "a9187eda875a7dd7c6e555f1ccc8189987a3af4a",
+    "repository": "fullselfbrowsing/Concierge",
+    "runId": "31635983095",
+    "runAttempt": 1,
+    "artifactName": "phase09-version-31635983095-1-a9187eda875a7dd7c6e555f1ccc8189987a3af4a"
+  },
+  "generatedAt": "2026-08-12T21:51:52.142Z",
+  "registerDigest": "5bca286e1a13c34c835d7d6c1f3e880ff00ed6d328b19087f63d77a50ae4cad5",
+  "expectedIds": [
+    "M-09-R1",
+    "M-09-R2",
+    "M-09-S1",
+    "M-09-SSR1",
+    "M-09-B1",
+    "M-09-P1",
+    "M-09-C1",
+    "M-10-T01",
+    "M-10-T02",
+    "M-10-T03",
+    "M-10-T04",
+    "M-10-T05",
+    "M-10-T06",
+    "M-10-C01",
+    "M-10-E01",
+    "M-10-G01",
+    "M-10-W01"
+  ],
+  "releaseInputs": {
+    "entries": [
+      {
+        "path": ".changeset/config.json",
+        "sha256": "e4ce1996d3dbaecd174e05800b64e676d8d3e6a9238b6ccfcad5119995d4c16d"
+      },
+      {
+        "path": ".github/workflows/ci.yml",
+        "sha256": "4533fa0d91a71116714e908f2887883e2a238fc0e4b59f4ed09bb4b58c83062a"
+      },
+      {
+        "path": ".github/workflows/release.yml",
+        "sha256": "dea3684d875913ae8a168c74bfc8463ea01ceb6dd858884becc4af2ce8ff332e"
+      },
+      {
+        "path": ".gitignore",
+        "sha256": "a4062a84b7f84285c8065a619bf0b760249339e2abdc67e0760c058d6bb501b1"
+      },
+      {
+        "path": ".planning/REQUIREMENTS.md",
+        "sha256": "c75244549d68532f13980cc91bdbf67afc498bc3eacbaa265dd899f6561a3035"
+      },
+      {
+        "path": ".planning/phases/08-consent-kernel/08-MUTATION-EVIDENCE.json",
+        "sha256": "c38611aab1e95f9fbe3ee4e30bee72c8afb304cef38b0cc1baec0c4a9feae813"
+      },
+      {
+        "path": ".planning/phases/08-consent-kernel/08-MUTATION-REGISTER.json",
+        "sha256": "3285fb5ebfb5b3e9f39c63af4b951869b98a8cb7e36fe0e7bba2db9984e07853"
+      },
+      {
+        "path": ".planning/phases/08-consent-kernel/08-SECURITY.md",
+        "sha256": "4dc3d4bab80108e1fa18e681e4d16cc2c44ade07fb3880a9be326070e190fa24"
+      },
+      {
+        "path": ".planning/phases/08-consent-kernel/08-VALIDATION.md",
+        "sha256": "6951408b045f9cc54811b5f2ad651b77d9a17bd9c97fa07d6e02aa7998c0d04d"
+      },
+      {
+        "path": ".planning/phases/08-consent-kernel/08-VERIFICATION.md",
+        "sha256": "59deed6fc16dcbdd85567420dba7b30067667d714f840d1f11197a42f46b1425"
+      },
+      {
+        "path": ".planning/phases/09-react-and-svelte-adapters/09-CONTEXT.md",
+        "sha256": "47b06a349a34f537b907be09ad311ebca84b3f0e8ab1de91cee5e585b5dd46ef"
+      },
+      {
+        "path": ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-REGISTER.json",
+        "sha256": "5bca286e1a13c34c835d7d6c1f3e880ff00ed6d328b19087f63d77a50ae4cad5"
+      },
+      {
+        "path": ".planning/phases/09-react-and-svelte-adapters/09-RED-BASELINE.json",
+        "sha256": "eb70c55e7f2030d71d442b32d43f2a18906b46a1623a9e5eb350eadda9bc3c6c"
+      },
+      {
+        "path": ".planning/phases/09-react-and-svelte-adapters/09-RESEARCH.md",
+        "sha256": "b3d72a2e5bf8313476e361d7ed16856689e84f00100506b3246c93ec5a784e6f"
+      },
+      {
+        "path": ".planning/phases/09-react-and-svelte-adapters/09-VERSION-RECEIPT.json",
+        "sha256": "01eff481c12bd5b943e6cc505b824b9e46032b8192334a0843807442c9ccfd05"
+      },
+      {
+        "path": "CONTRIBUTING.md",
+        "sha256": "d3bceb75476212896c1a80765ab712d02da3c0c52e3e955bbcd82b09f6078e43"
+      },
+      {
+        "path": "README.md",
+        "sha256": "79b9428eb17a909af280447252d7336e508ae44d100260fce980f5540a96cd9b"
+      },
+      {
+        "path": "RELEASING.md",
+        "sha256": "6f3d07f58cad7982654bbf6bbbdd250746413f55d1bfecf411470517545cf253"
+      },
+      {
+        "path": "examples/adapter-ssr/astro.config.mjs",
+        "sha256": "2938676171139cbd83c4c8f0e01cea78cb993f1aac5b14bbca7ae9a3c1a1dbdb"
+      },
+      {
+        "path": "examples/adapter-ssr/package.json",
+        "sha256": "3d785c1f32fdef526267008d5b67a101ee627b595cd16eca6cb2021da098dead"
+      },
+      {
+        "path": "examples/adapter-ssr/src/components/ReactIsland.tsx",
+        "sha256": "e1621fbb531b727747e15db8ce7b53ffeb84d61c987bd47bf7155495255d64cf"
+      },
+      {
+        "path": "examples/adapter-ssr/src/components/SvelteIsland.svelte",
+        "sha256": "1e9fcfba40c923a819b784f1a225a3f845e65e6d10b55be64f78a091728665ae"
+      },
+      {
+        "path": "examples/adapter-ssr/src/pages/index.astro",
+        "sha256": "cb6ac0c6b0b6afab6ad4f0f7aa7f118b8b992a6228bcb02350cb1631e12e3ac8"
+      },
+      {
+        "path": "examples/adapter-ssr/src/shared/catalog.ts",
+        "sha256": "6b89303bd857e2f0afb321e5bc4cc454fcf690df9dfb6bddbde75bd1fef63b81"
+      },
+      {
+        "path": "examples/adapter-ssr/test/ssr.test.ts",
+        "sha256": "c2c16ada0f66bc6379b3ebb3fbc292dc343ea8431be540e4d30b79ea901148b9"
+      },
+      {
+        "path": "examples/adapter-ssr/tsconfig.json",
+        "sha256": "e6bc3cec520a9c9456a3227d00513e3c682c6e78aa2955bf620c5b9898bc5351"
+      },
+      {
+        "path": "package.json",
+        "sha256": "ea37b45974b395a60aa5ecd9247d4e9d0d21549a14548b87c12dd4bfc9d6b1bb"
+      },
+      {
+        "path": "packages/concierge-react/CHANGELOG.md",
+        "sha256": "e7ba08ab1fa3890fbbc9343b93f8b44b956cea686f98b17e0c4f4c414fa58009"
+      },
+      {
+        "path": "packages/concierge-react/LICENSE",
+        "sha256": "49105772dad98fe866fbef3ed53b5d55e18402c5f4e9833fa527ebdd760ce193"
+      },
+      {
+        "path": "packages/concierge-react/README.md",
+        "sha256": "864cf01890d617cef8df95093af5fead7ffc2338eb7561d3cf0ffe8c9cbd62f3"
+      },
+      {
+        "path": "packages/concierge-react/package.json",
+        "sha256": "487fa596b821ac7cce02521fb5da7cbd8e4bd0bc50531ca04aa51e38f04cedaa"
+      },
+      {
+        "path": "packages/concierge-react/src/client.tsx",
+        "sha256": "5461662f7a4b4d77ab202f03b270c9a191418de07bf57d4c7e9266e5bd1c0c09"
+      },
+      {
+        "path": "packages/concierge-react/src/index.ts",
+        "sha256": "6cc7e004a89c8ffa1ba690c48ee6a2f4850e263198be59bef92825e3b707e339"
+      },
+      {
+        "path": "packages/concierge-react/test-d/public.test-d.ts",
+        "sha256": "9f2af3618c7318765132d14e077fb32addc51069b1e417f17064778ba767f7ac"
+      },
+      {
+        "path": "packages/concierge-react/test/artifact.test.ts",
+        "sha256": "b909ff35ae7024400b4942a8a05c151e83fce146c7719b5948ee8a95fa809eb9"
+      },
+      {
+        "path": "packages/concierge-react/test/lifecycle.test.tsx",
+        "sha256": "72e7899a7ab5eec4250ecc863141724571e4c328f3b3eee8a22c5eace739f0f4"
+      },
+      {
+        "path": "packages/concierge-react/tsconfig.json",
+        "sha256": "c443cb5e514bdc2cc6db6c9a3c7c910a31d272a22317956dd7768c2e192f811f"
+      },
+      {
+        "path": "packages/concierge-react/tsdown.config.ts",
+        "sha256": "b6bf1dc2a0b99371dd1efbb30b5735d5a702493ba24855483353d89c58c90e9f"
+      },
+      {
+        "path": "packages/concierge-svelte/CHANGELOG.md",
+        "sha256": "f40a5a32ae49d47cc20e3187c330bb608c8e6432833e1ce7a181ab6337734ad3"
+      },
+      {
+        "path": "packages/concierge-svelte/LICENSE",
+        "sha256": "49105772dad98fe866fbef3ed53b5d55e18402c5f4e9833fa527ebdd760ce193"
+      },
+      {
+        "path": "packages/concierge-svelte/README.md",
+        "sha256": "4fa55ffa482e8006254c62edfe1c371192354a34c15ead4484466c6e75fcb319"
+      },
+      {
+        "path": "packages/concierge-svelte/package.json",
+        "sha256": "c5607779f637b410445c5430d61940bcaeeb10c0aa6d33c3780ed3f5f1660098"
+      },
+      {
+        "path": "packages/concierge-svelte/src/client.svelte.ts",
+        "sha256": "d87f496ba7e2c24e3bd9c32885979d3c74112c7f239cff216cdff08a4639f501"
+      },
+      {
+        "path": "packages/concierge-svelte/src/index.ts",
+        "sha256": "78e781b0a20b86319d9f8e79c22b4c90678b71f4c08d4df9d70218cc53a3eca6"
+      },
+      {
+        "path": "packages/concierge-svelte/svelte.config.js",
+        "sha256": "1cb34bc9ee0f71bf36ad09a3c2daf4c039e0bb15ae6b123dad1de7a467ce4aa3"
+      },
+      {
+        "path": "packages/concierge-svelte/test/Harness.svelte",
+        "sha256": "2f05a030c7975c8c07e3f058275e84ea8b4f37e0800cdc124787aa800a16a328"
+      },
+      {
+        "path": "packages/concierge-svelte/test/artifact.test.ts",
+        "sha256": "25e774473d30ecbf7f4de47c3519afff93cabfadf89fa8541978fc8fc14e7182"
+      },
+      {
+        "path": "packages/concierge-svelte/test/lifecycle.test.ts",
+        "sha256": "f4005af2a96c10361e50101b044552d61ed6426625887edeaa08b946d09cf61d"
+      },
+      {
+        "path": "packages/concierge-svelte/tsconfig.json",
+        "sha256": "122b41c8f079b19feeada7e16fec1d81427d2b5bffdd762b5afee626527c528b"
+      },
+      {
+        "path": "packages/concierge/CHANGELOG.md",
+        "sha256": "d4fd8013278e90214a04abaa970e08fc7e1826155555737c0fde96b91bea458b"
+      },
+      {
+        "path": "packages/concierge/LICENSE",
+        "sha256": "49105772dad98fe866fbef3ed53b5d55e18402c5f4e9833fa527ebdd760ce193"
+      },
+      {
+        "path": "packages/concierge/README.md",
+        "sha256": "00cbf4af2e7ceffe16eeb3eef2b5851659a94750f469d954231938ef3e76f540"
+      },
+      {
+        "path": "packages/concierge/package.json",
+        "sha256": "d64aac9e652807320d8509b931f02c36df4117a3ce02625a49a819184151a908"
+      },
+      {
+        "path": "packages/concierge/src/bridge.ts",
+        "sha256": "f2d883525329936cddeb988e032654d2a563d05c736accb822bcdf5b8eeb2f6a"
+      },
+      {
+        "path": "packages/concierge/src/catalog.ts",
+        "sha256": "2085e1e1afed1e911bbd00ebfe430fda59495efdcf7c368bafdd7504dba85106"
+      },
+      {
+        "path": "packages/concierge/src/concierge.ts",
+        "sha256": "2015a429b8a1d44b223dbe93c9b58b086a82ee8950a2d2856af9739b07327c15"
+      },
+      {
+        "path": "packages/concierge/src/consent-evidence.ts",
+        "sha256": "db1c4ed04cfeba558d83737e5c5fe8d51d38933c648aa40e3be282ec69560c38"
+      },
+      {
+        "path": "packages/concierge/src/consent-profile.ts",
+        "sha256": "f6d077efca47a8c153cb3d6573c68d276b3e4732b8ea5226c54f4c3cfb2bffe7"
+      },
+      {
+        "path": "packages/concierge/src/contract.ts",
+        "sha256": "329163ae480f04b3dd2f810c730b4a18b12296d28154d4c78f7f71fc721f882d"
+      },
+      {
+        "path": "packages/concierge/src/define-action.ts",
+        "sha256": "f300da3accf2b072a8ff13e0cbf65acbe1cc9ec4d23e10904bba91eb6eea4f38"
+      },
+      {
+        "path": "packages/concierge/src/dispatch.ts",
+        "sha256": "d6295b767b86d563a17430443f844c3c12d2a21fb8b6569e4cda90a9e4c2ea71"
+      },
+      {
+        "path": "packages/concierge/src/host.ts",
+        "sha256": "7138c0d32d4a51ba32895b43296c5a0b9e98249e08ed95bad5a06aef7619d5d9"
+      },
+      {
+        "path": "packages/concierge/src/index.ts",
+        "sha256": "1d4897a4bef0c5b3893fc1c7461e9217bd74467a2c863907877c3ba3441402cd"
+      },
+      {
+        "path": "packages/concierge/src/json-schema.ts",
+        "sha256": "efd7bcb5204051f9de20522d4c38307cab22dff53aabd2dbcc2a5d974fa4c6c5"
+      },
+      {
+        "path": "packages/concierge/src/message.ts",
+        "sha256": "9abf95ec9bfaa05d7be2ed1c45a7b58adffb8ed415b0fe0407804406414a1b43"
+      },
+      {
+        "path": "packages/concierge/src/session.ts",
+        "sha256": "3059e02ee42d1fcae4f21d3bd0294dd534151d63b2fa52142556c1f8a587e27b"
+      },
+      {
+        "path": "packages/concierge/src/types.ts",
+        "sha256": "8bf15282d98dc6143241f8d0c9e1585919bc4876a18bc3aa0e5b46076c99360c"
+      },
+      {
+        "path": "packages/concierge/test-d/_assert.ts",
+        "sha256": "31313cf5d87c0aa1ed5ccb761d67b41655156c38b88f1a85ed2d43efb9f7568f"
+      },
+      {
+        "path": "packages/concierge/test-d/actions.test-d.ts",
+        "sha256": "8eed6edc6000fd0eb7bbd0e04b740b85a715f59960b5301a886ada82d97b6cdb"
+      },
+      {
+        "path": "packages/concierge/test-d/bridge.test-d.ts",
+        "sha256": "7773967c6620a674a07e6a8f0082c258c8bca000e674e4d6011c7d8fba1b1163"
+      },
+      {
+        "path": "packages/concierge/test-d/catalog.test-d.ts",
+        "sha256": "a66fdc5f8fc68aa43f2d0f326b58a3d7e7369938353bd8392106f823ef65fa2a"
+      },
+      {
+        "path": "packages/concierge/test-d/concierge.test-d.ts",
+        "sha256": "8c2acc862760e93d81c7ba459d3e5059e1873e4c900a1d86bfc8285d22045316"
+      },
+      {
+        "path": "packages/concierge/test-d/consent-variance.test-d.ts",
+        "sha256": "8259bbe77484bf9d1919dd41b17ee5956df8940c4c228df3d9004d45bf81e042"
+      },
+      {
+        "path": "packages/concierge/test-d/consent.test-d.ts",
+        "sha256": "27a74f0f40d2e0bf09d26d9918a3e8c3abcf327aa806d74cf858974b29b9f0c5"
+      },
+      {
+        "path": "packages/concierge/test-d/description-literal.test-d.ts",
+        "sha256": "52703288cfeba444f2a8a414b5255b3f5ae268e304fbf54885f3e88cf8984031"
+      },
+      {
+        "path": "packages/concierge/test-d/dispatcher.test-d.ts",
+        "sha256": "d2983a3292ea0a72fd5c4986e3291e6fc89537cf09aef7c11500f6f4f93a6622"
+      },
+      {
+        "path": "packages/concierge/test-d/exports.test-d.ts",
+        "sha256": "cacca56ce2f39ec8867090c45398ddc789cb53f65893634f4f974b1f5a3101c3"
+      },
+      {
+        "path": "packages/concierge/test-d/json-schema.test-d.ts",
+        "sha256": "4ca99935088d631bfbc4b20c4c2a8d62792998fa9a1ec6ac086ba80b362b6c91"
+      },
+      {
+        "path": "packages/concierge/test-d/results.test-d.ts",
+        "sha256": "7ec073d929d875f85b2b8efb046c890abe7d04b6d06c985d1e29fecd27d39c10"
+      },
+      {
+        "path": "packages/concierge/test-d/session.test-d.ts",
+        "sha256": "4141198699faaa5788d95c94b2f2125681134cbcc0c80e9e2ac0ce24a86348ea"
+      },
+      {
+        "path": "packages/concierge/test-d/stub-transport.test-d.ts",
+        "sha256": "670f35873e2e1fad962c5f3f69c9da276f819a5109f58c7acac4c0975f4c9ef4"
+      },
+      {
+        "path": "packages/concierge/test-d/transport.test-d.ts",
+        "sha256": "04106d2a3c232d23b04af694d13df2a1cc53e8be4cb096446a44257d977aa404"
+      },
+      {
+        "path": "packages/concierge/test/artifact.test.ts",
+        "sha256": "cac04e23101081db7d45b2be98acf897ec8a1d4d9cd26a36df803c478fecec37"
+      },
+      {
+        "path": "packages/concierge/test/bridge-snapshot.test.ts",
+        "sha256": "788e6a91c1019234eafab9d59561659a641540cb180f2648ced7fc1194a07e63"
+      },
+      {
+        "path": "packages/concierge/test/bridge.test.ts",
+        "sha256": "58ef719a50495e06277675c58b99d4d47699a50aab565018ed7cbe5da49a6078"
+      },
+      {
+        "path": "packages/concierge/test/catalog.test.ts",
+        "sha256": "5222e2e297c4c9ca1aa86c0768d46fc33288533015e672cefdc4c9d8e49806d9"
+      },
+      {
+        "path": "packages/concierge/test/concierge.test.ts",
+        "sha256": "0588d96eb4155cb94ec4d644b3d5bebfdad85a925d90134a38826f401c8ee8d2"
+      },
+      {
+        "path": "packages/concierge/test/consent-kernel.test.ts",
+        "sha256": "d6a9c5d7d838b58959f0588aba87ae0ad8f67777628f850b629dc14ada144826"
+      },
+      {
+        "path": "packages/concierge/test/diagnostic-safety.test.ts",
+        "sha256": "975cf1044239657b00206e220e186c362578c7fcc0e11464925774f4e87b9954"
+      },
+      {
+        "path": "packages/concierge/test/dispatcher-batch.test.ts",
+        "sha256": "43dc7dd1893c7d3e798cf98f59e3e5bc6bf4e4d00dc684c4577b66cbae7d392e"
+      },
+      {
+        "path": "packages/concierge/test/dispatcher.test.ts",
+        "sha256": "495ab51b186bd61dbdc2c6a6668ebeeb406d6f52b8fc13e2e509b85159192fd4"
+      },
+      {
+        "path": "packages/concierge/test/emission.test.ts",
+        "sha256": "67104ab42a300c6746dd0c062e0b9bb9a95fd0b94d66c0fabc0ae64ac1cf2b93"
+      },
+      {
+        "path": "packages/concierge/test/export-surface.test.ts",
+        "sha256": "1d46c247cb788424b5260f54d05e37eddfb7527d8fe8b3f85c940196069e6c77"
+      },
+      {
+        "path": "packages/concierge/test/fixtures.test.ts",
+        "sha256": "a4fc3fda8d9be5b1a555a15b50fdc588ff9a70f3a450d3e145634a99cdcfb5df"
+      },
+      {
+        "path": "packages/concierge/test/fixtures/adapter-alpha/index.js",
+        "sha256": "88079cc21b94e9c8059c05a2e5b814b6b0daa03dc1bb843618140ecce1174b66"
+      },
+      {
+        "path": "packages/concierge/test/fixtures/adapter-alpha/package.json",
+        "sha256": "ecce12c73bc394d46a6ba9436230588b1f458c837f5d7bd439457b569bacc348"
+      },
+      {
+        "path": "packages/concierge/test/fixtures/adapter-beta/index.js",
+        "sha256": "88079cc21b94e9c8059c05a2e5b814b6b0daa03dc1bb843618140ecce1174b66"
+      },
+      {
+        "path": "packages/concierge/test/fixtures/adapter-beta/package.json",
+        "sha256": "79191a195a5b1c62faa9fa16f0f3b7d565ed993562a798f1d461b7ccc514becc"
+      },
+      {
+        "path": "packages/concierge/test/fixtures/probe.ts",
+        "sha256": "74d0903757a084d7695fc8888b7118fb542d89fc10d531e73cd2e8d727857474"
+      },
+      {
+        "path": "packages/concierge/test/fixtures/schemas.ts",
+        "sha256": "b475ea45a01cc15ee1856853c30ef2f5c894e70d20973d9c53f9e6da15e51049"
+      },
+      {
+        "path": "packages/concierge/test/fixtures/stub-transport.ts",
+        "sha256": "7352aa4b2cf2b6deebad4c8f3ed6eda0b6a20b6022720ef192388ec9b7e8666f"
+      },
+      {
+        "path": "packages/concierge/test/readback-canonicalization.test.ts",
+        "sha256": "14f46776f31e4aca82382f251e1bdcea59b0f380cbb12b66dc906037a21aec9e"
+      },
+      {
+        "path": "packages/concierge/test/readme-security.test.ts",
+        "sha256": "552efc06ff68978d82e7221ac2704ff02d41a3db1d21e86594e9d9e8b4605348"
+      },
+      {
+        "path": "packages/concierge/test/session-catalog.test.ts",
+        "sha256": "dda883895d4cb352624b95808eecdb0b3a14f74b61d67d3d96c9f8131b7bd2e2"
+      },
+      {
+        "path": "packages/concierge/test/session-consent.test.ts",
+        "sha256": "883dd33874c55b734063b5dc54489dc4885462318887acdb313d7f2f5bcc0135"
+      },
+      {
+        "path": "packages/concierge/test/session-lifecycle.test.ts",
+        "sha256": "731489bec9c980e7baf94e4a03478af0ab8573f3cfed71414644ee362923abdf"
+      },
+      {
+        "path": "packages/concierge/test/session-routing.test.ts",
+        "sha256": "1ec21a49628e546b1eabff08e57559cc5a11a3df508ad7f73a59afcfc5183a96"
+      },
+      {
+        "path": "packages/concierge/test/single-instance.test.ts",
+        "sha256": "63f957bdaebaff2379b35acf99301747ed91817069087f702fc396dd5ccafd2d"
+      },
+      {
+        "path": "packages/concierge/test/stub-transport.test.ts",
+        "sha256": "23ec13e38c1be64cfc693179a6129d916a1ea9c42a88689c8d391c79969ef345"
+      },
+      {
+        "path": "packages/concierge/tsconfig.json",
+        "sha256": "0b02c328fe16ed729f1dee80c34f6967958c976919d1b3e40952ae331b821652"
+      },
+      {
+        "path": "packages/concierge/tsconfig.test-d.json",
+        "sha256": "96e145e3effbc5d1fd3a9a33eb1d7b546b9ff0b8ab7e0310c7c975ea736ed674"
+      },
+      {
+        "path": "packages/concierge/tsdown.config.ts",
+        "sha256": "9db296a940a441abc57723ca10a42d46a239257ad5fe9bafc9492434c8c0d7b6"
+      },
+      {
+        "path": "pnpm-lock.yaml",
+        "sha256": "84557941119f152e4d9ade95941bc90d72e1f2e0e64ecc8648b5dce0a1c0de38"
+      },
+      {
+        "path": "pnpm-workspace.yaml",
+        "sha256": "4a436c9bec1418dc0a9d30a70910adf47ccb1a5386bce0698fc5d8991aa64986"
+      },
+      {
+        "path": "scripts/check-no-telemetry.mjs",
+        "sha256": "1b5fc7c438335194d6ca73483878b89b78dfc102f7b7f39558ca02f8bfd9b4cf"
+      },
+      {
+        "path": "scripts/fixtures/phase-09-foreign-consumer/package-lock.json",
+        "sha256": "b8c4a5ef4449e17ad346b608f955b60102a8d6b8ea7c83afe279b6ab7cd0cddf"
+      },
+      {
+        "path": "scripts/fixtures/phase-09-foreign-consumer/package.json",
+        "sha256": "d45c7525147dbb9176d71b3841603a4dbf7e865bea2a87c28c13f89be3706ccc"
+      },
+      {
+        "path": "scripts/mutate-and-prove.sh",
+        "sha256": "0e75a7d826fa93ce38ede26a56767cd0b211c415e6f29dc2cffb6123ea24ddb3"
+      },
+      {
+        "path": "scripts/node-floor-check.sh",
+        "sha256": "33db8b856cd196db9646f3e9d65d43c4a665d93674f859a2e3c3af5fee9e8158"
+      },
+      {
+        "path": "scripts/pack-install-check.sh",
+        "sha256": "0e5448f42017c48e503e9cb64394e72316e4a9bdd389a65cedccf0b2884539e0"
+      },
+      {
+        "path": "scripts/phase-06-mutation-battery.mjs",
+        "sha256": "c3e68fb8ef5f6183fe38d54fed93c4742741b4556073fab60ad3bac4205d12a0"
+      },
+      {
+        "path": "scripts/phase-07-mutation-battery.mjs",
+        "sha256": "c491b449b5609ade7c1a966f2ae6fb4e68274268d667ca20bbf824a0515f1db2"
+      },
+      {
+        "path": "scripts/phase-08-mutation-battery.mjs",
+        "sha256": "81678fc3cbc585ca5301e2c6afe786292ea94ef8c0d33c698c7cdf264779da9f"
+      },
+      {
+        "path": "scripts/phase-09-adapter-budget.mjs",
+        "sha256": "2b1b3f3398784e551aa8cd874ad637bf1cd650a38a8e3c6f27c1c0dd2ce2e30e"
+      },
+      {
+        "path": "scripts/phase-09-contract-check.mjs",
+        "sha256": "c028877b10bfe0b7eb66a7e1ed452f7feac24f887ebc59d2c294333952aaeaff"
+      },
+      {
+        "path": "scripts/phase-09-mutation-battery.mjs",
+        "sha256": "78d140200a8ac4aaaed2a8ed0b3c6eb05656dd0b6f7f9721f1736295acf804b6"
+      },
+      {
+        "path": "scripts/phase-09-package-check.mjs",
+        "sha256": "39b12597050f2214e469aa38a2174dc24012445bc3f45cafc0f84a569799b084"
+      },
+      {
+        "path": "scripts/phase-09-publish-archives.mjs",
+        "sha256": "f5926fa197e8f31cded9de3d6710649d0151697125c8a227da5ce736c06b24a9"
+      },
+      {
+        "path": "scripts/phase-09-secure-environment.mjs",
+        "sha256": "b00e733c3d57a08e457d5a6ca4af627c48cba51485132a08373962ff12293e2f"
+      },
+      {
+        "path": "scripts/phase-09-test-check.mjs",
+        "sha256": "44a637804b0f5268a170c73e0da307eb93c5f69f3265c5cfd1a18187c6f44e46"
+      },
+      {
+        "path": "scripts/phase-09-version.mjs",
+        "sha256": "cf6f82108887fe3925291fc01990d857f485425a4f17046db1f230c9259645ab"
+      },
+      {
+        "path": "scripts/phase-09-workflow-check.mjs",
+        "sha256": "3cff08cfe85785f91b501e03bac81b9c41f14955db268866d6b844fdceeea325"
+      },
+      {
+        "path": "scripts/phase-10-certify-candidate.mjs",
+        "sha256": "b7a4095900686ce02b578973dde851fdf0b512f2f3985dda79458e66b5e63db4"
+      },
+      {
+        "path": "scripts/pkg05-zero-runtime-deps.mjs",
+        "sha256": "d4ff1293687dd7e157da0caf11ef8f484832942d6c6c1b5bfa409e13fb146ccb"
+      },
+      {
+        "path": "tsconfig.base.json",
+        "sha256": "abe751b0f74bbaaf1a8ba54d6e85e14c3b15720bfcaaaf70faf92a391164b32f"
+      },
+      {
+        "path": "vitest.config.ts",
+        "sha256": "90b02f12185a4f364de7afd9a607ca19d1d6c4e36767fab398f40947de06266b"
+      }
+    ],
+    "digest": "1e20b475be66f0c0718684fc334c9dc57169cee7045cb6c0af582ef4e192211d"
+  },
+  "phase08": {
+    ".planning/phases/08-consent-kernel/08-MUTATION-REGISTER.json": "3285fb5ebfb5b3e9f39c63af4b951869b98a8cb7e36fe0e7bba2db9984e07853",
+    ".planning/phases/08-consent-kernel/08-MUTATION-EVIDENCE.json": "c38611aab1e95f9fbe3ee4e30bee72c8afb304cef38b0cc1baec0c4a9feae813",
+    ".planning/phases/08-consent-kernel/08-VALIDATION.md": "6951408b045f9cc54811b5f2ad651b77d9a17bd9c97fa07d6e02aa7998c0d04d",
+    ".planning/phases/08-consent-kernel/08-SECURITY.md": "4dc3d4bab80108e1fa18e681e4d16cc2c44ade07fb3880a9be326070e190fa24",
+    ".planning/phases/08-consent-kernel/08-VERIFICATION.md": "59deed6fc16dcbdd85567420dba7b30067667d714f840d1f11197a42f46b1425"
+  },
+  "rows": [
+    {
+      "id": "M-09-R1",
+      "status": "green",
+      "target": "packages/concierge-react/src/client.tsx",
+      "affectedPackage": "@fullselfbrowsing/concierge-react",
+      "testId": "T01",
+      "requirement": "ADP-01",
+      "threat": "T-09-01",
+      "decisions": [
+        "D-09-02",
+        "D-09-07"
+      ],
+      "definitionDigest": "386d1f6ac11b61dcab0f57129984c55c3604e50a959f41350ef3dad82a0dc9ea",
+      "originalTargetHash": "5461662f7a4b4d77ab202f03b270c9a191418de07bf57d4c7e9266e5bd1c0c09",
+      "mutantTargetHash": "7f015983573eb06a2c58195cb2e7f1704903dc50eaf2444c59ebb2cd820e1f8e",
+      "testHashes": {
+        "packages/concierge-react/test/lifecycle.test.tsx": "72e7899a7ab5eec4250ecc863141724571e4c328f3b3eee8a22c5eace739f0f4",
+        "vitest.config.ts": "90b02f12185a4f364de7afd9a607ca19d1d6c4e36767fab398f40947de06266b"
+      },
+      "revisionDigest": "11d3f66b7777a369f7ed478fe367e58a490e3bb096609b24444d64bb197d03be",
+      "compile": {
+        "command": "pnpm --filter @fullselfbrowsing/concierge-react build",
+        "exitCode": 0,
+        "outputDigest": "4ecac9c2ad53131e00220c30e7b7401622b9beda067b91811f92beff6468e24f"
+      },
+      "killer": {
+        "command": "pnpm exec vitest run packages/concierge-react/test/lifecycle.test.tsx --project react-lifecycle --testNamePattern=T01/R1 --reporter=json --outputFile={report}",
+        "kind": "vitest",
+        "exitCode": 1,
+        "counts": {
+          "files": 1,
+          "tests": 1,
+          "assertions": 1
+        },
+        "assertionFingerprint": "T01/R1 observes setup-cleanup-setup, refuses stale same-object cleanup, and ends at null",
+        "outputDigest": "5d72ec2a62d2fd79e228df0dd87d75c81b1e9f07a25508cd0f2b421c586d4dc0"
+      },
+      "exactReplacementCount": 1,
+      "compiled": true,
+      "killed": true,
+      "targetRestored": true,
+      "liveTreeUnchanged": true,
+      "executedAt": "2026-08-12T21:49:35.201Z"
+    },
+    {
+      "id": "M-09-R2",
+      "status": "green",
+      "target": "packages/concierge-react/src/client.tsx",
+      "affectedPackage": "@fullselfbrowsing/concierge-react",
+      "testId": "T02",
+      "requirement": "ADP-01",
+      "threat": "T-09-02",
+      "decisions": [
+        "D-09-06"
+      ],
+      "definitionDigest": "a7482e5fb87df04fe7214d0d9209a061cca7dc689fd47899e5dacfa1fbc57a12",
+      "originalTargetHash": "5461662f7a4b4d77ab202f03b270c9a191418de07bf57d4c7e9266e5bd1c0c09",
+      "mutantTargetHash": "6624f8189f574537f925e431b9f6fa33d6b937ea5d476ade24788f7824478942",
+      "testHashes": {
+        "packages/concierge-react/test/lifecycle.test.tsx": "72e7899a7ab5eec4250ecc863141724571e4c328f3b3eee8a22c5eace739f0f4",
+        "vitest.config.ts": "90b02f12185a4f364de7afd9a607ca19d1d6c4e36767fab398f40947de06266b"
+      },
+      "revisionDigest": "14bd5a3b58c545b4ced9ca89eeadf4553eaf993859b645bf94826022ba887922",
+      "compile": {
+        "command": "pnpm --filter @fullselfbrowsing/concierge-react build",
+        "exitCode": 0,
+        "outputDigest": "6fb431b5e27c5667880dd5e935065a850e0cda006ba5367f6e981ce610cd343d"
+      },
+      "killer": {
+        "command": "pnpm exec vitest run packages/concierge-react/test/lifecycle.test.tsx --project react-lifecycle --testNamePattern=T02/R2 --reporter=json --outputFile={report}",
+        "kind": "vitest",
+        "exitCode": 1,
+        "counts": {
+          "files": 1,
+          "tests": 1,
+          "assertions": 1
+        },
+        "assertionFingerprint": "T02/R2 reads the latest committed plain nested value through the existing core bridge",
+        "outputDigest": "7f4f6d6bb6314a41427e23977ab55559963cf061fd5c7cd5e8235e7325e01f4d"
+      },
+      "exactReplacementCount": 1,
+      "compiled": true,
+      "killed": true,
+      "targetRestored": true,
+      "liveTreeUnchanged": true,
+      "executedAt": "2026-08-12T21:49:40.355Z"
+    },
+    {
+      "id": "M-09-S1",
+      "status": "green",
+      "target": "packages/concierge-svelte/src/client.svelte.ts",
+      "affectedPackage": "@fullselfbrowsing/concierge-svelte",
+      "testId": "T03",
+      "requirement": "ADP-02",
+      "threat": "T-09-03",
+      "decisions": [
+        "D-09-10",
+        "D-09-12"
+      ],
+      "definitionDigest": "9e0d0c616b760e63ac7182f5726239b566f78c4e30c442820975b0dd268535b2",
+      "originalTargetHash": "d87f496ba7e2c24e3bd9c32885979d3c74112c7f239cff216cdff08a4639f501",
+      "mutantTargetHash": "d32c115c23624aeb55e53d48d131d314e047e0d174c0ce9fd50f4a59276a3792",
+      "testHashes": {
+        "scripts/phase-09-package-check.mjs": "39b12597050f2214e469aa38a2174dc24012445bc3f45cafc0f84a569799b084",
+        "scripts/fixtures/phase-09-foreign-consumer/package.json": "d45c7525147dbb9176d71b3841603a4dbf7e865bea2a87c28c13f89be3706ccc",
+        "scripts/fixtures/phase-09-foreign-consumer/package-lock.json": "b8c4a5ef4449e17ad346b608f955b60102a8d6b8ea7c83afe279b6ab7cd0cddf",
+        "packages/concierge-svelte/test/lifecycle.test.ts": "f4005af2a96c10361e50101b044552d61ed6426625887edeaa08b946d09cf61d"
+      },
+      "revisionDigest": "15dd9381de5b1315217b9230bc3ce03e2e6cbcbedda3e959175f78d89a3d788a",
+      "compile": {
+        "command": "pnpm --filter @fullselfbrowsing/concierge-svelte build",
+        "exitCode": 0,
+        "outputDigest": "99993ec4e76aaa7162674f08a227eb0408682f30dabc5ffe81eb7b4cd24fce43"
+      },
+      "killer": {
+        "command": "node scripts/phase-09-package-check.mjs svelte-consent",
+        "kind": "package",
+        "exitCode": 1,
+        "counts": {
+          "files": 1,
+          "tests": 1,
+          "assertions": 1
+        },
+        "assertionFingerprint": "[T03/S1] closes completed review after nested live mutation",
+        "outputDigest": "ef7569b8ecaabd3eba205526b465bf0f8b7699afcb2f4a0a0ba45fa09cf1d335"
+      },
+      "exactReplacementCount": 1,
+      "compiled": true,
+      "killed": true,
+      "targetRestored": true,
+      "liveTreeUnchanged": true,
+      "executedAt": "2026-08-12T21:49:50.939Z"
+    },
+    {
+      "id": "M-09-SSR1",
+      "status": "green",
+      "target": "packages/concierge-react/src/client.tsx",
+      "affectedPackage": "@fullselfbrowsing/concierge-react",
+      "testId": "T04",
+      "requirement": "ADP-04",
+      "threat": "T-09-04",
+      "decisions": [
+        "D-09-02",
+        "D-09-15"
+      ],
+      "definitionDigest": "84c9ce2efae3f7ee9c2798ceb0bfd870bd26ce776ad3bc39228ed65034244435",
+      "originalTargetHash": "5461662f7a4b4d77ab202f03b270c9a191418de07bf57d4c7e9266e5bd1c0c09",
+      "mutantTargetHash": "531e6ee14f91a7773ad45e2c2c511b42454e24b2a3d8498a34b88f5dcd51334d",
+      "testHashes": {
+        "examples/adapter-ssr/test/ssr.test.ts": "c2c16ada0f66bc6379b3ebb3fbc292dc343ea8431be540e4d30b79ea901148b9",
+        "vitest.config.ts": "90b02f12185a4f364de7afd9a607ca19d1d6c4e36767fab398f40947de06266b"
+      },
+      "revisionDigest": "bf6da3a441ca63d2b44c806242c06d66331270302404bccefee567042971d1db",
+      "compile": {
+        "command": "pnpm --filter @fullselfbrowsing/concierge-react build",
+        "exitCode": 0,
+        "outputDigest": "3c8309aa7a5426165e66c59e426c085d0c83cc5c2ca9731c899435e75844525c"
+      },
+      "killer": {
+        "command": "pnpm exec vitest run examples/adapter-ssr/test/ssr.test.ts --project node-artifact-ssr --testNamePattern=T04/SSR1 --reporter=json --outputFile={report}",
+        "kind": "vitest",
+        "exitCode": 1,
+        "counts": {
+          "files": 1,
+          "tests": 1,
+          "assertions": 1
+        },
+        "assertionFingerprint": "T04/SSR1 proves two fresh normal builds remain registration-silent",
+        "outputDigest": "bfaadf498d21068af191cbe617b317d4a5d24f86e8d3e615c1ca7fb6ca8c852f"
+      },
+      "exactReplacementCount": 1,
+      "compiled": true,
+      "killed": true,
+      "targetRestored": true,
+      "liveTreeUnchanged": true,
+      "executedAt": "2026-08-12T21:49:45.717Z"
+    },
+    {
+      "id": "M-09-B1",
+      "status": "green",
+      "target": "scripts/phase-09-adapter-budget.mjs",
+      "affectedPackage": "phase-09-budget-gate",
+      "testId": "T07",
+      "requirement": "ADP-03",
+      "threat": "T-09-07",
+      "decisions": [
+        "D-09-13"
+      ],
+      "definitionDigest": "c39b1d0b5990aa0c6ab56909044b3caa75059bcd8bc1de0d34f45831bfb04d65",
+      "originalTargetHash": "2b1b3f3398784e551aa8cd874ad637bf1cd650a38a8e3c6f27c1c0dd2ce2e30e",
+      "mutantTargetHash": "c417682218fc2a8e016ad0effd100d314adf2703f5cd8b962a377432e7230fe1",
+      "testHashes": {
+        "scripts/phase-09-adapter-budget.mjs": "2b1b3f3398784e551aa8cd874ad637bf1cd650a38a8e3c6f27c1c0dd2ce2e30e"
+      },
+      "revisionDigest": "59daf433a241180ef9fea80a154b975da6410d874c7a18b146cefee21fc42565",
+      "compile": {
+        "command": "node --check scripts/phase-09-adapter-budget.mjs",
+        "exitCode": 0,
+        "outputDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "killer": {
+        "command": "node scripts/phase-09-adapter-budget.mjs check",
+        "kind": "marker",
+        "exitCode": 1,
+        "counts": {
+          "files": 1,
+          "tests": 1,
+          "assertions": 1
+        },
+        "assertionFingerprint": "[INVENTORY_MISMATCH] @fullselfbrowsing/concierge-react production inventory differs",
+        "outputDigest": "67e4349144914d507a626fd70c6ca5bc5094b487c00c71dc3c44883bc49e37b3"
+      },
+      "exactReplacementCount": 1,
+      "compiled": true,
+      "killed": true,
+      "targetRestored": true,
+      "liveTreeUnchanged": true,
+      "executedAt": "2026-08-12T21:49:55.978Z"
+    },
+    {
+      "id": "M-09-P1",
+      "status": "green",
+      "target": "packages/concierge-react/package.json",
+      "affectedPackage": "@fullselfbrowsing/concierge-react",
+      "testId": "T05",
+      "requirement": "PKG-04",
+      "threat": "T-09-05",
+      "decisions": [
+        "D-09-04",
+        "D-09-16"
+      ],
+      "definitionDigest": "4ebaeccc93d0e84bf77c5b7d719cd6f870365924e0be01de903ac915efdd1aa9",
+      "originalTargetHash": "487fa596b821ac7cce02521fb5da7cbd8e4bd0bc50531ca04aa51e38f04cedaa",
+      "mutantTargetHash": "4f469b810239f1f8a49bde676e6a6642bfa03110824ca250d939177c53fc2826",
+      "testHashes": {
+        "scripts/phase-09-package-check.mjs": "39b12597050f2214e469aa38a2174dc24012445bc3f45cafc0f84a569799b084",
+        "scripts/fixtures/phase-09-foreign-consumer/package.json": "d45c7525147dbb9176d71b3841603a4dbf7e865bea2a87c28c13f89be3706ccc",
+        "scripts/fixtures/phase-09-foreign-consumer/package-lock.json": "b8c4a5ef4449e17ad346b608f955b60102a8d6b8ea7c83afe279b6ab7cd0cddf"
+      },
+      "revisionDigest": "6346bccd9cda05eeacbfbf6f1231014461cb042d8b39ef993bb817d6092b8fdd",
+      "compile": {
+        "command": "pnpm --filter @fullselfbrowsing/concierge-react build",
+        "exitCode": 0,
+        "outputDigest": "aea72a0388042d2b0fe3c0712de4bec362b59f5f89e293bf02a0653751a96749"
+      },
+      "killer": {
+        "command": "node scripts/phase-09-package-check.mjs artifacts",
+        "kind": "marker",
+        "exitCode": 1,
+        "counts": {
+          "files": 1,
+          "tests": 1,
+          "assertions": 1
+        },
+        "assertionFingerprint": "[ADAPTER_MANIFEST] @fullselfbrowsing/concierge-react live manifest must keep core peer+dev only",
+        "outputDigest": "d5b62fed0e6308d05188ce3c95b770d7cf77f9895752ccb768054e6b7a6440b7"
+      },
+      "exactReplacementCount": 1,
+      "compiled": true,
+      "killed": true,
+      "targetRestored": true,
+      "liveTreeUnchanged": true,
+      "executedAt": "2026-08-12T21:50:09.199Z"
+    },
+    {
+      "id": "M-09-C1",
+      "status": "green",
+      "target": "packages/concierge-react/src/client.tsx",
+      "affectedPackage": "@fullselfbrowsing/concierge-react",
+      "testId": "T05",
+      "requirement": "PKG-04",
+      "threat": "T-09-05",
+      "decisions": [
+        "D-09-03",
+        "D-09-16"
+      ],
+      "definitionDigest": "26b2c5c9678400e3c06fb3ae245b9057c2e4a35db377be0d228a032589e1e4e2",
+      "originalTargetHash": "5461662f7a4b4d77ab202f03b270c9a191418de07bf57d4c7e9266e5bd1c0c09",
+      "mutantTargetHash": "36418e0326b26948777765d86949679bfef279de55ab9395dcf1fdf092c84beb",
+      "testHashes": {
+        "scripts/phase-09-package-check.mjs": "39b12597050f2214e469aa38a2174dc24012445bc3f45cafc0f84a569799b084",
+        "scripts/fixtures/phase-09-foreign-consumer/package.json": "d45c7525147dbb9176d71b3841603a4dbf7e865bea2a87c28c13f89be3706ccc",
+        "scripts/fixtures/phase-09-foreign-consumer/package-lock.json": "b8c4a5ef4449e17ad346b608f955b60102a8d6b8ea7c83afe279b6ab7cd0cddf",
+        "packages/concierge-react/test/lifecycle.test.tsx": "72e7899a7ab5eec4250ecc863141724571e4c328f3b3eee8a22c5eace739f0f4"
+      },
+      "revisionDigest": "acb86ca38d086ffd6c702e7de519eec2470abbbf8f111357b220f0af76777899",
+      "compile": {
+        "command": "pnpm --filter @fullselfbrowsing/concierge-react build",
+        "exitCode": 0,
+        "outputDigest": "9fe75e08bb69a851cd176dd87ddc117990d071463cf95c686b86fe1662e26498"
+      },
+      "killer": {
+        "command": "node scripts/phase-09-package-check.mjs mismatch",
+        "kind": "package",
+        "exitCode": 1,
+        "counts": {
+          "files": 1,
+          "tests": 1,
+          "assertions": 1
+        },
+        "assertionFingerprint": "fails through the public hook before registry registration",
+        "outputDigest": "a0781193bc6ba97a40b5f4812a61b4a2b796eb5d5459d425f74cf5fd20476d00"
+      },
+      "exactReplacementCount": 1,
+      "compiled": true,
+      "killed": true,
+      "targetRestored": true,
+      "liveTreeUnchanged": true,
+      "executedAt": "2026-08-12T21:50:21.449Z"
+    },
+    {
+      "id": "M-10-T01",
+      "status": "green",
+      "target": "packages/concierge/src/concierge.ts",
+      "affectedPackage": "@fullselfbrowsing/concierge",
+      "testId": "Q22",
+      "requirement": "Audit-3",
+      "threat": "T-10-02",
+      "decisions": [
+        "D-10-01",
+        "D-10-02"
+      ],
+      "definitionDigest": "307e2e78dc1cfae7888e018e5f4edc076800edac79fff75384b0b981c9613ea4",
+      "originalTargetHash": "2015a429b8a1d44b223dbe93c9b58b086a82ee8950a2d2856af9739b07327c15",
+      "mutantTargetHash": "ad0181807d0245e49dfbecb39137b63e7753b319b9ad38d390c9a0e997571df9",
+      "testHashes": {
+        "packages/concierge/test/dispatcher-batch.test.ts": "43dc7dd1893c7d3e798cf98f59e3e5bc6bf4e4d00dc684c4577b66cbae7d392e",
+        "vitest.config.ts": "90b02f12185a4f364de7afd9a607ca19d1d6c4e36767fab398f40947de06266b"
+      },
+      "revisionDigest": "de9efdba770dcc336dd21bc2cbca692fc37b4e5443d849e64f9095a3dcf3ffb6",
+      "compile": {
+        "command": "pnpm --filter @fullselfbrowsing/concierge build",
+        "exitCode": 0,
+        "outputDigest": "d6b9429c2b0972c5496910a2fd0108e8ee843d51f911d6f3799f733b6307bde0"
+      },
+      "killer": {
+        "command": "pnpm exec vitest run packages/concierge/test/dispatcher-batch.test.ts --project node --testNamePattern=Q22 --reporter=json --outputFile={report}",
+        "kind": "vitest",
+        "exitCode": 1,
+        "counts": {
+          "files": 1,
+          "tests": 1,
+          "assertions": 1
+        },
+        "assertionFingerprint": "[Q22] commits terminality before a synchronous handler throw",
+        "outputDigest": "7b7aa12373e28fa6f8b9d935f124f0ca7d79043a084192f43ab42781cb7983d7"
+      },
+      "exactReplacementCount": 1,
+      "compiled": true,
+      "killed": true,
+      "targetRestored": true,
+      "liveTreeUnchanged": true,
+      "executedAt": "2026-08-12T21:50:03.646Z"
+    },
+    {
+      "id": "M-10-T02",
+      "status": "green",
+      "target": "packages/concierge/src/dispatch.ts",
+      "affectedPackage": "@fullselfbrowsing/concierge",
+      "testId": "Q20",
+      "requirement": "DSP-07",
+      "threat": "T-10-02",
+      "decisions": [
+        "D-10-03"
+      ],
+      "definitionDigest": "5074d162438cece231976c42af3dac3f9eb520c9e6612ac9090aec8673bd5fc8",
+      "originalTargetHash": "d6295b767b86d563a17430443f844c3c12d2a21fb8b6569e4cda90a9e4c2ea71",
+      "mutantTargetHash": "ceea8e1c4bcd84dcb56b9ea4927eaba94d6492ab1cc152401462ae508e0a38b5",
+      "testHashes": {
+        "packages/concierge/test/dispatcher-batch.test.ts": "43dc7dd1893c7d3e798cf98f59e3e5bc6bf4e4d00dc684c4577b66cbae7d392e",
+        "vitest.config.ts": "90b02f12185a4f364de7afd9a607ca19d1d6c4e36767fab398f40947de06266b"
+      },
+      "revisionDigest": "6ccea41af96e6c21589866d8ec36d616c10664438bd9f5f2ab68325791b3d6d2",
+      "compile": {
+        "command": "pnpm --filter @fullselfbrowsing/concierge build",
+        "exitCode": 0,
+        "outputDigest": "6c63b042242e1cc96c7be43121da767657436d3c3a7c1b2e5f77b6368ba5cc92"
+      },
+      "killer": {
+        "command": "pnpm exec vitest run packages/concierge/test/dispatcher-batch.test.ts --project node --testNamePattern=Q20 terminal --reporter=json --outputFile={report}",
+        "kind": "vitest",
+        "exitCode": 1,
+        "counts": {
+          "files": 1,
+          "tests": 1,
+          "assertions": 1
+        },
+        "assertionFingerprint": "[Q20 terminal] silences an earlier result after terminal success",
+        "outputDigest": "46a9a17c6edd049794c34b72aa0db3f38c3277fb646e9e6c74e4c5099656f2d7"
+      },
+      "exactReplacementCount": 1,
+      "compiled": true,
+      "killed": true,
+      "targetRestored": true,
+      "liveTreeUnchanged": true,
+      "executedAt": "2026-08-12T21:50:16.433Z"
+    },
+    {
+      "id": "M-10-T03",
+      "status": "green",
+      "target": "packages/concierge/src/concierge.ts",
+      "affectedPackage": "@fullselfbrowsing/concierge",
+      "testId": "Q21",
+      "requirement": "SES-02",
+      "threat": "T-10-01",
+      "decisions": [
+        "D-10-03"
+      ],
+      "definitionDigest": "307eb8bfde1cefff241b3da2811ec23c1a0d0c32e822f1057dfc081bf41bbf0d",
+      "originalTargetHash": "2015a429b8a1d44b223dbe93c9b58b086a82ee8950a2d2856af9739b07327c15",
+      "mutantTargetHash": "504931a10264c47dd62b8a9e54299addd3d920396a5b4e0863a6360a381d5cbf",
+      "testHashes": {
+        "packages/concierge/test/dispatcher-batch.test.ts": "43dc7dd1893c7d3e798cf98f59e3e5bc6bf4e4d00dc684c4577b66cbae7d392e",
+        "vitest.config.ts": "90b02f12185a4f364de7afd9a607ca19d1d6c4e36767fab398f40947de06266b"
+      },
+      "revisionDigest": "fe05b264ef64b656d38ae2c483e90e6be89ed910d0632c366adab0696f8eae74",
+      "compile": {
+        "command": "pnpm --filter @fullselfbrowsing/concierge build",
+        "exitCode": 0,
+        "outputDigest": "a2c9f4ddf52cb0262e503eb52b95549d84fc5bbc35dfb810577f5db1f7a3e79d"
+      },
+      "killer": {
+        "command": "pnpm exec vitest run packages/concierge/test/dispatcher-batch.test.ts --project node --testNamePattern=Q21 --reporter=json --outputFile={report}",
+        "kind": "vitest",
+        "exitCode": 1,
+        "counts": {
+          "files": 1,
+          "tests": 1,
+          "assertions": 1
+        },
+        "assertionFingerprint": "[Q21] commits terminality for an app-authored failure",
+        "outputDigest": "be3985e2bcdc39fdbada1c52ca1152a04cb0b0e4b226166025f950db5ec65fda"
+      },
+      "exactReplacementCount": 1,
+      "compiled": true,
+      "killed": true,
+      "targetRestored": true,
+      "liveTreeUnchanged": true,
+      "executedAt": "2026-08-12T21:50:26.245Z"
+    },
+    {
+      "id": "M-10-T04",
+      "status": "green",
+      "target": "packages/concierge/src/session.ts",
+      "affectedPackage": "@fullselfbrowsing/concierge",
+      "testId": "S09",
+      "requirement": "CON-10",
+      "threat": "T-10-03",
+      "decisions": [
+        "D-10-04"
+      ],
+      "definitionDigest": "0b37a7eb40aa13be372fbe4dd160f839b3856c5fa899c41dc12752d45a76f66b",
+      "originalTargetHash": "3059e02ee42d1fcae4f21d3bd0294dd534151d63b2fa52142556c1f8a587e27b",
+      "mutantTargetHash": "4c8f570e2845e8ad288e6074b15f5fceb2b6ad6133a36ff34a56f5cfc1ea28aa",
+      "testHashes": {
+        "packages/concierge/test/session-consent.test.ts": "883dd33874c55b734063b5dc54489dc4885462318887acdb313d7f2f5bcc0135",
+        "vitest.config.ts": "90b02f12185a4f364de7afd9a607ca19d1d6c4e36767fab398f40947de06266b"
+      },
+      "revisionDigest": "09b21a6ca800ccd992ca4533db9f3a9d09978d648e6098f69894cef5fd55417e",
+      "compile": {
+        "command": "pnpm --filter @fullselfbrowsing/concierge build",
+        "exitCode": 0,
+        "outputDigest": "8b571e16b64e01e1e0e1a8bc854f7e4d9e023555ed5f7e80c01473bb8f50b855"
+      },
+      "killer": {
+        "command": "pnpm exec vitest run packages/concierge/test/session-consent.test.ts --project node --testNamePattern=S09 --reporter=json --outputFile={report}",
+        "kind": "vitest",
+        "exitCode": 1,
+        "counts": {
+          "files": 1,
+          "tests": 1,
+          "assertions": 1
+        },
+        "assertionFingerprint": "[S09] completes the immutable terminal failure outcome before cleanup",
+        "outputDigest": "b5106a53f1478d419c0e18cf3b284bc1e2623a9a573cf9eb7fb588a91d936e33"
+      },
+      "exactReplacementCount": 1,
+      "compiled": true,
+      "killed": true,
+      "targetRestored": true,
+      "liveTreeUnchanged": true,
+      "executedAt": "2026-08-12T21:50:31.065Z"
+    },
+    {
+      "id": "M-10-T05",
+      "status": "green",
+      "target": "packages/concierge/src/session.ts",
+      "affectedPackage": "@fullselfbrowsing/concierge",
+      "testId": "L06",
+      "requirement": "SES-04",
+      "threat": "T-10-03",
+      "decisions": [
+        "D-10-02",
+        "D-10-04"
+      ],
+      "definitionDigest": "dfd1b09bb0030b15b8e91e29e9adb700161004c55e5886f87aa04b6a9be0ce7b",
+      "originalTargetHash": "3059e02ee42d1fcae4f21d3bd0294dd534151d63b2fa52142556c1f8a587e27b",
+      "mutantTargetHash": "c756b92c0cae94a942342ed327ed74bfd896a0f8ccc6efd637a3ea07a763485e",
+      "testHashes": {
+        "packages/concierge/test/session-lifecycle.test.ts": "731489bec9c980e7baf94e4a03478af0ab8573f3cfed71414644ee362923abdf",
+        "vitest.config.ts": "90b02f12185a4f364de7afd9a607ca19d1d6c4e36767fab398f40947de06266b"
+      },
+      "revisionDigest": "654abd1ff87817960de76bfd707abe707aa9f2c60e2c887e4b4301b6167a3eee",
+      "compile": {
+        "command": "pnpm --filter @fullselfbrowsing/concierge build",
+        "exitCode": 0,
+        "outputDigest": "4ec6f34d21d8bdf6f25dd7586623b58b303a342de2168d79e328e12bbcaecb7d"
+      },
+      "killer": {
+        "command": "pnpm exec vitest run packages/concierge/test/session-lifecycle.test.ts --project node --testNamePattern=L06 terminal --reporter=json --outputFile={report}",
+        "kind": "vitest",
+        "exitCode": 1,
+        "counts": {
+          "files": 1,
+          "tests": 1,
+          "assertions": 1
+        },
+        "assertionFingerprint": "[L06 terminal] stops once and drains every later occurrence without handler entry",
+        "outputDigest": "e1d130ef6c96296834e5583450311950f474cb8669bb9a72442965ffed46711d"
+      },
+      "exactReplacementCount": 1,
+      "compiled": true,
+      "killed": true,
+      "targetRestored": true,
+      "liveTreeUnchanged": true,
+      "executedAt": "2026-08-12T21:50:45.868Z"
+    },
+    {
+      "id": "M-10-T06",
+      "status": "green",
+      "target": "packages/concierge/src/session.ts",
+      "affectedPackage": "@fullselfbrowsing/concierge",
+      "testId": "S08",
+      "requirement": "SES-02",
+      "threat": "T-10-01",
+      "decisions": [
+        "D-10-03",
+        "D-10-04"
+      ],
+      "definitionDigest": "c3ff6ce526f0df9feb19af250adc5de8ae1bf2057f60e7e45bcbf8752946cfd9",
+      "originalTargetHash": "3059e02ee42d1fcae4f21d3bd0294dd534151d63b2fa52142556c1f8a587e27b",
+      "mutantTargetHash": "8a0fa786ed62b80ff4ca807a2b97fafb6f437093a494999edd1d37068eed8032",
+      "testHashes": {
+        "packages/concierge/test/session-consent.test.ts": "883dd33874c55b734063b5dc54489dc4885462318887acdb313d7f2f5bcc0135",
+        "vitest.config.ts": "90b02f12185a4f364de7afd9a607ca19d1d6c4e36767fab398f40947de06266b"
+      },
+      "revisionDigest": "310f4f2c168795d62e91a092235d05b641c0afc75858536f1aa96ef0e3c7b520",
+      "compile": {
+        "command": "pnpm --filter @fullselfbrowsing/concierge build",
+        "exitCode": 0,
+        "outputDigest": "5ee21e45f2054cdccbf8cbc524556862e811055d666b7f55ec212e96451a9dd2"
+      },
+      "killer": {
+        "command": "pnpm exec vitest run packages/concierge/test/session-consent.test.ts --project node --testNamePattern=S08 --reporter=json --outputFile={report}",
+        "kind": "vitest",
+        "exitCode": 1,
+        "counts": {
+          "files": 1,
+          "tests": 1,
+          "assertions": 1
+        },
+        "assertionFingerprint": "[S08] makes a terminal success occurrence and every queued successor response-silent",
+        "outputDigest": "9305395a3c7006f3ef05910cd9ac4ed967a7a06e54189cce4b94964468b6bf69"
+      },
+      "exactReplacementCount": 1,
+      "compiled": true,
+      "killed": true,
+      "targetRestored": true,
+      "liveTreeUnchanged": true,
+      "executedAt": "2026-08-12T21:50:46.067Z"
+    },
+    {
+      "id": "M-10-C01",
+      "status": "green",
+      "target": "packages/concierge/src/catalog.ts",
+      "affectedPackage": "@fullselfbrowsing/concierge",
+      "testId": "C34",
+      "requirement": "DX-03",
+      "threat": "T-10-05",
+      "decisions": [
+        "D-10-13",
+        "D-10-14"
+      ],
+      "definitionDigest": "733570ddf42c8d281c4ca269c626737e0e97f0790a932ec4f510338af31c566e",
+      "originalTargetHash": "2085e1e1afed1e911bbd00ebfe430fda59495efdcf7c368bafdd7504dba85106",
+      "mutantTargetHash": "37aa5319faf411322e9c127b650fda74ffb637d52b9c72fdceb94a54a12b1466",
+      "testHashes": {
+        "packages/concierge/test/catalog.test.ts": "5222e2e297c4c9ca1aa86c0768d46fc33288533015e672cefdc4c9d8e49806d9",
+        "vitest.config.ts": "90b02f12185a4f364de7afd9a607ca19d1d6c4e36767fab398f40947de06266b"
+      },
+      "revisionDigest": "3003d2004b3aed3c14c2d57697ed0212a294a79766a3e75c4699dba186eea9f7",
+      "compile": {
+        "command": "pnpm --filter @fullselfbrowsing/concierge build",
+        "exitCode": 0,
+        "outputDigest": "b84693b92c4406a5c3ad4b6bffba75b85e81415dab1b634ebbd4a7a3a732590b"
+      },
+      "killer": {
+        "command": "pnpm exec vitest run packages/concierge/test/catalog.test.ts --project node --testNamePattern=C34 --reporter=json --outputFile={report}",
+        "kind": "vitest",
+        "exitCode": 1,
+        "counts": {
+          "files": 1,
+          "tests": 1,
+          "assertions": 1
+        },
+        "assertionFingerprint": "C34 — a null declaration and an ordinary catalog fault aggregate in index order",
+        "outputDigest": "a68de7bc4f058e9807627d68ff0e12ebf953b1b02058ed1609525fb12c4d67ac"
+      },
+      "exactReplacementCount": 1,
+      "compiled": true,
+      "killed": true,
+      "targetRestored": true,
+      "liveTreeUnchanged": true,
+      "executedAt": "2026-08-12T21:50:41.051Z"
+    },
+    {
+      "id": "M-10-E01",
+      "status": "green",
+      "target": "scripts/phase-09-package-check.mjs",
+      "affectedPackage": "phase-09-package-gate",
+      "testId": "E01",
+      "requirement": "PKG-04",
+      "threat": "T-10-04",
+      "decisions": [
+        "D-10-09"
+      ],
+      "definitionDigest": "1743379f07229514c060252ed81c523a193b31154acbaaee1d0942b1c0f8b363",
+      "originalTargetHash": "39b12597050f2214e469aa38a2174dc24012445bc3f45cafc0f84a569799b084",
+      "mutantTargetHash": "66ff543dbf7bd8d8ceeea96a0a6d0657d0790578e93cd10a3583c292da9357e8",
+      "testHashes": {
+        "scripts/phase-09-package-check.mjs": "39b12597050f2214e469aa38a2174dc24012445bc3f45cafc0f84a569799b084",
+        "scripts/phase-09-secure-environment.mjs": "b00e733c3d57a08e457d5a6ca4af627c48cba51485132a08373962ff12293e2f"
+      },
+      "revisionDigest": "5a0d642d3aa956be4413b1d51f80f8b4d608270f3052ddc3a2a333859034355b",
+      "compile": {
+        "command": "node --check scripts/phase-09-package-check.mjs",
+        "exitCode": 0,
+        "outputDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "killer": {
+        "command": "node scripts/phase-09-package-check.mjs self-test",
+        "kind": "marker",
+        "exitCode": 1,
+        "counts": {
+          "files": 1,
+          "tests": 1,
+          "assertions": 1
+        },
+        "assertionFingerprint": "ordinary pnpm decoration leaked into the child or granted ambient authority",
+        "outputDigest": "71c3044f272d9e9a78b77501430547bde9202f5b313f376eb753fd40c1fe773f"
+      },
+      "exactReplacementCount": 1,
+      "compiled": true,
+      "killed": true,
+      "targetRestored": true,
+      "liveTreeUnchanged": true,
+      "executedAt": "2026-08-12T21:50:36.277Z"
+    },
+    {
+      "id": "M-10-G01",
+      "status": "green",
+      "target": "scripts/phase-09-mutation-battery.mjs",
+      "affectedPackage": "phase-09-evidence-gate",
+      "testId": "G01",
+      "requirement": "ADP-04",
+      "threat": "T-10-06",
+      "decisions": [
+        "D-10-05",
+        "D-10-06",
+        "D-10-07",
+        "D-10-08"
+      ],
+      "definitionDigest": "f0902b329fee0259116fd031f8becc30e24b39e934a1f6359936a08baac9ede3",
+      "originalTargetHash": "78d140200a8ac4aaaed2a8ed0b3c6eb05656dd0b6f7f9721f1736295acf804b6",
+      "mutantTargetHash": "7421742ac6967daab31d8c7a6e0cdee884f5becefb9c1fb2add2239ecff19862",
+      "testHashes": {
+        "scripts/phase-09-contract-check.mjs": "c028877b10bfe0b7eb66a7e1ed452f7feac24f887ebc59d2c294333952aaeaff"
+      },
+      "revisionDigest": "90fd11f5768ca43a50040fcea4c29d8ea46544b29bd7f6d64c58733389efa414",
+      "compile": {
+        "command": "node --check scripts/phase-09-mutation-battery.mjs",
+        "exitCode": 0,
+        "outputDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "killer": {
+        "command": "node scripts/phase-09-contract-check.mjs phase10-static",
+        "kind": "marker",
+        "exitCode": 1,
+        "counts": {
+          "files": 1,
+          "tests": 1,
+          "assertions": 1
+        },
+        "assertionFingerprint": "mutation runner Astro release-input rejection drifted",
+        "outputDigest": "b06c77b1af675af1f3bf41acc0922182ef41171ea4d5e111d841eb0d4c3d6254"
+      },
+      "exactReplacementCount": 1,
+      "compiled": true,
+      "killed": true,
+      "targetRestored": true,
+      "liveTreeUnchanged": true,
+      "executedAt": "2026-08-12T21:50:46.534Z"
+    },
+    {
+      "id": "M-10-W01",
+      "status": "green",
+      "target": "scripts/phase-09-mutation-battery.mjs",
+      "affectedPackage": "phase-09-evidence-gate",
+      "testId": "W01",
+      "requirement": "PKG-04",
+      "threat": "T-10-07",
+      "decisions": [
+        "D-10-09"
+      ],
+      "definitionDigest": "59aaf5e854d61b99fca500efc94c3415a427ef14092bf2986c43b8d39e000cf4",
+      "originalTargetHash": "78d140200a8ac4aaaed2a8ed0b3c6eb05656dd0b6f7f9721f1736295acf804b6",
+      "mutantTargetHash": "558c065a0e40ee3d7f7c2589ba1b23ba14d69c02d3f8fffdeb441fc9395a598f",
+      "testHashes": {
+        "scripts/phase-09-contract-check.mjs": "c028877b10bfe0b7eb66a7e1ed452f7feac24f887ebc59d2c294333952aaeaff",
+        "scripts/phase-09-workflow-check.mjs": "3cff08cfe85785f91b501e03bac81b9c41f14955db268866d6b844fdceeea325"
+      },
+      "revisionDigest": "5dbac546ffdeee097d2ad16d47364312dd0e43596ed5d51343c592ddc3e82fa4",
+      "compile": {
+        "command": "node --check scripts/phase-09-mutation-battery.mjs",
+        "exitCode": 0,
+        "outputDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "killer": {
+        "command": "node scripts/phase-09-contract-check.mjs phase10-static",
+        "kind": "marker",
+        "exitCode": 1,
+        "counts": {
+          "files": 1,
+          "tests": 1,
+          "assertions": 1
+        },
+        "assertionFingerprint": "mutation runner release gate order drifted",
+        "outputDigest": "bd3ee3de00b27cce51fd3f2fb944ad6c713e1f21ea1b61c3b04595672226aed4"
+      },
+      "exactReplacementCount": 1,
+      "compiled": true,
+      "killed": true,
+      "targetRestored": true,
+      "liveTreeUnchanged": true,
+      "executedAt": "2026-08-12T21:50:46.330Z"
+    }
+  ],
+  "contentDigest": "e5dd9e2917587150ec83584d330c12b3987e73aa73b7c07ee98642385ed7e3c8"
+}

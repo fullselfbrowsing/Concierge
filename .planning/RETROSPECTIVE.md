@@ -29,6 +29,7 @@
 - Phase 9 evidence had to be resealed after hosted failures exposed shallow Git history and macOS `/tmp` alias handling late in the process.
 - Several SUMMARY one-liners described deviations rather than outcomes, so automated milestone accomplishment extraction produced misleading text.
 - The milestone archive helper parsed only the final Phase 10 section from the legacy roadmap shape and undercounted the milestone as 1 phase, 7 plans, and 14 tasks; manual reconciliation restored 10/93/215.
+- Phase evidence is executable release input, not inert documentation: a pure directory move broke hard-bound CI paths, so the archive keeps canonical copies while the original paths remain as compatibility mirrors.
 - Fine-grained evidence work produced substantial bookkeeping overhead alongside the implementation itself.
 
 ### Patterns Established
@@ -46,6 +47,7 @@
 3. Add the framework with the most adversarial reactivity model early. Svelte `$state` made snapshot detachment load-bearing instead of hypothetical.
 4. Keep outcome summaries machine-readable and outcome-first; deviation logs belong in their own section.
 5. Reconcile milestone counts from on-disk plans and summaries before trusting a parser operating on an evolved roadmap format.
+6. Before moving planning artifacts, search production workflows and release scripts for path coupling; migrate the resolver first or retain compatibility mirrors.
 
 ### Cost Observations
 
