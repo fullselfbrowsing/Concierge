@@ -24,7 +24,7 @@
 
 </details>
 
-The full roadmap, final requirements, milestone audit, and all phase artifacts are archived under `.planning/milestones/`. Exact compatibility mirrors remain under `.planning/phases/` because the v0.1 CI and release evidence gates intentionally bind to those paths.
+The full roadmap, final requirements, milestone audit, and all phase artifacts are archived under `.planning/milestones/`. Exact compatibility mirrors remain under `.planning/phases/` and `.planning/REQUIREMENTS.md` because the v0.1 CI and release evidence gates intentionally bind to those paths.
 
 ## Progress
 
