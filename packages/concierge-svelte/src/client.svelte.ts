@@ -11,7 +11,7 @@ import type {
   SnapshotNormalizer,
 } from "@fullselfbrowsing/concierge";
 
-const EXPECTED_CONTRACT_VERSION: number = 1;
+const EXPECTED_CONTRACT_VERSION: number = 2;
 const CONCIERGE_CONTEXT: symbol = Symbol(
   "@fullselfbrowsing/concierge-svelte.context",
 );

@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist/ai-sdk",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "paths": {
+      "@fullselfbrowsing/concierge": ["./src/index.ts"]
+    }
+  },
+  "include": ["src/ai-sdk/**/*.ts"]
+}

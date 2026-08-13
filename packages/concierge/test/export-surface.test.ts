@@ -144,14 +144,14 @@ beforeAll(() => {
 });
 
 describe("the published export surface of dist/index.d.ts", () => {
-  it("is exactly 75 names — an export added or dropped by a build-config change lands here", () => {
+  it("is exactly 88 names — an export added or dropped by a build-config change lands here", () => {
     const { names } = readSurface();
-    expect(names).toHaveLength(75);
+    expect(names).toHaveLength(88);
   });
 
-  it("splits 60 types to 15 values", () => {
+  it("splits 73 types to 15 values", () => {
     const { types, values } = readSurface();
-    expect(types).toHaveLength(60);
+    expect(types).toHaveLength(73);
     expect(values).toHaveLength(15);
   });
 

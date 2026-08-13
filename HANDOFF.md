@@ -1,76 +1,136 @@
-# Handoff
+# Maintainer handoff
 
-For whoever — human or agent — picks this up next.
+## Current state
 
-## Where things stand
+Concierge 0.2 is a supported-public-preview implementation built around runtime
+contract v2. The repository contains:
 
-**Nothing is implemented.** The repo contains a design contract, a compiling type surface, and a fully planned v0.1 milestone. There is no runtime, no test suite, no build, and no published package. `packages/concierge/src/` is types only; `index.ts` exports no values beyond three frozen constants.
+- a framework-neutral action catalog, atomic catalog revisions, direct and
+  batch dispatch, consent, deduplication, cancellation, terminal control,
+  compound workflows, lifecycle observation, bridges, and sessions;
+- React and Svelte lifecycle adapters that inject the same core instance and do
+  no server-side registration;
+- an AI SDK 6/7 adapter with provider-neutral tools, strict call preparation,
+  result correlation, and an ES256 signed server-to-browser dispatch bridge;
+- a full Next App Router/OpenRouter example and the existing dual-framework SSR
+  harness;
+- a version-neutral three-package release path with exact archives, independent
+  sealing, OIDC trusted publishing, provenance verification, safe resumption,
+  and the `latest` dist-tag.
 
-That is deliberate. The planning is unusually complete for a repo with no code because four parallel research agents ran against the design *before* implementation, and what they found changed it substantially. Reading their output is much cheaper than rediscovering it.
+The public package set is one fixed trio at a shared `0.2.x` version:
+
+1. `@fullselfbrowsing/concierge`
+2. `@fullselfbrowsing/concierge-react`
+3. `@fullselfbrowsing/concierge-svelte`
+
+Do not infer registry publication from the repository version. Check npm and
+the release workflow. First publication remains externally blocked until the
+npm scope/package bootstrap and three trusted-publisher records are complete;
+the exact ceremony is in [RELEASING.md](./RELEASING.md).
 
 ## Read in this order
 
-| # | File | Why |
-|---|---|---|
-| 1 | `README.md` | The six-point design contract. This is the public promise. |
-| 2 | `packages/concierge/src/types.ts` | The contract as code. Comments explain *why* each shape is what it is, including several that record a defect that was fixed — do not "clean up" those comments; they are the reason the shape is correct. |
-| 3 | `.planning/research/SUMMARY.md` | Synthesis of all four research dimensions, with conflicts resolved and sources cited. |
-| 4 | `.planning/ROADMAP.md` | Nine phases, 57/57 requirement coverage, verified mechanically. |
-| 5 | `.planning/STATE.md` | Current position and open blockers. |
-| 6 | `CONTRIBUTING.md` | The non-negotiables, stated as rules. |
+1. [README.md](./README.md) — public product and security promise.
+2. [COMPATIBILITY.md](./COMPATIBILITY.md) and [SUPPORT.md](./SUPPORT.md) — the
+   0.2 support contract.
+3. [`packages/concierge/src/types.ts`](./packages/concierge/src/types.ts) — the
+   runtime contract as code.
+4. [`packages/concierge/src/concierge.ts`](./packages/concierge/src/concierge.ts)
+   and [`dispatch.ts`](./packages/concierge/src/dispatch.ts) — atomic catalog,
+   object dispatch, compound actions, and events.
+5. [`packages/concierge/src/ai-sdk`](./packages/concierge/src/ai-sdk) and the
+   [AI SDK guide](./docs/integrations/ai-sdk.md) — signed split-runtime bridge.
+6. [`examples/next-ai-sdk`](./examples/next-ai-sdk) — the reference integration.
+7. [CONTRIBUTING.md](./CONTRIBUTING.md) — invariants and test expectations.
+8. [RELEASING.md](./RELEASING.md) — registry setup and protected release flow.
 
-`.planning/research/{STACK,FEATURES,ARCHITECTURE,PITFALLS}.md` are the full dimension reports — roughly 240KB. Go there when a phase needs depth, not on first read.
+Use `.planning/` when investigating how v0.1 decisions and evidence were
+derived. Its Phase 09 scripts and receipts are historical reproduction inputs,
+not the live 0.2 release authority.
 
-## What is locked
+## Locked boundaries
 
-Do not relitigate these without new evidence. Each cost real research to establish, and the rationale is recorded at the point of use.
+- The catalog contains app-defined verbs only. A generic browser or JavaScript
+  escape hatch defeats the project.
+- The core root entry stays DOM-, framework-, provider-, and transport-neutral;
+  optional provider integration is isolated behind explicit subpaths.
+- Catalog resolution and its `CatalogRevision` are atomic and instance-local.
+  Dispatch requires that exact local capability.
+- Core is a peer of every adapter. One physical core owns the safety state.
+- `dispatch` is not `async`; same-Promise retry identity is intentional.
+- Snapshots are getters and must be detached before consent stores them.
+- Terminal batch control is explicit and carries the dispatch occurrence that
+  entered terminal execution.
+- Compound actions use core workflow controls and bounded lineage.
+- Dispatch observers receive redacted, non-controlling events.
+- Raw AI SDK calls are display-only. Browser actuation requires the signed
+  envelope, replay consumption, and a live-catalog match.
+- Client consent, signed results, and client context are not server
+  authorization.
+- All packages remain ESM-only and contract v2 throughout `0.2.x`.
 
-- **The catalog of actions is the security boundary.** No generic actuation primitive — no `click`, no `execute_js`, no coordinate tools — may be added. A single generic escape hatch destroys the property the entire library exists to provide.
-- **Core has no DOM, no framework, and no vendor.** Enforced mechanically: `lib: ["ES2022"]` makes `document` a compile error.
-- **Snapshots are getter functions, `() => T`.** Convergently correct — TanStack's Svelte adapter independently exports the identical `Accessor<T>`. Do not "simplify" to values.
-- **`dispatch` is not `async`.** An async wrapper allocates a fresh Promise per call and breaks dedup by reference identity.
-- **ESM-only.** The dual-package hazard splits the bridge registry, the dedup window, and the consent kernel — a split dedup window double-fires a retried call, the precise failure this library exists to prevent.
-- **Consent grades are modality-free.** Speech versus text is not an axis. Content provenance and confirmation provenance are.
-- **Svelte is the first non-React adapter and ships with React, not after.** It is the only target that surfaces the `$state`-proxy consent defect, and that defect is invisible in a React-only test suite.
+## Signed bridge invariants
 
-## What is genuinely open
+The server signs RFC 8785/JCS-style canonical claims using P-256 ECDSA. The
+claims bind contract, audience, session, catalog stage/digest, time bounds,
+nonce, response, required turn, and ordered calls. The browser strictly parses
+the flattened envelope, verifies ES256 and the selected key, consumes the
+replay key, re-resolves live catalog state, serializes dispatch, presents
+failure outcomes, and returns correlated rows.
 
-One blocker, in `.planning/STATE.md`:
+Do not weaken a rejection into a retry through unsigned data. Keep private keys
+server-only. `createTestMemoryReplayStore()` is explicitly test-only and never
+a production fallback; production examples use IndexedDB or an
+application-supplied stronger store.
 
-- **Core as `peerDependency` of adapters.** Structurally forces a single core instance, which matters here because a split instance splits the safety kernel. Diverges from the dominant ecosystem pattern (TanStack does the opposite). Expensive to reverse after publish, so it blocks Phase 2.
+## Live release authority
 
-Lower-stakes open items are listed in `.planning/PROJECT.md` under Key Decisions, marked ⚠️.
+- `.release/lines/0.2.json` — strict package set, contract, destination,
+  compatibility, Node, and content-addressed npm identity.
+- `scripts/release/config.mjs` — strict parser and shared invariants.
+- `scripts/release/check.mjs` — source/workflow/fixed-trio gate.
+- `scripts/release/version.mjs` — Changesets wrapper and peer normalization.
+- `scripts/release/package.mjs` — build-once exact archive export.
+- `scripts/release/compatibility.mjs` — AI 6/7, React 18/19, Svelte 5
+  minimum/current, strict-type, single-core, ESM SSR, and same-source Next
+  foreign consumers.
+- `scripts/release/seal.mjs` — clean-checkout independent content seal.
+- `scripts/release/publisher.mjs` — OIDC-only, provenance-verifying,
+  safely-resumable publisher.
+- `.github/workflows/release.yml` — privilege-separated version, verify, seal,
+  sealed-archive Chromium/Firefox/WebKit, and protected publish jobs.
 
-## Start here
+The historical `scripts/phase-09-*` files and `.planning` receipts are frozen.
+A new release must create new exact-SHA evidence from the final tracked commit;
+the v0.1 receipt does not authorize later source.
 
+## Before handing off another release candidate
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build
+pnpm typecheck
+pnpm test
+pnpm --filter @fullselfbrowsing/concierge-example-next-ai-sdk build
+
+node scripts/release/version.mjs self-test
+node scripts/release/package.mjs self-test
+node scripts/release/compatibility.mjs self-test
+node scripts/release/seal.mjs self-test
+node scripts/release/publisher.mjs self-test
+node scripts/release/check.mjs all
 ```
-/gsd-discuss-phase 1
-```
 
-`auto_advance` is off, so nothing proceeds on its own. Phases 1 and 2 are disjoint (types versus build config) and can run in parallel.
+Then confirm the Changesets fixed group is the exact trio, the worktree is
+clean, repository URLs preserve `fullselfbrowsing/Concierge` case, and npm's
+three trusted-publisher records name `release.yml` plus `npm-production`.
 
-Phase 8 — the consent kernel — is flagged **research before planning**. It is the milestone's reason to exist and has no prior art in any shipping competitor or spec.
+## Known limitations
 
-## Traps
-
-Findings that will cost a day each if rediscovered:
-
-- **A `z.discriminatedUnion` at a schema root emits `{oneOf: []}` with no root `type`.** OpenAI Realtime then rejects the *entire* session update, and the agent silently loses every action in that stage while apologizing that it cannot do that here. Flat object plus `superRefine` instead. CAT-02 makes this a build-time throw.
-- **Validator documentation lies.** standardschema.dev claims Valibot v1.2+ implements `~standard.jsonSchema`; valibot@1.4.2 as published does not. Probe the installed package, never the docs site. This is why the `jsonSchema?` escape hatch exists.
-- **Svelte `$state` returns a Proxy.** A consent snapshot stored at review time would be a *live view* that mutates with the app, turning "any drift destroys consent" into "there is never any drift" — a gate that passes unconditionally while appearing to work. `structuredClone` is not a fix; it throws `DataCloneError` on proxies. Hence `SnapshotNormalizer`.
-- **`registerHandler` is same-origin and live.** Any analytics tag or transitive dependency can overwrite a destructive action. SEC-03 freezes the registry after build.
-- **Client-side consent is an assertion, not proof.** There is no token scoping an in-page action, so every call carries the human's full ambient session authority. The server must re-verify. Server verification is v2, so v0.1 documents the limit rather than overstating what it proves.
-- **Adapters that grow past their budget mean logic leaked out of core.** Better Auth ships adapters at 17–65 LOC. Zag.js runs ~600 because each adapter re-runs the state machine interpreter. If an adapter contains a loop, a scheduler, or a state transition, push it down.
-
-## Do not
-
-- Add a chat UI, an agent loop, or generative-UI `render` props on actions. All three are recorded as out of scope with reasons in `.planning/REQUIREMENTS.md`.
-- Compete with [WebMCP](https://github.com/webmachinelearning/webmcp). It is standardizing tool registration into the browser and is treated here as a *transport*.
-- Reintroduce voice as an organizing concept. It is one transport among several, and the contract has been corrected twice for drifting back toward it.
-- Claim `@copilotkit/core` is not SSR-safe. It is plausible but untested — do not publish that comparison without an actual import test.
-
-## Provenance
-
-The design is extracted from a shipped production system: 28 actions across 6 stages, with its own drift between planning record and implementation documented. Concierge is the generic portion — the concurrency, cancellation, dedup, and consent semantics.
-
-Two claims in early planning were later proven false by research and are recorded in `.planning/PROJECT.md` rather than deleted, because both flattered this project: Vercel AI SDK does have client actuation and a consent story (`needsApproval`, optional `execute`), and OpenAI Agents JS is closer to this design than assumed. **We are hardening a known failure mode, not discovering one.**
+- 0.2 is public preview, not a commercial-SLA release.
+- The signed bridge authenticates server admission of a browser batch; it does
+  not authorize protected server effects or repair XSS.
+- Edge runtime is not in the 0.2 Next matrix.
+- Live model-provider calls are intentionally outside release authorization.
+- Only the latest 0.2 patch is maintained under [SUPPORT.md](./SUPPORT.md).

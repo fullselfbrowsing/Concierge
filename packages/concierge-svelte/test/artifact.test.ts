@@ -110,9 +110,7 @@ describe("the built @fullselfbrowsing/concierge-svelte entries", () => {
     expect(JSON.stringify(manifest)).not.toContain("tsdown");
     expect(manifest.dependencies?.["@fullselfbrowsing/concierge"]).toBeUndefined();
     expect(manifest.peerDependencies["@fullselfbrowsing/concierge"]).toBe(
-      manifest.version === "0.0.0"
-        ? "workspace:^0.0.0 || ^0.1.0"
-        : "workspace:^",
+      "workspace:^",
     );
     expect(Object.keys(rootConditions)).toEqual([
       "types",
@@ -186,7 +184,7 @@ describe("the built @fullselfbrowsing/concierge-svelte entries", () => {
       "upgrade or reinstall",
       "registry.register(bridge)",
     ]);
-    expect(clientSource).toMatch(/EXPECTED_CONTRACT_VERSION\s*=\s*1\b/u);
+    expect(clientSource).toMatch(/EXPECTED_CONTRACT_VERSION\s*=\s*2\b/u);
 
     expect(adapterSource).toContain("return $state.snapshot(value);");
     expect(adapterSource).not.toMatch(/\b(?:as|any)\b/u);

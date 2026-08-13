@@ -3,6 +3,7 @@ name: release
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -11,10 +12,13 @@ concurrency:
 permissions: {}
 
 jobs:
-  prepare:
+  version:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
+      pull-requests: write
+    outputs:
+      hasChangesets: ${{ steps.changesets.outputs.hasChangesets }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
         with:
@@ -29,89 +33,23 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      - name: Assert credential-free version preparation
-        run: |
-          test -z "${GITHUB_TOKEN:-}"
-          test -z "${GH_TOKEN:-}"
-          test -z "${NODE_AUTH_TOKEN:-}"
-          test -z "${NPM_TOKEN:-}"
-          test ! -e "$HOME/.netrc"
-
-      - name: Assert pinned package tooling
-        run: |
-          npm install -g npm@11.11.0
-          test "$(npm --version)" = "11.11.0"
-
       - run: pnpm install --frozen-lockfile
 
-      - name: Allocate the empty version artifact directory
+      - name: Validate the version-neutral release policy
         run: |
-          test ! -e "${{ runner.temp }}/phase09-version-artifact"
-          mkdir "${{ runner.temp }}/phase09-version-artifact"
+          node scripts/release/check.mjs source
+          node scripts/release/version.mjs self-test
+          node scripts/release/package.mjs self-test
+          node scripts/release/seal.mjs self-test
+          node scripts/release/publisher.mjs self-test
 
-      - name: Prepare the semantic-only version calculation
-        env:
-          PHASE09_BASE_SHA: ${{ github.sha }}
-          PHASE09_REPOSITORY: ${{ github.repository }}
-          PHASE09_RUN_ID: ${{ github.run_id }}
-          PHASE09_RUN_ATTEMPT: ${{ github.run_attempt }}
-          PHASE09_VERSION_ARTIFACT_NAME: phase09-version-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-        run: >-
-          node scripts/phase-09-version.mjs prepare
-          "${{ runner.temp }}/phase09-version-artifact"
-
-      - name: Reassert credential-free preparation
-        run: |
-          test -z "${GITHUB_TOKEN:-}"
-          test -z "${GH_TOKEN:-}"
-          test -z "${NODE_AUTH_TOKEN:-}"
-          test -z "${NPM_TOKEN:-}"
-          test ! -e "$HOME/.netrc"
-
-      - name: Upload the exact hash-manifested version artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: phase09-version-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: |
-            ${{ runner.temp }}/phase09-version-artifact/phase-09-version-artifact.json
-            ${{ runner.temp }}/phase09-version-artifact/blobs
-          if-no-files-found: error
-
-  version:
-    needs: prepare
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    outputs:
-      hasChangesets: ${{ steps.changesets.outputs.hasChangesets }}
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-          ref: ${{ github.sha }}
-
-      - name: Download the exact prepared version artifact
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: phase09-version-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: ${{ runner.temp }}/phase09-version-artifact
-
-      - name: Open or update the prepared Version Packages PR
+      - name: Open or update the fixed-trio Version Packages PR
         id: changesets
         uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
         with:
-          version: >-
-            node scripts/phase-09-version.mjs apply
-            "${{ runner.temp }}/phase09-version-artifact"
+          version: node scripts/release/version.mjs apply
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PHASE09_BASE_SHA: ${{ github.sha }}
-          PHASE09_REPOSITORY: ${{ github.repository }}
-          PHASE09_RUN_ID: ${{ github.run_id }}
-          PHASE09_RUN_ATTEMPT: ${{ github.run_attempt }}
-          PHASE09_VERSION_ARTIFACT_NAME: phase09-version-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
 
   verify:
     needs: version
@@ -133,186 +71,66 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      - name: Assert pinned package tooling
-        run: |
-          npm install -g npm@11.11.0
-          test "$(npm --version)" = "11.11.0"
-
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm run check:artifact
-      - run: pnpm run check:deps
-      - run: pnpm run check:pack
-      - run: pnpm run check:node-floor
 
-      - name: Allocate the empty Phase 09 archive export
+      - name: Validate, build, typecheck, and test the release source
         run: |
-          test ! -e "${{ runner.temp }}/phase09-archives"
-          mkdir "${{ runner.temp }}/phase09-archives"
+          npm install -g npm@11.19.0
+          test "$(npm --version)" = "11.19.0"
+          node scripts/release/check.mjs all
+          node scripts/release/compatibility.mjs self-test
+          pnpm build
+          pnpm typecheck
+          pnpm test
+          pnpm --filter @fullselfbrowsing/concierge-example-next-ai-sdk build
 
-      - name: Verify and export the same-revision Phase 09 release inputs
-        run: pnpm run check:phase09:release
-        env:
-          PHASE09_ARCHIVE_EXPORT_DIR: ${{ runner.temp }}/phase09-archives
+      - name: Allocate exact release inputs
+        run: |
+          test ! -e "${{ runner.temp }}/release-input"
+          mkdir -p "${{ runner.temp }}/release-input/archives"
+          mkdir "${{ runner.temp }}/release-input/npm"
 
-      - name: Require publish-authorizing evidence for the exact archive export
+      - name: Certify exact archives with dependency, Publint, and ATTW gates
         run: >-
-          node scripts/phase-09-mutation-battery.mjs verify publish
-          "${{ runner.temp }}/phase09-archives"
+          node scripts/release/package.mjs export
+          "${{ runner.temp }}/release-input/archives"
 
-      - name: Resolve the exact checked Phase 09 archives
-        id: phase09-archives
-        env:
-          PHASE09_CHECKED_ARCHIVE_DIR: ${{ runner.temp }}/phase09-archives
+      - name: Exercise AI SDK 6 and 7 against the exact archives
+        run: >-
+          node scripts/release/compatibility.mjs
+          "${{ runner.temp }}/release-input/archives"
+
+      - name: Fetch the content-addressed publisher npm CLI
+        working-directory: ${{ runner.temp }}/release-input/npm
         run: |
+          npm pack npm@11.19.0 --ignore-scripts
+          test -f npm-11.19.0.tgz
           node --input-type=module <<'NODE'
-          import {
-            appendFileSync,
-            lstatSync,
-            readFileSync,
-            readdirSync,
-            realpathSync,
-          } from "node:fs";
-          import { basename, join, normalize, resolve } from "node:path";
-
-          const configured = process.env.PHASE09_CHECKED_ARCHIVE_DIR;
-          const directory = realpathSync(configured);
-          if (directory !== normalize(resolve(configured))) {
-            throw new Error("checked archive directory is not normalized");
-          }
-          const manifestName = "phase-09-archive-digests.json";
-          const manifestPath = join(directory, manifestName);
-          const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-          const packages = [
-            ["core", "@fullselfbrowsing/concierge"],
-            ["react", "@fullselfbrowsing/concierge-react"],
-            ["svelte", "@fullselfbrowsing/concierge-svelte"],
-          ];
-          if (
-            manifest.schemaVersion !== 1 ||
-            manifest.algorithm !== "sha256" ||
-            JSON.stringify(Object.keys(manifest.archives ?? {}).sort()) !==
-              JSON.stringify(packages.map((entry) => entry[1]).sort())
-          ) {
-            throw new Error("checked archive digest manifest is malformed");
-          }
-          const expectedEntries = [manifestName];
-          const outputs = [];
-          for (const [key, packageName] of packages) {
-            const record = manifest.archives[packageName];
-            if (
-              Object.keys(record ?? {}).sort().join(",") !== "file,sha256" ||
-              typeof record.file !== "string" ||
-              basename(record.file) !== record.file ||
-              !record.file.endsWith(".tgz") ||
-              !/^[0-9a-f]{64}$/u.test(record.sha256)
-            ) {
-              throw new Error(`invalid archive record: ${packageName}`);
-            }
-            const archivePath = join(directory, record.file);
-            const metadata = lstatSync(archivePath);
-            if (!metadata.isFile() || metadata.size <= 0 || realpathSync(archivePath) !== archivePath) {
-              throw new Error(`checked archive path changed: ${record.file}`);
-            }
-            expectedEntries.push(record.file);
-            outputs.push(`${key}=${archivePath}`);
-          }
-          if (
-            JSON.stringify(readdirSync(directory).sort()) !==
-            JSON.stringify(expectedEntries.sort())
-          ) {
-            throw new Error("checked archive directory is not exact");
-          }
-          outputs.push(`manifest=${manifestPath}`);
-          appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join("\n")}\n`);
-          NODE
-
-      - name: Exercise sealed and resumable publisher controls without publishing
-        run: node scripts/phase-09-publish-archives.mjs self-test
-
-      - name: Prepare the content-addressed publisher toolchain
-        id: phase09-tools
-        run: |
-          test ! -e "${{ runner.temp }}/phase09-publish-tools"
-          mkdir "${{ runner.temp }}/phase09-publish-tools"
-          cp scripts/phase-09-publish-archives.mjs "${{ runner.temp }}/phase09-publish-tools/phase-09-publish-archives.mjs"
-          curl --fail --location --proto '=https' --tlsv1.2 \
-            --output "${{ runner.temp }}/phase09-publish-tools/npm-11.11.0.tgz" \
-            https://registry.npmjs.org/npm/-/npm-11.11.0.tgz
-          PHASE09_TOOL_DIR="${{ runner.temp }}/phase09-publish-tools" node --input-type=module <<'NODE'
           import { createHash } from "node:crypto";
-          import {
-            appendFileSync,
-            lstatSync,
-            readFileSync,
-            readdirSync,
-            realpathSync,
-          } from "node:fs";
-          import { join } from "node:path";
-
-          const directory = realpathSync(process.env.PHASE09_TOOL_DIR);
-          const publisher = join(directory, "phase-09-publish-archives.mjs");
-          const npm = join(directory, "npm-11.11.0.tgz");
-          if (
-            JSON.stringify(readdirSync(directory).sort()) !==
-              JSON.stringify(["npm-11.11.0.tgz", "phase-09-publish-archives.mjs"])
-          ) {
-            throw new Error("publisher tool directory is not exact");
-          }
-          for (const path of [publisher, npm]) {
-            const metadata = lstatSync(path);
-            if (!metadata.isFile() || metadata.size <= 0 || realpathSync(path) !== path) {
-              throw new Error(`publisher tool is not a regular file: ${path}`);
-            }
-          }
-          const publisherDigest = createHash("sha256")
-            .update(readFileSync(publisher))
-            .digest("hex");
-          const npmIntegrity = `sha512-${createHash("sha512")
-            .update(readFileSync(npm))
+          import { readFileSync } from "node:fs";
+          const integrity = `sha512-${createHash("sha512")
+            .update(readFileSync("npm-11.19.0.tgz"))
             .digest("base64")}`;
-          if (publisherDigest !== "f5926fa197e8f31cded9de3d6710649d0151697125c8a227da5ce736c06b24a9") {
-            throw new Error("publisher source digest drifted");
+          if (integrity !== "sha512-SDd/hHg3KqHE5Ht2NHWxNYNtqCQ2pXAPLl6OtQhPyED5PHsRfrOtO199MZTIG2cQoQ1ZRI9t28shrD+2cr3AAw==") {
+            throw new Error("npm 11.19.0 integrity drifted");
           }
-          if (npmIntegrity !== "sha512-82gRxKrh/eY5UnNorkTFcdBQAGpgjWehkfGVqAGlJjejEtJZGGJUqjo3mbBTNbc5BTnPKGVtGPBZGhElujX5cw==") {
-            throw new Error("npm 11.11.0 integrity drifted");
-          }
-          appendFileSync(
-            process.env.GITHUB_OUTPUT,
-            `publisher=${publisher}\nnpm=${npm}\n`,
-          );
           NODE
 
-      - name: Upload the untrusted exact archive export
+      - name: Upload the exact untrusted release inputs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: phase09-untrusted-archives-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: |
-            ${{ steps.phase09-archives.outputs.core }}
-            ${{ steps.phase09-archives.outputs.react }}
-            ${{ steps.phase09-archives.outputs.svelte }}
-            ${{ steps.phase09-archives.outputs.manifest }}
+          name: release-input-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          path: ${{ runner.temp }}/release-input
           if-no-files-found: error
-
-      - name: Upload the exact publisher toolchain
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: phase09-publisher-tools-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: |
-            ${{ steps.phase09-tools.outputs.publisher }}
-            ${{ steps.phase09-tools.outputs.npm }}
-          if-no-files-found: error
+          retention-days: 7
 
   seal:
     needs: verify
-    if: ${{ needs.verify.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
-      sealedArtifact: ${{ steps.phase09-seal.outputs.artifact }}
+      sealedArtifact: ${{ steps.names.outputs.sealedArtifact }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
         with:
@@ -320,339 +138,112 @@ jobs:
           persist-credentials: false
           ref: ${{ github.sha }}
 
-      - name: Download the untrusted exact archive export
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Resolve exact artifact identities
+        id: names
+        run: |
+          echo "sealedArtifact=release-sealed-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Download the untrusted release inputs
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: phase09-untrusted-archives-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: ${{ runner.temp }}/phase09-untrusted-archives
+          name: release-input-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          path: ${{ runner.temp }}/release-input
 
-      - name: Independently seal tracked release evidence and archive bytes
-        id: phase09-seal
-        env:
-          PHASE09_ARCHIVE_DIR: ${{ runner.temp }}/phase09-untrusted-archives
-          PHASE09_SEALED_DIR: ${{ runner.temp }}/phase09-sealed-release
-          PHASE09_REPOSITORY: ${{ github.repository }}
-          PHASE09_RUN_ID: ${{ github.run_id }}
-          PHASE09_RUN_ATTEMPT: ${{ github.run_attempt }}
-          PHASE09_COMMIT: ${{ github.sha }}
-          PHASE09_SOURCE_REF: refs/heads/main
-          PHASE09_WORKFLOW_PATH: .github/workflows/release.yml
-          PHASE09_INPUT_ARTIFACT: phase09-untrusted-archives-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+      - name: Allocate the sealed output
         run: |
-          node --input-type=module <<'NODE'
-          import { spawnSync } from "node:child_process";
-          import { createHash } from "node:crypto";
-          import {
-            appendFileSync,
-            copyFileSync,
-            existsSync,
-            lstatSync,
-            mkdirSync,
-            readFileSync,
-            readdirSync,
-            realpathSync,
-            writeFileSync,
-          } from "node:fs";
-          import { basename, join, normalize, resolve } from "node:path";
+          test ! -e "${{ runner.temp }}/release-sealed"
+          mkdir "${{ runner.temp }}/release-sealed"
 
-          const packages = [
-            "@fullselfbrowsing/concierge",
-            "@fullselfbrowsing/concierge-react",
-            "@fullselfbrowsing/concierge-svelte",
-          ];
-          const stableJson = (value) => {
-            if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-            if (value !== null && typeof value === "object") {
-              return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
-            }
-            return JSON.stringify(value);
-          };
-          const hash = (algorithm, value, encoding = "hex") =>
-            createHash(algorithm).update(value).digest(encoding);
-          const exactKeys = (value, expected, label) => {
-            if (
-              value === null || typeof value !== "object" || Array.isArray(value) ||
-              JSON.stringify(Object.keys(value).sort()) !== JSON.stringify([...expected].sort())
-            ) throw new Error(`${label} keys drifted`);
-          };
-          const head = spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" });
-          if (
-            head.error !== undefined || head.signal !== null || head.status !== 0 ||
-            head.stdout.trim() !== process.env.PHASE09_COMMIT
-          ) throw new Error("sealer checkout does not equal github.sha");
-          if (
-            process.env.GITHUB_TOKEN || process.env.GH_TOKEN ||
-            process.env.NODE_AUTH_TOKEN || process.env.NPM_TOKEN
-          ) throw new Error("sealer received a write or registry token");
+      - name: Independently seal source policy, tools, and archive bytes
+        env:
+          RELEASE_INPUT_ARTIFACT: release-input-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          RELEASE_OUTPUT_ARTIFACT: release-sealed-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+        run: >-
+          node scripts/release/seal.mjs seal
+          "${{ runner.temp }}/release-input/archives"
+          "${{ runner.temp }}/release-input/npm/npm-11.19.0.tgz"
+          "${{ runner.temp }}/release-sealed"
 
-          const runAttempt = Number(process.env.PHASE09_RUN_ATTEMPT);
-          if (!Number.isSafeInteger(runAttempt) || runAttempt <= 0) {
-            throw new Error("sealer run attempt is not a positive integer");
-          }
-          const receiptPath = realpathSync(
-            ".planning/phases/09-react-and-svelte-adapters/09-VERSION-RECEIPT.json",
-          );
-          const receiptBytes = readFileSync(receiptPath);
-          const receipt = JSON.parse(receiptBytes.toString("utf8"));
-          exactKeys(receipt, [
-            "schemaVersion", "phase", "baseSha", "repository", "runId",
-            "runAttempt", "artifactName", "artifactDigest", "sharedVersion",
-            "consumedChangesets", "finalDigests", "contentDigest",
-          ], "version receipt");
-          const { contentDigest: receiptDigest, ...receiptBody } = receipt;
-          const expectedReceiptArtifact =
-            `phase09-version-${receipt.runId}-${receipt.runAttempt}-${receipt.baseSha}`;
-          if (
-            receipt.schemaVersion !== 1 ||
-            receipt.phase !== "09-react-and-svelte-adapters" ||
-            receipt.repository !== process.env.PHASE09_REPOSITORY ||
-            !/^[0-9a-f]{40}$/u.test(receipt.baseSha) ||
-            !/^[1-9]\d*$/u.test(receipt.runId) ||
-            !Number.isSafeInteger(receipt.runAttempt) || receipt.runAttempt <= 0 ||
-            receipt.artifactName !== expectedReceiptArtifact ||
-            !/^[0-9a-f]{64}$/u.test(receipt.artifactDigest) ||
-            !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(receipt.sharedVersion) ||
-            receipt.sharedVersion === "0.0.0" ||
-            !/^[0-9a-f]{64}$/u.test(receiptDigest) ||
-            hash("sha256", stableJson(receiptBody)) !== receiptDigest
-          ) throw new Error("tracked version receipt is malformed or stale");
-          const receiptAncestor = spawnSync(
-            "git",
-            ["merge-base", "--is-ancestor", receipt.baseSha, "HEAD"],
-            { encoding: "utf8" },
-          );
-          if (
-            receiptAncestor.error !== undefined || receiptAncestor.signal !== null ||
-            receiptAncestor.status !== 0
-          ) throw new Error("version receipt base is not an ancestor of the release commit");
-          const finalDigestPaths = [
-            "packages/concierge/package.json",
-            "packages/concierge-react/package.json",
-            "packages/concierge-svelte/package.json",
-            "pnpm-lock.yaml",
-          ];
-          exactKeys(receipt.finalDigests, finalDigestPaths, "version receipt final digests");
-          for (const path of finalDigestPaths) {
-            if (
-              !/^[0-9a-f]{64}$/u.test(receipt.finalDigests[path]) ||
-              hash("sha256", readFileSync(path)) !== receipt.finalDigests[path]
-            ) throw new Error(`version receipt final digest is stale: ${path}`);
-          }
-          const trackedManifests = finalDigestPaths.slice(0, 3).map((path) =>
-            JSON.parse(readFileSync(path, "utf8")),
-          );
-          if (
-            trackedManifests.map((manifest) => manifest.name).join("\n") !== packages.join("\n") ||
-            !trackedManifests.every((manifest) => manifest.version === receipt.sharedVersion) ||
-            !trackedManifests.slice(1).every(
-              (manifest) => manifest.peerDependencies?.[packages[0]] === "workspace:^",
-            )
-          ) throw new Error("tracked manifests differ from the version receipt");
-          if (
-            !Array.isArray(receipt.consumedChangesets) ||
-            receipt.consumedChangesets.length === 0
-          ) throw new Error("version receipt consumed no changeset");
-          const seenChangesets = new Set();
-          for (const record of receipt.consumedChangesets) {
-            exactKeys(record, ["path", "sha256"], "consumed changeset");
-            const base = spawnSync(
-              "git",
-              ["show", `${receipt.baseSha}:${record.path}`],
-              { encoding: null },
-            );
-            if (
-              !/^\.changeset\/[^/]+\.md$/u.test(record.path) ||
-              !/^[0-9a-f]{64}$/u.test(record.sha256) ||
-              seenChangesets.has(record.path) || existsSync(record.path) ||
-              base.error !== undefined || base.signal !== null || base.status !== 0 ||
-              hash("sha256", base.stdout) !== record.sha256
-            ) throw new Error("version receipt changeset identity is stale or duplicated");
-            seenChangesets.add(record.path);
-          }
-
-          const evidencePath = realpathSync(
-            ".planning/phases/09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json",
-          );
-          const evidenceBytes = readFileSync(evidencePath);
-          const evidence = JSON.parse(evidenceBytes.toString("utf8"));
-          const { contentDigest, ...evidenceBody } = evidence;
-          if (
-            evidence.schemaVersion !== 1 ||
-            evidence.phase !== "09-react-and-svelte-adapters" ||
-            evidence.mode !== "versioned" ||
-            evidence.releaseAuthorization !== true ||
-            evidence.runAttempt !== receipt.runAttempt ||
-            !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(evidence.sharedVersion) ||
-            evidence.sharedVersion === "0.0.0" ||
-            !Array.isArray(evidence.consumedChangesets) ||
-            evidence.consumedChangesets.length === 0 ||
-            evidence.sharedVersion !== receipt.sharedVersion ||
-            stableJson(evidence.consumedChangesets) !== stableJson(receipt.consumedChangesets) ||
-            !/^[0-9a-f]{64}$/u.test(contentDigest) ||
-            hash("sha256", stableJson(evidenceBody)) !== contentDigest
-          ) throw new Error("tracked release evidence is not sealed versioned authorization");
-          exactKeys(evidence.versionReceipt, [
-            "path", "sha256", "baseSha", "repository", "runId", "runAttempt",
-            "artifactName",
-          ], "release evidence version receipt binding");
-          const expectedReceiptBinding = {
-            path: ".planning/phases/09-react-and-svelte-adapters/09-VERSION-RECEIPT.json",
-            sha256: hash("sha256", receiptBytes),
-            baseSha: receipt.baseSha,
-            repository: receipt.repository,
-            runId: receipt.runId,
-            runAttempt: receipt.runAttempt,
-            artifactName: receipt.artifactName,
-          };
-          if (stableJson(evidence.versionReceipt) !== stableJson(expectedReceiptBinding)) {
-            throw new Error("release evidence differs from the apply-derived version receipt");
-          }
-          exactKeys(evidence.archives, packages, "tracked release archives");
-
-          const configured = process.env.PHASE09_ARCHIVE_DIR;
-          const directory = realpathSync(configured);
-          if (directory !== normalize(resolve(configured))) {
-            throw new Error("untrusted archive directory is not normalized");
-          }
-          const localManifestName = "phase-09-archive-digests.json";
-          const localManifest = JSON.parse(
-            readFileSync(join(directory, localManifestName), "utf8"),
-          );
-          if (
-            localManifest.schemaVersion !== 1 ||
-            localManifest.algorithm !== "sha256" ||
-            stableJson(localManifest.archives) !== stableJson(evidence.archives)
-          ) throw new Error("untrusted local manifest differs from tracked release evidence");
-          const expectedEntries = [localManifestName];
-          const archives = {};
-          for (const name of packages) {
-            const record = evidence.archives[name];
-            exactKeys(record, ["file", "sha256"], `${name} release archive`);
-            const expectedFile = `${name.replace(/^@/u, "").replace("/", "-")}-${evidence.sharedVersion}.tgz`;
-            if (
-              record.file !== expectedFile || basename(record.file) !== record.file ||
-              !/^[0-9a-f]{64}$/u.test(record.sha256)
-            ) throw new Error(`${name} tracked archive identity is malformed`);
-            const path = join(directory, record.file);
-            const metadata = lstatSync(path);
-            const bytes = readFileSync(path);
-            if (
-              !metadata.isFile() || metadata.size <= 0 || realpathSync(path) !== path ||
-              hash("sha256", bytes) !== record.sha256
-            ) throw new Error(`${name} archive differs from tracked release evidence`);
-            const tar = spawnSync("tar", ["-xOzf", path, "package/package.json"], {
-              encoding: "utf8",
-            });
-            if (tar.error !== undefined || tar.signal !== null || tar.status !== 0) {
-              throw new Error(`${name} archive manifest is unreadable`);
-            }
-            const manifest = JSON.parse(tar.stdout);
-            const expectedDirectory = `packages/${name.split("/").at(-1)}`;
-            exactKeys(manifest.publishConfig, ["access"], `${name} publishConfig`);
-            exactKeys(
-              manifest.repository,
-              ["type", "url", "directory"],
-              `${name} repository`,
-            );
-            if (
-              manifest.name !== name || manifest.version !== evidence.sharedVersion ||
-              manifest.private === true || manifest.publishConfig.access !== "public" ||
-              manifest.repository.type !== "git" ||
-              manifest.repository.url !==
-                "git+https://github.com/fullselfbrowsing/concierge.git" ||
-              manifest.repository.directory !== expectedDirectory
-            ) throw new Error(`${name} archive package/publish/repository identity drifted`);
-            archives[name] = {
-              file: record.file,
-              sha256: record.sha256,
-              integrity: `sha512-${hash("sha512", bytes, "base64")}`,
-            };
-            expectedEntries.push(record.file);
-          }
-          if (
-            stableJson(readdirSync(directory).sort()) !== stableJson(expectedEntries.sort())
-          ) throw new Error("untrusted archive export is not exact");
-
-          const outputDirectory = resolve(process.env.PHASE09_SEALED_DIR);
-          mkdirSync(outputDirectory);
-          for (const record of Object.values(archives)) {
-            copyFileSync(join(directory, record.file), join(outputDirectory, record.file));
-          }
-          const identity = {
-            schemaVersion: 1,
-            mode: "versioned",
-            releaseAuthorization: true,
-            repository: process.env.PHASE09_REPOSITORY,
-            runId: process.env.PHASE09_RUN_ID,
-            runAttempt,
-            commit: process.env.PHASE09_COMMIT,
-            sourceRef: process.env.PHASE09_SOURCE_REF,
-            workflowPath: process.env.PHASE09_WORKFLOW_PATH,
-            inputArtifact: process.env.PHASE09_INPUT_ARTIFACT,
-            versionReceiptSha256: hash("sha256", receiptBytes),
-            releaseEvidenceSha256: hash("sha256", evidenceBytes),
-            sharedVersion: evidence.sharedVersion,
-            consumedChangesets: evidence.consumedChangesets,
-            archives,
-          };
-          const sealId = hash("sha256", stableJson(identity));
-          const body = {
-            ...identity,
-            outputArtifact: `phase09-sealed-release-${runAttempt}-${sealId}`,
-            sealId,
-          };
-          const seal = {
-            ...body,
-            contentDigest: hash("sha256", stableJson(body)),
-          };
-          const sealPath = join(outputDirectory, "phase-09-release-seal.json");
-          writeFileSync(sealPath, `${JSON.stringify(seal, null, 2)}\n`, { flag: "wx" });
-          if (readdirSync(outputDirectory).length !== 4) {
-            throw new Error("sealed release artifact is not exact");
-          }
-          appendFileSync(
-            process.env.GITHUB_OUTPUT,
-            `artifact=${seal.outputArtifact}\nseal=${sealPath}\n` +
-              `core=${join(outputDirectory, archives[packages[0]].file)}\n` +
-              `react=${join(outputDirectory, archives[packages[1]].file)}\n` +
-              `svelte=${join(outputDirectory, archives[packages[2]].file)}\n`,
-          );
-          NODE
-
-      - name: Upload the independently sealed release artifact
+      - name: Upload the independently sealed release
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ${{ steps.phase09-seal.outputs.artifact }}
-          path: |
-            ${{ steps.phase09-seal.outputs.seal }}
-            ${{ steps.phase09-seal.outputs.core }}
-            ${{ steps.phase09-seal.outputs.react }}
-            ${{ steps.phase09-seal.outputs.svelte }}
+          name: ${{ steps.names.outputs.sealedArtifact }}
+          path: ${{ runner.temp }}/release-sealed
           if-no-files-found: error
+          retention-days: 7
 
-  publish:
+  browser_e2e:
     needs: seal
-    if: ${{ needs.seal.result == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     permissions:
-      id-token: write
+      contents: read
     steps:
-      - name: Download the independently sealed release artifact
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.1.0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Download the independently sealed release
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: ${{ needs.seal.outputs.sealedArtifact }}
-          path: ${{ runner.temp }}/phase09-sealed-release
+          path: ${{ runner.temp }}/release-sealed
 
-      - name: Download the content-addressed publisher toolchain
+      - name: Install the exact trio into an isolated example
+        run: |
+          npm install --global npm@11.19.0
+          test "$(npm --version)" = "11.19.0"
+          test ! -e "${{ runner.temp }}/release-example"
+          node scripts/release/compatibility.mjs prepare-sealed-example \
+            "${{ runner.temp }}/release-sealed" \
+            "${{ runner.temp }}/release-example"
+
+      - name: Install Chromium, Firefox, and WebKit
+        working-directory: ${{ runner.temp }}/release-example
+        run: ./node_modules/.bin/playwright install --with-deps chromium firefox webkit
+
+      - name: Exercise the signed bridge in every release browser
+        working-directory: ${{ runner.temp }}/release-example
+        env:
+          CONCIERGE_RELEASE_BROWSERS: "1"
+        run: npm run test:e2e
+
+  publish:
+    needs: [seal, browser_e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm-production
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Download the independently sealed release
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: phase09-publisher-tools-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          path: ${{ runner.temp }}/phase09-publish-tools
+          name: ${{ needs.seal.outputs.sealedArtifact }}
+          path: ${{ runner.temp }}/release-sealed
 
-      - name: Verify and unpack the content-addressed npm CLI
+      - name: Verify the sealed launcher and unpack pinned npm
         env:
-          PHASE09_TOOL_DIR: ${{ runner.temp }}/phase09-publish-tools
+          RELEASE_SEALED_DIR: ${{ runner.temp }}/release-sealed
+          RELEASE_OUTPUT_ARTIFACT: ${{ needs.seal.outputs.sealedArtifact }}
         run: |
           node --input-type=module <<'NODE'
           import { createHash } from "node:crypto";
@@ -667,116 +258,84 @@ jobs:
           } from "node:fs";
           import { join, normalize, resolve } from "node:path";
 
-          const configured = process.env.PHASE09_TOOL_DIR;
-          const [nodeMajor, nodeMinor] = process.versions.node
-            .split(".")
-            .slice(0, 2)
-            .map(Number);
-          if (nodeMajor < 22 || (nodeMajor === 22 && nodeMinor < 14)) {
-            throw new Error(`publisher Node is below 22.14.0: ${process.version}`);
-          }
-          const directory = realpathSync(configured);
-          if (directory !== normalize(resolve(configured))) {
-            throw new Error("publisher tool directory is not normalized");
-          }
-          if (
-            JSON.stringify(readdirSync(directory).sort()) !==
-              JSON.stringify(["npm-11.11.0.tgz", "phase-09-publish-archives.mjs"])
-          ) {
-            throw new Error("downloaded publisher tool directory is not exact");
-          }
-          const publisher = join(directory, "phase-09-publish-archives.mjs");
-          const npmArchive = join(directory, "npm-11.11.0.tgz");
-          for (const path of [publisher, npmArchive]) {
-            const metadata = lstatSync(path);
-            if (!metadata.isFile() || metadata.size <= 0 || realpathSync(path) !== path) {
-              throw new Error(`downloaded publisher tool is invalid: ${path}`);
+          const stableJson = (value) => {
+            if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+            if (value !== null && typeof value === "object") {
+              return `{${Object.keys(value).sort().map((key) =>
+                `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
             }
+            return JSON.stringify(value);
+          };
+          const sha256 = (value) => createHash("sha256").update(value).digest("hex");
+          const integrity = (path) => `sha512-${createHash("sha512")
+            .update(readFileSync(path)).digest("base64")}`;
+          const directory = realpathSync(process.env.RELEASE_SEALED_DIR);
+          if (directory !== normalize(resolve(process.env.RELEASE_SEALED_DIR))) {
+            throw new Error("sealed release directory is not normalized");
           }
+          const seal = JSON.parse(readFileSync(join(directory, "release-seal.json"), "utf8"));
+          const { contentDigest, ...body } = seal;
           if (
-            createHash("sha256").update(readFileSync(publisher)).digest("hex") !==
-              "f5926fa197e8f31cded9de3d6710649d0151697125c8a227da5ce736c06b24a9"
-          ) {
-            throw new Error("downloaded publisher source digest drifted");
+            sha256(stableJson(body)) !== contentDigest ||
+            seal.repository !== process.env.GITHUB_REPOSITORY ||
+            seal.commit !== process.env.GITHUB_SHA ||
+            seal.runId !== process.env.GITHUB_RUN_ID ||
+            seal.runAttempt > Number(process.env.GITHUB_RUN_ATTEMPT) ||
+            seal.sourceRef !== process.env.GITHUB_REF ||
+            seal.outputArtifact !== process.env.RELEASE_OUTPUT_ARTIFACT ||
+            seal.distTag !== "latest" || seal.contractVersion !== 2
+          ) throw new Error("release seal identity or digest drifted");
+
+          const pinned = {
+            "config.mjs": "467b615be0160abecf21ace0ebe55814e56864c7f673e1f569867d652545fa8f",
+            "release-publisher.mjs": "ae010272f10e604380b8bf6f8e4cc9379112fa78a774f3360f35010826f08a9f",
+            "release-line.json": "b4a8fb96dede573f40cc36ed736208ef191777b3f268636d6505a83b4e329a97",
+          };
+          const expected = ["release-seal.json"];
+          for (const record of seal.tools) {
+            const path = join(directory, record.file);
+            if (!lstatSync(path).isFile() || realpathSync(path) !== path ||
+                sha256(readFileSync(path)) !== record.sha256) {
+              throw new Error(`sealed tool drifted: ${record.file}`);
+            }
+            if (pinned[record.file] !== undefined && pinned[record.file] !== record.sha256) {
+              throw new Error(`tracked tool digest drifted: ${record.file}`);
+            }
+            expected.push(record.file);
           }
-          const npmIntegrity = `sha512-${createHash("sha512")
-            .update(readFileSync(npmArchive))
-            .digest("base64")}`;
-          if (npmIntegrity !== "sha512-82gRxKrh/eY5UnNorkTFcdBQAGpgjWehkfGVqAGlJjejEtJZGGJUqjo3mbBTNbc5BTnPKGVtGPBZGhElujX5cw==") {
-            throw new Error("downloaded npm 11.11.0 integrity drifted");
+          for (const record of seal.archives) {
+            const path = join(directory, record.file);
+            if (!lstatSync(path).isFile() || realpathSync(path) !== path ||
+                sha256(readFileSync(path)) !== record.sha256 || integrity(path) !== record.integrity) {
+              throw new Error(`sealed archive drifted: ${record.name}`);
+            }
+            expected.push(record.file);
           }
-          const npmRoot = join(directory, "npm-cli");
+          if (JSON.stringify(readdirSync(directory).sort()) !== JSON.stringify(expected.sort())) {
+            throw new Error("sealed release directory is not exact");
+          }
+          const npmArchive = join(directory, "npm-11.19.0.tgz");
+          if (integrity(npmArchive) !== "sha512-SDd/hHg3KqHE5Ht2NHWxNYNtqCQ2pXAPLl6OtQhPyED5PHsRfrOtO199MZTIG2cQoQ1ZRI9t28shrD+2cr3AAw==") {
+            throw new Error("sealed npm integrity drifted");
+          }
+          const npmRoot = join(process.env.RUNNER_TEMP, "release-npm-cli");
           mkdirSync(npmRoot);
-          const extraction = spawnSync("tar", ["-xzf", npmArchive, "-C", npmRoot], {
-            encoding: "utf8",
-          });
+          const extraction = spawnSync("tar", ["-xzf", npmArchive, "-C", npmRoot], { encoding: "utf8" });
           if (extraction.error !== undefined || extraction.signal !== null || extraction.status !== 0) {
-            throw new Error(`npm CLI extraction failed: ${extraction.stderr}`);
+            throw new Error(`npm extraction failed: ${extraction.stderr}`);
           }
           const cli = realpathSync(join(npmRoot, "package/bin/npm-cli.js"));
           if (!lstatSync(cli).isFile()) throw new Error("npm CLI is not a regular file");
-          const version = spawnSync(process.execPath, [cli, "--version"], {
-            encoding: "utf8",
-          });
-          if (
-            version.error !== undefined || version.signal !== null ||
-            version.status !== 0 || version.stdout.trim() !== "11.11.0"
-          ) {
-            throw new Error("content-addressed npm CLI version drifted");
+          const version = spawnSync(process.execPath, [cli, "--version"], { encoding: "utf8" });
+          if (version.status !== 0 || version.stdout.trim() !== "11.19.0") {
+            throw new Error("pinned npm version drifted");
           }
-          appendFileSync(process.env.GITHUB_ENV, `PHASE09_NPM_CLI=${cli}\n`);
+          appendFileSync(process.env.GITHUB_ENV, `RELEASE_NPM_CLI=${cli}\n`);
           NODE
 
-      - name: Resolve the exact sealed release inputs
-        id: sealed-inputs
+      - name: Publish or safely resume the exact trio through OIDC
         env:
-          PHASE09_SEALED_DIR: ${{ runner.temp }}/phase09-sealed-release
-        run: |
-          node --input-type=module <<'NODE'
-          import { appendFileSync, readFileSync, readdirSync, realpathSync } from "node:fs";
-          import { join, normalize, resolve } from "node:path";
-
-          const configured = process.env.PHASE09_SEALED_DIR;
-          const directory = realpathSync(configured);
-          if (directory !== normalize(resolve(configured))) {
-            throw new Error("sealed release directory is not normalized");
-          }
-          const sealPath = join(directory, "phase-09-release-seal.json");
-          const seal = JSON.parse(readFileSync(sealPath, "utf8"));
-          const packages = [
-            ["core", "@fullselfbrowsing/concierge"],
-            ["react", "@fullselfbrowsing/concierge-react"],
-            ["svelte", "@fullselfbrowsing/concierge-svelte"],
-          ];
-          const expected = ["phase-09-release-seal.json"];
-          const outputs = [`seal=${sealPath}`];
-          for (const [key, name] of packages) {
-            const file = seal.archives?.[name]?.file;
-            if (typeof file !== "string" || file.includes("/") || !file.endsWith(".tgz")) {
-              throw new Error(`sealed archive record is malformed: ${name}`);
-            }
-            expected.push(file);
-            outputs.push(`${key}=${join(directory, file)}`);
-          }
-          if (
-            JSON.stringify(readdirSync(directory).sort()) !== JSON.stringify(expected.sort())
-          ) throw new Error("sealed release directory is not exact");
-          appendFileSync(process.env.GITHUB_OUTPUT, `${outputs.join("\n")}\n`);
-          NODE
-
-      - name: Publish the exact independently sealed archive triplet
-        env:
-          PHASE09_EXPECTED_REPOSITORY: ${{ github.repository }}
-          PHASE09_EXPECTED_RUN_ID: ${{ github.run_id }}
-          PHASE09_EXPECTED_RUN_ATTEMPT: ${{ github.run_attempt }}
-          PHASE09_EXPECTED_COMMIT: ${{ github.sha }}
-          PHASE09_EXPECTED_SOURCE_REF: refs/heads/main
-          PHASE09_EXPECTED_WORKFLOW_PATH: .github/workflows/release.yml
-          PHASE09_EXPECTED_INPUT_ARTIFACT: phase09-untrusted-archives-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
-          PHASE09_EXPECTED_SEALED_ARTIFACT: ${{ needs.seal.outputs.sealedArtifact }}
+          RELEASE_OUTPUT_ARTIFACT: ${{ needs.seal.outputs.sealedArtifact }}
         run: >-
-          node "${{ runner.temp }}/phase09-publish-tools/phase-09-publish-archives.mjs" publish
-          "${{ steps.sealed-inputs.outputs.seal }}"
-          "${{ steps.sealed-inputs.outputs.core }}"
-          "${{ steps.sealed-inputs.outputs.react }}"
-          "${{ steps.sealed-inputs.outputs.svelte }}"
+          node "${{ runner.temp }}/release-sealed/release-publisher.mjs" publish
+          "${{ runner.temp }}/release-sealed"

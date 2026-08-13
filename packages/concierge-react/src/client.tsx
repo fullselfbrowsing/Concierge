@@ -22,7 +22,7 @@ import type {
   ReactElement,
 } from "react";
 
-const EXPECTED_CONTRACT_VERSION: number = 1;
+const EXPECTED_CONTRACT_VERSION: number = 2;
 const ConciergeContext: Context<Concierge | null> =
   createContext<Concierge | null>(null);
 

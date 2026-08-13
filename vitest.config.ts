@@ -97,6 +97,25 @@ export default defineConfig({
           name: "node",
           environment: "node",
           include: ["packages/concierge/test/**/*.test.ts"],
+          exclude: [
+            "**/node_modules/**",
+            "**/.git/**",
+            "packages/concierge/test/ai-sdk/**/*.test.ts",
+          ],
+        },
+      },
+      {
+        test: {
+          name: "ai-sdk-adapter",
+          environment: "node",
+          include: ["packages/concierge/test/ai-sdk/**/*.test.ts"],
+        },
+      },
+      {
+        test: {
+          name: "next-ai-sdk",
+          environment: "node",
+          include: ["examples/next-ai-sdk/test/**/*.test.ts"],
         },
       },
       {

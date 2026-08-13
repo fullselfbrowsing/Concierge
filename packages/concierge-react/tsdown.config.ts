@@ -9,7 +9,9 @@ export default defineConfig({
   dts: true,
   clean: true,
   outDir: "dist",
-  external: ["@fullselfbrowsing/concierge", "react", "react-dom"],
+  deps: {
+    neverBundle: ["@fullselfbrowsing/concierge", "react", "react-dom"],
+  },
   plugins: [
     {
       name: "strip-source-client-directive",

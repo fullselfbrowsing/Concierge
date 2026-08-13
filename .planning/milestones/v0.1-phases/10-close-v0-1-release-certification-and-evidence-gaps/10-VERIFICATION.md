@@ -68,7 +68,7 @@ The prior report's locally passing truths received quick regression checks, whil
 | `packages/concierge/src/session.ts` | Outcome presentation followed by nonblocking stop | ✓ VERIFIED | Real internal outcome flows to application sink before asynchronous stop drain. |
 | `packages/concierge/src/catalog.ts` | Safe invalid-declaration diagnostics | ✓ VERIFIED | Pre-read validation and actionable indexed issue construction are wired into catalog build. |
 | `packages/concierge/src/contract.ts` | Public type boundary | ✓ VERIFIED | Terminal control is absent from public result and batch-row shapes; type gates pass. |
-| [phase-09-package-check.mjs](../../../scripts/phase-09-package-check.mjs) | Ordinary-vs-authenticated pnpm authority boundary | ✓ VERIFIED | Authoritative package gate and real-child environment controls pass. |
+| [phase-09-package-check.mjs](https://github.com/fullselfbrowsing/concierge/blob/161dfb81c1141d498bee6a6130c86984c023f522/scripts/phase-09-package-check.mjs) | Ordinary-vs-authenticated pnpm authority boundary | ✓ VERIFIED | Authoritative package gate and real-child environment controls pass. |
 | `.gitignore` | Root-anchored Astro exclusion | ✓ VERIFIED | Exact adapter `.astro` path is ignored. |
 | `scripts/phase-09-mutation-battery.mjs` | Mutation/evidence and Astro regeneration verifier | ✓ VERIFIED | Final verification modes pass; all 17 controls are green. |
 | `.github/workflows/ci.yml` | Pinned candidate-certification Ubuntu job | ✓ VERIFIED locally | Build checkout retains full receipt ancestry while remaining credential-free and exact-SHA; run `31643838443` passed and produced the old candidate's exact receipt. |
@@ -123,7 +123,7 @@ The generic artifact checker reported two literal-pattern false negatives in Pla
 | Astro removal/regeneration | Mutation-battery `verify astro-regeneration` in a sanitized environment | Check/build passed; tracked=0; sealed=0 | ✓ PASS |
 | Workflow/certification contracts | Workflow check plus candidate-certification self-test | 2 workflows, 8 jobs, 29 certification controls passed | ✓ PASS |
 | Phase/ledger shape | Phase-completeness and exact-row parsers | 7/7 plans/summaries; 14 unique validation rows; 62 unique checked requirements | ✓ PASS |
-| Full-history checkout repair | `node` [phase-09-workflow-check.mjs](../../../scripts/phase-09-workflow-check.mjs) | `PHASE09_WORKFLOW_CHECK_OK`; 22/22 controls | ✓ PASS |
+| Full-history checkout repair | `node` [phase-09-workflow-check.mjs](https://github.com/fullselfbrowsing/concierge/blob/161dfb81c1141d498bee6a6130c86984c023f522/scripts/phase-09-workflow-check.mjs) | `PHASE09_WORKFLOW_CHECK_OK`; 22/22 controls | ✓ PASS |
 | Regenerated final seal | `node scripts/phase-09-mutation-battery.mjs verify all` | Evidence, release, and ledgers all green | ✓ PASS |
 | Retry/failure and canonical-temp receipt semantics | `node scripts/phase-10-certify-candidate.mjs self-test` | `PHASE10_CERTIFY_SELF_TEST_OK controls=29`; real system temp-root predicate passes | ✓ PASS |
 | Complete Stage A handoff | `node scripts/phase-10-certify-candidate.mjs handoff-check` | 7/7, 62/62, 9/9, 10/10 directories, 12/12, 10/10, Nyquist compliant, one hosted gap | ✓ PASS |

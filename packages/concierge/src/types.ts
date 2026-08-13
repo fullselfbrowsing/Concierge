@@ -67,7 +67,7 @@ export interface AbortSignalLike {
  * carrying a failure code, which runs an exhaustive failure mapper on a result
  * that did not fail — and `{ ok: false, message: "Failed." }` — a failure
  * carrying no code, which is the under-reporting the closed {@link ReasonCode}
- * union exists to make impossible. Both cross {@link Transport.respond} to the
+ * union exists to make impossible. Both can cross the transport boundary to the
  * model. They are written out literally here so the next reader recognises them
  * rather than re-deriving them.
  *
@@ -79,9 +79,8 @@ export interface AbortSignalLike {
  * `Type '"reason" | "message"' does not satisfy the constraint
  * '"ok" | "message"'`. Beyond that one breakage, every `.reason` read in the
  * dispatcher and the consent kernel would first need an `ok === false` guard.
- * Recorded in `01-CONTEXT.md` § D-01 under "Rejected — do not revive", beside
- * the generic-over-reason and `` `app.${string}` `` variants {@link ReasonCode}
- * documents.
+ * The generic-over-reason and `` `app.${string}` `` alternatives have the same
+ * failure mode; see {@link ReasonCode}.
  *
  * **So the property is enforced at runtime, not in this type.** The dispatcher
  * normalizes at its handler boundary: it strips a `reason` from success and
@@ -90,10 +89,7 @@ export interface AbortSignalLike {
  * boundary truncates `message` to {@link MESSAGE_MAX_CHARS} and strips control
  * characters.
  *
- * Re-examined 2026-07-28, after a code review demonstrated both contradictory
- * states, and the trade was re-affirmed rather than merely inherited — see
- * `01-13-SUMMARY.md`, which records who made that call and that it is pending
- * user ratification.
+ * This trade is deliberate and covered by the runtime normalization tests.
  */
 export interface ActionResult {
   readonly ok: boolean;
@@ -147,7 +143,7 @@ export type AbandonReason =
 
 /**
  * Why an action did not run, when the cause was the machine rather than the
- * human. Nine codes — with {@link AbandonReason}'s three, that is the twelve
+ * human. Twelve codes — with {@link AbandonReason}'s three, that is the fifteen
  * {@link ReasonCode} admits.
  *
  * Adding a member here is a breaking change *by design*, and the breakage is
@@ -196,11 +192,17 @@ export type FailureReason =
    * The transport cannot currently meet the action's `minGrade`. Runtime only,
    * for degradation after reconnect.
    */
-  | "grade_unavailable";
+  | "grade_unavailable"
+  /** The caller's local catalog capability no longer names the active catalog. */
+  | "catalog_stale"
+  /** Invocation identity was present but incomplete or malformed. */
+  | "invalid_invocation"
+  /** A retry identity was reused for a different logical invocation. */
+  | "identity_conflict";
 
 /**
- * Every code {@link ActionResult.reason} admits: **twelve** — three
- * human-caused ({@link AbandonReason}) and nine machine-caused
+ * Every code {@link ActionResult.reason} admits: **fifteen** — three
+ * human-caused ({@link AbandonReason}) and twelve machine-caused
  * ({@link FailureReason}).
  *
  * Deliberately a pure closed union. A `` `app.${string}` `` escape hatch was
@@ -208,7 +210,7 @@ export type FailureReason =
  * ever fail to compile when a core code lands — it would silently destroy the
  * exhaustiveness this type exists to provide. Making `ActionResult` generic
  * over its reason type was rejected as verifiably dead: the specialization is
- * not assignable to `Transport.respond`.
+ * not assignable to the transport result boundary.
  */
 export type ReasonCode = AbandonReason | FailureReason;
 
@@ -443,11 +445,8 @@ export interface DeliveryReport {
  * A handler's entire view of the world: validated args, the live bridge, the
  * invocation metadata, and — for gated actions — the ack that armed.
  *
- * **`AckPayload` sits at position 4, not position 3.** It moved when `Snapshot`
- * was threaded through the declaration chain (D-07), which is a positional change
- * to an exported type and therefore breaking for anyone who passed a third type
- * argument positionally. Nothing has published yet, so the cost is zero today; it
- * is recorded because it will not be zero again.
+ * **`AckPayload` sits at position 4, not position 3.** Moving either generic is
+ * a breaking change for callers that pass type arguments positionally.
  *
  * **Both parameters must reach `ack`.** `Snapshot` is what
  * {@link ConsentPolicy.snapshotEquality} compares; `AckPayload` is what the human
@@ -466,6 +465,22 @@ export interface DeliveryReport {
  * which is the one place in this library a cast must never be the path of least
  * resistance. See {@link ActionResult.reason} for the general rule.
  */
+/** One app-authored child occurrence inside a compound action. */
+export interface ChildActionRequest {
+  readonly stepId: string;
+  readonly name: string;
+  readonly input: unknown;
+  readonly context?: StageContext | undefined;
+}
+
+/** Cancellable, core-mediated controls available to every action handler. */
+export interface WorkflowControls {
+  readonly signal: AbortSignalLike;
+  run(request: ChildActionRequest): Promise<ActionResult>;
+  delay(ms: number): Promise<void>;
+  cleanup(fn: () => void | Promise<void>): () => void;
+}
+
 export type ActionHandler<
   Args,
   B,
@@ -478,6 +493,8 @@ export type ActionHandler<
   meta: Readonly<InvocationMeta>;
   /** Present only for actions declaring `consent.requires`. */
   ack?: ConsentAck<Snapshot, AckPayload> | undefined;
+  /** App-owned compound actions use these controls; core does not plan steps. */
+  workflow: WorkflowControls;
 }) => ActionResult | Promise<ActionResult>;
 
 // ---------------------------------------------------------------------------
@@ -558,8 +575,8 @@ export interface ConsentPolicy<Snapshot = unknown> {
    * turn the arrow into a return-type colon. Method parameters are bivariant, so
    * under that form a `(a: Booking, b: Booking)` comparator would silently
    * assign to a `ConsentPolicy<unknown>` and this guard would stop guarding. Its
-   * symptoms are one unused suppression directive and, since plan 02-11, a
-   * TS2344 on `_policyNotBivariant`. The first alone is the kind of thing a
+   * symptoms are one unused suppression directive and a TS2344 on
+   * `_policyNotBivariant`. The first alone is the kind of thing a
    * reviewer "fixes" by deleting the test, which is exactly why the second was
    * added: TS2578 points at a directive, TS2344 names the invariant.
    *
@@ -569,8 +586,8 @@ export interface ConsentPolicy<Snapshot = unknown> {
    * adjacent seams, two opposite syntaxes, both load-bearing: a reviewer who
    * normalizes them breaks one of them.
    *
-   * Enforcement is asymmetric too, and in this seam's favour — the phase's
-   * mutation battery reproduces this defect (M9) and the suite goes red.
+   * Enforcement is asymmetric too, and in this seam's favour — the mutation
+   * tests reproduce this defect and the suite goes red.
    * `DigestLike`'s syntax has no mutant at all and is guarded by review only.
    */
   snapshotEquality?: (a: Snapshot, b: Snapshot) => boolean;
@@ -669,8 +686,8 @@ interface ConsentAckBase<Snapshot, Payload> {
  * more. Serializing an ack and having a server read its `grade` off the wire is the
  * path of least resistance and is worth nothing — a server cannot verify a grade the
  * client minted, and treating one as proof is the exact shape of
- * GHSA-gjjc-pcwp-c74m. Phase 1 cannot fix that; what it does is remove the
- * affordance one level down, so the strongest shape a client can even build is
+ * GHSA-gjjc-pcwp-c74m. This type removes the affordance one level down, so the
+ * strongest shape a client can even build is
  * internally consistent. Anything stronger needs a server-issued counterpart, which
  * is what `challenge` reserves the seam for.
  */
@@ -763,9 +780,8 @@ export interface Readback<Payload = unknown> {
  *
  * The canonicalization rule is JCS (RFC 8785) and it belongs to **core**, not to
  * the app — that is the entire point of returning a receipt rather than a hash.
- * The literal above admits exactly one answer, and Phase 8 ships the encoder
- * that produces it, so a sink never has to reach for `JSON.stringify`. Phase 1
- * declares the rule; it does not implement it.
+ * The literal above admits exactly one answer, and core owns the encoder that
+ * produces it, so a sink never has to reach for `JSON.stringify`.
  */
 export interface ReadbackReceipt {
   /** Feeds {@link DeliveryReport.readbackHash} and {@link ConsentAck.readbackHash}. Read-only: the receipt's binding to the bytes below is the artifact, and severing it must not be a plain assignment. */
@@ -777,7 +793,7 @@ export interface ReadbackReceipt {
    *
    * Carried alongside `hash` on purpose. It is WebAuthn's own reason for making
    * `clientDataJSON` an opaque byte array rather than a string: intermediaries
-   * must not parse-and-reserialize. Phase 8's confirm step, and any future
+   * must not parse-and-reserialize. Confirmation and any future
    * server-side verification, read these bytes instead of canonicalizing
    * `payload` a second time and hoping they agree.
    *
@@ -937,8 +953,8 @@ export interface SideEffects {
  * acts of disclosure, and only the declaring author can know that a particular
  * argument is safe to record.
  *
- * **The runtime half of SEC-01 shipped in Phase 3 and runs inside
- * `buildCatalog`.** Phase 1 declares the shape and makes the member mandatory;
+ * **The runtime half of this invariant runs inside `buildCatalog`.** The type
+ * declares the shape and makes the member mandatory;
  * it validates no catalogs and reads no schemas. What the type cannot reach is
  * the JavaScript consumer who omitted the field this declaration says cannot be
  * omitted, and that population is the entire reason the runtime rule exists.
@@ -978,8 +994,8 @@ export type RedactionPolicy<Args> =
  * bound a parameter literally named `Bridge`, which shadowed
  * {@link Bridge} inside their own bodies while {@link BridgeRegistry} and
  * {@link StageDefinition} used `B` and meant the real interface — two spellings
- * for two different things in one file. That collision is very likely how CR-02
- * survived a whole phase: a reader scanning the unconstrained `B = unknown`
+ * for two different things in one file. A reader scanning the unconstrained
+ * `B = unknown`
  * below sees a parameter that accepts anything and never connects it to the
  * `B extends Bridge` constraint hundreds of lines away, which was the broken
  * one. Thread a new type through this file and keep the convention.
@@ -1019,6 +1035,11 @@ export interface ActionDefinition<
   jsonSchema?: JsonSchemaObject;
   redact: RedactionPolicy<InferOutput<Schema>>;
   /**
+   * App-owned catalog minimization evaluated once during atomic resolution.
+   * Only a literal `true` makes the action available; errors fail closed.
+   */
+  availableWhen?: ((ctx: Readonly<StageContext>) => boolean) | undefined;
+  /**
    * Both `Snapshot` and `AckPayload` are forwarded, deliberately and together.
    * Dropping either is invisible to every consent-shaped assertion — see
    * {@link ActionHandler}.
@@ -1041,16 +1062,15 @@ export interface ActionDefinition<
    * submissions, inbound mail, scraped text, anything the app itself did not
    * author.
    *
-   * **Why this is the only taint marker on the declaration.** Of the four fields
-   * originally proposed (D-04), three were cut: `maxPerTurn` is runner-level in
+   * **Why this is the only taint marker on the declaration.** Three adjacent
+   * policies stay out of this type: `maxPerTurn` is runner-level in
    * every framework checked, so {@link ConciergeConfig} — beside
    * `commitWindowMs` — is where it *would* belong **if it ever shipped, which is
    * not scheduled**; `impact?:` would be a second, weaker severity dial
    * next to `consent.minGrade`, which `buildCatalog` already enforces, and the two
-   * could silently disagree; `conflictsWith` has no prior art as declaration
+   * could silently disagree; `conflictsWith` has no clear declaration
    * metadata and overlaps stage scoping, `consent.requires`, and serial batch
-   * execution. Reinstating any of them because it is "cheap while we're in here"
-   * is the specific anti-pattern D-04 names. This one survived because two of the
+   * execution. This field exists because two of the
    * three lethal-trifecta legs are *structurally always on* here: an action runs
    * inside the app the user is already logged into, and {@link ActionResult.message}
    * returns to the model by design. Untrusted ingress is the single variable leg,
@@ -1064,7 +1084,7 @@ export interface ActionDefinition<
    * A future `concierge-mcp` can still derive `openWorldHint: true` from this
    * field — a safe over-approximation, since that hint already defaults to `true`.
    *
-   * **SEC-05 shipped in Phase 3, and this field is now read.** `buildCatalog`'s
+   * **This field is enforced by diagnostics.** `buildCatalog`'s
    * rule table reports a `reads_untrusted_without_consent` diagnostic for a
    * `readsUntrusted` action that carries no `consent` policy — the same shape as
    * CAT-05's `destructive_without_consent`, under a distinct code precisely so a
@@ -1111,16 +1131,15 @@ export interface ActionDefinition<
  * the one place that must actually *call* the comparator — needs a cast at the
  * call site. Forcing a cast into the security-critical path is worse than one
  * documented `any` in a collection type, and a cast there is far easier to get
- * quietly wrong. Settled by D-12 item 2.
+ * quietly wrong.
  *
  * What is **not** given up: the concrete `Snapshot` still lives on every
  * individual declaration, which is where `snapshotEquality` is written and
  * typechecked. Only the collection is erased, and a declaration that never enters
  * one keeps full typing throughout.
  *
- * The cost surfaces in Phases 4, 6, and 8, where the catalog and the kernel read
- * this type. **Revisit it in Phase 8 against a real kernel** — that is the first
- * point at which the alternative's cost is measurable rather than predicted.
+ * The concrete declaration remains fully typed; only heterogeneous collection
+ * storage uses this erasure.
  */
 export type AnyActionDefinition<B = unknown> = ActionDefinition<
   string,
@@ -1219,13 +1238,35 @@ export interface StageDefinition<B extends Bridge = Bridge> {
 }
 
 // ---------------------------------------------------------------------------
+// Atomic catalog resolution
+// ---------------------------------------------------------------------------
+
+declare const catalogRevisionBrand: unique symbol;
+
+/**
+ * An instance-local, non-serializable catalog capability. It is deliberately
+ * not a digest or an authorization token and is meaningful only to the
+ * Concierge instance that minted it.
+ */
+export type CatalogRevision = symbol & {
+  readonly [catalogRevisionBrand]: true;
+};
+
+/** One internally consistent stage/tool/revision snapshot. */
+export interface ResolvedCatalog {
+  readonly stage: string | null;
+  readonly revision: CatalogRevision;
+  readonly tools: ReadonlyArray<EmittedTool>;
+}
+
+// ---------------------------------------------------------------------------
 // Transport
 // ---------------------------------------------------------------------------
 
 export interface ToolCall {
   readonly callId: string;
   readonly name: string;
-  /** Raw string as received. Malformed JSON becomes `{}` and then reaches action validation. */
+  /** Raw string as received. Malformed JSON is rejected as `invalid_args`. */
   readonly arguments: string;
   readonly outputIndex: number;
 }
@@ -1238,25 +1279,19 @@ export interface ToolCall {
  * no `userTurnId`, and no delivery hook — so `bindTo: "userTurn"`, the gate the
  * whole design rests on, had no data to read.
  *
- * **Every optional member below carries an explicit `| undefined`**, the same rule
- * recorded on {@link InvocationMeta} and, in full, on {@link ActionResult.reason}.
- * A transport assembles this envelope out of values that may be absent, and
- * `{ responseId, calls, userTurnId: maybeId }` is TS2375 against a bare
- * `userTurnId?: string` under `exactOptionalPropertyTypes`.
- *
- * Do not tidy it away. Narrowing the write type back leaves the read type
- * identical, so the declaration site stays quiet and no read-shaped assertion
- * moves; the construction positives in `test-d/transport.test-d.ts` are the only
- * thing that goes red.
+ * The session, response, turn, catalog, and per-call identity fields are
+ * complete. Optional host capabilities retain explicit `| undefined` so
+ * adapters can forward their possibly-absent values under
+ * `exactOptionalPropertyTypes`.
  */
 export interface ToolBatch {
+  /** Application session namespace for invocation identity. */
+  readonly sessionId: string;
   readonly responseId: string;
-  /**
-   * Absent on transports that cannot derive turn identity. Present does not
-   * mean trustworthy — {@link TurnIdentityProvenance} is what says whether the
-   * agent's own output could have minted it.
-   */
-  readonly userTurnId?: string | undefined;
+  /** Local capability returned by `resolveCatalog` for this exact batch. */
+  readonly catalogRevision: CatalogRevision;
+  /** Complete turn identity for every invocation in this response. */
+  readonly userTurnId: string;
   readonly calls: ReadonlyArray<ToolCall>;
   readonly signal?: AbortSignalLike | undefined;
   /**
@@ -1285,6 +1320,99 @@ export interface ToolBatch {
   readonly deferUntilDelivered?: ((effect: (report: DeliveryReport) => void) => void) | undefined;
 }
 
+/** Complete retry identity for one logical invocation. */
+export interface InvocationIdentity {
+  readonly sessionId: string;
+  readonly responseId: string;
+  readonly callId: string;
+  readonly userTurnId: string;
+  readonly outputIndex: number;
+}
+
+/** Object-form v2 request. The catalog revision is always explicit. */
+export interface DispatchRequest {
+  readonly name: string;
+  readonly input: unknown;
+  readonly catalogRevision: CatalogRevision;
+  readonly identity?: InvocationIdentity | undefined;
+  readonly signal?: AbortSignalLike | undefined;
+  readonly deferUntilDelivered?: InvocationMeta["deferUntilDelivered"];
+}
+
+/** One fully correlated result in a completed batch prefix. */
+export interface DispatchRow {
+  /** Core-local lifecycle correlation; wire adapters may ignore it. */
+  readonly dispatchId: string;
+  readonly callId: string;
+  readonly name: string;
+  readonly outputIndex: number;
+  readonly result: Readonly<ActionResult>;
+}
+
+/** The action occurrence that actually entered terminal execution. */
+export interface DispatchRef {
+  readonly dispatchId: string;
+  readonly name: string;
+  readonly callId: string;
+  readonly outputIndex: number;
+  readonly lineage: DispatchLineage;
+}
+
+/** Explicit terminal control prevents an empty row array from carrying two meanings. */
+export type BatchDispatchOutcome =
+  | Readonly<{
+      kind: "completed";
+      rows: ReadonlyArray<DispatchRow>;
+    }>
+  | Readonly<{
+      kind: "terminal";
+      rows: ReadonlyArray<DispatchRow>;
+      enteredBy: DispatchRef;
+    }>;
+
+/** Observer-safe input selected by the action's redaction policy. */
+export type ObservedInput =
+  | Readonly<{ kind: "dropped" }>
+  | Readonly<{ kind: "included"; value: unknown }>;
+
+/** Core-authored compound-action ancestry. */
+export interface DispatchLineage {
+  readonly rootDispatchId: string;
+  readonly parentDispatchId?: string | undefined;
+  readonly stepId?: string | undefined;
+  readonly depth: number;
+}
+
+interface DispatchEventBase {
+  readonly dispatchId: string;
+  /** Null for an unknown raw action name so the observer is not an oracle. */
+  readonly name: string | null;
+  readonly stage: string | null;
+  readonly catalogRevision: CatalogRevision;
+  readonly identity: Readonly<InvocationIdentity> | null;
+  readonly lineage: DispatchLineage;
+  readonly input: ObservedInput;
+  readonly terminalAction: boolean;
+  /** True only once this occurrence or its workflow has entered terminal execution. */
+  readonly terminalEntered: boolean;
+}
+
+/** Non-blocking lifecycle emitted once per logical invocation occurrence. */
+export type DispatchEvent =
+  | (DispatchEventBase & Readonly<{ phase: "accepted" }>)
+  | (DispatchEventBase & Readonly<{
+      phase: "waiting";
+      wait: "commit_window";
+    }>)
+  | (DispatchEventBase & Readonly<{ phase: "executing" }>)
+  | (DispatchEventBase & Readonly<{
+      phase: "succeeded" | "failed" | "cancelled";
+      result: Readonly<ActionResult>;
+    }>);
+
+export type DispatchListener =
+  (event: DispatchEvent) => void | Promise<void>;
+
 /**
  * Where a transport's turn identity comes from — not merely whether it has one.
  *
@@ -1306,9 +1434,8 @@ export interface ToolBatch {
  * the readback's own content — *"confirm the booking for four thousand
  * dollars"* — which reads as affirmative and passes classification cleanly.
  *
- * Phase 1's obligation is representability plus a type test. **The runtime gate
- * that refuses `bindTo: "userTurn"` on an `"agent-forgeable"` transport is
- * Phase 8** and must not be assumed present.
+ * The runtime gate refuses `bindTo: "userTurn"` on an `"agent-forgeable"`
+ * transport.
  */
 export type TurnIdentityProvenance =
   /**
@@ -1391,30 +1518,27 @@ export interface Transport {
   readonly capabilities: TransportCapabilities;
   /** Current neutral connection lifecycle state. */
   readonly status: TransportStatus;
-  /** Publish the catalog for the current stage. */
-  setTools: (tools: ReadonlyArray<EmittedTool>) => void;
+  /** Publish one internally consistent catalog snapshot. */
+  setCatalog: (catalog: ResolvedCatalog) => void;
   /** Subscribe to neutral connection lifecycle changes. */
   onStatusChange: (cb: (status: TransportStatus) => void) => () => void;
-  /** Deliver a completed, ordered batch. */
-  onToolBatch: (cb: (batch: ToolBatch) => void) => () => void;
-  /**
-   * Return one result per call. Takes the result, not a string — serializing
-   * at the boundary is the transport's job, not the dispatcher's.
-   */
-  respond: (callId: string, result: ActionResult) => void;
+  /** Deliver a completed, ordered batch and await its one explicit outcome. */
+  onToolBatch: (
+    cb: (batch: ToolBatch) => Promise<BatchDispatchOutcome>,
+  ) => () => void;
 }
 
 /**
  * The projection of a catalog entry that the agent actually sees. Produced by
- * {@link Concierge.catalogFor} and consumed by {@link Transport.setTools}.
+ * {@link Concierge.resolveCatalog} and consumed by {@link Transport.setCatalog}.
  *
  * **Every member is `readonly`, and the governing argument is
  * {@link Transport.capabilities}'s** — a `readonly` that does not go all the way
  * down is worse than none, "because a reader stopped looking". That note is
  * about one level up; this interface is the level down, and
- * `setTools(tools: ReadonlyArray<EmittedTool>)` is the exact parallel:
- * `ReadonlyArray` protects the *array* and says nothing about the elements. With
- * the members writable, `concierge.catalogFor(ctx)[0]!.name = "evil"` compiled
+ * `ResolvedCatalog.tools` is the exact parallel: `ReadonlyArray` protects the
+ * *array* and says nothing about the elements. With the members writable,
+ * `concierge.resolveCatalog(ctx).tools[0]!.name = "evil"` compiled
  * clean (measured 2026-07-30 under the repo's own flags) and was stopped only by
  * the runtime `Object.freeze` — the runtime doing work the type system was not,
  * on the one object whose whole job is to be handed to an agent.
@@ -1425,11 +1549,8 @@ export interface Transport {
  * > verbatim inside `dist/index.d.ts`, and a mutation-probe spelling that does
  * > not compile is not a probe.
  *
- * **This landed now because now is the only free window.** Nothing in this
- * repository constructs an `EmittedTool` — the sole reference outside this file
- * is `src/index.ts`'s re-export of the name — so tightening costs no caller
- * today. It becomes a breaking change the moment Phase 7 writes a transport
- * against `Transport.setTools`.
+ * Core constructs and publishes each `EmittedTool`, so both the compile-time
+ * modifiers and runtime freeze are part of this boundary.
  *
  * Neither half substitutes for the other: the freeze is what holds this down for
  * a JavaScript consumer, and these modifiers are what hold it down for a
@@ -1522,13 +1643,9 @@ export interface StageExplanation {
    *   bridges exist, and it is invisible in every other channel.
    * - `{id, registered: true}` — `read()` returned a bridge.
    *
-   * **This shape survives Phase 5 unchanged**, which is why it was chosen:
-   * `id` and `read()` are both on the declared {@link BridgeRegistry} interface
-   * *today*, so `createBridge` arriving later produces a conforming object and
-   * changes nothing here. Rejected: `bridge: string | null`, which loses
-   * `registered` and would have to widen in Phase 5; and a third `"unknown"`
-   * state, which invents a value that stops being reachable the moment Phase 5
-   * lands and would then be dead prose in a shipped `.d.ts`.
+   * `id` and `read()` are both on {@link BridgeRegistry}, so bridge factories
+   * produce this shape directly. A `bridge: string | null` loses `registered`;
+   * a third `"unknown"` state has no reachable runtime meaning.
    */
   readonly bridge: { readonly id: string; readonly registered: boolean } | null;
 }
@@ -1538,19 +1655,16 @@ export interface StageExplanation {
  * which bridges are registered, and what the agent can currently see — as one
  * value a test can assert on and a devtools panel can render.
  *
- * Three fields, one per clause of the requirement. Rejected: a five-field shape
+ * Three fields cover the useful questions. A five-field shape
  * (`matchedStage`, `unmatchedStages`, `registeredBridges`, `missingBridges`,
  * `catalogSize`) carrying the same information across three more fields, one of
- * which is `catalog.length`. Phase 1's D-04 preference — prefer fewer,
- * better-justified fields — governs.
+ * which is merely `catalog.length`, repeats the same information.
  */
 export interface Explanation {
   /**
    * The matching stage's id, or `null` when no stage matched.
    *
-   * `string | null` and nothing else. {@link Session.stage} already pins this
-   * vocabulary against {@link Concierge.stageFor}, and a third spelling of "no
-   * stage" here would be the defect that note exists to prevent.
+   * `string | null` and nothing else, matching {@link ResolvedCatalog.stage}.
    */
   readonly stage: string | null;
   /** Every declared stage, in declaration order, matched or not. */
@@ -1559,8 +1673,8 @@ export interface Explanation {
    * The action **names** the agent can currently call — not the
    * {@link EmittedTool} array.
    *
-   * The full array is one {@link Concierge.catalogFor} call away with the same
-   * `ctx`, and D-04's "prefer fewer, better-justified fields" governs. The
+   * The full array is one {@link Concierge.resolveCatalog} call away with the
+   * same `ctx`. The
    * question this field answers is "can the agent see `cancelBooking` right
    * now", which a name list answers directly and a schema array buries.
    */
@@ -1580,12 +1694,8 @@ export interface Explanation {
  * `commitWindowMs` and
  * `dedupeWindowMs` are **policy numbers**. Keep the two groups apart.
  *
- * **`maxPerTurn` is deliberately absent, and it is not merely misplaced — it is
- * unscheduled.** D-04 cut it along with `impact` and `conflictsWith`; the note
- * on {@link ActionDefinition.readsUntrusted} explains why. `ConciergeConfig` is
- * where it would belong *if it ever shipped*, which is exactly why the
- * temptation to add it lands on this interface. Reinstating a cut field because
- * it is "cheap while we're in here" is the specific anti-pattern D-04 names.
+ * `maxPerTurn`, `impact`, and `conflictsWith` are deliberately absent; the note
+ * on {@link ActionDefinition.readsUntrusted} explains why.
  */
 export interface ConciergeConfig {
   /**
@@ -1613,10 +1723,6 @@ export interface ConciergeConfig {
    * What is **not** given up: the concrete `B` still lives on every individual
    * {@link StageDefinition}, which is where its registry and its actions are
    * written and typechecked. Only the collection is erased.
-   *
-   * **Revisit in Phase 8 against a real kernel**, together with
-   * {@link AnyActionDefinition}'s erasure — that is the first point at which the
-   * alternative's cost is measurable rather than predicted.
    *
    * Guarded by `_multiBridgeConfig` in `test-d/actions.test-d.ts`, observed red
    * under a mutation that collects at the defaulted `B` again.
@@ -1652,12 +1758,11 @@ export interface ConciergeConfig {
    * paragraph, do not relax either.**
    *
    * Documented rather than fixed, deliberately. Fixing it means re-narrowing the
-   * collections that D-07 erased to `any` three paragraphs above, for a
+   * collections erased to `any` three paragraphs above, for a
    * *measured* contravariance reason — `StageDefinition<ResultsBridge>` is not
    * assignable to `StageDefinition<Bridge>`, TS2375. Trading a documented DX
    * papercut for a type error on the multi-bridge config every real app writes is
-   * the wrong trade at this phase. Revisit in Phase 8 against a real consent
-   * kernel, per D-12.2, together with `AnyActionDefinition`'s erasure.
+   * the wrong trade for the current public API.
    *
    * One measured alternative, recorded so the next reader does not spend a wave
    * re-deriving it: `createConcierge<const C extends ConciergeConfig>(config: C)`
@@ -1685,7 +1790,7 @@ export interface ConciergeConfig {
    * the paragraph on `stages` above for the mechanism, the pinned predicate in
    * `test-d/catalog.test-d.ts`, and why this is documented rather than fixed.
    */
-  crossStage?: ReadonlyArray<AnyActionDefinition>;
+  crossStage?: ReadonlyArray<AnyActionDefinition<any>>;
   /** Declared consent ceiling; absence is normalized to the weakest profile. */
   consentProfile?: ConsentProfile | undefined;
   /**
@@ -1753,8 +1858,6 @@ export interface ConciergeConfig {
    * exists so that costs a reader seconds rather than an afternoon.
    *
    * Optional here because an app whose actions need no readback never calls it.
-   * Whether a *missing* sink downgrades an `attested` action or fails its build
-   * is Phase 8's decision, not Phase 1's.
    */
   presentReadback?: ReadbackSink;
   /**
@@ -1793,60 +1896,54 @@ export interface ConciergeConfig {
    * @default 600
    */
   dedupeWindowMs?: number;
+  /** Maximum nested child-action depth. @default 16 */
+  maxWorkflowDepth?: number;
+  /** Maximum unique child steps admitted by one root workflow. @default 256 */
+  maxWorkflowSteps?: number;
 }
 
 /**
  * Context-aware direct dispatch for application-owned agent loops.
  *
- * An application may call `dispatch(ctx, name, args, meta?)` or
- * `dispatchBatch(ctx, batch)` with its own {@link StageContext} and
+ * An application may call `dispatch(ctx, request)` or `dispatchBatch(ctx,
+ * batch)` with its own {@link StageContext} and
  * {@link ToolBatch}; neither method requires a {@link Transport}. Both methods
  * enforce declared consent policies directly: review delivery arms
  * measured, payload-bound authority, and a gated dispatch consumes that
  * authority once before entering the handler. Session ownership, transport
- * subscription/respond routing, failure-outcome presentation, and telemetry
- * remain the surrounding runtime layers.
+ * routing, and failure-outcome presentation remain surrounding runtime layers.
  */
 export interface Concierge {
   /**
    * NOT `async`. An async wrapper allocates a fresh Promise per invocation,
    * which breaks deduplication by reference identity.
    */
-  dispatch: (ctx: StageContext, name: string, args: unknown, meta?: InvocationMeta) => Promise<ActionResult>;
+  dispatch: (ctx: StageContext, request: DispatchRequest) => Promise<ActionResult>;
   /**
    * Parse and execute a {@link ToolBatch} serially through {@link dispatch}.
    *
-   * Calls are copied and stably ordered by `outputIndex`. The returned array
-   * and every inline `{ callId, result }` correlation row are immutable, and
-   * cancellation still returns an `aborted` row for every call that remains.
-   * Runtime-malformed calls with an unreadable `callId` getter receive the
-   * deterministic string `[concierge:unobservable-call-id:N]`, where `N` is
-   * their original position. Observable malformed ids are preserved verbatim.
+   * Calls are copied and stably ordered by `outputIndex`. Completed outcomes
+   * contain immutable, fully correlated rows; a terminal outcome stops after
+   * the occurrence that entered terminal execution and identifies it through
+   * `enteredBy`.
    */
-  dispatchBatch: (ctx: StageContext, batch: ToolBatch) => Promise<ReadonlyArray<Readonly<{ callId: string; result: ActionResult }>>>;
-  /**
-   * Catalog for the stage matching `ctx`.
-   *
-   * Returns a memoized frozen array — a fresh array per call makes React's
-   * `useSyncExternalStore` loop forever once devtools subscribe.
-   */
-  catalogFor: (ctx: StageContext) => ReadonlyArray<EmittedTool>;
-  stageFor: (ctx: StageContext) => string | null;
+  dispatchBatch: (ctx: StageContext, batch: ToolBatch) => Promise<BatchDispatchOutcome>;
+  /** Resolve stage, availability and tools in one pass. */
+  resolveCatalog: (ctx: StageContext) => ResolvedCatalog;
+  /** Observe safe, redacted lifecycle events without affecting dispatch. */
+  onDispatch: (listener: DispatchListener) => () => void;
   /**
    * Why the agent can see what it can see, for `ctx`. See {@link Explanation}.
    *
    * **The returned object is deliberately NOT identity-stable — a fresh object
-   * every call, by design.** This is the one member of this interface that must
-   * never be memoized, and it is the exact inverse of the rule on
-   * `catalogFor` three lines above. Do not wire `explain()` into
+   * every call, by design.** Do not wire `explain()` into
    * `useSyncExternalStore` or any other referential-equality subscription: it
-   * would loop forever, which is precisely the defect `catalogFor`'s memo
-   * exists to prevent. Memoizing this to make that call site work would instead
+   * would loop forever. Memoizing this to make that call site work would instead
    * hand a devtools panel a snapshot that silently stops tracking the app.
    *
-   * It takes the context rather than being zero-arg, mirroring `catalogFor` and
-   * `stageFor`, because `Concierge` holds no context of its own — `Session`
-   * owns context — and a zero-arg `explain()` would have to invent hidden state
+   * It takes the context rather than being zero-arg because `Concierge` holds
+   * no context of its own — `Session` owns context — and a zero-arg
+   * `explain()` would have to invent hidden state
    * on the very interface whose statelessness is what lets it construct on a
    * server.
    */
@@ -1858,6 +1955,7 @@ export type SessionDiagnosticCode =
   | "catalog_publish_failed"
   | "batch_dispatch_failed"
   | "response_failed"
+  | "catalog_listener_failed"
   | "stage_listener_failed"
   | "transport_subscribe_failed"
   | "transport_unsubscribe_failed"
@@ -1873,54 +1971,17 @@ export interface SessionDiagnostic {
 }
 
 /**
- * Owns the loop nothing else does: pushes the catalog on stage change and
- * reconnect, routes `onToolBatch → dispatch → respond`, and enforces the
- * commit window.
+ * Owns the loop nothing else does: publishes catalogs on context change and
+ * reconnect, routes awaited tool batches, and enforces outcome presentation.
  *
- * Without this, `catalogFor` produces tools and `setTools` consumes them with
- * nothing in between.
+ * Without this, atomic catalog resolution and transport publication have
+ * nothing connecting them.
  */
 export interface Session {
   setContext: (ctx: StageContext) => void;
-  /**
-   * The stage the session is currently in, or `null` when no stage matches.
-   *
-   * **A getter function, never a value, and that is the file's standing rule
-   * rather than a preference here.** Bridge snapshots are getters for the same
-   * reason ({@link BridgeRegistry.read}): a value captured at registration goes
-   * stale inside every closure that captured it, and a stale *stage* is worse
-   * than a stale snapshot — it is what a devtools panel renders and what an
-   * adapter compares against to decide whether to republish the catalog. A field
-   * would read correct at the moment of destructuring and be wrong forever after.
-   *
-   * Returns `string | null`, matching {@link Concierge.stageFor} exactly. The
-   * session's stage *is* `stageFor` applied to the current context, so two
-   * different spellings of "no stage" would be a defect waiting to be written.
-   *
-   * Phase 7 implements this.
-   */
-  stage: () => string | null;
-  /**
-   * Subscribe to stage changes; returns an unsubscriber. The shape follows
-   * {@link Transport.onToolBatch}, which is the file's subscription convention.
-   *
-   * **The implementation MUST identity-guard the unsubscriber** — remove the
-   * subscription only if the entry is still the one this call created — for
-   * precisely the reason {@link BridgeRegistry.register} does. React StrictMode
-   * double-mount, Vue HMR, and Svelte remount all run a cleanup *after* its
-   * replacement has already subscribed; an unguarded unsubscriber then detaches
-   * the live listener instead of the dead one, and the session silently stops
-   * republishing the catalog on stage change. The symptom is an agent holding a
-   * stale action set on a page that has plainly moved on, which is
-   * indistinguishable from a stage-matching bug and will be debugged as one.
-   *
-   * The callback takes `string | null` rather than `string` because entering "no
-   * matching stage" is itself a change subscribers must see — that is when the
-   * catalog empties.
-   *
-   * Phase 7 implements this.
-   */
-  onStageChange: (cb: (stage: string | null) => void) => () => void;
+  /** Null only until the first context is accepted. */
+  catalog: () => ResolvedCatalog | null;
+  onCatalogChange: (cb: (catalog: ResolvedCatalog) => void) => () => void;
   stop: () => Promise<void>;
 }
 

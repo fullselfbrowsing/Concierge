@@ -89,7 +89,7 @@ describe("the built @fullselfbrowsing/concierge-react entries", () => {
       );
       previousIndex = index;
     }
-    expect(clientSource).toMatch(/EXPECTED_CONTRACT_VERSION\s*=\s*1\b/u);
+    expect(clientSource).toMatch(/EXPECTED_CONTRACT_VERSION\s*=\s*2\b/u);
 
     await withoutBrowserGlobals(async () => {
       const [root, client, core] = await Promise.all([
@@ -119,9 +119,13 @@ describe("the built @fullselfbrowsing/concierge-react entries", () => {
       };
       const concierge = {
         dispatch: async () => ({ ok: true, message: "Done." }),
-        dispatchBatch: async () => [],
-        catalogFor: () => [],
-        stageFor: () => null,
+        dispatchBatch: async () => ({ kind: "completed", rows: [] }),
+        resolveCatalog: () => ({
+          stage: null,
+          tools: [],
+          revision: Symbol("artifact-catalog"),
+        }),
+        onDispatch: () => () => undefined,
         explain: () => ({ stage: null, stages: [], catalog: [] }),
       };
 

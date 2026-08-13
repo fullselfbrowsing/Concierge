@@ -367,9 +367,13 @@ describe(SUITE_TITLE, () => {
     let batchSubscribers = 0;
     const concierge = {
       dispatch: () => Promise.resolve({ ok: false, message: "unused" }),
-      dispatchBatch: () => Promise.resolve(Object.freeze([])),
-      catalogFor: () => Object.freeze([]),
-      stageFor: () => null,
+      dispatchBatch: () => Promise.resolve(Object.freeze({ kind: "completed", rows: [] })),
+      resolveCatalog: () => Object.freeze({
+        stage: null,
+        revision: Symbol("catalog"),
+        tools: Object.freeze([]),
+      }),
+      onDispatch: () => () => {},
       explain: () => Object.freeze({ stage: null, stages: [], catalog: [] }),
     };
     const transport = {
@@ -380,7 +384,7 @@ describe(SUITE_TITLE, () => {
         dynamicCatalog: true,
       }),
       status: "idle",
-      setTools: () => {},
+      setCatalog: () => {},
       onStatusChange: () => {
         statusSubscribers += 1;
         let live = true;
@@ -399,7 +403,6 @@ describe(SUITE_TITLE, () => {
           batchSubscribers -= 1;
         };
       },
-      respond: () => {},
     };
 
     const session = createSession({

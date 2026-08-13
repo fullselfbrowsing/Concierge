@@ -1,6 +1,6 @@
 {
   "name": "@fullselfbrowsing/concierge-react",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "description": "React bindings for @fullselfbrowsing/concierge",
   "keywords": [
@@ -14,12 +14,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fullselfbrowsing/concierge.git",
+    "url": "git+https://github.com/fullselfbrowsing/Concierge.git",
     "directory": "packages/concierge-react"
   },
-  "homepage": "https://github.com/fullselfbrowsing/concierge#readme",
+  "homepage": "https://github.com/fullselfbrowsing/Concierge#readme",
   "bugs": {
-    "url": "https://github.com/fullselfbrowsing/concierge/issues"
+    "url": "https://github.com/fullselfbrowsing/Concierge/issues"
   },
   "type": "module",
   "sideEffects": false,
@@ -43,7 +43,8 @@
     "LICENSE"
   ],
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "tag": "latest"
   },
   "engines": {
     "node": ">=22.12.0"
@@ -56,7 +57,7 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --project react-lifecycle"
+    "test": "vitest run --root ../.. --project react-lifecycle"
   },
   "devDependencies": {
     "@fullselfbrowsing/concierge": "workspace:*",

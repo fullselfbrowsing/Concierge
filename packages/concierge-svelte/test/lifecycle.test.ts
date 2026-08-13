@@ -22,11 +22,12 @@ type TestBridge = Bridge<
 >;
 
 function conciergeStub(): Concierge {
+  const revision = Symbol("svelte-test-catalog") as ReturnType<Concierge["resolveCatalog"]>["revision"];
   return {
     dispatch: async () => ({ ok: true, message: "Done." }),
-    dispatchBatch: async () => [],
-    catalogFor: () => [],
-    stageFor: () => null,
+    dispatchBatch: async () => ({ kind: "completed", rows: [] }),
+    resolveCatalog: () => ({ stage: null, tools: [], revision }),
+    onDispatch: () => () => undefined,
     explain: () => ({ stage: null, stages: [], catalog: [] }),
   };
 }

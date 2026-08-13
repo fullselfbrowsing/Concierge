@@ -1,10 +1,18 @@
-# @fullselfbrowsing/concierge-svelte
+<div align="center">
+
+<img src="https://raw.githubusercontent.com/fullselfbrowsing/Concierge/main/assets/concierge-wordmark-horizontal.svg" alt="Concierge" width="280">
+
+# `@fullselfbrowsing/concierge-svelte`
+
+</div>
 
 Svelte 5 context, lifecycle, and snapshot bindings for an existing
-[`@fullselfbrowsing/concierge`](https://github.com/fullselfbrowsing/concierge)
+[`@fullselfbrowsing/concierge`](https://github.com/fullselfbrowsing/Concierge)
 instance and bridge registry.
 
-This package is pre-alpha and has not been published yet.
+Version 0.2 is a public preview of contract 2. It supports Svelte 5, requires
+Node 22.12 or newer for server rendering, and does not support Edge runtimes in
+the 0.2 line.
 
 ## Entry points
 

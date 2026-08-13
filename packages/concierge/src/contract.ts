@@ -43,8 +43,8 @@
  * The shared-runtime contract version that two copies of core compare.
  *
  * Deliberately unannotated, matching {@link MESSAGE_MAX_CHARS} in `./types.ts`
- * rather than the `: 1 = 1` form research first sketched. Under
- * `isolatedDeclarations` the literal type `1` survives into the emitted `.d.ts`
+ * rather than an explicit literal annotation. Under `isolatedDeclarations`
+ * the literal type `2` survives into the emitted `.d.ts`
  * either way, so both forms preserve the signal a consumer — and this package's
  * own type tests — read to pin the value; the annotation would buy nothing and
  * would leave this file and `types.ts` disagreeing on house style with no
@@ -54,13 +54,13 @@
  * **Bump policy.** An integer, bumped only when the *shared runtime contract*
  * changes incompatibly — the bridge registry shape, the dedup key, or the
  * consent record. Not on every release, and not on an additive type change.
- * Phase 2 ships `1`.
+ * Contract v2 ships `2`.
  *
  * An integer rather than a string or a semver-ish value: a richer shape buys
  * nothing until there is a compatibility *range* to express, and it is a one-way
  * door once published.
  */
-export const CONTRACT_VERSION = 1;
+export const CONTRACT_VERSION = 2;
 
 /**
  * The cross-realm slot where two independently-resolved copies of core meet.
@@ -81,7 +81,7 @@ const REGISTRY_KEY: symbol = Symbol.for("@fullselfbrowsing/concierge.contract");
 /**
  * What one copy of core leaves behind for the next one to find.
  *
- * `version` is `number`, not the literal `1`: the record this reads may have
+ * `version` is `number`, not the literal `2`: the record this reads may have
  * been written by a *different* version of this file, which is the entire case
  * the guard exists to detect. Typing it as the literal would make the mismatch
  * branch unreachable to the checker and the comparison a compile error.
@@ -104,89 +104,13 @@ type Holder = Record<symbol, ContractRecord | undefined>;
 // ---------------------------------------------------------------------------
 
 /**
- * Record this copy of core in the process-wide registry, and throw if a copy at
- * an incompatible contract version got there first.
+ * Record this copy of core in the process-wide registry and reject an
+ * incompatible contract version.
  *
- * **Call this from the first reachable entry point** — `buildCatalog`,
- * `createBridge`, `createSession`, and each adapter's registration hook — and
- * never at module scope. `createConcierge` reaches it transitively through
- * `buildCatalog`. See constraint 1 in this file's header: with
- * `"sideEffects": false`, a registration hoisted out of this retained call
- * path may have no runtime reference keeping its module evaluation reachable.
- *
- * **A same-version duplicate adopts rather than throws.** Two copies at the same
- * contract version share one record and therefore share state, which is exactly
- * what SC-4 asks for — two adapters resolving core independently end up on one
- * core instance. Only a *version* mismatch is a failure. Adopting also keeps
- * ordinary duplicate resolution and dev-server re-evaluation quiet: the record
- * persists across a re-evaluation and the same-version path returns silently.
- *
- * **The mismatch throws from here, not from module evaluation**, for three
- * reasons in order of force:
- *
- * 1. A module-scope registration with no retained runtime reference may be
- *    removed under `"sideEffects": false`, so an import-time throw is not
- *    reliably reachable in a bundled consumer.
- * 2. An import-time throw in ESM surfaces as a module-evaluation error with no
- *    useful frame, and under a metaframework's SSR it takes down the whole
- *    render rather than the one feature.
- * 3. By the time this function runs the library owns the stack, so the message
- *    lands next to the API the developer just called.
- *
- * The thrown message carries the two contract versions and the remediation and
- * nothing else — no file paths, no environment values, no user data. This is a
- * developer-time error rather than a dispatcher result, so the project's rule
- * that a crash is one generic sentence does not govern it; what does govern it
- * is that it must never become a channel for anything but its own two integers.
- *
- * **`buildCatalog` in `./catalog.ts` is the first production call site**, added
- * in Phase 3, and it calls this on its first line. That is the earliest entry
- * point every consumer necessarily reaches — there is no way to use this package
- * without building a catalog — so it is the one place a single call covers every
- * app. Phase 2 shipped this guard with no production call site at all; the
- * instruction above is therefore satisfied rather than aspirational.
- *
- * **`createConcierge` in `./concierge.ts` arrived in Phase 4, and it adds no
- * second call here because it reaches this guard transitively.** Assembling a
- * catalog is the first thing it does, so `buildCatalog`'s first line — this
- * function — runs before anything else in its body. A direct call would satisfy
- * the instruction above as well, and would be a documented no-op: the
- * same-version adopt path described above returns silently when a second call
- * arrives at the same contract version. So the direct call was measured
- * unnecessary rather than forgotten, and the sentence that once named
- * `createConcierge` as pending was corrected here rather than left to ship —
- * this comment reaches `dist/index.d.ts` verbatim, and it went false the moment
- * that function landed.
- *
- * **`createBridge` in `./bridge.ts` arrived in Phase 5, and it does add a second
- * call here — it reaches this guard from its own body rather than through
- * anything else.** On the registration side of the instruction above it is
- * the first direct production call site — `buildCatalog` is a direct call too,
- * but it is the catalog path, and `createConcierge` reaches the guard only
- * transitively through it. Registration is also where two copies of core
- * actually bite: a component registers into one instance, a handler reads the
- * other, and `bridge` stays `null` forever on a page that is definitely open.
- *
- * **`createSession` in `./session.ts` is the fourth guarded production entry
- * point, and it is a direct call site.** Its factory body calls this function
- * before reading context, subscribing to the transport, publishing a catalog,
- * or invoking any other outside capability. That direct placement matters for
- * applications which construct a Session from structural Concierge and
- * Transport implementations: neither `buildCatalog` nor `createBridge` is
- * necessarily on that path, so a transitive guard would leave it uncovered.
- *
- * **That narrows the reserved call site rather than closing it**, and the
- * distinction is why this paragraph is re-scoped instead of deleted. An app that
- * calls `createBridge` is now covered. A Phase 9 adapter that is imported and
- * mounted in a module with no `createBridge` call anywhere in its graph is not:
- * it inherits nothing from this call and nothing from `buildCatalog`'s, so it
- * still needs a call of its own, and the site stays named as pending for that
- * case alone. Corrected in place for the same reason as the `createConcierge`
- * sentence above — this comment reaches `dist/index.d.ts` verbatim, and it went
- * partly false the moment `createBridge` landed.
- *
- * Secondarily, this function is exercised by the tests in plan 02-07 and by the
- * Node-floor import harness in plan 02-09.
+ * Call from retained public entry points, never module evaluation: this package
+ * is side-effect-free, so a bundler may erase unreferenced module work. Copies
+ * at the same version adopt the existing record; only a version mismatch
+ * throws. The error contains contract versions and remediation, never app data.
  */
 export function assertSingleInstance(): void {
   const holder: Holder = globalThis as unknown as Holder;

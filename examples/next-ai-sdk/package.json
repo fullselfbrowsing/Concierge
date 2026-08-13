@@ -1,0 +1,37 @@
+{
+  "name": "@fullselfbrowsing/concierge-example-next-ai-sdk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev",
+    "keys": "node scripts/generate-keys.mjs",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --root ../.. --project next-ai-sdk",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@ai-sdk/react": "4.0.67",
+    "@fullselfbrowsing/concierge": "workspace:*",
+    "@fullselfbrowsing/concierge-react": "workspace:*",
+    "@openrouter/ai-sdk-provider": "3.0.0",
+    "ai": "7.0.64",
+    "next": "16.3.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@types/json-schema": "7.0.15",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "typescript": "6.0.3"
+  }
+}

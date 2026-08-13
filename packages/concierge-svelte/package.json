@@ -1,6 +1,6 @@
 {
   "name": "@fullselfbrowsing/concierge-svelte",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "description": "Svelte bindings for @fullselfbrowsing/concierge",
   "keywords": [
@@ -14,12 +14,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fullselfbrowsing/concierge.git",
+    "url": "git+https://github.com/fullselfbrowsing/Concierge.git",
     "directory": "packages/concierge-svelte"
   },
-  "homepage": "https://github.com/fullselfbrowsing/concierge#readme",
+  "homepage": "https://github.com/fullselfbrowsing/Concierge#readme",
   "bugs": {
-    "url": "https://github.com/fullselfbrowsing/concierge/issues"
+    "url": "https://github.com/fullselfbrowsing/Concierge/issues"
   },
   "type": "module",
   "sideEffects": false,
@@ -48,7 +48,8 @@
     "LICENSE"
   ],
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "tag": "latest"
   },
   "engines": {
     "node": ">=22.12.0"
@@ -60,14 +61,14 @@
   "scripts": {
     "build": "svelte-package",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json",
-    "test": "vitest run --project svelte-lifecycle"
+    "test": "vitest run --root ../.. --project svelte-lifecycle"
   },
   "devDependencies": {
     "@fullselfbrowsing/concierge": "workspace:*",
     "@sveltejs/package": "2.5.8",
     "@sveltejs/vite-plugin-svelte": "7.2.0",
     "@testing-library/svelte": "5.4.2",
-    "svelte": "5.56.8",
+    "svelte": "5.56.9",
     "svelte-check": "4.7.5",
     "typescript": "6.0.3"
   }

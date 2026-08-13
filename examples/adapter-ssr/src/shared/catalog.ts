@@ -110,7 +110,7 @@ function createSide(adapter: AdapterName, renderId: string): AdapterSsrSide {
     concierge,
     registry,
     bridge,
-    catalog: concierge.catalogFor({ pathname: "/adapter-ssr" }),
+    catalog: concierge.resolveCatalog({ pathname: "/adapter-ssr" }).tools,
     preRegistry: registry.read(),
   });
 }

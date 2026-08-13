@@ -67,7 +67,7 @@
 //
 //      The two-pass row set contradicts its own header, and on a deterministic
 //      matcher — which is every matcher a test writes by default — it looks
-//      perfect. S17 pins `explain().stage` against `stageFor()` across three
+//      perfect. S17 pins `explain().stage` against `resolveCatalog().stage` across three
 //      configs and S19 pins the shadowed-stage row set, which is the shape a
 //      short-circuiting implementation gets wrong.
 //
@@ -371,6 +371,14 @@ function stage(id: string, match: unknown, actions: unknown[], bridge?: unknown)
     : { id, match, actions, bridge };
 }
 
+function catalogTools(concierge, context) {
+  return concierge.resolveCatalog(context).tools;
+}
+
+function resolvedStage(concierge, context) {
+  return concierge.resolveCatalog(context).stage;
+}
+
 const DELIVERED_PROFILE = {
   consentGrade: "delivered",
   userTurnIdentity: "none",
@@ -428,7 +436,7 @@ function canonical() {
 describe("STG-01 — the catalog carries this stage's actions plus cross-stage, and nothing else", () => {
   it("S1 — the results stage is offered its own two actions plus signOut, and confirmBooking is ABSENT", () => {
     const concierge = canonical();
-    const names = concierge.catalogFor({ pathname: "/results" }).map((tool) => tool.name);
+    const names = catalogTools(concierge, { pathname: "/results" }).map((tool) => tool.name);
 
     expect(names).toEqual(["applyFilter", "sortResults", "signOut"]);
 
@@ -444,19 +452,19 @@ describe("STG-01 — the catalog carries this stage's actions plus cross-stage, 
     // The other side of the same claim, in one case rather than two, so that
     // the pair is read together: cross-stage appears in BOTH, stage-local in
     // exactly one.
-    expect(concierge.catalogFor({ pathname: "/checkout" }).map((tool) => tool.name)).toEqual([
+    expect(catalogTools(concierge, { pathname: "/checkout" }).map((tool) => tool.name)).toEqual([
       "confirmBooking",
       "signOut",
     ]);
   });
 
-  it("S2 — an unrouted context is offered the cross-stage actions only, and stageFor is null", () => {
+  it("S2 — an unrouted context is offered cross-stage actions and resolves a null stage", () => {
     const concierge = canonical();
 
-    expect(concierge.catalogFor({ pathname: "/somewhere-with-no-stage" }).map((t) => t.name)).toEqual([
+    expect(catalogTools(concierge, { pathname: "/somewhere-with-no-stage" }).map((t) => t.name)).toEqual([
       "signOut",
     ]);
-    expect(concierge.stageFor({ pathname: "/somewhere-with-no-stage" })).toBe(null);
+    expect(resolvedStage(concierge, { pathname: "/somewhere-with-no-stage" })).toBe(null);
 
     // Why this is not an EMPTY array, asserted here because the empty-array
     // build is the one a "fail closed" instinct produces and it passes every
@@ -466,15 +474,15 @@ describe("STG-01 — the catalog carries this stage's actions plus cross-stage, 
     // the declaration they wrote. Failing closed is the right instinct for
     // CONSENT and the wrong one here — it would silently disable
     // `signOut`-shaped actions on every 404 and every route no stage has been
-    // added for yet. Nothing is hidden either way: `stageFor` is `null` and
+    // added for yet. Nothing is hidden either way: the resolved stage is `null` and
     // `explain` reports every stage `matched: false`, so the diagnosis is one
     // call away rather than absent.
-    expect(concierge.catalogFor({ pathname: "/x" })).toHaveLength(1);
+    expect(catalogTools(concierge, { pathname: "/x" })).toHaveLength(1);
   });
 
   it("S3 — every element is an EmittedTool and carries neither the handler nor the validator", () => {
     const concierge = canonical();
-    const tools = concierge.catalogFor({ pathname: "/results" });
+    const tools = catalogTools(concierge, { pathname: "/results" });
 
     for (const tool of tools) {
       expect(tool.type).toBe("function");
@@ -506,8 +514,8 @@ describe("STG-02 — declaration order decides, first match wins, independent of
       ],
     });
 
-    expect(concierge.stageFor({ pathname: "/anything" })).toBe("first");
-    expect(concierge.catalogFor({ pathname: "/anything" }).map((t) => t.name)).toEqual([
+    expect(resolvedStage(concierge, { pathname: "/anything" })).toBe("first");
+    expect(catalogTools(concierge, { pathname: "/anything" }).map((t) => t.name)).toEqual([
       "fromFirst",
     ]);
 
@@ -543,17 +551,17 @@ describe("STG-02 — declaration order decides, first match wins, independent of
     }
 
     const before = build("checkout");
-    expect(before.stageFor({ pathname: "/x" })).toBe("results");
-    expect(before.catalogFor({ pathname: "/x" }).map((t) => t.name)).toEqual(["fromResults"]);
+    expect(resolvedStage(before, { pathname: "/x" })).toBe("results");
+    expect(catalogTools(before, { pathname: "/x" }).map((t) => t.name)).toEqual(["fromResults"]);
 
     const after = build("2");
-    expect(after.stageFor({ pathname: "/x" })).toBe("results");
-    expect(after.catalogFor({ pathname: "/x" }).map((t) => t.name)).toEqual(["fromResults"]);
+    expect(resolvedStage(after, { pathname: "/x" })).toBe("results");
+    expect(catalogTools(after, { pathname: "/x" }).map((t) => t.name)).toEqual(["fromResults"]);
 
     // Stated as a claim rather than left implied by the two equal answers: the
     // renamed stage did not win, and it did not win by a name that would have
     // sorted first.
-    expect(after.stageFor({ pathname: "/x" })).not.toBe("2");
+    expect(resolvedStage(after, { pathname: "/x" })).not.toBe("2");
   });
 });
 
@@ -580,15 +588,15 @@ describe("STG-03 — the context is whatever the app knows, not a pathname", () 
       crossStage: [declare("signOut", zodEmptyObject)],
     });
 
-    expect(concierge.stageFor({ modalOpen: true, cartCount: 3 })).toBe("cart-modal");
-    expect(concierge.catalogFor({ modalOpen: true, cartCount: 3 }).map((t) => t.name)).toEqual([
+    expect(resolvedStage(concierge, { modalOpen: true, cartCount: 3 })).toBe("cart-modal");
+    expect(catalogTools(concierge, { modalOpen: true, cartCount: 3 }).map((t) => t.name)).toEqual([
       "editQuantity",
       "signOut",
     ]);
 
     // And the near-miss, so the matcher is demonstrably reading both fields
     // rather than matching everything.
-    expect(concierge.stageFor({ modalOpen: true, cartCount: 0 })).toBe(null);
+    expect(resolvedStage(concierge, { modalOpen: true, cartCount: 0 })).toBe(null);
   });
 });
 
@@ -607,8 +615,8 @@ describe("STG-04 — one frozen array per resolved stage, referentially identica
     // frameworks compute and both are in the language.
     const concierge = canonical();
 
-    const a = concierge.catalogFor({ pathname: "/results" });
-    const b = concierge.catalogFor({ pathname: "/results", scrollY: 900, ts: Date.now() });
+    const a = catalogTools(concierge, { pathname: "/results" });
+    const b = catalogTools(concierge, { pathname: "/results", scrollY: 900, ts: Date.now() });
 
     // The second context is deliberately a DIFFERENT OBJECT WITH EXTRA KEYS. A
     // case passing the same `ctx` twice would also pass under a
@@ -625,8 +633,8 @@ describe("STG-04 — one frozen array per resolved stage, referentially identica
   it("S8 — two distinct no-stage contexts share one array under the null key", () => {
     const concierge = canonical();
 
-    const a = concierge.catalogFor({ pathname: "/nowhere" });
-    const b = concierge.catalogFor({ tenantId: "acme", role: "admin" });
+    const a = catalogTools(concierge, { pathname: "/nowhere" });
+    const b = catalogTools(concierge, { tenantId: "acme", role: "admin" });
 
     // The null key is a real key, not an absence. A memo that special-cases
     // "no stage" by rebuilding the cross-stage array each time loops React on
@@ -640,8 +648,8 @@ describe("STG-04 — one frozen array per resolved stage, referentially identica
     const first = canonical();
     const second = canonical();
 
-    const a = first.catalogFor({ pathname: "/results" });
-    const b = second.catalogFor({ pathname: "/results" });
+    const a = catalogTools(first, { pathname: "/results" });
+    const b = catalogTools(second, { pathname: "/results" });
 
     // The positive claim about a negative, in C22's register. The cache must be
     // INSTANCE-LOCAL, and the reason is cross-request state pollution under
@@ -660,8 +668,8 @@ describe("STG-04 — one frozen array per resolved stage, referentially identica
 
     // Each instance is still internally stable — otherwise "not shared" could
     // be satisfied by a build with no memo at all.
-    expect(first.catalogFor({ pathname: "/results" })).toBe(a);
-    expect(second.catalogFor({ pathname: "/results" })).toBe(b);
+    expect(catalogTools(first, { pathname: "/results" })).toBe(a);
+    expect(catalogTools(second, { pathname: "/results" })).toBe(b);
   });
 });
 
@@ -691,7 +699,7 @@ describe("CAT-03 — a consent policy may name a CROSS-STAGE action, which only 
       consentProfile: DELIVERED_PROFILE,
     });
 
-    expect(concierge.catalogFor({ pathname: "/x" }).map((t) => t.name)).toEqual([
+    expect(catalogTools(concierge, { pathname: "/x" }).map((t) => t.name)).toEqual([
       "reviewBooking",
       "signOut",
     ]);
@@ -786,8 +794,8 @@ describe("CAT-04 — createConcierge captures one private factory-local consent 
     expect(Object.keys(concierge)).toEqual([
       "dispatch",
       "dispatchBatch",
-      "catalogFor",
-      "stageFor",
+      "resolveCatalog",
+      "onDispatch",
       "explain",
     ]);
     expect("consentProfile" in concierge).toBe(false);
@@ -900,7 +908,7 @@ describe("CAT-04 — createConcierge captures one private factory-local consent 
       presentReadback: PRESENT_READBACK,
       digest: DIGEST,
     });
-    expect(complete.catalogFor({}).map((tool) => tool.name)).toEqual([
+    expect(catalogTools(complete, {}).map((tool) => tool.name)).toEqual([
       "review",
       "confirm",
     ]);
@@ -926,7 +934,7 @@ describe("CAT-04 — createConcierge captures one private factory-local consent 
       stages: [stage("active", () => true, [declare("only", schema)])],
     });
     expect(emissions).toBe(1);
-    expect(concierge.catalogFor({}).map((tool) => tool.name)).toEqual(["only"]);
+    expect(catalogTools(concierge, {}).map((tool) => tool.name)).toEqual(["only"]);
   });
 });
 
@@ -940,7 +948,7 @@ describe("SEC-03 — the tool list handed to the agent cannot be tampered with",
 
   it("S11 — pushing a tool onto the returned array throws, and the length is unchanged", () => {
     const concierge = canonical();
-    const tools = concierge.catalogFor({ pathname: "/results" });
+    const tools = catalogTools(concierge, { pathname: "/results" });
     const evilTool = {
       type: "function",
       name: "wireTransfer",
@@ -968,7 +976,7 @@ describe("SEC-03 — the tool list handed to the agent cannot be tampered with",
 
   it("S12 — rewriting an element's name throws, and the original name is still there", () => {
     const concierge = canonical();
-    const tools = concierge.catalogFor({ pathname: "/results" });
+    const tools = catalogTools(concierge, { pathname: "/results" });
 
     expect(tools[0].name).toBe("applyFilter");
 
@@ -987,7 +995,7 @@ describe("SEC-03 — the tool list handed to the agent cannot be tampered with",
 
   it("S13 — rewriting a NESTED schema key throws, so the elements are DEEP-frozen", () => {
     const concierge = canonical();
-    const tools = concierge.catalogFor({ pathname: "/results" });
+    const tools = catalogTools(concierge, { pathname: "/results" });
 
     // The property name is read out of the REAL emitted `parameters` rather
     // than assumed, because the emitted shape is the vendor's and not ours —
@@ -1018,8 +1026,8 @@ describe("SEC-03 — the tool list handed to the agent cannot be tampered with",
   it("S14 — the SAME signOut tool object appears in both stage arrays", () => {
     const concierge = canonical();
 
-    const fromResults = concierge.catalogFor({ pathname: "/results" });
-    const fromCheckout = concierge.catalogFor({ pathname: "/checkout" });
+    const fromResults = catalogTools(concierge, { pathname: "/results" });
+    const fromCheckout = catalogTools(concierge, { pathname: "/checkout" });
 
     const signOutInResults = fromResults.find((t) => t.name === "signOut");
     const signOutInCheckout = fromCheckout.find((t) => t.name === "signOut");
@@ -1077,7 +1085,7 @@ describe("SEC-03 — the tool list handed to the agent cannot be tampered with",
   it("S15c — published parameters are detached from the explicit schema", () => {
     const explicit = { type: "object", properties: { query: { type: "string", description: "reviewed" } } };
     const concierge = createConcierge({ stages: [stage("detached", () => true, [declare("detachedSchema", zodEmptyObject, { jsonSchema: explicit })])] });
-    const parameters = concierge.catalogFor({ pathname: "/any" })[0].parameters;
+    const parameters = catalogTools(concierge, { pathname: "/any" })[0].parameters;
     expect(parameters).not.toBe(explicit);
     explicit.properties.query.description = "poisoned";
     expect(parameters.properties.query.description).toBe("reviewed");
@@ -1099,16 +1107,16 @@ describe("DX-01 — explain() answers \"why didn't my action fire\"", () => {
     expect(Object.keys(explanation)).toEqual(["stage", "stages", "catalog"]);
   });
 
-  it("S17 — explain().stage agrees with stageFor() when a stage matches, when none does, and when a matcher throws", () => {
+  it("S17 — explain().stage agrees with atomic resolution across matcher outcomes", () => {
     const matched = canonical();
     expect(matched.explain({ pathname: "/results" }).stage).toBe(
-      matched.stageFor({ pathname: "/results" }),
+      resolvedStage(matched, { pathname: "/results" }),
     );
     expect(matched.explain({ pathname: "/results" }).stage).toBe("results");
 
     const unmatched = canonical();
     expect(unmatched.explain({ pathname: "/nowhere" }).stage).toBe(
-      unmatched.stageFor({ pathname: "/nowhere" }),
+      resolvedStage(unmatched, { pathname: "/nowhere" }),
     );
     expect(unmatched.explain({ pathname: "/nowhere" }).stage).toBe(null);
 
@@ -1122,7 +1130,7 @@ describe("DX-01 — explain() answers \"why didn't my action fire\"", () => {
     //
     // This is the config that tells a one-pass `explain` from a two-pass one by
     // consequence rather than by report: a two-pass implementation calls
-    // `stageFor` for the header and then maps the rows separately, and consumer
+    // atomic resolution for the header and then maps the rows separately, and consumer
     // code is under no obligation to answer the same way twice.
     const throwing = createConcierge({
       stages: [
@@ -1135,18 +1143,18 @@ describe("DX-01 — explain() answers \"why didn't my action fire\"", () => {
         ),
       ],
     });
-    expect(throwing.explain({ pathname: "/x" }).stage).toBe(throwing.stageFor({ pathname: "/x" }));
+    expect(throwing.explain({ pathname: "/x" }).stage).toBe(resolvedStage(throwing, { pathname: "/x" }));
     expect(throwing.explain({ pathname: "/x" }).stage).toBe(null);
   });
 
-  it("S18 — explain().catalog is exactly the names catalogFor() returns, matched or not", () => {
+  it("S18 — explain().catalog is exactly the atomically resolved tool names", () => {
     const concierge = canonical();
 
     expect(concierge.explain({ pathname: "/results" }).catalog).toEqual(
-      concierge.catalogFor({ pathname: "/results" }).map((t) => t.name),
+      catalogTools(concierge, { pathname: "/results" }).map((t) => t.name),
     );
     expect(concierge.explain({ pathname: "/nowhere" }).catalog).toEqual(
-      concierge.catalogFor({ pathname: "/nowhere" }).map((t) => t.name),
+      catalogTools(concierge, { pathname: "/nowhere" }).map((t) => t.name),
     );
 
     // Spelled out once so the claim is not only "they agree" but "they agree on
@@ -1259,7 +1267,7 @@ describe("DX-01 — explain() answers \"why didn't my action fire\"", () => {
     // Asserted as a positive claim in C22's register, so the non-identity
     // cannot later be "optimized" into the memo as an obvious tidy-up. `explain`
     // is the ONE member of `Concierge` that must never be memoized: it is the
-    // exact inverse of `catalogFor`'s rule, and wiring it into
+    // exact inverse of atomic catalog resolution, and wiring it into
     // `useSyncExternalStore` or a `$derived` would loop forever — which is
     // precisely the defect STG-04's memo exists to prevent, one line away from
     // being reintroduced by the phase's own diagnostic.
@@ -1363,9 +1371,9 @@ describe("The matcher policy — a broken matcher degrades once, names itself, a
 
     let names;
     try {
-      concierge.catalogFor({ pathname: "/x" });
-      concierge.catalogFor({ pathname: "/y" });
-      names = concierge.catalogFor({ pathname: "/z" }).map((t) => t.name);
+      catalogTools(concierge, { pathname: "/x" });
+      catalogTools(concierge, { pathname: "/y" });
+      names = catalogTools(concierge, { pathname: "/z" }).map((t) => t.name);
     } finally {
       globalThis.console = realConsole;
     }
@@ -1427,7 +1435,7 @@ describe("The matcher policy — a broken matcher degrades once, names itself, a
 
     let resolved;
     try {
-      resolved = concierge.stageFor({ pathname: "/x" });
+      resolved = resolvedStage(concierge, { pathname: "/x" });
     } finally {
       globalThis.console = realConsole;
     }
@@ -1446,7 +1454,7 @@ describe("The matcher policy — a broken matcher degrades once, names itself, a
     // silently scopes the agent's whole catalog — failing OPEN on the decision
     // that decides what an agent may do.
     expect(resolved).toBe("real");
-    expect(concierge.catalogFor({ pathname: "/x" }).map((t) => t.name)).toEqual(["offered"]);
+    expect(catalogTools(concierge, { pathname: "/x" }).map((t) => t.name)).toEqual(["offered"]);
 
     expect(captured).toHaveLength(1);
     expect(captured[0]).toContain("truthy");
@@ -1495,17 +1503,17 @@ describe("The stage-id policy — colliding ids are reported once and never coll
     // reached entirely through legal, type-correct configuration.
     //
     // Keying by declaration INDEX makes the collapse impossible; the warning is
-    // what keeps the remaining ambiguity visible, because `stageFor()`,
+    // what keeps the remaining ambiguity visible, because atomic resolution,
     // `Session.stage()` and `explain()` all report the id and two rows a
     // developer reads are indistinguishable. Both halves are required — either
     // alone leaves a defect — which is why this case asserts both.
-    expect(concierge.catalogFor({ n: 1 }).map((t) => t.name)).toEqual(["actionOne"]);
-    expect(concierge.catalogFor({ n: 2 }).map((t) => t.name)).toEqual(["actionTwo"]);
-    expect(concierge.catalogFor({ n: 3 }).map((t) => t.name)).toEqual(["actionThree"]);
+    expect(catalogTools(concierge, { n: 1 }).map((t) => t.name)).toEqual(["actionOne"]);
+    expect(catalogTools(concierge, { n: 2 }).map((t) => t.name)).toEqual(["actionTwo"]);
+    expect(catalogTools(concierge, { n: 3 }).map((t) => t.name)).toEqual(["actionThree"]);
 
     // And the reporting ambiguity the warning exists for, asserted rather than
     // described: all three contexts report the same id.
-    expect(concierge.stageFor({ n: 1 })).toBe("same");
-    expect(concierge.stageFor({ n: 3 })).toBe("same");
+    expect(resolvedStage(concierge, { n: 1 })).toBe("same");
+    expect(resolvedStage(concierge, { n: 3 })).toBe("same");
   });
 });

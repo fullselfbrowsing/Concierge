@@ -2,7 +2,7 @@
  * Concierge action declaration — `defineAction` and the CAT-07 literal-description
  * guard.
  *
- * This is the one requirement in the phase that a runtime check cannot satisfy at
+ * This is a requirement that a runtime check cannot satisfy at
  * all. A description assembled from i18n, a CMS, or a per-tenant store is
  * byte-identical at runtime to a hand-written one, so the compiler is the only
  * place the two are distinguishable and the conditional type below is the entire
@@ -12,7 +12,7 @@
  * **1. `D` occupies the `description` position and NOWHERE else.** A type
  * parameter reaching two properties collects a candidate from each and widens to
  * their union. That is not hypothetical here: `types.ts:478-487` records the
- * identical defect being hit in Phase 1 with `Name`, where
+ * identical defect with `Name`, where
  * `{name: "confirmBooking", consent: {requires: "reviewBooking"}}` widened `Name`
  * to the union of both and "silently corrupt[ed] the name-union derivation the
  * whole catalog depends on". Do not reuse `D` for a title, an id, or an argument

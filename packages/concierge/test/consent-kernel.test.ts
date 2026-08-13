@@ -8,6 +8,7 @@ import {
   COMMAND_PALETTE_CAPABILITIES,
   createStubTransport,
 } from "./fixtures/stub-transport.js";
+import { dispatchV2 } from "./fixtures/v2-dispatch.js";
 
 const DIST_URL = new URL("../dist/index.js", import.meta.url);
 const DIST_PATH = fileURLToPath(DIST_URL);
@@ -127,14 +128,15 @@ function dispatchReview(
     callId = "review-call",
     deferUntilDelivered,
     responseId = "review-response",
+    sessionId = "test-session",
     userTurnId = "review-turn",
   } = {},
 ) {
-  const meta = { callId, responseId, userTurnId };
+  const meta = { callId, responseId, sessionId, userTurnId };
   if (deferUntilDelivered !== undefined) {
     meta.deferUntilDelivered = deferUntilDelivered;
   }
-  return concierge.dispatch(ACTIVE_CONTEXT, "review", args, meta);
+  return dispatchV2(concierge, ACTIVE_CONTEXT, "review", args, meta);
 }
 
 function dispatchGate(
@@ -144,13 +146,14 @@ function dispatchGate(
     args = {},
     callId = `${name}-call`,
     responseId = `${name}-response`,
+    sessionId = "test-session",
     signal,
     userTurnId = `${name}-turn`,
   } = {},
 ) {
-  const meta = { callId, responseId, userTurnId };
+  const meta = { callId, responseId, sessionId, userTurnId };
   if (signal !== undefined) meta.signal = signal;
-  return concierge.dispatch(ACTIVE_CONTEXT, name, args, meta);
+  return dispatchV2(concierge, ACTIVE_CONTEXT, name, args, meta);
 }
 
 function deliveryHarness() {
@@ -577,6 +580,86 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
     expect(gatedEntries.get("confirm")).toHaveLength(0);
   });
 
+  it("K08a — a foreign session cannot consume another session's armed review", async () => {
+    const marker = "[RED:K08a:consent-session-isolation]";
+    const delivery = deliveryHarness();
+    const { concierge, gatedEntries } = createKernel();
+
+    await dispatchReview(concierge, {
+      args: { amount: 41 },
+      callId: "session-a-review",
+      responseId: "session-a-review-response",
+      sessionId: "session-a",
+      deferUntilDelivered: delivery.hook,
+    });
+    delivery.report(0, "session-a-review-response");
+
+    const foreign = await dispatchGate(concierge, "confirm", {
+      callId: "session-b-confirm",
+      responseId: "session-b-confirm-response",
+      sessionId: "session-b",
+    });
+    expect(foreign, marker).toMatchObject({
+      ok: false,
+      reason: "consent_required",
+    });
+    expect(gatedEntries.get("confirm")).toHaveLength(0);
+
+    const owner = await dispatchGate(concierge, "confirm", {
+      callId: "session-a-confirm",
+      responseId: "session-a-confirm-response",
+      sessionId: "session-a",
+    });
+    expect(owner, marker).toMatchObject({ ok: true });
+    expect(gatedEntries.get("confirm")).toHaveLength(1);
+  });
+
+  it("K08b — same-name reviews and late delivery remain independent across sessions", async () => {
+    const marker = "[RED:K08b:concurrent-consent-session-slots]";
+    const firstDelivery = deliveryHarness();
+    const secondDelivery = deliveryHarness();
+    const { concierge, gatedEntries } = createKernel();
+
+    await dispatchReview(concierge, {
+      args: { amount: 11 },
+      callId: "session-a-review",
+      responseId: "session-a-review-response",
+      sessionId: "session-a",
+      deferUntilDelivered: firstDelivery.hook,
+    });
+    await dispatchReview(concierge, {
+      args: { amount: 22 },
+      callId: "session-b-review",
+      responseId: "session-b-review-response",
+      sessionId: "session-b",
+      deferUntilDelivered: secondDelivery.hook,
+    });
+
+    secondDelivery.report(0, "session-b-review-response");
+    expect(
+      await dispatchGate(concierge, "confirm", {
+        callId: "session-b-confirm",
+        responseId: "session-b-confirm-response",
+        sessionId: "session-b",
+      }),
+      marker,
+    ).toMatchObject({ ok: true });
+
+    firstDelivery.report(0, "session-a-review-response");
+    expect(
+      await dispatchGate(concierge, "confirm", {
+        callId: "session-a-confirm",
+        responseId: "session-a-confirm-response",
+        sessionId: "session-a",
+      }),
+      marker,
+    ).toMatchObject({ ok: true });
+    expect(
+      gatedEntries.get("confirm").map((entry) => entry.ack.payload.amount),
+      marker,
+    ).toEqual([22, 11]);
+  });
+
   it("K09 — a fresh validated review immediately replaces an armed generation", async () => {
     const first = deliveryHarness();
     const second = deliveryHarness();
@@ -664,7 +747,7 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
       reason: "consent_required",
     });
 
-    await keyed.dispatch(ACTIVE_CONTEXT, "reviewA", { amount: 1 }, {
+    await dispatchV2(keyed, ACTIVE_CONTEXT, "reviewA", { amount: 1 }, {
       callId: "keyed-review-a",
       responseId: "keyed-review-response",
       deferUntilDelivered(effect) {
@@ -675,13 +758,13 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
       },
     });
     expect(
-      await keyed.dispatch(ACTIVE_CONTEXT, "confirmA", {}, {
+      await dispatchV2(keyed, ACTIVE_CONTEXT, "confirmA", {}, {
         callId: "keyed-a",
         responseId: "keyed-response",
       }),
     ).toMatchObject({ ok: true });
     expect(
-      await keyed.dispatch(ACTIVE_CONTEXT, "confirmB", {}, {
+      await dispatchV2(keyed, ACTIVE_CONTEXT, "confirmB", {}, {
         callId: "keyed-b",
         responseId: "keyed-response-two",
       }),
@@ -733,7 +816,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
         callId: "empty-confirm-id",
         responseId: "",
       }),
-    ).toMatchObject({ ok: false, reason: "consent_required" });
+    ).toMatchObject({ ok: false, reason: "invalid_invocation" });
     expect(gatedEntries.get("confirm")).toHaveLength(0);
     expect(
       await dispatchGate(concierge, "confirm", {
@@ -760,7 +843,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
       deferUntilDelivered: missingTurnDelivery.hook,
       userTurnId: "",
     });
-    missingTurnDelivery.report(0, "review-response");
+    expect(missingTurnDelivery.registrations).toBe(0);
     expect(
       await dispatchGate(concierge, "confirm", {
         callId: "after-missing-turn",
@@ -1223,7 +1306,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
       message: "MUTATED POLICY MUST NOT BE OBSERVED",
     };
 
-    await concierge.dispatch(ACTIVE_CONTEXT, "reviewA", { amount: 41 }, {
+    await dispatchV2(concierge, ACTIVE_CONTEXT, "reviewA", { amount: 41 }, {
       callId: "captured-policy-review",
       responseId: "captured-policy-review-response",
       userTurnId: "captured-policy-review-turn",
@@ -1235,7 +1318,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
       },
     });
     expect(
-      await concierge.dispatch(ACTIVE_CONTEXT, "confirm", {}, {
+      await dispatchV2(concierge, ACTIVE_CONTEXT, "confirm", {}, {
         callId: "captured-policy-confirm",
         responseId: "captured-policy-confirm-response",
         userTurnId: "captured-policy-review-turn",
@@ -1244,7 +1327,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
     expect(entries).toHaveLength(1);
 
     expect(
-      await concierge.dispatch(ACTIVE_CONTEXT, "confirm", {}, {
+      await dispatchV2(concierge, ACTIVE_CONTEXT, "confirm", {}, {
         callId: "captured-policy-second-confirm",
         responseId: "captured-policy-second-response",
         userTurnId: "captured-policy-review-turn",

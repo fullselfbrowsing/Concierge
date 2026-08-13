@@ -350,22 +350,15 @@ export function validateCatalogEntry(
  * be safe. A plain object's properties are exactly what `Object.freeze` does
  * seal, so the record form is the one that can satisfy the requirement at all.
  *
- * **2. `Object.create(null)` removes the prototype chain**, which is the same
- * protection ROADMAP Phase 6 seeks when it says handler lookup must not be a
- * bare object literal because `dispatch("__proto__")` and
+ * **2. `Object.create(null)` removes the prototype chain**, which protects the
+ * handler lookup from names such as `dispatch("__proto__")` and
  * `dispatch("constructor")` are test cases. With no prototype there is nothing
  * for either name to resolve to, so a null-prototype frozen record satisfies
  * both constraints where a `Map` satisfies only the second.
  *
- * **This is agreed with Phase 6, not a divergence from it.** The ROADMAP note
- * has been amended to carry this finding. A `Map` remains correct for Phase 6's
- * own **mutable** per-dispatch state — the dedup map, the timer map, the
- * consent map, all allocated lazily on first dispatch — and is wrong for
- * anything that must be frozen. **This record is the frozen one.** If Phase 6's
- * handler lookup reads `catalog.byName` it already has both properties and must
- * **not** be converted to a `Map`; if Phase 6 keeps a separate mutable lookup
- * of its own, that one may be a `Map`, because it is neither frozen nor part of
- * the catalog.
+ * A `Map` remains correct for **mutable** per-dispatch state such as retry and
+ * consent records, and is wrong for anything that must be frozen. This record
+ * is the frozen lookup and must not be converted to a `Map`.
  */
 export interface Catalog<Name extends string = string> {
   readonly entries: readonly CatalogEntry[];
@@ -416,15 +409,14 @@ type PropertyBag = Record<string, unknown>;
 /**
  * Is this declaration's `schema` actually a Standard Schema validator?
  *
- * **This closes the DX-03 gap plan 03-02 handed forward.** `vendorOf` is the
- * plain documented read, `schema["~standard"].vendor`, and `emitSchema` calls it
+ * `vendorOf` is the plain documented read, `schema["~standard"].vendor`, and
+ * `emitSchema` calls it
  * on its first line. An action whose `schema` is missing, `null`, or a plain
  * object therefore produces a raw `TypeError` with no action name and no fix —
  * exactly the failure DX-03 exists to prevent, and the one shape a JavaScript
  * consumer hits most easily (passing the *inferred type* instead of the
- * validator, or forgetting the field entirely). 03-02's threat model covers the
- * `jsonSchema` escape hatch rather than `schema`, so it correctly declined to
- * harden out of scope and named `buildCatalog` as the owner. This is that.
+ * validator, or forgetting the field entirely). `buildCatalog` owns the guarded
+ * validation so these failures carry an action name and a remedy.
  *
  * The test mirrors `hasJsonSchemaConverter`: `typeof` checks on each hop rather
  * than `"~standard" in schema`, because `in` walks the prototype chain of an
@@ -510,11 +502,9 @@ function declaredRedaction(action: AnyActionDefinition): unknown {
  * failures, because a consent policy with no target is a gate that silently does
  * not exist at all, which is the same class of defect CAT-03 was written to
  * catch. It is recorded rather than fixed because closing it means a third code
- * with a genuinely different `fix` — "the policy names nothing to wait for" — and
- * no requirement in this phase asks for one. It is scheduled against Phase 8's
- * consent kernel, which is the first code that reads this value at runtime and
- * therefore the first code that can be wrong about it. That correction would
- * widen this rule; it does not change what the two codes below already mean.
+ * with a genuinely different `fix`: "the policy names nothing to wait for".
+ * That correction would widen this rule; it does not change what the two codes
+ * below already mean.
  */
 function consentRequiresOf(action: AnyActionDefinition): unknown {
   const view: PropertyBag = action as unknown as PropertyBag;
@@ -687,10 +677,8 @@ function captureCatalogConsentEvidence(
  * **All four keys are read through a {@link PropertyBag} view, not through
  * `JsonSchemaObject`'s declared members.** `JsonSchemaObject.additionalProperties`
  * is declared `boolean`; the measured `z.record` emission puts a schema *object*
- * there (`{type: "string"}`). The declaration is narrower than reality. The
- * `types.ts` amendment is deliberately NOT made — 03-CONTEXT forbids touching
- * that file this phase — so the divergence is recorded as a Phase 4 note in
- * `03-03-SUMMARY.md`.
+ * there (`{type: "string"}`). The declared member is narrower than converter
+ * reality, so this boundary deliberately uses an untyped property bag.
  *
  * `Object.keys` and `Object.hasOwn`, never `for...in`: a hostile emitted schema
  * may carry a polluted prototype, and own-key semantics are the whole point.
@@ -745,10 +733,8 @@ function hasDeclaredParameters(parameters: JsonSchemaObject): boolean {
  *
  * **The structural repair, and who owns it now.** Splitting `SchemaEmission`
  * into `{diagnosis, remedy}` would let a caller place each half itself and make
- * this function unnecessary. Phase 4 considered it and deliberately declined:
- * it is a `json-schema.ts` contract change that needs its own decision, not a
- * side effect of a phase whose subject is stage scoping. It is deferred with
- * that reasoning recorded rather than left unowned.
+ * this function unnecessary, but that is a separate `json-schema.ts` contract
+ * change.
  *
  * The observable consequence of deferring is unchanged and is measured, so it
  * cannot rot silently: every `schema_not_emittable` issue carries a hardcoded
@@ -804,8 +790,8 @@ function defaultDiagnosticSink(diagnostic: CatalogDiagnostic): void {
  * accessor returns a descriptor with no `value` key and does not run the getter,
  * so the descriptor read itself is safe and the `in` test is exact.
  *
- * **Do NOT add the `Object.isFrozen(value) → return` early-out** that
- * `03-RESEARCH.md` sketches. Measured this phase: it skips the *children* of an
+ * **Do NOT add an `Object.isFrozen(value) → return` early-out.** It skips the
+ * *children* of an
  * already-frozen object, and the `jsonSchema` escape hatch a consumer supplies
  * may well be frozen at the top with mutable children — the probe froze such an
  * object, ran the early-out form, and then successfully replaced
@@ -896,9 +882,8 @@ export function deepFreeze<T>(value: T, skip: ReadonlySet<object>, seen: WeakSet
  * CAT-01 has TWO mechanisms, and the `const` modifier is only one of them
  * ---------------------------------------------------------------------------
  *
- * An earlier version of this comment said the `const` type parameter was
- * "CAT-01's entire mechanism". Plan 03-05 measured that claim and it is true
- * only for **raw object literals**. Both mechanisms are load-bearing, and each
+ * The `const` type parameter carries only **raw object literals**. The return
+ * type is the second load-bearing mechanism, and each
  * covers a call-site shape the other does not:
  *
  * 1. The `const` modifier on the type parameter carries the union on the
@@ -943,10 +928,6 @@ export function deepFreeze<T>(value: T, skip: ReadonlySet<object>, seen: WeakSet
  * ---------------------------------------------------------------------------
  * `assertSingleInstance()` is the first statement, and both halves matter
  * ---------------------------------------------------------------------------
- *
- * **This is the first production call site the PKG-04 guard has ever had.**
- * Phase 2 shipped it with none; ROADMAP Phase 3 SC-5 exists because
- * `02-VERIFICATION.md` finding W5 noticed.
  *
  * Here rather than anywhere else, for three reasons in order of force:
  *
@@ -1002,7 +983,7 @@ export function deepFreeze<T>(value: T, skip: ReadonlySet<object>, seen: WeakSet
  * Diagnostics dispatch *after* the throw check, so a failing build reports its
  * failures and nothing else. The sink is **not** wrapped in `try`/`catch`: a
  * consumer hook that throws is the supported mechanism for making a diagnostic
- * fatal in their own build (T-03-17, disposition **accept**), and catching it
+ * fatal in their own build, and catching it
  * would silently defeat the one lever that keeps SEC-05's marker from being an
  * annotation nothing reads.
  *
@@ -1074,13 +1055,12 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
     // This function cannot do better than say so in words. `CatalogIssue` is
     // `{code, action, vendor?, problem, fix}` and `buildCatalog` receives a flat
     // action array with no concept of a stage, so it cannot name the two stages
-    // involved. Rejected for Phase 4: adding `stage?` to `CatalogIssue` plus an
+    // involved. Adding `stage?` to `CatalogIssue` plus an
     // `origins?` parallel array to `BuildCatalogOptions`. That would enrich
     // every code rather than this one — `redaction_missing` in stage "checkout"
     // is genuinely more useful in a 40-stage app — but it is two new public
-    // fields and a new parallel-array invariant that no requirement in this
-    // phase asks for. Recorded so a later phase can adopt it without
-    // re-deriving the design. The developer's fallback meanwhile is one grep for
+    // fields and a new parallel-array invariant. The developer's fallback is one
+    // grep for
     // the name, which returns exactly the two hits that are the answer.
     if (seenNames.has(action.name)) {
       issues.push({
@@ -1093,6 +1073,21 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
     }
     seenNames.add(action.name);
     declared.push(action);
+
+    let availableWhen: unknown;
+    try {
+      availableWhen = action.availableWhen;
+    } catch {
+      availableWhen = null;
+    }
+    if (availableWhen !== undefined && typeof availableWhen !== "function") {
+      issues.push({
+        code: "invalid_declaration",
+        action: action.name,
+        problem: "its `availableWhen` member is not callable, so availability cannot be evaluated safely.",
+        fix: "omit `availableWhen`, or provide a total function that returns a boolean for every stage context.",
+      });
+    }
 
     // DX-03 — reach `vendorOf` only once the read is known to be safe.
     if (!hasStandardSchema(action)) {

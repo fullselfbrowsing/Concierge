@@ -8,10 +8,10 @@
 // warning anywhere else in this repository — `pnpm build` stays green, `attw` and
 // `publint` included, and every behavioural case in `test/` keeps passing.
 //
-//   1. A MUTABLE `EmittedTool`. `catalogFor` returns `ReadonlyArray<EmittedTool>`,
+//   1. A MUTABLE `EmittedTool`. `resolveCatalog` returns readonly tools,
 //      and `ReadonlyArray<…>` protects the ARRAY while saying nothing whatsoever
 //      about the elements it holds. Before this phase
-//      `concierge.catalogFor(ctx)[0]!.name = "evil"` typechecked — measured, and
+//      `concierge.resolveCatalog(ctx).tools[0]!.name = "evil"` typechecked — measured, and
 //      recorded in `src/types.ts` with the `!` that this repo's
 //      `noUncheckedIndexedAccess` requires (the bare `[0].name` form fails earlier,
 //      at the index access, with TS2532, so it never reaches the assignment the
@@ -20,7 +20,7 @@
 //      freeze throws either way and every modifier below is erased at emit — so the
 //      freeze test and this file guard the same property for two different consumers
 //      and neither substitutes for the other. The consumer who pays when this is lost
-//      is the transport author: `Transport.setTools(tools: ReadonlyArray<EmittedTool>)`
+//      is the transport author consuming `Transport.setCatalog(...)`
 //      hands consumer-written code the very element objects that every stage array
 //      shares by reference.
 //
@@ -134,7 +134,7 @@ type _stageExplanationMembersAreReadonly = Expect<Equals<StageExplanation, Reado
 /** Three fields, one per clause of DX-01, and `Equals` on `keyof` is what keeps it three: a fourth field added later goes red here and must therefore be a decision rather than a drive-by. Phase 1's D-04 preference — prefer fewer, better-justified fields — governs, and `src/types.ts` records the five-field shape that was rejected. */
 type _explanationHasExactlyThreeFields = Expect<Equals<keyof Explanation, "stage" | "stages" | "catalog">>;
 
-/** One spelling of "no stage" across the whole surface. `Concierge.stageFor` and `Session.stage()` both return `string | null`, and `Session.stage`'s doc comment states outright that a second spelling here would be a defect waiting to be written — an `Explanation.stage` that became `string | undefined`, or `string`, or gained a `"none"` sentinel, is that defect. */
+/** One spelling of "no stage" across atomic catalogs and explanations. */
 type _explanationStageIsNullableString = Expect<Equals<Explanation["stage"], string | null>>;
 
 /** The three-state bridge report, pinned in full because it is the shape Phase 5 must NOT have to change: `id` and `read()` are both on the declared `BridgeRegistry` today, so `createBridge` arriving later produces a conforming object and moves nothing. The two rejected shapes are recorded in `src/types.ts` — `string | null` loses `registered` and would have to widen in Phase 5, and a third `"unknown"` state stops being reachable the moment Phase 5 lands and is then dead prose in a shipped `.d.ts`. */
@@ -151,7 +151,7 @@ type _conciergeExplainSignature = Expect<Equals<Concierge["explain"], (ctx: Stag
 type _createConciergeSignature = Expect<Equals<typeof createConcierge, (config: ConciergeConfig) => Concierge>>;
 
 /** STG-04's compile-time companion. The return type is what makes the memo's identity guarantee expressible to a TypeScript consumer at all, and widening it to `EmittedTool[]` would offer `push` on an array the runtime has frozen — the array-level half of the element-level pin at the top of this file. */
-type _catalogForReturnsReadonlyArray = Expect<Equals<Concierge["catalogFor"], (ctx: StageContext) => ReadonlyArray<EmittedTool>>>;
+type _resolveCatalogReturnsAtomicSnapshot = Expect<Equals<Concierge["resolveCatalog"], (ctx: StageContext) => import("../src/types.js").ResolvedCatalog>>;
 
 // --------------------------------------------------------------------------
 // STG-03 — arbitrary app context. COMPILATION IS THE ASSERTION here.

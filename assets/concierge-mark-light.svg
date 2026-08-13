@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1540 800">
+  <title>Concierge light mark</title>
+  <g fill="#F1F5F9">
+    <path d="M388 711Q511 711 591.5 654.0Q672 597 709 496H689Q657 585 580.0 639.0Q503 693 388 693Q302 693 232.0 651.5Q162 610 121.5 532.5Q81 455 81 351Q81 248 121.5 171.0Q162 94 232.5 52.5Q303 11 388 11Q503 11 580.0 64.5Q657 118 689 207H709Q672 106 591.5 49.5Q511 -7 388 -7Q294 -7 219.0 38.5Q144 84 102.0 165.5Q60 247 60 351Q60 456 102.0 537.5Q144 619 219.0 665.0Q294 711 388 711Z" transform="translate(0 780) scale(1 -1)"/>
+    <g transform="translate(769 15.294118) scale(7.647059)">
+      <circle cx="50" cy="50" r="35" fill="none" stroke="#F1F5F9" stroke-width="24" stroke-dasharray="182 38"/>
+      <rect x="60" y="38" width="37" height="24"/>
+    </g>
+  </g>
+</svg>

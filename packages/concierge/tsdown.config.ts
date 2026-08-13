@@ -1,6 +1,7 @@
 /**
- * Build config for `@fullselfbrowsing/concierge` — ESM-only output plus two
- * artifact gates that are wired so they can actually fail a build.
+ * Build config for the ESM-only, runtime-neutral package root. Optional AI SDK
+ * subpaths are emitted by `tsdown.ai-sdk.config.ts`, which then validates the
+ * complete package with Publint and ATTW.
  *
  * This file is package-local **deliberately**, not by omission. The root script
  * stays `pnpm -r build` so that every package declares its own builder. That is
@@ -25,25 +26,8 @@ export default defineConfig({
   dts: true,
   clean: true,
   outDir: "dist",
-  // publint already exits 1 at tsdown's default level; the level is stated
-  // rather than inherited so that a default change upstream cannot quietly
-  // downgrade this from a gate to a report — which is exactly what `attw` does
-  // below when its level is left alone.
-  publint: { level: "error" },
-  // REQUIRED, and both halves are load-bearing.
-  //
-  // `level: "error"` — writing `attw: true` instead makes tsdown print
-  // "WARN [attw] problems found" and then exit **0** (measured on tsdown
-  // 0.22.14 against a package with a real attw problem). At its default level
-  // attw is a report, not a gate. `level: "error"` is the only thing that makes
-  // it one, and believing otherwise is this phase's most likely silent failure:
-  // CI stays green while a broken artifact reaches consumers.
-  //
-  // `profile: "esm-only"` — the default (`strict`) profile **fails a correct
-  // ESM-only package**, reporting `CJS resolves to ESM` (node16-cjs) and node10
-  // resolution failures. Those are the intended consequences of the locked
-  // ESM-only decision above, not defects in this package. Deleting this line and
-  // "fixing" the resulting red build by adding a CJS format would reverse a
-  // locked decision in order to satisfy a misconfigured linter.
-  attw: { level: "error", profile: "esm-only" },
+  // The optional-subpath build runs these gates after every export target
+  // exists. Running them here would inspect a deliberately incomplete package.
+  publint: false,
+  attw: false,
 });

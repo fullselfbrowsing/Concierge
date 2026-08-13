@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1540 800">
+  <title>Concierge small orange mark</title>
+  <g fill="#FF6B35">
+    <path d="M389 709Q509 709 591.0 653.0Q673 597 711 496H659Q629 576 559.5 622.5Q490 669 389 669Q308 669 242.0 630.5Q176 592 138.0 519.5Q100 447 100 350Q100 254 138.0 182.5Q176 111 242.0 72.0Q308 33 389 33Q490 33 559.5 79.5Q629 126 659 206H711Q673 105 591.0 49.0Q509 -7 389 -7Q294 -7 217.5 38.5Q141 84 97.5 165.5Q54 247 54 350Q54 454 97.5 535.5Q141 617 217.5 663.0Q294 709 389 709Z" transform="translate(0 780) scale(1 -1)"/>
+    <g transform="translate(770 15.294118) scale(7.647059)">
+      <circle cx="50" cy="50" r="35" fill="none" stroke="#FF6B35" stroke-width="26" stroke-dasharray="182 38"/>
+      <rect x="60" y="37" width="37" height="26"/>
+    </g>
+  </g>
+</svg>
