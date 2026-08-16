@@ -1,178 +1,208 @@
 <div align="center">
 
+<img src="./assets/concierge-icon-square.svg" alt="Concierge logo" width="160">
+
 # Concierge
 
 **The safe action layer for agent-ready web apps.**
 
-Give AI agents a small set of typed, app-defined actions so they can operate your product through intent, live state, and explicit consent—not DOM scraping, brittle selectors, or pixel guessing.
+Expose a small, typed, state-aware action catalog to an AI without giving it a
+generic DOM or JavaScript escape hatch.
 
-![Status](https://img.shields.io/badge/status-pre--alpha-FF6B35?style=for-the-badge)
-![TypeScript](https://img.shields.io/badge/TypeScript-first-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
-![ESM](https://img.shields.io/badge/ESM-only-000000?style=for-the-badge)
+![Status](https://img.shields.io/badge/status-supported%20public%20preview-FF6B35?style=for-the-badge)
+![Version](https://img.shields.io/badge/release-0.2-635BFF?style=for-the-badge)
+![Contract](https://img.shields.io/badge/runtime%20contract-v2-1B998B?style=for-the-badge)
 ![License](https://img.shields.io/badge/license-MIT-3DA639?style=for-the-badge)
 
-[Why Concierge](#why-concierge) · [How It Works](#how-it-works) · [Status](#status) · [Roadmap](#roadmap)
+[Quick start](#quick-start) · [AI SDK](#ai-sdk-6-and-7) ·
+[Security](#security-model) · [Compatibility](./COMPATIBILITY.md) ·
+[Support](./SUPPORT.md)
 
 </div>
 
----
-
-> [!IMPORTANT]
-> **Concierge is a work in progress.** This repository contains a pre-alpha core runtime plus built React and Svelte adapters, but none of the packages has been published and there is no production-supported integration yet. The API may change before v0.1; do not build production integrations against it.
-
-## Why Concierge
-
-Agent-ready apps should not make models guess.
-
-Traditional browser automation asks an agent to inspect a page and manipulate whatever it can find. Concierge lets an app expose only the actions it intends an agent to use:
-
-```text
-applyFilter({ key: "brand", value: ["Marriott"] })
-reviewBooking()
-confirmBooking()
-```
-
-The agent sees typed capabilities and current app state—not your DOM.
+Concierge lets the application declare verbs such as
+`openProject({ projectId })`, `applyFilter({ key, value })`, or
+`confirmBooking()`. The model receives JSON Schemas and descriptions; the
+application retains stage selection, input validation, consent, scheduling,
+deduplication, execution, and result presentation.
 
 | Generic browser automation | Concierge |
 | --- | --- |
-| Clicks selectors or coordinates | Calls app-defined verbs |
-| Reconstructs intent from the UI | Receives typed schemas |
-| Inherits broad page authority | Sees only the current action catalog |
-| Treats confirmation as a boolean | Binds consent to the reviewed payload |
+| Click selectors or coordinates | Call app-defined verbs |
+| Reconstruct intent from the visible UI | Receive typed schemas and live availability |
+| Inherit broad page authority | See only the current catalog |
+| Treat confirmation as a boolean | Bind consent to the reviewed payload and snapshot |
+| Trust a model callback to actuate the browser | Verify a server-signed, replay-protected batch |
 
-[FSB](https://github.com/fullselfbrowsing/FSB) drives apps that do not cooperate. **Concierge is how an app cooperates.** The two are complementary.
+[FSB](https://github.com/fullselfbrowsing/FSB) operates sites that do not
+cooperate. Concierge is how an application cooperates. They solve different
+parts of the stack.
 
-<a id="design-contract"></a>
+## Packages
 
-## How It Works
+The three packages are one fixed release set. Install and upgrade them together.
 
-Concierge is built around six ideas:
+| Package | Purpose |
+| --- | --- |
+| `@full-self-browsing/concierge` | Framework-neutral catalog, dispatch, consent, workflow, and transport runtime |
+| `@full-self-browsing/concierge-react` | React context, bridge registration, and optional action glow/badge overlay |
+| `@full-self-browsing/concierge-svelte` | Svelte context, bridge registration, and `$state` snapshot normalization |
 
-- **Typed verbs** — actions are declared once with a name, schema, effects, redaction policy, and handler.
-- **Structured results** — every action returns a safe, human-readable outcome instead of leaking exceptions or implementation details.
-- **Least authority** — stage-scoped catalogs expose only the actions valid for the current part of the app.
-- **Live state** — framework adapters read through getter-based bridges instead of stale captured values.
-- **Consent that fails closed** — consequential actions require a fresh human confirmation bound to the exact payload that was reviewed.
-- **Portable by default** — the core stays DOM-free, framework-agnostic, vendor-neutral, and transport-agnostic.
+The core package also exposes optional AI SDK 6/7 integration through its
+`/ai-sdk`, `/ai-sdk/server`, and `/ai-sdk/browser` subpaths.
 
-The same action catalog is intended to work with a chat sidebar, voice interface, MCP client, WebMCP, command palette, or a custom agent loop.
+All packages are ESM-only and require Node 22.12 or newer. The current runtime
+contract is v2. A mixed 0.1/0.2 installation fails before bridge registration
+or dispatch rather than operating with split safety state.
 
-## Framework Adapters
+## Quick start
 
-The repository includes both headless framework packages planned for v0.1:
+For React with AI SDK 7:
 
-- [`@fullselfbrowsing/concierge-react`](./packages/concierge-react/README.md)
-  uses the server-safe package root for forwarded types and
-  `@fullselfbrowsing/concierge-react/client` for
-  `ConciergeProvider`, `useConcierge`, `useConciergeValue`, and
-  effect-scoped `useConciergeBridge`.
-- [`@fullselfbrowsing/concierge-svelte`](./packages/concierge-svelte/README.md)
-  uses the server-safe package root for forwarded types and
-  `@fullselfbrowsing/concierge-svelte/client.svelte` for native context,
-  getter-driven effect-scoped bridge registration, and the real
-  `svelteSnapshotNormalizer`.
-
-Both are injection-only bindings. Application setup constructs the one public
-core instance and each public `createBridge` registry, then passes those exact
-objects into the framework lifecycle. The adapters do not construct core or
-own action declarations, catalogs, dispatch, sessions, consent, transports,
-scheduling, or results.
-
-Each adapter has an independently enforced limit of no more than 150 authored,
-nonblank, non-comment production-source lines. The same gate rejects loops and
-core-owned responsibilities so the packages remain lifecycle shells rather
-than parallel runtimes.
-
-[`examples/adapter-ssr`](./examples/adapter-ssr) is the single deterministic,
-headless normal-SSR harness. One ordinary Astro page server-renders both public
-client entrypoints from the same immutable action declaration while creating
-fresh Concierge, registry, and bridge objects per render. Repeated fresh
-processes prove the catalogs agree, browser globals are absent, identities do
-not leak, and React effects and Svelte effects perform zero server
-registrations. It is evidence infrastructure, not a product interface.
-
-## Security Boundary: Client Consent Is Not Server Authorization
-
-> [!WARNING]
-> All client-originated evidence—including client-side consent state, grades, receipts, attestations, delivery callbacks, `ConsentAck` values, and other client assertions—is untrusted input at the server boundary. Even evidence described as human-attested can be forged, replayed, or rebound by a compromised client.
-
-The consent kernel does not authenticate a principal and does not authorize a server action. It cannot independently permit a protected server effect. A `ConsentAck` can improve client UX and preserve audit context, but it is never server authorization. A relying server must independently establish the caller's identity and decide whether that authenticated principal may perform the exact requested action.
-
-The client may carry an opaque challenge identifier and a consent assertion to the relying server, but neither is proof. `ConsentAck` values remain untrusted and are not authoritative. An issuance-time authorization decision, a challenge field, or any client assertion cannot substitute for current authorization under server policy.
-
-### Illustrative relying-server challenge lifecycle
-
-This example is illustrative, not production-complete. The relying server creates a high-entropy, server-issued challenge and keeps the authoritative record server-stored; the client only receives its opaque identifier.
-
-```typescript
-async function issueServerChallenge(request) {
-  const authenticatedPrincipal = await authenticatePrincipal(request);
-  const exactAction = parseExactAction(request);
-  const exactPayload = parseExactPayload(request);
-  const challengeId = serverRandomHighEntropyChallenge();
-
-  await challengeStore.insert({
-    challengeId,
-    principalId: authenticatedPrincipal.id,
-    sessionId: authenticatedPrincipal.sessionId,
-    exactAction,
-    canonicalPayloadDigest: canonicalPayloadDigest(exactPayload),
-    expiresAt: serverClock.now().plus(CHALLENGE_TTL),
-    used: false,
-  });
-
-  return challengeId;
-}
-
-async function redeemServerChallenge(request) {
-  const authenticatedPrincipal = await authenticatePrincipal(request);
-  const challengeId = parseOpaqueChallengeId(request);
-  const exactAction = parseExactAction(request);
-  const exactPayload = parseExactPayload(request);
-
-  await serverDatabase.serializedTransaction(async (transaction) => {
-    const challenge = await transaction.challengeStore.lockAndLoad(challengeId);
-    assertSamePrincipalAndSession(challenge, authenticatedPrincipal);
-    assertExactAction(challenge.exactAction, exactAction);
-    assertCanonicalPayloadDigest(challenge.canonicalPayloadDigest, canonicalPayloadDigest(exactPayload));
-    assertFresh(challenge.expiresAt, serverClock.now());
-    assertUnused(challenge);
-    await authorizeUnderCurrentPolicy(authenticatedPrincipal, exactAction);
-    await performGuardedEffect(transaction, authenticatedPrincipal, exactAction, exactPayload);
-    await transaction.challengeStore.burn(challenge.challengeId);
-    await transaction.commit();
-  });
-}
+```sh
+pnpm add @full-self-browsing/concierge@^0.2 \
+  @full-self-browsing/concierge-react@^0.2 \
+  ai@^7 @ai-sdk/react@^4 zod
 ```
 
-Each redemption independently authenticates the current principal and locks the server record before comparing the principal and session, exact action, canonical payload digest, expiry, and unused state. A client-invented or unknown challenge must be rejected. A wrong principal or session must be rejected. A changed action or changed payload must be rejected. An expired challenge must be rejected, and a replay of a used challenge must be rejected.
+Declare actions as named constants, attach them to stages, and resolve one
+atomic catalog snapshot for the current application state:
 
-`authorizeUnderCurrentPolicy` must reject rather than return when the authenticated principal cannot perform the exact action. Any authorization denial or error must abort the operation with no effect. Keeping that check immediately beside the guarded effect prevents a cached issuance decision or client value from becoming authority.
+```ts
+import {
+  createBridge,
+  createConcierge,
+  defineAction,
+  offPageResult,
+} from "@full-self-browsing/concierge";
+import { z } from "zod";
 
-Concurrency control must serialize redemption so two requests cannot both pass the unused check. The guarded effect, challenge burn, and commit belong to one atomic server-owned operation, with the effect before the burn. For an effect that cannot participate directly in the transaction, use an equivalent serialized idempotency or transactional-outbox protocol; the effect should be idempotent for crash recovery.
+const projectBridge = createBridge<{
+  actions: { openProject(id: string): void };
+  snapshot: { activeProject(): string | null };
+}>("project-ui");
 
-## Status
+const openProject = defineAction({
+  name: "openProject",
+  description: "Open one project in the application preview.",
+  schema: z.object({ projectId: z.string().min(1).max(64) }).strict(),
+  jsonSchema: {
+    type: "object",
+    properties: { projectId: { type: "string", minLength: 1, maxLength: 64 } },
+    required: ["projectId"],
+    additionalProperties: false,
+  },
+  redact: ({ projectId }) => ({ projectId }),
+  effects: { readOnly: false, destructive: false, idempotent: true },
+  handler: ({ args, bridge }) => {
+    if (bridge === null) return offPageResult("Project opening", "project interface");
+    bridge.actions.openProject(args.projectId);
+    return { ok: true, message: `Opened project ${args.projectId}.` };
+  },
+});
 
-The repository currently contains:
+const concierge = createConcierge({
+  stages: [{
+    id: "projects",
+    match: (context) => context.pathname === "/projects",
+    actions: [openProject],
+    bridge: projectBridge,
+  }],
+});
 
-- The public TypeScript contract for actions, transports, bridges, results, and consent.
-- A framework-neutral catalog and stage resolver, live bridge registry, direct dispatcher and batch executor, transport Session loop, and client-side consent kernel.
-- Direct consent enforcement that binds one-shot achieved authority to completed review delivery, the reviewed payload, and the captured app snapshot.
-- Mandatory Session presentation of app-authored failure outcomes before transport responses are released.
-- Pre-alpha React and Svelte package adapters that inject existing core objects, register bridges only from native client lifecycle effects, and remain silent during server rendering.
-- A deterministic dual-framework Astro SSR harness plus exact three-tarball, one-core, real-Svelte-snapshot, and independent source-budget proofs.
-- Runtime, type-level, package-boundary, and mutation tests for the highest-risk parts of the contract and implementation.
+const catalog = concierge.resolveCatalog({ pathname: "/projects" });
+// catalog.stage, catalog.revision, catalog.tools are one consistent snapshot.
+```
 
-It does **not** yet provide a published package, telemetry, or a production support contract. The client-side consent kernel is not server authorization; please do not build production integrations against this pre-alpha runtime yet.
+Mount the same registry with the framework adapter and live getter-based state.
+The React client entry is
+`@full-self-browsing/concierge-react/client`; the Svelte client entry is
+`@full-self-browsing/concierge-svelte/client.svelte`. Their package roots are
+server-safe.
 
-## Roadmap
+Mounted React and Svelte runtimes send default-on, anonymous usage estimates to
+FSB's aggregate stats pipeline. The browser-only
+`@full-self-browsing/concierge/telemetry` subpath exposes status and opt-out APIs;
+the core package root remains storage-, timer-, DOM-, and network-free. See the
+[telemetry privacy contract](docs/privacy.md) for the exact ten-field payload,
+origin-scoped identity, retention, and stop-and-erase behavior.
 
-- **Now** — close immutable release evidence for the pre-alpha core plus the built React and Svelte adapters.
-- **v0.1** — publish the first supported core, React, and Svelte package triplet.
-- **Later** — server-side consent verification, telemetry, developer tools, and first-party transports.
+React applications can also opt into `ConciergeActivityOverlay` from the client
+entry. It renders a configurable two-color edge glow while dispatches are
+active and can show an independently optional “Powered by FSB” badge. Apps that
+own their own activity UI can use `useConciergeActivity()` instead.
 
-If you want to help shape the project, design feedback is especially useful right now. Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a pull request. If you are continuing implementation, start with [HANDOFF.md](./HANDOFF.md).
+## AI SDK 6 and 7
+
+`@full-self-browsing/concierge/ai-sdk` deliberately separates model-facing tools
+from browser authority:
+
+1. The server resolves the current Concierge catalog and passes
+   `catalog.aiTools` to AI SDK `streamText`.
+2. After AI SDK reports complete tool calls, `prepareStep` validates and
+   correlates them. Partial streamed inputs, dynamic calls, provider-executed
+   calls, duplicates, and unknown tools are rejected.
+3. `createSignedBatchIssuer` re-resolves the catalog, binds the calls to its
+   digest, session, audience, expiry, nonce, response, and required turn, then signs the
+   canonical claims with ES256.
+4. `createSignedBrowserBridge` verifies the envelope, consumes its replay key,
+   compares it with the browser's live catalog, and only then calls core.
+5. Structured Concierge results return to the AI SDK through
+   `addToolOutput`. Raw `onToolCall` values are display-only and never actuate
+   the application.
+
+See the [AI SDK integration guide](./docs/integrations/ai-sdk.md) and the full
+[`examples/next-ai-sdk`](./examples/next-ai-sdk) App Router application. The
+example uses OpenRouter as an injected model provider; the adapter itself is
+provider-neutral.
+
+## Runtime guarantees
+
+- Action inputs are validated again immediately before execution.
+- Stage, availability, tools, and the instance-local catalog revision resolve
+  atomically.
+- Non-read-only actions pass through a cancellable commit window.
+- Retries share one Promise and cannot double-fire inside the deduplication
+  window.
+- Consequential actions consume payload- and snapshot-bound consent once.
+- Batches execute in `outputIndex` order and return explicit completed or
+  terminal outcomes.
+- Compound actions use core-owned child dispatch, cleanup, delay, and bounded
+  lineage rather than duplicating orchestration in adapters.
+- `onDispatch` observes redacted lifecycle events without controlling them.
+
+## Security model
+
+The catalog is a least-authority boundary, not an authentication system.
+Concierge does not authenticate a user and a client consent record is not
+server authorization. A server performing a protected effect must independently
+authenticate the current principal, authorize the exact action and payload
+under current policy, reject replay, and make its effect idempotent or
+transactional.
+
+The signed AI bridge authenticates a short-lived server decision to admit a
+specific browser batch. It does not make model output trustworthy, repair XSS,
+or turn client state into server authority. Keep the private key server-only,
+use a durable replay store, validate server request context, and maintain a
+strict CSP.
+
+Read [SECURITY.md](./SECURITY.md) before shipping a consequential integration.
+
+## Public-preview policy
+
+The documented 0.2 surface is supported, but the project is still a public
+preview. Patches do not intentionally break documented exports or contract-v2
+wire shapes. A contract bump, Node-floor increase, or removal of AI SDK 6/7
+support requires a synchronized minor release and migration guide. See
+[SUPPORT.md](./SUPPORT.md) for the support window and exclusions.
+
+## Contributing
+
+Start with [CONTRIBUTING.md](./CONTRIBUTING.md). Release operators should read
+[RELEASING.md](./RELEASING.md); maintainers continuing the implementation can
+use [HANDOFF.md](./HANDOFF.md). Historical v0.1 planning and evidence remain in
+`.planning/`, but the live 0.2 release authority is `.release/lines/0.2.json`
+and the version-neutral scripts under `scripts/release/`.
 
 ## License
 

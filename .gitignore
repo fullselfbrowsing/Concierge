@@ -24,6 +24,10 @@ pnpm-debug.log*
 
 .turbo/
 .cache/
+/graphify-out/
 .context/
 .svelte-kit/
+/examples/next-ai-sdk/.next/
+/examples/next-ai-sdk/test-results/
+/examples/next-ai-sdk/playwright-report/
 /examples/adapter-ssr/.astro/

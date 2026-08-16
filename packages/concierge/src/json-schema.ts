@@ -396,16 +396,11 @@ export type SchemaEmission =
  * | `z.string()`                | `$schema, type` where `type` is `"string"`     | FAILS      |
  * | `z.array(...)`              | `$schema, type, items`                         | FAILS      |
  *
- * **`$schema` is on every row, and it is first.** `03-RESEARCH.md:612-635`
- * records the passing rows as `{type:"object", properties, required}` and shows
- * `$schema` only where the root check fails. Re-measured against the installed
- * packages, every zod and arktype emission at this target carries `$schema` as
- * its leading key. RESEARCH is right about what fails; it is incomplete about
- * the key list, which matters here because {@link describeRoot} prints that
- * list — `z.string()` reports `keys: $schema, type`, not `keys: type`. The two
- * valibot rows RESEARCH carries were produced with `@valibot/to-json-schema`,
- * which this repository deliberately does not install, so they are dropped
- * rather than repeated unverified.
+ * **`$schema` is on every measured row, and it is first.** Every installed zod
+ * and arktype converter at this target emits it as the leading key. That matters
+ * because {@link describeRoot} prints the complete key list: `z.string()` reports
+ * `keys: $schema, type`, not `keys: type`. Valibot is omitted because this package
+ * does not install its separate JSON Schema converter.
  *
  * Note the `z.record` and arktype `type({})` rows: both pass the root check
  * while carrying **no `properties` key at all**, and they get there by

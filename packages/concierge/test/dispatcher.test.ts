@@ -4,6 +4,8 @@ import { runInNewContext } from "node:vm";
 
 import { beforeAll, beforeEach, expect, it as vitestIt } from "vitest";
 
+import { dispatchV2 } from "./fixtures/v2-dispatch.js";
+
 const DIST_URL = new URL("../dist/index.js", import.meta.url);
 const DIST_PATH = fileURLToPath(DIST_URL);
 const KEY = Symbol.for("@fullselfbrowsing/concierge.contract");
@@ -190,8 +192,8 @@ async function withFakeNow(initial, run) {
       }),
     ]);
 
-    const first = concierge.dispatch(ACTIVE_CONTEXT, "charge", { amount: 10 }, { callId: "call-1" });
-    const second = concierge.dispatch(ACTIVE_CONTEXT, "charge", { amount: 10 }, { callId: "call-1" });
+    const first = dispatchV2(concierge, ACTIVE_CONTEXT, "charge", { amount: 10 }, { callId: "call-1" });
+    const second = dispatchV2(concierge, ACTIVE_CONTEXT, "charge", { amount: 10 }, { callId: "call-1" });
 
     expect(first, "[RED:R01:promise-identity]").toBe(second);
     await first;
@@ -207,15 +209,15 @@ async function withFakeNow(initial, run) {
       }),
     ]);
 
-    const first = concierge.dispatch(ACTIVE_CONTEXT, "fail", {}, { callId: "failed-call" });
-    const second = concierge.dispatch(ACTIVE_CONTEXT, "fail", {}, { callId: "failed-call" });
+    const first = dispatchV2(concierge, ACTIVE_CONTEXT, "fail", {}, { callId: "failed-call" });
+    const second = dispatchV2(concierge, ACTIVE_CONTEXT, "fail", {}, { callId: "failed-call" });
 
     expect(first, "[RED:R02:cached-failure]").toBe(second);
     expect((await first).reason).toBe("no_bridge");
     expect(calls).toBe(1);
   });
 
-  it("[R03] uses the action name and serializable arguments when callId is absent", async () => {
+  it("[R03] does not invent fallback retry identity when identity is absent", async () => {
     let calls = 0;
     const concierge = conciergeFor([
       action("search", () => {
@@ -224,12 +226,12 @@ async function withFakeNow(initial, run) {
       }),
     ]);
 
-    const first = concierge.dispatch(ACTIVE_CONTEXT, "search", { query: "hotel" });
-    const second = concierge.dispatch(ACTIVE_CONTEXT, "search", { query: "hotel" });
+    const first = dispatchV2(concierge, ACTIVE_CONTEXT, "search", { query: "hotel" });
+    const second = dispatchV2(concierge, ACTIVE_CONTEXT, "search", { query: "hotel" });
 
-    expect(first, "[RED:R03:fallback-key]").toBe(second);
-    await first;
-    expect(calls).toBe(1);
+    expect(first).not.toBe(second);
+    await Promise.all([first, second]);
+    expect(calls).toBe(2);
   });
 
   it("[R04] namespaces callId keys separately from fallback keys", async () => {
@@ -242,13 +244,13 @@ async function withFakeNow(initial, run) {
       }),
     ]);
 
-    const first = concierge.dispatch(
+    const first = dispatchV2(concierge,
       ACTIVE_CONTEXT,
       "charge",
       args,
       { callId: `charge:${JSON.stringify(args)}` },
     );
-    const second = concierge.dispatch(ACTIVE_CONTEXT, "charge", args);
+    const second = dispatchV2(concierge, ACTIVE_CONTEXT, "charge", args);
     await Promise.all([first, second]);
 
     expect({ calls, same: first === second }, "[RED:R04:key-namespace-separation]").toEqual({
@@ -257,7 +259,7 @@ async function withFakeNow(initial, run) {
     });
   });
 
-  it("[R05] runs cyclic arguments without a synchronous throw or deduplication", async () => {
+  it("[R05] contains cyclic arguments as invalid_args", async () => {
     let calls = 0;
     let threw = false;
     let first;
@@ -272,21 +274,22 @@ async function withFakeNow(initial, run) {
     ]);
 
     try {
-      first = concierge.dispatch(ACTIVE_CONTEXT, "cycle", args);
-      second = concierge.dispatch(ACTIVE_CONTEXT, "cycle", args);
+      first = dispatchV2(concierge, ACTIVE_CONTEXT, "cycle", args);
+      second = dispatchV2(concierge, ACTIVE_CONTEXT, "cycle", args);
     } catch {
       threw = true;
     }
-    await Promise.all([first, second].filter(Boolean));
+    const results = await Promise.all([first, second].filter(Boolean));
 
-    expect({ calls, same: first === second, threw }, "[RED:R05:cyclic-args]").toEqual({
-      calls: 2,
+    expect({ calls, same: first === second, threw }).toEqual({
+      calls: 0,
       same: false,
       threw: false,
     });
+    expect(results.map((result) => result.reason)).toEqual(["invalid_args", "invalid_args"]);
   });
 
-  it("[R06] runs BigInt arguments without a synchronous throw or deduplication", async () => {
+  it("[R06] contains BigInt arguments as invalid_args", async () => {
     let calls = 0;
     let threw = false;
     let first;
@@ -299,18 +302,19 @@ async function withFakeNow(initial, run) {
     ]);
 
     try {
-      first = concierge.dispatch(ACTIVE_CONTEXT, "bigint", { value: 10n });
-      second = concierge.dispatch(ACTIVE_CONTEXT, "bigint", { value: 10n });
+      first = dispatchV2(concierge, ACTIVE_CONTEXT, "bigint", { value: 10n });
+      second = dispatchV2(concierge, ACTIVE_CONTEXT, "bigint", { value: 10n });
     } catch {
       threw = true;
     }
-    await Promise.all([first, second].filter(Boolean));
+    const results = await Promise.all([first, second].filter(Boolean));
 
-    expect({ calls, same: first === second, threw }, "[RED:R06:bigint-args]").toEqual({
-      calls: 2,
+    expect({ calls, same: first === second, threw }).toEqual({
+      calls: 0,
       same: false,
       threw: false,
     });
+    expect(results.map((result) => result.reason)).toEqual(["invalid_args", "invalid_args"]);
   });
 
   it("[R06a] never aliases fallback keys across lossy JSON argument shapes", async () => {
@@ -331,7 +335,7 @@ async function withFakeNow(initial, run) {
         }),
       ]);
       const promises = args.map((value) =>
-        concierge.dispatch(ACTIVE_CONTEXT, `collision-${scenarioIndex}`, value),
+        dispatchV2(concierge, ACTIVE_CONTEXT, `collision-${scenarioIndex}`, value),
       );
       await Promise.all(promises);
       observations.push({
@@ -370,17 +374,17 @@ async function withFakeNow(initial, run) {
             return successful();
           }),
         ]);
-        const first = concierge.dispatch(
+        const first = dispatchV2(concierge,
           ACTIVE_CONTEXT,
           "pollution-safe",
           { value: 1 },
         );
-        const distinct = concierge.dispatch(
+        const distinct = dispatchV2(concierge,
           ACTIVE_CONTEXT,
           "pollution-safe",
           { value: 2 },
         );
-        const equal = concierge.dispatch(
+        const equal = dispatchV2(concierge,
           ACTIVE_CONTEXT,
           "pollution-safe",
           { value: 1 },
@@ -400,13 +404,13 @@ async function withFakeNow(initial, run) {
       }
     }
 
-    expect(observations, "[RED:R06b:prototype-safe-fallback-keys]").toEqual([
-      { calls: 2, distinctSeparated: true, equalDeduplicated: true },
-      { calls: 2, distinctSeparated: true, equalDeduplicated: true },
+    expect(observations).toEqual([
+      { calls: 3, distinctSeparated: true, equalDeduplicated: false },
+      { calls: 3, distinctSeparated: true, equalDeduplicated: false },
     ]);
   });
 
-  it("[R69] runs equal aliased graphs without throwing or deduplicating", async () => {
+  it("[R69] contains aliased graphs as invalid_args", async () => {
     let calls = 0;
     const concierge = conciergeFor([
       action("aliased", () => {
@@ -421,23 +425,24 @@ async function withFakeNow(initial, run) {
     let threw = false;
 
     try {
-      first = concierge.dispatch(ACTIVE_CONTEXT, "aliased", {
+      first = dispatchV2(concierge, ACTIVE_CONTEXT, "aliased", {
         left: firstShared,
         right: firstShared,
       });
-      second = concierge.dispatch(ACTIVE_CONTEXT, "aliased", {
+      second = dispatchV2(concierge, ACTIVE_CONTEXT, "aliased", {
         left: secondShared,
         right: secondShared,
       });
     } catch {
       threw = true;
     }
-    await Promise.all([first, second].filter(Boolean));
+    const results = await Promise.all([first, second].filter(Boolean));
 
     expect(
       { calls, same: first === second, threw },
       "[RED:R69:aliased-graph-no-dedup]",
-    ).toEqual({ calls: 2, same: false, threw: false });
+    ).toEqual({ calls: 0, same: false, threw: false });
+    expect(results.map((result) => result.reason)).toEqual(["invalid_args", "invalid_args"]);
   });
 
   it("[R07] keeps deduplication state isolated per Concierge instance", async () => {
@@ -456,8 +461,8 @@ async function withFakeNow(initial, run) {
       }),
     ]);
 
-    const first = firstConcierge.dispatch(ACTIVE_CONTEXT, "charge", {}, { callId: "shared" });
-    const second = secondConcierge.dispatch(ACTIVE_CONTEXT, "charge", {}, { callId: "shared" });
+    const first = dispatchV2(firstConcierge, ACTIVE_CONTEXT, "charge", {}, { callId: "shared" });
+    const second = dispatchV2(secondConcierge, ACTIVE_CONTEXT, "charge", {}, { callId: "shared" });
     await Promise.all([first, second]);
 
     expect(
@@ -480,7 +485,7 @@ async function withFakeNow(initial, run) {
       ],
     });
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "confirm", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "confirm", {});
 
     expect({ calls, reason: result.reason }, "[RED:R08:off-stage-refusal]").toEqual({
       calls: 0,
@@ -497,7 +502,7 @@ async function withFakeNow(initial, run) {
       }),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "__proto__", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "__proto__", {});
 
     expect({ calls, reason: result.reason }, "[RED:R09:proto-key]").toEqual({
       calls: 0,
@@ -514,7 +519,7 @@ async function withFakeNow(initial, run) {
       }),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "constructor", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "constructor", {});
 
     expect({ calls, reason: result.reason }, "[RED:R10:constructor-key]").toEqual({
       calls: 0,
@@ -532,8 +537,8 @@ async function withFakeNow(initial, run) {
     let second;
     try {
       const concierge = conciergeFor([missing]);
-      first = await concierge.dispatch(ACTIVE_CONTEXT, "missing", { call: 1 });
-      second = await concierge.dispatch(ACTIVE_CONTEXT, "missing", { call: 2 });
+      first = await dispatchV2(concierge, ACTIVE_CONTEXT, "missing", { call: 1 });
+      second = await dispatchV2(concierge, ACTIVE_CONTEXT, "missing", { call: 2 });
     } finally {
       console.warn = realWarn;
     }
@@ -559,8 +564,8 @@ async function withFakeNow(initial, run) {
     let second;
     try {
       const concierge = conciergeFor([action("broken", 42)]);
-      first = await concierge.dispatch(ACTIVE_CONTEXT, "broken", { call: 1 });
-      second = await concierge.dispatch(ACTIVE_CONTEXT, "broken", { call: 2 });
+      first = await dispatchV2(concierge, ACTIVE_CONTEXT, "broken", { call: 1 });
+      second = await dispatchV2(concierge, ACTIVE_CONTEXT, "broken", { call: 2 });
     } finally {
       console.warn = realWarn;
     }
@@ -592,7 +597,7 @@ async function withFakeNow(initial, run) {
       ),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "validateSync", { bad: true });
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "validateSync", { bad: true });
 
     expect({ calls, reason: result.reason }, "[RED:R13:sync-validation]").toEqual({
       calls: 0,
@@ -613,7 +618,7 @@ async function withFakeNow(initial, run) {
       ),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "validateAsync", { bad: true });
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "validateAsync", { bad: true });
 
     expect({ calls, reason: result.reason }, "[RED:R14:async-validation]").toEqual({
       calls: 0,
@@ -634,7 +639,7 @@ async function withFakeNow(initial, run) {
       ),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "transform", { normalized: "no" });
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "transform", { normalized: "no" });
 
     expect({ ok: result.ok, received }, "[RED:R15:transformed-value]").toEqual({
       ok: true,
@@ -655,7 +660,7 @@ async function withFakeNow(initial, run) {
       ),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "transform-date", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "transform-date", {});
 
     expect(
       { calls, reason: result.reason },
@@ -677,7 +682,7 @@ async function withFakeNow(initial, run) {
       ),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "issues", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "issues", {});
 
     expect(
       { calls, leaked: result.message.includes(issueMarker), reason: result.reason },
@@ -702,7 +707,7 @@ async function withFakeNow(initial, run) {
       ),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "validatorThrow", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "validatorThrow", {});
 
     expect({ calls, reason: result.reason }, "[RED:R17:validator-throw]").toEqual({
       calls: 0,
@@ -723,7 +728,7 @@ async function withFakeNow(initial, run) {
       ),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "validatorReject", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "validatorReject", {});
 
     expect({ calls, reason: result.reason }, "[RED:R18:validator-rejection]").toEqual({
       calls: 0,
@@ -771,11 +776,11 @@ async function withFakeNow(initial, run) {
     ]);
 
     const [empty, issuesUndefined, standardSuccess, valueUndefined, valueAccessor] = await Promise.all([
-      concierge.dispatch(ACTIVE_CONTEXT, "empty-result", {}),
-      concierge.dispatch(ACTIVE_CONTEXT, "issues-undefined", {}),
-      concierge.dispatch(ACTIVE_CONTEXT, "standard-success", {}),
-      concierge.dispatch(ACTIVE_CONTEXT, "value-undefined", {}),
-      concierge.dispatch(ACTIVE_CONTEXT, "throwing-value", {}),
+      dispatchV2(concierge, ACTIVE_CONTEXT, "empty-result", {}),
+      dispatchV2(concierge, ACTIVE_CONTEXT, "issues-undefined", {}),
+      dispatchV2(concierge, ACTIVE_CONTEXT, "standard-success", {}),
+      dispatchV2(concierge, ACTIVE_CONTEXT, "value-undefined", {}),
+      dispatchV2(concierge, ACTIVE_CONTEXT, "throwing-value", {}),
     ]);
 
     expect(
@@ -825,7 +830,7 @@ async function withFakeNow(initial, run) {
       }),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "direct", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "direct", {});
 
     expect({ calls, result }, "[RED:R19:direct-no-transport]").toEqual({
       calls: 1,
@@ -841,16 +846,16 @@ async function withFakeNow(initial, run) {
         { scheduler: manual.scheduler },
       );
 
-      const first = concierge.dispatch(ACTIVE_CONTEXT, "window", {}, { callId: "window" });
-      const pendingHit = concierge.dispatch(ACTIVE_CONTEXT, "window", {}, { callId: "window" });
+      const first = dispatchV2(concierge, ACTIVE_CONTEXT, "window", {}, { callId: "window" });
+      const pendingHit = dispatchV2(concierge, ACTIVE_CONTEXT, "window", {}, { callId: "window" });
       await flushMicrotasks();
       manual.fireAll();
       await first;
 
       setNow(599);
-      const settledHit = concierge.dispatch(ACTIVE_CONTEXT, "window", {}, { callId: "window" });
+      const settledHit = dispatchV2(concierge, ACTIVE_CONTEXT, "window", {}, { callId: "window" });
       setNow(600);
-      const expired = concierge.dispatch(ACTIVE_CONTEXT, "window", {}, { callId: "window" });
+      const expired = dispatchV2(concierge, ACTIVE_CONTEXT, "window", {}, { callId: "window" });
       await flushMicrotasks();
 
       expect(
@@ -873,10 +878,10 @@ async function withFakeNow(initial, run) {
         { scheduler: manual.scheduler },
       );
 
-      const first = concierge.dispatch(ACTIVE_CONTEXT, "pending", {}, { callId: "pending" });
+      const first = dispatchV2(concierge, ACTIVE_CONTEXT, "pending", {}, { callId: "pending" });
       await flushMicrotasks();
       setNow(1_200);
-      const retry = concierge.dispatch(ACTIVE_CONTEXT, "pending", {}, { callId: "pending" });
+      const retry = dispatchV2(concierge, ACTIVE_CONTEXT, "pending", {}, { callId: "pending" });
 
       expect(retry, "[RED:R21:pending-beyond-window]").toBe(first);
       manual.fireAll();
@@ -892,16 +897,16 @@ async function withFakeNow(initial, run) {
         { scheduler: manual.scheduler },
       );
 
-      const first = concierge.dispatch(ACTIVE_CONTEXT, "settlement", {}, { callId: "settlement" });
+      const first = dispatchV2(concierge, ACTIVE_CONTEXT, "settlement", {}, { callId: "settlement" });
       await flushMicrotasks();
       setNow(1_000);
       manual.fireAll();
       await first;
 
       setNow(1_599);
-      const inside = concierge.dispatch(ACTIVE_CONTEXT, "settlement", {}, { callId: "settlement" });
+      const inside = dispatchV2(concierge, ACTIVE_CONTEXT, "settlement", {}, { callId: "settlement" });
       setNow(1_600);
-      const outside = concierge.dispatch(ACTIVE_CONTEXT, "settlement", {}, { callId: "settlement" });
+      const outside = dispatchV2(concierge, ACTIVE_CONTEXT, "settlement", {}, { callId: "settlement" });
 
       expect(
         { inside: inside === first, outside: outside !== first },
@@ -921,10 +926,10 @@ async function withFakeNow(initial, run) {
         { dedupeWindowMs: 0 },
       );
 
-      const first = concierge.dispatch(ACTIVE_CONTEXT, "zero-window", {}, { callId: "zero" });
-      const pendingHit = concierge.dispatch(ACTIVE_CONTEXT, "zero-window", {}, { callId: "zero" });
+      const first = dispatchV2(concierge, ACTIVE_CONTEXT, "zero-window", {}, { callId: "zero" });
+      const pendingHit = dispatchV2(concierge, ACTIVE_CONTEXT, "zero-window", {}, { callId: "zero" });
       await first;
-      const settledRetry = concierge.dispatch(ACTIVE_CONTEXT, "zero-window", {}, { callId: "zero" });
+      const settledRetry = dispatchV2(concierge, ACTIVE_CONTEXT, "zero-window", {}, { callId: "zero" });
       await settledRetry;
 
       expect(
@@ -942,15 +947,15 @@ async function withFakeNow(initial, run) {
         { scheduler: manual.scheduler },
       );
 
-      const first = concierge.dispatch(ACTIVE_CONTEXT, "eviction", {}, { callId: "eviction" });
+      const first = dispatchV2(concierge, ACTIVE_CONTEXT, "eviction", {}, { callId: "eviction" });
       await flushMicrotasks();
       manual.fireAll();
       await first;
 
       setNow(500);
-      const accessed = concierge.dispatch(ACTIVE_CONTEXT, "eviction", {}, { callId: "eviction" });
+      const accessed = dispatchV2(concierge, ACTIVE_CONTEXT, "eviction", {}, { callId: "eviction" });
       setNow(601);
-      const expired = concierge.dispatch(ACTIVE_CONTEXT, "eviction", {}, { callId: "eviction" });
+      const expired = dispatchV2(concierge, ACTIVE_CONTEXT, "eviction", {}, { callId: "eviction" });
 
       expect(
         { accessed: accessed === first, expired: expired !== first },
@@ -972,15 +977,15 @@ async function withFakeNow(initial, run) {
         action("c", count),
       ]);
 
-      const firstA = concierge.dispatch(ACTIVE_CONTEXT, "a", {}, { callId: "a" });
+      const firstA = dispatchV2(concierge, ACTIVE_CONTEXT, "a", {}, { callId: "a" });
       await firstA;
-      await concierge.dispatch(ACTIVE_CONTEXT, "b", {}, { callId: "b" });
+      await dispatchV2(concierge, ACTIVE_CONTEXT, "b", {}, { callId: "b" });
 
       setNow(601);
-      await concierge.dispatch(ACTIVE_CONTEXT, "c", {}, { callId: "c" });
+      await dispatchV2(concierge, ACTIVE_CONTEXT, "c", {}, { callId: "c" });
 
       setNow(1);
-      const secondA = concierge.dispatch(ACTIVE_CONTEXT, "a", {}, { callId: "a" });
+      const secondA = dispatchV2(concierge, ACTIVE_CONTEXT, "a", {}, { callId: "a" });
       await secondA;
 
       expect({ calls, resurrected: secondA === firstA }, "[RED:R24:all-key-sweep]").toEqual({
@@ -1007,7 +1012,7 @@ async function withFakeNow(initial, run) {
       { scheduler: manual.scheduler },
     );
 
-    const pending = concierge.dispatch(ACTIVE_CONTEXT, "write", {});
+    const pending = dispatchV2(concierge, ACTIVE_CONTEXT, "write", {});
     await flushMicrotasks();
     const callsBeforeWindow = calls;
     manual.fireAll();
@@ -1029,7 +1034,7 @@ async function withFakeNow(initial, run) {
     delete declaration.effects;
     const concierge = conciergeFor([declaration], { scheduler: manual.scheduler });
 
-    const pending = concierge.dispatch(ACTIVE_CONTEXT, "implicit-write", {});
+    const pending = dispatchV2(concierge, ACTIVE_CONTEXT, "implicit-write", {});
     await flushMicrotasks();
     const callsBeforeWindow = calls;
     manual.fireAll();
@@ -1054,7 +1059,7 @@ async function withFakeNow(initial, run) {
       { scheduler: manual.scheduler },
     );
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "read", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "read", {});
 
     expect(
       { calls, delays: manual.delays, ok: result.ok },
@@ -1080,7 +1085,7 @@ async function withFakeNow(initial, run) {
       { scheduler: manual.scheduler },
     );
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "abort-before", {}, {
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "abort-before", {}, {
       signal: controller.signal,
     });
 
@@ -1117,7 +1122,7 @@ async function withFakeNow(initial, run) {
       { scheduler: manual.scheduler },
     );
 
-    const pending = concierge.dispatch(ACTIVE_CONTEXT, "abort-during", {}, {
+    const pending = dispatchV2(concierge, ACTIVE_CONTEXT, "abort-during", {}, {
       signal: controller.signal,
     });
     await flushMicrotasks();
@@ -1156,7 +1161,7 @@ async function withFakeNow(initial, run) {
       { scheduler: manual.scheduler },
     );
 
-    const pending = concierge.dispatch(ACTIVE_CONTEXT, "cleanup", {}, {
+    const pending = dispatchV2(concierge, ACTIVE_CONTEXT, "cleanup", {}, {
       signal: controller.signal,
     });
     await flushMicrotasks();
@@ -1202,7 +1207,7 @@ async function withFakeNow(initial, run) {
       { scheduler },
     );
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "synchronous-scheduler", {}, {
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "synchronous-scheduler", {}, {
       signal: controller.signal,
     });
 
@@ -1238,8 +1243,8 @@ async function withFakeNow(initial, run) {
         { scheduler },
       );
       results = await Promise.all([
-        concierge.dispatch(ACTIVE_CONTEXT, "malformed-sync-scheduler", { attempt: 1 }),
-        concierge.dispatch(ACTIVE_CONTEXT, "malformed-sync-scheduler", { attempt: 2 }),
+        dispatchV2(concierge, ACTIVE_CONTEXT, "malformed-sync-scheduler", { attempt: 1 }),
+        dispatchV2(concierge, ACTIVE_CONTEXT, "malformed-sync-scheduler", { attempt: 2 }),
       ]);
     } finally {
       console.warn = realWarn;
@@ -1286,8 +1291,8 @@ async function withFakeNow(initial, run) {
         { scheduler },
       );
       results = await Promise.all([
-        concierge.dispatch(ACTIVE_CONTEXT, "throwing-sync-scheduler", { attempt: 1 }),
-        concierge.dispatch(ACTIVE_CONTEXT, "throwing-sync-scheduler", { attempt: 2 }),
+        dispatchV2(concierge, ACTIVE_CONTEXT, "throwing-sync-scheduler", { attempt: 1 }),
+        dispatchV2(concierge, ACTIVE_CONTEXT, "throwing-sync-scheduler", { attempt: 2 }),
       ]);
     } finally {
       console.warn = realWarn;
@@ -1338,7 +1343,7 @@ async function withFakeNow(initial, run) {
         ],
         { scheduler: manual.scheduler },
       );
-      const pending = concierge.dispatch(ACTIVE_CONTEXT, "injected", {});
+      const pending = dispatchV2(concierge, ACTIVE_CONTEXT, "injected", {});
       await flushMicrotasks();
       manual.fireAll();
       result = await pending;
@@ -1378,8 +1383,8 @@ async function withFakeNow(initial, run) {
           { effects: { readOnly: false } },
         ),
       ]);
-      first = await concierge.dispatch(ACTIVE_CONTEXT, "timerless", { call: 1 });
-      second = await concierge.dispatch(ACTIVE_CONTEXT, "timerless", { call: 2 });
+      first = await dispatchV2(concierge, ACTIVE_CONTEXT, "timerless", { call: 1 });
+      second = await dispatchV2(concierge, ACTIVE_CONTEXT, "timerless", { call: 2 });
     } finally {
       globalThis.setTimeout = realSetTimeout;
       globalThis.clearTimeout = realClearTimeout;
@@ -1399,7 +1404,7 @@ async function withFakeNow(initial, run) {
       }),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "sync-throw", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "sync-throw", {});
 
     expect(result, "[RED:R34:sync-handler-throw]").toEqual({
       ok: false,
@@ -1413,7 +1418,7 @@ async function withFakeNow(initial, run) {
       action("reject", () => Promise.reject(new Error("private async detail"))),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "reject", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "reject", {});
 
     expect(result, "[RED:R35:handler-rejection]").toEqual({
       ok: false,
@@ -1439,7 +1444,7 @@ async function withFakeNow(initial, run) {
           throw new Error(secret);
         }),
       ]);
-      result = await concierge.dispatch(ACTIVE_CONTEXT, "secret-throw", {});
+      result = await dispatchV2(concierge, ACTIVE_CONTEXT, "secret-throw", {});
     } finally {
       console.warn = realWarn;
       console.error = realError;
@@ -1469,8 +1474,8 @@ async function withFakeNow(initial, run) {
     ]);
 
     const results = await Promise.all([
-      concierge.dispatch(ACTIVE_CONTEXT, "scalar", {}),
-      concierge.dispatch(ACTIVE_CONTEXT, "null", {}),
+      dispatchV2(concierge, ACTIVE_CONTEXT, "scalar", {}),
+      dispatchV2(concierge, ACTIVE_CONTEXT, "null", {}),
     ]);
 
     expect(results, "[RED:R37:malformed-result]").toEqual([
@@ -1492,7 +1497,7 @@ async function withFakeNow(initial, run) {
       action("unknown-reason", () => ({ ok: false, reason: "other", message: "No." })),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "unknown-reason", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "unknown-reason", {});
 
     expect(result, "[RED:R38:unknown-reason]").toEqual({
       ok: false,
@@ -1506,7 +1511,7 @@ async function withFakeNow(initial, run) {
       action("numeric-message", () => ({ ok: true, message: 17 })),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "numeric-message", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "numeric-message", {});
 
     expect(result, "[RED:R39:nonstring-message]").toEqual({
       ok: false,
@@ -1525,7 +1530,7 @@ async function withFakeNow(initial, run) {
     });
     const concierge = conciergeFor([action("throwing-getter", () => hostile)]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "throwing-getter", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "throwing-getter", {});
 
     expect(result, "[RED:R40:throwing-getter]").toEqual({
       ok: false,
@@ -1545,7 +1550,7 @@ async function withFakeNow(initial, run) {
     );
     const concierge = conciergeFor([action("throwing-proxy", () => hostile)]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "throwing-proxy", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "throwing-proxy", {});
 
     expect(result, "[RED:R41:throwing-proxy]").toEqual({
       ok: false,
@@ -1559,7 +1564,7 @@ async function withFakeNow(initial, run) {
       action("extra-field", () => ({ ok: true, message: "Done.", privateToken: "do-not-forward" })),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "extra-field", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "extra-field", {});
 
     expect(
       { keys: Object.keys(result).sort(), result },
@@ -1582,8 +1587,8 @@ async function withFakeNow(initial, run) {
           message: "Completed.",
         })),
       ]);
-      first = await concierge.dispatch(ACTIVE_CONTEXT, "success-contradiction", { call: 1 });
-      second = await concierge.dispatch(ACTIVE_CONTEXT, "success-contradiction", { call: 2 });
+      first = await dispatchV2(concierge, ACTIVE_CONTEXT, "success-contradiction", { call: 1 });
+      second = await dispatchV2(concierge, ACTIVE_CONTEXT, "success-contradiction", { call: 2 });
     } finally {
       console.warn = realWarn;
     }
@@ -1609,8 +1614,8 @@ async function withFakeNow(initial, run) {
       const concierge = conciergeFor([
         action("failure-contradiction", () => ({ ok: false, message: "Could not finish." })),
       ]);
-      first = await concierge.dispatch(ACTIVE_CONTEXT, "failure-contradiction", { call: 1 });
-      second = await concierge.dispatch(ACTIVE_CONTEXT, "failure-contradiction", { call: 2 });
+      first = await dispatchV2(concierge, ACTIVE_CONTEXT, "failure-contradiction", { call: 1 });
+      second = await dispatchV2(concierge, ACTIVE_CONTEXT, "failure-contradiction", { call: 2 });
     } finally {
       console.warn = realWarn;
     }
@@ -1647,7 +1652,7 @@ async function withFakeNow(initial, run) {
     );
 
     const results = await Promise.all(
-      reasons.map((reason) => concierge.dispatch(ACTIVE_CONTEXT, `reason-${reason}`, {})),
+      reasons.map((reason) => dispatchV2(concierge, ACTIVE_CONTEXT, `reason-${reason}`, {})),
     );
 
     expect(
@@ -1670,7 +1675,7 @@ async function withFakeNow(initial, run) {
       }),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "context-shape", { value: 7 }, {
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "context-shape", { value: 7 }, {
       responseId: "response-1",
     });
 
@@ -1682,7 +1687,14 @@ async function withFakeNow(initial, run) {
         ack: undefined,
         args: { value: 7 },
         hasAck: true,
-        meta: { responseId: "response-1" },
+        meta: {
+          responseId: undefined,
+          userTurnId: undefined,
+          callId: undefined,
+          outputIndex: undefined,
+          signal: undefined,
+          deferUntilDelivered: undefined,
+        },
       },
       ok: true,
     });
@@ -1693,7 +1705,7 @@ async function withFakeNow(initial, run) {
       action("controls", () => successful("  Hello\u0000\tworld\u001f\nfrom\u007f concierge  ")),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "controls", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "controls", {});
 
     expect(result, "[RED:R47:control-stripping]").toEqual({
       ok: true,
@@ -1706,7 +1718,7 @@ async function withFakeNow(initial, run) {
       action("whitespace", () => successful("  one\t\t two \n three \r\n  ")),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "whitespace", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "whitespace", {});
 
     expect(result, "[RED:R48:whitespace-collapse]").toEqual({
       ok: true,
@@ -1718,7 +1730,7 @@ async function withFakeNow(initial, run) {
     const original = "x".repeat(MESSAGE_MAX_CHARS + 50);
     const concierge = conciergeFor([action("bounded", () => successful(original))]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "bounded", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "bounded", {});
 
     expect(
       { bound: MESSAGE_MAX_CHARS, length: result.message.length, message: result.message },
@@ -1736,7 +1748,7 @@ async function withFakeNow(initial, run) {
       action("surrogate", () => successful(`${prefix}😀trailing`)),
     ]);
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "surrogate", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "surrogate", {});
     const lastCodeUnit = result.message.charCodeAt(result.message.length - 1);
 
     expect(
@@ -1755,8 +1767,8 @@ async function withFakeNow(initial, run) {
       action("declined", () => USER_DECLINED),
     ]);
 
-    const cancelled = await concierge.dispatch(ACTIVE_CONTEXT, "cancelled", {});
-    const declined = await concierge.dispatch(ACTIVE_CONTEXT, "declined", {});
+    const cancelled = await dispatchV2(concierge, ACTIVE_CONTEXT, "cancelled", {});
+    const declined = await dispatchV2(concierge, ACTIVE_CONTEXT, "declined", {});
 
     expect(
       {
@@ -1798,7 +1810,7 @@ async function withFakeNow(initial, run) {
       { bridge: registry },
     );
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "live-bridge", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "live-bridge", {});
 
     expect(
       { message: result.message, receivedExactObject: received === liveBridge },
@@ -1819,7 +1831,7 @@ async function withFakeNow(initial, run) {
       { bridge: registry },
     );
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "absent-bridge", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "absent-bridge", {});
 
     expect(
       { received, result },
@@ -1851,7 +1863,7 @@ async function withFakeNow(initial, run) {
       { bridge: registry },
     );
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "throwing-bridge", {});
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "throwing-bridge", {});
 
     expect(
       { received, result },
@@ -1902,19 +1914,19 @@ async function withFakeNow(initial, run) {
     secondStage.match = () => true;
 
     const ctx = { pathname: "/first" };
-    const safeResult = await concierge.dispatch(ctx, "safe-stage-action", {});
-    const otherResult = await concierge.dispatch(ctx, "other-stage-action", {});
+    const safeResult = await dispatchV2(concierge, ctx, "safe-stage-action", {});
+    const otherResult = await dispatchV2(concierge, ctx, "other-stage-action", {});
 
     expect(
       {
         bridge: receivedBridge,
-        catalog: concierge.catalogFor(ctx).map((tool) => tool.name),
+        catalog: concierge.resolveCatalog(ctx).tools.map((tool) => tool.name),
         explanation: concierge.explain(ctx),
         otherCalls,
         otherReason: otherResult.reason,
         safeCalls,
         safeOk: safeResult.ok,
-        stage: concierge.stageFor(ctx),
+        stage: concierge.resolveCatalog(ctx).stage,
       },
       "[RED:R55:stage-snapshot]",
     ).toEqual({
@@ -1963,33 +1975,33 @@ async function withFakeNow(initial, run) {
       crossStage: [shared],
     });
 
-    const allowed = concierge.dispatch({ pathname: "/a" }, "local", {}, { callId: "replay" });
-    const cachedAllowed = concierge.dispatch(
+    const allowed = dispatchV2(concierge, { pathname: "/a" }, "local", {}, { callId: "replay" });
+    const cachedAllowed = dispatchV2(concierge,
       { pathname: "/a" },
       "local",
       {},
       { callId: "replay" },
     );
-    const forbidden = await concierge.dispatch(
+    const forbidden = await dispatchV2(concierge,
       { pathname: "/b" },
       "local",
       {},
       { callId: "replay" },
     );
-    const poisoned = await concierge.dispatch(
+    const poisoned = await dispatchV2(concierge,
       { pathname: "/b" },
       "local",
       {},
       { callId: "later-valid" },
     );
-    const laterValid = await concierge.dispatch(
+    const laterValid = await dispatchV2(concierge,
       { pathname: "/a" },
       "local",
       {},
       { callId: "later-valid" },
     );
-    await concierge.dispatch({ pathname: "/a" }, "shared", { value: 1 });
-    await concierge.dispatch({ pathname: "/b" }, "shared", { value: 1 });
+    await dispatchV2(concierge, { pathname: "/a" }, "shared", { value: 1 });
+    await dispatchV2(concierge, { pathname: "/b" }, "shared", { value: 1 });
 
     expect(
       {
@@ -2006,10 +2018,14 @@ async function withFakeNow(initial, run) {
     ).toEqual({
       allowed: { ok: true, message: "local" },
       cachedIdentity: true,
-      forbiddenReason: "unknown_action",
-      laterValid: { ok: true, message: "local" },
-      localCalls: 2,
-      matcherCalls: 7,
+      forbiddenReason: "identity_conflict",
+      laterValid: {
+        ok: false,
+        reason: "identity_conflict",
+        message: "The invocation identity was reused for a different call.",
+      },
+      localCalls: 1,
+      matcherCalls: 14,
       poisonedReason: "unknown_action",
       sharedCalls: 2,
     });
@@ -2052,7 +2068,7 @@ async function withFakeNow(initial, run) {
       { scheduler: manual.scheduler },
     );
 
-    const pending = concierge.dispatch(ACTIVE_CONTEXT, "snapshot-invocation", args, meta);
+    const pending = dispatchV2(concierge, ACTIVE_CONTEXT, "snapshot-invocation", args, meta);
     args.amount = 999;
     args.nested.currency = "REWRITTEN";
     meta.responseId = "rewritten-response";
@@ -2061,11 +2077,16 @@ async function withFakeNow(initial, run) {
     meta.outputIndex = 99;
     meta.signal = replacementSignal;
     meta.deferUntilDelivered = replacementHook;
-    const retry = concierge.dispatch(
+    const retry = dispatchV2(concierge,
       ACTIVE_CONTEXT,
       "snapshot-invocation",
       { amount: 10, nested: { currency: "USD" } },
-      { callId: "original-call" },
+      {
+        callId: "original-call",
+        responseId: "original-response",
+        userTurnId: "original-turn",
+        outputIndex: 3,
+      },
     );
 
     await flushMicrotasks();
@@ -2134,7 +2155,7 @@ async function withFakeNow(initial, run) {
 
     readOnly = true;
     config.scheduler = replacement.scheduler;
-    const pending = concierge.dispatch(ACTIVE_CONTEXT, "fixed-effects", {});
+    const pending = dispatchV2(concierge, ACTIVE_CONTEXT, "fixed-effects", {});
     await flushMicrotasks();
 
     expect(
@@ -2192,7 +2213,7 @@ async function withFakeNow(initial, run) {
       { bridge: registry },
     );
 
-    const result = await concierge.dispatch(ACTIVE_CONTEXT, "bridge-abort", {}, {
+    const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "bridge-abort", {}, {
       signal: controller.signal,
     });
 
@@ -2225,8 +2246,8 @@ async function withFakeNow(initial, run) {
     ]);
 
     const [crossRealmResult, thenableResult] = await Promise.all([
-      concierge.dispatch(ACTIVE_CONTEXT, "cross-realm", {}),
-      concierge.dispatch(ACTIVE_CONTEXT, "thenable", {}),
+      dispatchV2(concierge, ACTIVE_CONTEXT, "cross-realm", {}),
+      dispatchV2(concierge, ACTIVE_CONTEXT, "thenable", {}),
     ]);
 
     expect(
@@ -2244,7 +2265,7 @@ async function withFakeNow(initial, run) {
       [action("zero-window", () => successful(), { effects: { readOnly: false } })],
       { commitWindowMs: 0, dedupeWindowMs: 0, scheduler: manual.scheduler },
     );
-    const pending = zeroWindow.dispatch(ACTIVE_CONTEXT, "zero-window", {});
+    const pending = dispatchV2(zeroWindow, ACTIVE_CONTEXT, "zero-window", {});
     await flushMicrotasks();
 
     expect(manual.delays, "[RED:R61:zero-window]").toEqual([0]);
@@ -2318,7 +2339,7 @@ async function withFakeNow(initial, run) {
         ...scenario.descriptor,
       });
       try {
-        const result = await concierge.dispatch(ACTIVE_CONTEXT, "diagnostic", {});
+        const result = await dispatchV2(concierge, ACTIVE_CONTEXT, "diagnostic", {});
         outcomes.push({ name: scenario.name, reason: result.reason });
       } catch {
         outcomes.push({ name: scenario.name, reason: "escaped" });
@@ -2355,14 +2376,14 @@ async function withFakeNow(initial, run) {
     declared.schema = schema;
     const concierge = conciergeFor([declared]);
 
-    const valid = await concierge.dispatch(
+    const valid = await dispatchV2(concierge,
       ACTIVE_CONTEXT,
       "captured-validator",
       { token: "allowed" },
       { callId: "captured-valid" },
     );
     standard.validate = (value) => ({ value });
-    const afterValidateReplacement = await concierge.dispatch(
+    const afterValidateReplacement = await dispatchV2(concierge,
       ACTIVE_CONTEXT,
       "captured-validator",
       { token: "denied" },
@@ -2373,7 +2394,7 @@ async function withFakeNow(initial, run) {
       vendor: "replacement",
       validate: (value) => ({ value }),
     };
-    const afterStandardReplacement = await concierge.dispatch(
+    const afterStandardReplacement = await dispatchV2(concierge,
       ACTIVE_CONTEXT,
       "captured-validator",
       { token: "denied" },
@@ -2419,7 +2440,7 @@ async function withFakeNow(initial, run) {
       {
         validate: (value) => {
           validatorCalls += 1;
-          reentrantPromise ??= concierge.dispatch(
+          reentrantPromise ??= dispatchV2(concierge,
             ACTIVE_CONTEXT,
             "validator-reentry",
             value,
@@ -2431,7 +2452,7 @@ async function withFakeNow(initial, run) {
     );
     concierge = conciergeFor([declared]);
 
-    const first = concierge.dispatch(
+    const first = dispatchV2(concierge,
       ACTIVE_CONTEXT,
       "validator-reentry",
       { value: 1 },
@@ -2465,7 +2486,7 @@ async function withFakeNow(initial, run) {
     ]);
     const meta = { callId: "immutable-result-call" };
 
-    const firstPromise = concierge.dispatch(
+    const firstPromise = dispatchV2(concierge,
       ACTIVE_CONTEXT,
       "immutable-result",
       {},
@@ -2491,7 +2512,7 @@ async function withFakeNow(initial, run) {
       }
     }
 
-    const retryPromise = concierge.dispatch(
+    const retryPromise = dispatchV2(concierge,
       ACTIVE_CONTEXT,
       "immutable-result",
       {},
@@ -2561,7 +2582,7 @@ async function withFakeNow(initial, run) {
       ),
     ]);
 
-    const result = await concierge.dispatch(
+    const result = await dispatchV2(concierge,
       ACTIVE_CONTEXT,
       "readonly-handler-inputs",
       { amount: 0 },
@@ -2598,15 +2619,15 @@ async function withFakeNow(initial, run) {
     ]);
 
     const publishedNames = concierge
-      .catalogFor(ACTIVE_CONTEXT)
-      .map((tool) => tool.name);
-    const constructorResult = await concierge.dispatch(
+      .resolveCatalog(ACTIVE_CONTEXT)
+      .tools.map((tool) => tool.name);
+    const constructorResult = await dispatchV2(concierge,
       ACTIVE_CONTEXT,
       "constructor",
       {},
       { callId: "reserved-constructor" },
     );
-    const protoResult = await concierge.dispatch(
+    const protoResult = await dispatchV2(concierge,
       ACTIVE_CONTEXT,
       "__proto__",
       {},
@@ -2684,7 +2705,7 @@ async function withFakeNow(initial, run) {
       let rejected = false;
       let threw = false;
       try {
-        returned = concierge.dispatch(
+        returned = dispatchV2(concierge,
           ACTIVE_CONTEXT,
           "malformed-metadata",
           { scenario: scenario.name },
@@ -2720,13 +2741,14 @@ async function withFakeNow(initial, run) {
       handlerCalls: 0,
       observations: cases.map((scenario) => ({
         frozen: true,
-        keys: ["message", "ok"],
+        keys: ["message", "ok", "reason"],
         name: scenario.name,
         promise: true,
         rejected: false,
         result: {
           ok: false,
-          message: "The invocation metadata is invalid.",
+          reason: "invalid_invocation",
+          message: "The invocation identity is invalid.",
         },
         threw: false,
       })),
@@ -2784,7 +2806,7 @@ async function withFakeNow(initial, run) {
     let symbolPromise;
     let symbolThrew = false;
     try {
-      symbolPromise = concierge.dispatch(
+      symbolPromise = dispatchV2(concierge,
         ACTIVE_CONTEXT,
         "array-boundary",
         { items: symbolLength },
@@ -2797,19 +2819,19 @@ async function withFakeNow(initial, run) {
     const [symbolResult, statefulResult, oversizedResult, inheritedResult] =
       await Promise.all([
         symbolPromise,
-        concierge.dispatch(
+        dispatchV2(concierge,
           ACTIVE_CONTEXT,
           "array-boundary",
           { items: statefulLength },
           { callId: "stateful-array-length" },
         ),
-        concierge.dispatch(
+        dispatchV2(concierge,
           ACTIVE_CONTEXT,
           "array-boundary",
           { items: oversizedLength },
           { callId: "oversized-array-length" },
         ),
-        concierge.dispatch(
+        dispatchV2(concierge,
           ACTIVE_CONTEXT,
           "array-boundary",
           { items: inheritedEntry },

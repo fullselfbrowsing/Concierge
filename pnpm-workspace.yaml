@@ -39,6 +39,12 @@ catalog:
   svelte: ^5.0.0
   "@sveltejs/package": ^2.5.8
 
+minimumReleaseAgeExclude:
+  - '@ai-sdk/gateway@4.0.51'
+  - '@ai-sdk/react@4.0.67'
+  - ai@7.0.64
+  - svelte@5.56.9
+
 # @sveltejs/package dynamically imports TypeScript while omitting it from its
 # published dependencies. Bind that import to the Svelte package's compiler
 # domain instead of letting it fall through to the workspace's native TS 7.

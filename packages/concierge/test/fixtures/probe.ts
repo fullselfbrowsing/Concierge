@@ -72,9 +72,10 @@ import {
   buildCatalog,
   createConcierge,
   createSession,
-} from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";
 import type {
   ActionResult,
+  CatalogRevision,
   Concierge,
   ConsentAck,
   ConsentGrade,
@@ -100,7 +101,17 @@ import type {
   Transport,
   TransportStatus,
   TurnIdentityProvenance,
-} from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";
+import {
+  getConciergeTelemetryStatus,
+  mountConciergeTelemetry,
+  onConciergeTelemetryStatusChange,
+  setConciergeTelemetryEnabled,
+} from "@full-self-browsing/concierge/telemetry";
+import type {
+  ConciergeTelemetryReason,
+  ConciergeTelemetryStatus,
+} from "@full-self-browsing/concierge/telemetry";
 
 /**
  * The shipped interface is constructible from a plain object literal under
@@ -116,7 +127,7 @@ export const r: ActionResult = { ok: true, message: "ok" };
 export const n: 180 = MESSAGE_MAX_CHARS; // the literal type survived into the shipped .d.ts
 
 /** Same guard for the contract version, which 02-06 left unannotated in source. */
-export const v: 1 = CONTRACT_VERSION;
+export const v: 2 = CONTRACT_VERSION;
 
 /**
  * A value import of the one function the package actually executes. Annotating
@@ -252,7 +263,7 @@ export const bc: (a: readonly never[]) => unknown = buildCatalog;
 export const conciergeFactory: typeof createConcierge = createConcierge;
 
 /**
- * The foreign declaration probe exercises the complete six-member transport
+ * The foreign declaration probe exercises the complete five-member transport
  * seam from a plain object literal. Nothing here imports a test
  * helper, DOM declaration, or source path; every annotation resolves through
  * the packed package's public `dist/index.d.ts`.
@@ -266,19 +277,25 @@ export const foreignTransport: Transport = {
     dynamicCatalog: true,
   }),
   status: foreignStatus,
-  setTools: (_tools) => {},
+  setCatalog: (_catalog) => {},
   onStatusChange: (_callback) => () => {},
   onToolBatch: (_callback) => () => {},
-  respond: (_callId, _result) => {},
 };
 
 /** A fully structural Concierge, again checked only through shipped types. */
 export const foreignConcierge: Concierge = {
-  dispatch: (_context, _name, _args, _meta) =>
+  dispatch: (_context, _request) =>
     Promise.resolve({ ok: true, message: "ok" }),
-  dispatchBatch: (_context, _batch) => Promise.resolve(Object.freeze([])),
-  catalogFor: (_context) => Object.freeze([]),
-  stageFor: (_context) => null,
+  dispatchBatch: (_context, _batch) => Promise.resolve(Object.freeze({
+    kind: "completed",
+    rows: Object.freeze([]),
+  })),
+  resolveCatalog: (_context) => Object.freeze({
+    stage: null,
+    revision: Symbol("probe") as CatalogRevision,
+    tools: Object.freeze([]),
+  }),
+  onDispatch: (_listener) => () => {},
   explain: (_context) =>
     Object.freeze({
       stage: null,
@@ -286,6 +303,24 @@ export const foreignConcierge: Concierge = {
       catalog: Object.freeze([]),
     }),
 };
+
+/** The browser-only telemetry subpath is present and fully typed in the pack. */
+export const foreignTelemetryReason: ConciergeTelemetryReason = "enabled";
+export const foreignTelemetryStatus: ConciergeTelemetryStatus = Object.freeze({
+  enabled: true,
+  reason: foreignTelemetryReason,
+  serverDeletionPending: false,
+});
+export const foreignTelemetryMount: (concierge: Concierge) => () => void =
+  mountConciergeTelemetry;
+export const foreignTelemetryGet: () => Promise<ConciergeTelemetryStatus> =
+  getConciergeTelemetryStatus;
+export const foreignTelemetrySet: (
+  enabled: boolean,
+) => Promise<ConciergeTelemetryStatus> = setConciergeTelemetryEnabled;
+export const foreignTelemetryListen: (
+  listener: (status: ConciergeTelemetryStatus) => void,
+) => () => void = onConciergeTelemetryStatusChange;
 
 /** Pin the closed diagnostic vocabulary and immutable public shape. */
 export const foreignDiagnosticCode: SessionDiagnosticCode = "response_failed";

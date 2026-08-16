@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist/telemetry",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "paths": {
+      "@full-self-browsing/concierge": ["./src/index.ts"]
+    }
+  },
+  "include": ["src/telemetry/**/*.ts"]
+}

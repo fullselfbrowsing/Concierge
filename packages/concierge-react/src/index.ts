@@ -2,4 +2,4 @@ export type {
   Bridge,
   BridgeRegistry,
   Concierge,
-} from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";

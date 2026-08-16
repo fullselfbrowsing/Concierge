@@ -2,8 +2,8 @@ import {
   createBridge,
   createConcierge,
   defineAction,
-} from "@fullselfbrowsing/concierge";
-import { svelteSnapshotNormalizer } from "@fullselfbrowsing/concierge-svelte/client.svelte";
+} from "@full-self-browsing/concierge";
+import { svelteSnapshotNormalizer } from "@full-self-browsing/concierge-svelte/client.svelte";
 import type {
   AnyActionDefinition,
   Bridge,
@@ -12,7 +12,7 @@ import type {
   EmittedTool,
   StageDefinition,
   StandardSchemaV1,
-} from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";
 
 export type AdapterName = "react" | "svelte";
 
@@ -110,7 +110,7 @@ function createSide(adapter: AdapterName, renderId: string): AdapterSsrSide {
     concierge,
     registry,
     bridge,
-    catalog: concierge.catalogFor({ pathname: "/adapter-ssr" }),
+    catalog: concierge.resolveCatalog({ pathname: "/adapter-ssr" }).tools,
     preRegistry: registry.read(),
   });
 }

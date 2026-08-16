@@ -1,0 +1,2014 @@
+{
+  "schemaVersion": 1,
+  "phase": "09-react-and-svelte-adapters",
+  "recordedAt": "2026-08-10T18:54:04.649Z",
+  "ids": [
+    "C09-01-VITEST-ROUTING",
+    "C09-02-REACT-SKELETON",
+    "C09-03-REACT-RUNTIME",
+    "C09-04-REACT-ARTIFACT",
+    "C09-05-SVELTE-SKELETON",
+    "C09-06-SVELTE-RUNTIME",
+    "C09-07-SVELTE-ARTIFACT",
+    "C09-08-ASTRO-SSR",
+    "C09-09-EXACT-TARBALL",
+    "C09-10-ADAPTER-BUDGET",
+    "C09-11-MUTATION-CLOSURE"
+  ],
+  "failures": [
+    {
+      "id": "C09-01-VITEST-ROUTING",
+      "observations": [
+        {
+          "name": "node-exact-includes",
+          "path": "vitest.config.ts",
+          "expected": "[\"packages/concierge/test/**/*.test.ts\"]",
+          "actual": "[\"packages/*/test/**/*.test.ts\"]"
+        },
+        {
+          "name": "node-artifact-ssr-project",
+          "path": "vitest.config.ts",
+          "expected": "named project object",
+          "actual": "absent"
+        },
+        {
+          "name": "node-artifact-ssr-environment",
+          "path": "vitest.config.ts",
+          "expected": "node",
+          "actual": "project absent"
+        },
+        {
+          "name": "node-artifact-ssr-exact-includes",
+          "path": "vitest.config.ts",
+          "expected": "[\"packages/concierge-react/test/artifact.test.ts\",\"packages/concierge-svelte/test/artifact.test.ts\",\"examples/adapter-ssr/test/ssr.test.ts\"]",
+          "actual": "[]"
+        },
+        {
+          "name": "react-lifecycle-project",
+          "path": "vitest.config.ts",
+          "expected": "named project object",
+          "actual": "absent"
+        },
+        {
+          "name": "react-lifecycle-environment",
+          "path": "vitest.config.ts",
+          "expected": "jsdom",
+          "actual": "project absent"
+        },
+        {
+          "name": "react-lifecycle-exact-includes",
+          "path": "vitest.config.ts",
+          "expected": "[\"packages/concierge-react/test/lifecycle.test.tsx\"]",
+          "actual": "[]"
+        },
+        {
+          "name": "svelte-lifecycle-project",
+          "path": "vitest.config.ts",
+          "expected": "named project object",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-lifecycle-environment",
+          "path": "vitest.config.ts",
+          "expected": "jsdom",
+          "actual": "project absent"
+        },
+        {
+          "name": "svelte-lifecycle-exact-includes",
+          "path": "vitest.config.ts",
+          "expected": "[\"packages/concierge-svelte/test/lifecycle.test.ts\"]",
+          "actual": "[]"
+        },
+        {
+          "name": "root-pin-vite",
+          "path": "package.json",
+          "expected": "8.1.5",
+          "actual": "absent"
+        },
+        {
+          "name": "root-pin-@vitejs/plugin-react",
+          "path": "package.json",
+          "expected": "5.2.0",
+          "actual": "absent"
+        },
+        {
+          "name": "root-pin-@sveltejs/vite-plugin-svelte",
+          "path": "package.json",
+          "expected": "7.2.0",
+          "actual": "absent"
+        },
+        {
+          "name": "root-pin-svelte",
+          "path": "package.json",
+          "expected": "5.56.8",
+          "actual": "absent"
+        },
+        {
+          "name": "root-pin-jsdom",
+          "path": "package.json",
+          "expected": "29.1.1",
+          "actual": "absent"
+        },
+        {
+          "name": "react-plugin-import",
+          "path": "vitest.config.ts",
+          "expected": "live plugin import",
+          "actual": "inspected"
+        },
+        {
+          "name": "svelte-plugin-import",
+          "path": "vitest.config.ts",
+          "expected": "live plugin import",
+          "actual": "inspected"
+        },
+        {
+          "name": "react-plugin-call",
+          "path": "vitest.config.ts",
+          "expected": "react() project plugin",
+          "actual": "inspected"
+        },
+        {
+          "name": "svelte-plugin-call",
+          "path": "vitest.config.ts",
+          "expected": "svelte({ hot: false })",
+          "actual": "inspected"
+        },
+        {
+          "name": "no-broad-package-glob",
+          "path": "vitest.config.ts",
+          "expected": "broad glob absent",
+          "actual": "present"
+        },
+        {
+          "name": "node-artifact-ssr-unique",
+          "path": "vitest.config.ts",
+          "expected": "one live name",
+          "actual": "0"
+        },
+        {
+          "name": "react-lifecycle-unique",
+          "path": "vitest.config.ts",
+          "expected": "one live name",
+          "actual": "0"
+        },
+        {
+          "name": "svelte-lifecycle-unique",
+          "path": "vitest.config.ts",
+          "expected": "one live name",
+          "actual": "0"
+        }
+      ]
+    },
+    {
+      "id": "C09-02-REACT-SKELETON",
+      "observations": [
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-react/package.json",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-react/tsconfig.json",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-react/tsdown.config.ts",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-react/LICENSE",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "react-package-name",
+          "path": "packages/concierge-react/package.json",
+          "expected": "@fullselfbrowsing/concierge-react",
+          "actual": "absent"
+        },
+        {
+          "name": "react-public-package",
+          "path": "packages/concierge-react/package.json",
+          "expected": "private false",
+          "actual": "absent"
+        },
+        {
+          "name": "react-esm-side-effects",
+          "path": "packages/concierge-react/package.json",
+          "expected": "ESM and sideEffects false",
+          "actual": "absent/absent"
+        },
+        {
+          "name": "react-two-exports",
+          "path": "packages/concierge-react/package.json",
+          "expected": "root and ./client maps",
+          "actual": "inspected"
+        },
+        {
+          "name": "react-core-peer",
+          "path": "packages/concierge-react/package.json",
+          "expected": "workspace:^",
+          "actual": "absent"
+        },
+        {
+          "name": "react-core-dev-link",
+          "path": "packages/concierge-react/package.json",
+          "expected": "workspace:*",
+          "actual": "absent"
+        },
+        {
+          "name": "react-framework-peers",
+          "path": "packages/concierge-react/package.json",
+          "expected": "React 18.2/19 peers",
+          "actual": "inspected"
+        },
+        {
+          "name": "react-dev-pin-react",
+          "path": "packages/concierge-react/package.json",
+          "expected": "19.2.8",
+          "actual": "absent"
+        },
+        {
+          "name": "react-dev-pin-react-dom",
+          "path": "packages/concierge-react/package.json",
+          "expected": "19.2.8",
+          "actual": "absent"
+        },
+        {
+          "name": "react-dev-pin-@types/react",
+          "path": "packages/concierge-react/package.json",
+          "expected": "19.2.18",
+          "actual": "absent"
+        },
+        {
+          "name": "react-dev-pin-@types/react-dom",
+          "path": "packages/concierge-react/package.json",
+          "expected": "19.2.4",
+          "actual": "absent"
+        },
+        {
+          "name": "react-dev-pin-@testing-library/react",
+          "path": "packages/concierge-react/package.json",
+          "expected": "16.3.2",
+          "actual": "absent"
+        },
+        {
+          "name": "react-files-list",
+          "path": "packages/concierge-react/package.json",
+          "expected": "dist/src/README/LICENSE",
+          "actual": "[]"
+        },
+        {
+          "name": "react-package-scripts",
+          "path": "packages/concierge-react/package.json",
+          "expected": "tsdown and exact lifecycle project",
+          "actual": "inspected"
+        },
+        {
+          "name": "react-tsconfig-inputs",
+          "path": "packages/concierge-react/tsconfig.json",
+          "expected": "TSX and type-test inputs",
+          "actual": "inspected"
+        },
+        {
+          "name": "react-build-src/index.ts",
+          "path": "packages/concierge-react/tsdown.config.ts",
+          "expected": "live src/index.ts fingerprint",
+          "actual": "absent"
+        },
+        {
+          "name": "react-build-src/client.tsx",
+          "path": "packages/concierge-react/tsdown.config.ts",
+          "expected": "live src/client.tsx fingerprint",
+          "actual": "absent"
+        },
+        {
+          "name": "react-build-fileName",
+          "path": "packages/concierge-react/tsdown.config.ts",
+          "expected": "live fileName fingerprint",
+          "actual": "absent"
+        },
+        {
+          "name": "react-build-use client",
+          "path": "packages/concierge-react/tsdown.config.ts",
+          "expected": "live use client fingerprint",
+          "actual": "absent"
+        },
+        {
+          "name": "react-build-react",
+          "path": "packages/concierge-react/tsdown.config.ts",
+          "expected": "live react fingerprint",
+          "actual": "absent"
+        },
+        {
+          "name": "react-build-@fullselfbrowsing/concierge",
+          "path": "packages/concierge-react/tsdown.config.ts",
+          "expected": "live @fullselfbrowsing/concierge fingerprint",
+          "actual": "absent"
+        },
+        {
+          "name": "react-neutral-esm-build",
+          "path": "packages/concierge-react/tsdown.config.ts",
+          "expected": "neutral ESM",
+          "actual": "inspected"
+        },
+        {
+          "name": "react-license-copy",
+          "path": "packages/concierge-react/LICENSE",
+          "expected": "byte-identical core license",
+          "actual": "different"
+        },
+        {
+          "name": "react-lock-importer",
+          "path": "pnpm-lock.yaml",
+          "expected": "React importer and core link",
+          "actual": "inspected"
+        }
+      ]
+    },
+    {
+      "id": "C09-03-REACT-RUNTIME",
+      "observations": [
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-react/src/index.ts",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-react/src/client.tsx",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-react/test/lifecycle.test.tsx",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "react-client-directive",
+          "path": "packages/concierge-react/src/client.tsx",
+          "expected": "first statement use client",
+          "actual": "inspected"
+        },
+        {
+          "name": "react-export-ConciergeProvider",
+          "path": "packages/concierge-react/src/client.tsx",
+          "expected": "canonical exported symbol",
+          "actual": "inspected"
+        },
+        {
+          "name": "react-export-useConcierge",
+          "path": "packages/concierge-react/src/client.tsx",
+          "expected": "canonical exported symbol",
+          "actual": "inspected"
+        },
+        {
+          "name": "react-export-useConciergeValue",
+          "path": "packages/concierge-react/src/client.tsx",
+          "expected": "canonical exported symbol",
+          "actual": "inspected"
+        },
+        {
+          "name": "react-export-useConciergeBridge",
+          "path": "packages/concierge-react/src/client.tsx",
+          "expected": "canonical exported symbol",
+          "actual": "inspected"
+        },
+        {
+          "name": "react-runtime-createContext",
+          "path": "packages/concierge-react/src/client.tsx",
+          "expected": "live createContext call/path",
+          "actual": "absent"
+        },
+        {
+          "name": "react-runtime-useEffect",
+          "path": "packages/concierge-react/src/client.tsx",
+          "expected": "live useEffect call/path",
+          "actual": "absent"
+        },
+        {
+          "name": "react-runtime-useRef",
+          "path": "packages/concierge-react/src/client.tsx",
+          "expected": "live useRef call/path",
+          "actual": "absent"
+        },
+        {
+          "name": "react-runtime-useCallback",
+          "path": "packages/concierge-react/src/client.tsx",
+          "expected": "live useCallback call/path",
+          "actual": "absent"
+        },
+        {
+          "name": "react-runtime-assertSingleInstance",
+          "path": "packages/concierge-react/src/client.tsx",
+          "expected": "live assertSingleInstance call/path",
+          "actual": "absent"
+        },
+        {
+          "name": "react-runtime-CONTRACT_VERSION",
+          "path": "packages/concierge-react/src/client.tsx",
+          "expected": "live CONTRACT_VERSION call/path",
+          "actual": "absent"
+        },
+        {
+          "name": "react-runtime-EXPECTED_CONTRACT_VERSION",
+          "path": "packages/concierge-react/src/client.tsx",
+          "expected": "live EXPECTED_CONTRACT_VERSION call/path",
+          "actual": "absent"
+        },
+        {
+          "name": "react-runtime-registry.register",
+          "path": "packages/concierge-react/src/client.tsx",
+          "expected": "live registry.register call/path",
+          "actual": "absent"
+        },
+        {
+          "name": "react-literal-contract",
+          "path": "packages/concierge-react/src/client.tsx",
+          "expected": "adapter-owned literal 1",
+          "actual": "inspected"
+        },
+        {
+          "name": "react-guard-register-order",
+          "path": "packages/concierge-react/src/client.tsx",
+          "expected": "effect then guards then register",
+          "actual": "inspected"
+        },
+        {
+          "name": "react-exact-cleanup-return",
+          "path": "packages/concierge-react/src/client.tsx",
+          "expected": "returned registration cleanup",
+          "actual": "inspected"
+        },
+        {
+          "name": "react-lifecycle-StrictMode",
+          "path": "packages/concierge-react/test/lifecycle.test.tsx",
+          "expected": "assertion-observed StrictMode",
+          "actual": "absent"
+        },
+        {
+          "name": "react-lifecycle-rerender",
+          "path": "packages/concierge-react/test/lifecycle.test.tsx",
+          "expected": "assertion-observed rerender",
+          "actual": "absent"
+        },
+        {
+          "name": "react-lifecycle-unmount",
+          "path": "packages/concierge-react/test/lifecycle.test.tsx",
+          "expected": "assertion-observed unmount",
+          "actual": "absent"
+        },
+        {
+          "name": "react-lifecycle-T01",
+          "path": "packages/concierge-react/test/lifecycle.test.tsx",
+          "expected": "assertion-observed T01",
+          "actual": "absent"
+        },
+        {
+          "name": "react-lifecycle-R1",
+          "path": "packages/concierge-react/test/lifecycle.test.tsx",
+          "expected": "assertion-observed R1",
+          "actual": "absent"
+        },
+        {
+          "name": "react-lifecycle-T02",
+          "path": "packages/concierge-react/test/lifecycle.test.tsx",
+          "expected": "assertion-observed T02",
+          "actual": "absent"
+        },
+        {
+          "name": "react-lifecycle-R2",
+          "path": "packages/concierge-react/test/lifecycle.test.tsx",
+          "expected": "assertion-observed R2",
+          "actual": "absent"
+        },
+        {
+          "name": "react-lifecycle-expect(",
+          "path": "packages/concierge-react/test/lifecycle.test.tsx",
+          "expected": "assertion-observed expect(",
+          "actual": "absent"
+        }
+      ]
+    },
+    {
+      "id": "C09-04-REACT-ARTIFACT",
+      "observations": [
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-react/test/artifact.test.ts",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-react/test-d/public.test-d.ts",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "react-artifact-dist/index.js",
+          "path": "packages/concierge-react/test/artifact.test.ts",
+          "expected": "artifact assertion for dist/index.js",
+          "actual": "absent"
+        },
+        {
+          "name": "react-artifact-dist/client.js",
+          "path": "packages/concierge-react/test/artifact.test.ts",
+          "expected": "artifact assertion for dist/client.js",
+          "actual": "absent"
+        },
+        {
+          "name": "react-artifact-renderToString",
+          "path": "packages/concierge-react/test/artifact.test.ts",
+          "expected": "artifact assertion for renderToString",
+          "actual": "absent"
+        },
+        {
+          "name": "react-artifact-window",
+          "path": "packages/concierge-react/test/artifact.test.ts",
+          "expected": "artifact assertion for window",
+          "actual": "absent"
+        },
+        {
+          "name": "react-artifact-document",
+          "path": "packages/concierge-react/test/artifact.test.ts",
+          "expected": "artifact assertion for document",
+          "actual": "absent"
+        },
+        {
+          "name": "react-artifact-navigator",
+          "path": "packages/concierge-react/test/artifact.test.ts",
+          "expected": "artifact assertion for navigator",
+          "actual": "absent"
+        },
+        {
+          "name": "react-artifact-EXPECTED_CONTRACT_VERSION",
+          "path": "packages/concierge-react/test/artifact.test.ts",
+          "expected": "artifact assertion for EXPECTED_CONTRACT_VERSION",
+          "actual": "absent"
+        },
+        {
+          "name": "react-artifact-registry.register",
+          "path": "packages/concierge-react/test/artifact.test.ts",
+          "expected": "artifact assertion for registry.register",
+          "actual": "absent"
+        },
+        {
+          "name": "react-artifact-expect(",
+          "path": "packages/concierge-react/test/artifact.test.ts",
+          "expected": "artifact assertion for expect(",
+          "actual": "absent"
+        },
+        {
+          "name": "react-artifact-guard-order",
+          "path": "packages/concierge-react/test/artifact.test.ts",
+          "expected": "literal guard before registration",
+          "actual": "inspected"
+        },
+        {
+          "name": "react-public-type-import",
+          "path": "packages/concierge-react/test-d/public.test-d.ts",
+          "expected": "public client import",
+          "actual": "inspected"
+        },
+        {
+          "name": "react-type-contract",
+          "path": "packages/concierge-react/test-d/public.test-d.ts",
+          "expected": "positive and negative public API assertions",
+          "actual": "inspected"
+        }
+      ]
+    },
+    {
+      "id": "C09-05-SVELTE-SKELETON",
+      "observations": [
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-svelte/package.json",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-svelte/tsconfig.json",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-svelte/svelte.config.js",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-svelte/LICENSE",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "svelte-package-name",
+          "path": "packages/concierge-svelte/package.json",
+          "expected": "@fullselfbrowsing/concierge-svelte",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-esm-side-effects",
+          "path": "packages/concierge-svelte/package.json",
+          "expected": "ESM and sideEffects false",
+          "actual": "inspected"
+        },
+        {
+          "name": "svelte-two-exports",
+          "path": "packages/concierge-svelte/package.json",
+          "expected": "root and ./client.svelte maps",
+          "actual": "inspected"
+        },
+        {
+          "name": "svelte-export-conditions-.",
+          "path": "packages/concierge-svelte/package.json",
+          "expected": "types/svelte/import/default only",
+          "actual": "[]"
+        },
+        {
+          "name": "svelte-export-conditions-./client.svelte",
+          "path": "packages/concierge-svelte/package.json",
+          "expected": "types/svelte/import/default only",
+          "actual": "[]"
+        },
+        {
+          "name": "svelte-peers",
+          "path": "packages/concierge-svelte/package.json",
+          "expected": "core workspace:^ and Svelte ^5",
+          "actual": "inspected"
+        },
+        {
+          "name": "svelte-core-dev-link",
+          "path": "packages/concierge-svelte/package.json",
+          "expected": "workspace:*",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-dev-pin-svelte",
+          "path": "packages/concierge-svelte/package.json",
+          "expected": "5.56.8",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-dev-pin-@sveltejs/package",
+          "path": "packages/concierge-svelte/package.json",
+          "expected": "2.5.8",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-dev-pin-svelte-check",
+          "path": "packages/concierge-svelte/package.json",
+          "expected": "4.7.5",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-dev-pin-@testing-library/svelte",
+          "path": "packages/concierge-svelte/package.json",
+          "expected": "5.4.2",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-dev-pin-@sveltejs/vite-plugin-svelte",
+          "path": "packages/concierge-svelte/package.json",
+          "expected": "7.2.0",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-dev-pin-typescript",
+          "path": "packages/concierge-svelte/package.json",
+          "expected": "6.0.3",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-package-scripts",
+          "path": "packages/concierge-svelte/package.json",
+          "expected": "svelte-package/check/exact project",
+          "actual": "inspected"
+        },
+        {
+          "name": "svelte-tsconfig-inputs",
+          "path": "packages/concierge-svelte/tsconfig.json",
+          "expected": "rune and component inputs",
+          "actual": "inspected"
+        },
+        {
+          "name": "svelte-preprocess",
+          "path": "packages/concierge-svelte/svelte.config.js",
+          "expected": "vitePreprocess()",
+          "actual": "inspected"
+        },
+        {
+          "name": "svelte-license-copy",
+          "path": "packages/concierge-svelte/LICENSE",
+          "expected": "byte-identical core license",
+          "actual": "different"
+        },
+        {
+          "name": "svelte-lock-importer",
+          "path": "pnpm-lock.yaml",
+          "expected": "Svelte importer and TS6",
+          "actual": "inspected"
+        }
+      ]
+    },
+    {
+      "id": "C09-06-SVELTE-RUNTIME",
+      "observations": [
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-svelte/src/index.ts",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-svelte/src/client.svelte.ts",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-svelte/test/Harness.svelte",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-svelte/test/lifecycle.test.ts",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "svelte-export-provideConcierge",
+          "path": "packages/concierge-svelte/src/client.svelte.ts",
+          "expected": "canonical exported symbol",
+          "actual": "inspected"
+        },
+        {
+          "name": "svelte-export-useConcierge",
+          "path": "packages/concierge-svelte/src/client.svelte.ts",
+          "expected": "canonical exported symbol",
+          "actual": "inspected"
+        },
+        {
+          "name": "svelte-export-useConciergeBridge",
+          "path": "packages/concierge-svelte/src/client.svelte.ts",
+          "expected": "canonical exported symbol",
+          "actual": "inspected"
+        },
+        {
+          "name": "svelte-export-svelteSnapshotNormalizer",
+          "path": "packages/concierge-svelte/src/client.svelte.ts",
+          "expected": "canonical exported symbol",
+          "actual": "inspected"
+        },
+        {
+          "name": "svelte-runtime-setContext",
+          "path": "packages/concierge-svelte/src/client.svelte.ts",
+          "expected": "live setContext call/path",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-runtime-getContext",
+          "path": "packages/concierge-svelte/src/client.svelte.ts",
+          "expected": "live getContext call/path",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-runtime-$effect",
+          "path": "packages/concierge-svelte/src/client.svelte.ts",
+          "expected": "live $effect call/path",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-runtime-$state.snapshot",
+          "path": "packages/concierge-svelte/src/client.svelte.ts",
+          "expected": "live $state.snapshot call/path",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-runtime-assertSingleInstance",
+          "path": "packages/concierge-svelte/src/client.svelte.ts",
+          "expected": "live assertSingleInstance call/path",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-runtime-CONTRACT_VERSION",
+          "path": "packages/concierge-svelte/src/client.svelte.ts",
+          "expected": "live CONTRACT_VERSION call/path",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-runtime-EXPECTED_CONTRACT_VERSION",
+          "path": "packages/concierge-svelte/src/client.svelte.ts",
+          "expected": "live EXPECTED_CONTRACT_VERSION call/path",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-runtime-registry.register",
+          "path": "packages/concierge-svelte/src/client.svelte.ts",
+          "expected": "live registry.register call/path",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-runtime-SnapshotNormalizer",
+          "path": "packages/concierge-svelte/src/client.svelte.ts",
+          "expected": "live SnapshotNormalizer call/path",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-literal-contract",
+          "path": "packages/concierge-svelte/src/client.svelte.ts",
+          "expected": "adapter-owned literal 1",
+          "actual": "inspected"
+        },
+        {
+          "name": "svelte-guard-register-order",
+          "path": "packages/concierge-svelte/src/client.svelte.ts",
+          "expected": "effect then guards then register",
+          "actual": "inspected"
+        },
+        {
+          "name": "svelte-exact-cleanup-return",
+          "path": "packages/concierge-svelte/src/client.svelte.ts",
+          "expected": "returned registration cleanup",
+          "actual": "inspected"
+        },
+        {
+          "name": "svelte-normalizer-overload",
+          "path": "packages/concierge-svelte/src/client.svelte.ts",
+          "expected": "generic plus unknown overload",
+          "actual": "inspected"
+        },
+        {
+          "name": "svelte-public-root",
+          "path": "packages/concierge-svelte/src/index.ts",
+          "expected": "canonical client export without construction",
+          "actual": "inspected"
+        },
+        {
+          "name": "svelte-real-harness",
+          "path": "packages/concierge-svelte/test/Harness.svelte",
+          "expected": "component-init hook without host reads",
+          "actual": "inspected"
+        },
+        {
+          "name": "svelte-lifecycle-mount",
+          "path": "packages/concierge-svelte/test/lifecycle.test.ts",
+          "expected": "assertion-observed mount",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-lifecycle-unmount",
+          "path": "packages/concierge-svelte/test/lifecycle.test.ts",
+          "expected": "assertion-observed unmount",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-lifecycle-T03",
+          "path": "packages/concierge-svelte/test/lifecycle.test.ts",
+          "expected": "assertion-observed T03",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-lifecycle-S1",
+          "path": "packages/concierge-svelte/test/lifecycle.test.ts",
+          "expected": "assertion-observed S1",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-lifecycle-T04",
+          "path": "packages/concierge-svelte/test/lifecycle.test.ts",
+          "expected": "assertion-observed T04",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-lifecycle-expect(",
+          "path": "packages/concierge-svelte/test/lifecycle.test.ts",
+          "expected": "assertion-observed expect(",
+          "actual": "absent"
+        }
+      ]
+    },
+    {
+      "id": "C09-07-SVELTE-ARTIFACT",
+      "observations": [
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-svelte/test/artifact.test.ts",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "packages/concierge-svelte/package.json",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "svelte-artifact-dist/index.js",
+          "path": "packages/concierge-svelte/test/artifact.test.ts",
+          "expected": "artifact assertion for dist/index.js",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-artifact-dist/client.svelte",
+          "path": "packages/concierge-svelte/test/artifact.test.ts",
+          "expected": "artifact assertion for dist/client.svelte",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-artifact-types",
+          "path": "packages/concierge-svelte/test/artifact.test.ts",
+          "expected": "artifact assertion for types",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-artifact-svelte",
+          "path": "packages/concierge-svelte/test/artifact.test.ts",
+          "expected": "artifact assertion for svelte",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-artifact-import",
+          "path": "packages/concierge-svelte/test/artifact.test.ts",
+          "expected": "artifact assertion for import",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-artifact-default",
+          "path": "packages/concierge-svelte/test/artifact.test.ts",
+          "expected": "artifact assertion for default",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-artifact-window",
+          "path": "packages/concierge-svelte/test/artifact.test.ts",
+          "expected": "artifact assertion for window",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-artifact-document",
+          "path": "packages/concierge-svelte/test/artifact.test.ts",
+          "expected": "artifact assertion for document",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-artifact-navigator",
+          "path": "packages/concierge-svelte/test/artifact.test.ts",
+          "expected": "artifact assertion for navigator",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-artifact-EXPECTED_CONTRACT_VERSION",
+          "path": "packages/concierge-svelte/test/artifact.test.ts",
+          "expected": "artifact assertion for EXPECTED_CONTRACT_VERSION",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-artifact-$state",
+          "path": "packages/concierge-svelte/test/artifact.test.ts",
+          "expected": "artifact assertion for $state",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-artifact-expect(",
+          "path": "packages/concierge-svelte/test/artifact.test.ts",
+          "expected": "artifact assertion for expect(",
+          "actual": "absent"
+        },
+        {
+          "name": "svelte-artifact-export-contract",
+          "path": "packages/concierge-svelte/package.json",
+          "expected": "framework-aware conditions",
+          "actual": "inspected"
+        }
+      ]
+    },
+    {
+      "id": "C09-08-ASTRO-SSR",
+      "observations": [
+        {
+          "name": "regular-nonempty-file",
+          "path": "examples/adapter-ssr/package.json",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "examples/adapter-ssr/astro.config.mjs",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "examples/adapter-ssr/tsconfig.json",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "examples/adapter-ssr/src/shared/catalog.ts",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "examples/adapter-ssr/src/components/ReactIsland.tsx",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "examples/adapter-ssr/src/components/SvelteIsland.svelte",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "examples/adapter-ssr/src/pages/index.astro",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "examples/adapter-ssr/test/ssr.test.ts",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "astro-private-package",
+          "path": "examples/adapter-ssr/package.json",
+          "expected": "named private package",
+          "actual": "inspected"
+        },
+        {
+          "name": "astro-dev-pin-astro",
+          "path": "examples/adapter-ssr/package.json",
+          "expected": "7.2.0",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-dev-pin-@astrojs/react",
+          "path": "examples/adapter-ssr/package.json",
+          "expected": "6.0.2",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-dev-pin-@astrojs/svelte",
+          "path": "examples/adapter-ssr/package.json",
+          "expected": "9.0.1",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-dev-pin-@astrojs/check",
+          "path": "examples/adapter-ssr/package.json",
+          "expected": "0.9.10",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-dev-pin-typescript",
+          "path": "examples/adapter-ssr/package.json",
+          "expected": "6.0.3",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-dev-pin-@fullselfbrowsing/concierge",
+          "path": "examples/adapter-ssr/package.json",
+          "expected": "workspace:*",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-dev-pin-@fullselfbrowsing/concierge-react",
+          "path": "examples/adapter-ssr/package.json",
+          "expected": "workspace:*",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-dev-pin-@fullselfbrowsing/concierge-svelte",
+          "path": "examples/adapter-ssr/package.json",
+          "expected": "workspace:*",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-config-@astrojs/react",
+          "path": "examples/adapter-ssr/astro.config.mjs",
+          "expected": "live @astrojs/react",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-config-@astrojs/svelte",
+          "path": "examples/adapter-ssr/astro.config.mjs",
+          "expected": "live @astrojs/svelte",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-config-ADAPTER_SSR_OUT_DIR",
+          "path": "examples/adapter-ssr/astro.config.mjs",
+          "expected": "live ADAPTER_SSR_OUT_DIR",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-config-output: \"static\"",
+          "path": "examples/adapter-ssr/astro.config.mjs",
+          "expected": "live output: \"static\"",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-config-react()",
+          "path": "examples/adapter-ssr/astro.config.mjs",
+          "expected": "live react()",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-config-svelte()",
+          "path": "examples/adapter-ssr/astro.config.mjs",
+          "expected": "live svelte()",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-strict-tsconfig",
+          "path": "examples/adapter-ssr/tsconfig.json",
+          "expected": "Astro strict config",
+          "actual": "inspected"
+        },
+        {
+          "name": "astro-request-factory",
+          "path": "examples/adapter-ssr/src/shared/catalog.ts",
+          "expected": "request-local shared harness",
+          "actual": "inspected"
+        },
+        {
+          "name": "astro-react-island",
+          "path": "examples/adapter-ssr/src/components/ReactIsland.tsx",
+          "expected": "public injected React client",
+          "actual": "inspected"
+        },
+        {
+          "name": "astro-svelte-island",
+          "path": "examples/adapter-ssr/src/components/SvelteIsland.svelte",
+          "expected": "public injected Svelte client",
+          "actual": "inspected"
+        },
+        {
+          "name": "astro-machine-evidence",
+          "path": "examples/adapter-ssr/src/pages/index.astro",
+          "expected": "JSON evidence block",
+          "actual": "inspected"
+        },
+        {
+          "name": "astro-test-mkdtemp",
+          "path": "examples/adapter-ssr/test/ssr.test.ts",
+          "expected": "assertion-observed mkdtemp",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-test-ADAPTER_SSR_OUT_DIR",
+          "path": "examples/adapter-ssr/test/ssr.test.ts",
+          "expected": "assertion-observed ADAPTER_SSR_OUT_DIR",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-test-astro",
+          "path": "examples/adapter-ssr/test/ssr.test.ts",
+          "expected": "assertion-observed astro",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-test-index.html",
+          "path": "examples/adapter-ssr/test/ssr.test.ts",
+          "expected": "assertion-observed index.html",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-test-ASTRO_SSR_EVIDENCE",
+          "path": "examples/adapter-ssr/test/ssr.test.ts",
+          "expected": "assertion-observed ASTRO_SSR_EVIDENCE",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-test-renders=2",
+          "path": "examples/adapter-ssr/test/ssr.test.ts",
+          "expected": "assertion-observed renders=2",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-test-registries=null",
+          "path": "examples/adapter-ssr/test/ssr.test.ts",
+          "expected": "assertion-observed registries=null",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-test-globals=absent",
+          "path": "examples/adapter-ssr/test/ssr.test.ts",
+          "expected": "assertion-observed globals=absent",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-test-SSR1",
+          "path": "examples/adapter-ssr/test/ssr.test.ts",
+          "expected": "assertion-observed SSR1",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-test-T04",
+          "path": "examples/adapter-ssr/test/ssr.test.ts",
+          "expected": "assertion-observed T04",
+          "actual": "absent"
+        },
+        {
+          "name": "astro-test-expect(",
+          "path": "examples/adapter-ssr/test/ssr.test.ts",
+          "expected": "assertion-observed expect(",
+          "actual": "absent"
+        }
+      ]
+    },
+    {
+      "id": "C09-09-EXACT-TARBALL",
+      "observations": [
+        {
+          "name": "regular-nonempty-file",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "package-mode-artifacts",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "declared artifacts mode",
+          "actual": "inspected"
+        },
+        {
+          "name": "package-mode-svelte-consent",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "declared svelte-consent mode",
+          "actual": "inspected"
+        },
+        {
+          "name": "package-mode-mismatch",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "declared mismatch mode",
+          "actual": "inspected"
+        },
+        {
+          "name": "package-mode-all",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "declared all mode",
+          "actual": "inspected"
+        },
+        {
+          "name": "package-mode-self-test",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "declared self-test mode",
+          "actual": "inspected"
+        },
+        {
+          "name": "package-check-mkdtemp",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "live mkdtemp evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "package-check-pnpm pack",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "live pnpm pack evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "package-check-@fullselfbrowsing/concierge-react",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "live @fullselfbrowsing/concierge-react evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "package-check-@fullselfbrowsing/concierge-svelte",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "live @fullselfbrowsing/concierge-svelte evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "package-check-publint",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "live publint evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "package-check-attw",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "live attw evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "package-check-realpath",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "live realpath evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "package-check-skipLibCheck",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "live skipLibCheck evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "package-check-numTotalTestSuites",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "live numTotalTestSuites evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "package-check-numTotalTests",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "live numTotalTests evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "package-check-$state",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "live $state evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "package-check-consent_stale",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "live consent_stale evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "package-check-PHASE09_ARCHIVE_EXPORT_DIR",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "live PHASE09_ARCHIVE_EXPORT_DIR evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "package-check-EXPECTED_CONTRACT_VERSION",
+          "path": "scripts/phase-09-package-check.mjs",
+          "expected": "live EXPECTED_CONTRACT_VERSION evidence",
+          "actual": "absent"
+        }
+      ]
+    },
+    {
+      "id": "C09-10-ADAPTER-BUDGET",
+      "observations": [
+        {
+          "name": "regular-nonempty-file",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "budget-inventory-packages/concierge-react/src/index.ts",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "exact production inventory entry",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-inventory-packages/concierge-react/src/client.tsx",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "exact production inventory entry",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-inventory-packages/concierge-svelte/src/index.ts",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "exact production inventory entry",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-inventory-packages/concierge-svelte/src/client.svelte.ts",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "exact production inventory entry",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-check-check",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "live check detector/control",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-check-self-test",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "live self-test detector/control",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-check-150",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "live 150 detector/control",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-check-ForStatement",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "live ForStatement detector/control",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-check-ForInStatement",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "live ForInStatement detector/control",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-check-ForOfStatement",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "live ForOfStatement detector/control",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-check-WhileStatement",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "live WhileStatement detector/control",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-check-DoStatement",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "live DoStatement detector/control",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-check-createConcierge",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "live createConcierge detector/control",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-check-setTimeout",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "live setTimeout detector/control",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-check-dedupe",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "live dedupe detector/control",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-check-queue",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "live queue detector/control",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-check-consent",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "live consent detector/control",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-check-transport",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "live transport detector/control",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-check-typescript",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "live typescript detector/control",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-check-mkdtemp",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "live mkdtemp detector/control",
+          "actual": "absent"
+        },
+        {
+          "name": "budget-extension-discovery",
+          "path": "scripts/phase-09-adapter-budget.mjs",
+          "expected": "independent production extension discovery",
+          "actual": "inspected"
+        }
+      ]
+    },
+    {
+      "id": "C09-11-MUTATION-CLOSURE",
+      "observations": [
+        {
+          "name": "regular-nonempty-file",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-REGISTER.json",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": "scripts/phase-09-mutation-battery.mjs",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "regular-nonempty-file",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-SECURITY.md",
+          "expected": "regular nonempty file",
+          "actual": "missing:0"
+        },
+        {
+          "name": "mutation-register-ids",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-REGISTER.json",
+          "expected": "[\"M-09-R1\",\"M-09-R2\",\"M-09-S1\",\"M-09-SSR1\",\"M-09-B1\",\"M-09-P1\",\"M-09-C1\"]",
+          "actual": "[]"
+        },
+        {
+          "name": "mutation-runner-self-test",
+          "path": "scripts/phase-09-mutation-battery.mjs",
+          "expected": "live self-test state-machine path",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-runner-preflight",
+          "path": "scripts/phase-09-mutation-battery.mjs",
+          "expected": "live preflight state-machine path",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-runner-run",
+          "path": "scripts/phase-09-mutation-battery.mjs",
+          "expected": "live run state-machine path",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-runner---jobs",
+          "path": "scripts/phase-09-mutation-battery.mjs",
+          "expected": "live --jobs state-machine path",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-runner-verify",
+          "path": "scripts/phase-09-mutation-battery.mjs",
+          "expected": "live verify state-machine path",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-runner-evidence",
+          "path": "scripts/phase-09-mutation-battery.mjs",
+          "expected": "live evidence state-machine path",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-runner-release",
+          "path": "scripts/phase-09-mutation-battery.mjs",
+          "expected": "live release state-machine path",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-runner-mkdtemp",
+          "path": "scripts/phase-09-mutation-battery.mjs",
+          "expected": "live mkdtemp state-machine path",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-runner-phase-08-mutation-battery.mjs",
+          "path": "scripts/phase-09-mutation-battery.mjs",
+          "expected": "live phase-08-mutation-battery.mjs state-machine path",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-runner-verify inputs",
+          "path": "scripts/phase-09-mutation-battery.mjs",
+          "expected": "live verify inputs state-machine path",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-runner-verify ledgers",
+          "path": "scripts/phase-09-mutation-battery.mjs",
+          "expected": "live verify ledgers state-machine path",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-runner-09-MUTATION-EVIDENCE.json",
+          "path": "scripts/phase-09-mutation-battery.mjs",
+          "expected": "live 09-MUTATION-EVIDENCE.json state-machine path",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-runner-09-RELEASE-EVIDENCE.json",
+          "path": "scripts/phase-09-mutation-battery.mjs",
+          "expected": "live 09-RELEASE-EVIDENCE.json state-machine path",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-evidence-M-09-R1",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json",
+          "expected": "green row evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-evidence-M-09-R2",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json",
+          "expected": "green row evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-evidence-M-09-S1",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json",
+          "expected": "green row evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-evidence-M-09-SSR1",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json",
+          "expected": "green row evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-evidence-M-09-B1",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json",
+          "expected": "green row evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-evidence-M-09-P1",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json",
+          "expected": "green row evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "mutation-evidence-M-09-C1",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json",
+          "expected": "green row evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "release-evidence-@fullselfbrowsing/concierge",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json",
+          "expected": "revision-bound release evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "release-evidence-08-consent-kernel",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json",
+          "expected": "revision-bound release evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "release-evidence-phase-09-package-check",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json",
+          "expected": "revision-bound release evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "release-evidence-phase-09-adapter-budget",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json",
+          "expected": "revision-bound release evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "security-T-09-01",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-SECURITY.md",
+          "expected": "disposed threat evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "security-T-09-02",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-SECURITY.md",
+          "expected": "disposed threat evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "security-T-09-03",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-SECURITY.md",
+          "expected": "disposed threat evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "security-T-09-04",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-SECURITY.md",
+          "expected": "disposed threat evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "security-T-09-05",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-SECURITY.md",
+          "expected": "disposed threat evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "security-T-09-06",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-SECURITY.md",
+          "expected": "disposed threat evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "security-T-09-07",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-SECURITY.md",
+          "expected": "disposed threat evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "security-T-09-08",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-SECURITY.md",
+          "expected": "disposed threat evidence",
+          "actual": "absent"
+        },
+        {
+          "name": "security-T-09-SC",
+          "path": ".planning/phases/09-react-and-svelte-adapters/09-SECURITY.md",
+          "expected": "disposed threat evidence",
+          "actual": "absent"
+        }
+      ]
+    }
+  ],
+  "inputs": [
+    {
+      "path": ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "dd21e26a5a208f05072a18f0a54e78d58d4fb3e4910c56f011fec73aa70b31c4"
+    },
+    {
+      "path": ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-REGISTER.json",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "0e55734776cfe40718b68a9f9b81da921575ab02a200f98cadbcdfc622676a80"
+    },
+    {
+      "path": ".planning/phases/09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "b9961bbf08dc97fdf5d8017d474ca8fa6ef986a20a2a9851e662f4c2f5cfb79d"
+    },
+    {
+      "path": ".planning/phases/09-react-and-svelte-adapters/09-SECURITY.md",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "5618eff4c961e4503ced4867648d489c2bb68a24334117ac378443e4dc60bb72"
+    },
+    {
+      "path": ".planning/phases/09-react-and-svelte-adapters/09-VALIDATION.md",
+      "kind": "file",
+      "size": 16548,
+      "sha256": "815c3b051ac51a88a99b27290c5d6f8af2ccdf257b2162e34d35be25685402c5"
+    },
+    {
+      "path": "examples/adapter-ssr/astro.config.mjs",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "6459583bafefdaca81cfb87042a41f741f3852deee2800b7fdc86c5deeac521e"
+    },
+    {
+      "path": "examples/adapter-ssr/package.json",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "1963daadd4a08889e7ba902395183843e2d9dd8b19f4514c30fb6ae17cc2f0d9"
+    },
+    {
+      "path": "examples/adapter-ssr/src/components/ReactIsland.tsx",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "cf740a25beab0e31acbde3a1aa9e46a0e4a816293650c4a5f2f6a9d809442528"
+    },
+    {
+      "path": "examples/adapter-ssr/src/components/SvelteIsland.svelte",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "14b3571c3190e6ebf027a41e4c4cc38de38e7483a803740dbc93843b9316a7a2"
+    },
+    {
+      "path": "examples/adapter-ssr/src/pages/index.astro",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "e9a356b5f7d76c6f6a127ecef37017be81eaae4d122bd4ea9ea3c2d543f1a0fd"
+    },
+    {
+      "path": "examples/adapter-ssr/src/shared/catalog.ts",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "709760c9c9dbd044e07408363c4160652d58f8e8544f9b539a8b61a02e756469"
+    },
+    {
+      "path": "examples/adapter-ssr/test/ssr.test.ts",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "8688ee644cea8f99638256ddfed093937c8537d64ccccb0494faa81bc34e36e0"
+    },
+    {
+      "path": "examples/adapter-ssr/tsconfig.json",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "dfa16749a1d91a89e2383892a735755088588ade35d8fd4d13b052ecaeee64c0"
+    },
+    {
+      "path": "package.json",
+      "kind": "file",
+      "size": 1303,
+      "sha256": "a8267855dba9a429225090c505a78c6169415e2978ce6fb8fcdd6b28e18d542a"
+    },
+    {
+      "path": "packages/concierge-react/LICENSE",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "08db1114b8ca7ac02d89dc9994f693bf89aef97a499f6342bee5bec73651b98d"
+    },
+    {
+      "path": "packages/concierge-react/package.json",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "af23889804b89e37d75d9bcc68d16136cf2f330ca4a59c7fbb7e8a2746689294"
+    },
+    {
+      "path": "packages/concierge-react/src/client.tsx",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "03a493661b15defccb8e5e850aa96995c9aa53955b3389330938c33743eb7f07"
+    },
+    {
+      "path": "packages/concierge-react/src/index.ts",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "52ea3d18b03a5aa3efea9826fff725ec2733e84579a988a18d2fbf5c341a3dfd"
+    },
+    {
+      "path": "packages/concierge-react/test-d/public.test-d.ts",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "4322502bcabb300ee659fa6bc609ee70b6975f37cbd368ae6017f1c2535f1a97"
+    },
+    {
+      "path": "packages/concierge-react/test/artifact.test.ts",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "85fd32174fd1d9afb0e4742a96b6511fceae2294678056a959ec48f8366219ca"
+    },
+    {
+      "path": "packages/concierge-react/test/lifecycle.test.tsx",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "a446fc7739e3d6551841ff378b0646cc6601f9384a5f4421bdff6393a1ca8fe0"
+    },
+    {
+      "path": "packages/concierge-react/tsconfig.json",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "4172788a1c59e756d88349fcac8a853effd80dbde37fb4bb6c25b21976e4dd26"
+    },
+    {
+      "path": "packages/concierge-react/tsdown.config.ts",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "d2fa00bc5b083a8c6cc31e90c580755b8029cec264cc7fba15a5bb33eceddffa"
+    },
+    {
+      "path": "packages/concierge-svelte/LICENSE",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "253c5d911ebeedbbc4f9afd34aeb0e2436d2acb5c21862bc0f60e54eb70b6994"
+    },
+    {
+      "path": "packages/concierge-svelte/package.json",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "4a3783c4e7e118c4b35246959f057fbaae5d478509e1d57a8baa9c6919c2aa17"
+    },
+    {
+      "path": "packages/concierge-svelte/src/client.svelte.ts",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "169c7a2b1432c5501e5575eef990668dc6a7bc3af375920b002f209a87520f56"
+    },
+    {
+      "path": "packages/concierge-svelte/src/index.ts",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "586c561c80372ec628241e8eda5396357a321b47700c0b89f49217063abbdac6"
+    },
+    {
+      "path": "packages/concierge-svelte/svelte.config.js",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "00f32d522136e24bdaf771fbb701e1b0152df2fbcceeeb4f23886b2ba9314289"
+    },
+    {
+      "path": "packages/concierge-svelte/test/artifact.test.ts",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "07bdb8e8932bbed24b32d3d9118afdb11413e4deb3b6d60f8816b93fdf20fe94"
+    },
+    {
+      "path": "packages/concierge-svelte/test/Harness.svelte",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "c90b25b23a86d4173dd319fefabe215ba01c089044f1ea18e4f95731ef0c40ff"
+    },
+    {
+      "path": "packages/concierge-svelte/test/lifecycle.test.ts",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "01de2484ad7bcf528b5d20a9e881df272704931b52fc7b0cada9bdd84b5f2f4e"
+    },
+    {
+      "path": "packages/concierge-svelte/tsconfig.json",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "4b6cc7fc6192c86e4aedfced14d2766e3b4f2cb19b244923b12ad248cfc1b099"
+    },
+    {
+      "path": "packages/concierge/LICENSE",
+      "kind": "file",
+      "size": 1075,
+      "sha256": "49105772dad98fe866fbef3ed53b5d55e18402c5f4e9833fa527ebdd760ce193"
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "kind": "file",
+      "size": 94439,
+      "sha256": "0e29065f823200f9bdb2284bdef721003f525f68fa60a2810046b1a7f720e0d4"
+    },
+    {
+      "path": "scripts/phase-09-adapter-budget.mjs",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "312fa9875bad33149ed8f5057f362e59a125c7b02aadb5a82254999a1a97b3a0"
+    },
+    {
+      "path": "scripts/phase-09-mutation-battery.mjs",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "27c2a9d1938ee8a94a69309f635ba869b013b9e6edc3695294c5afaa65cbe15a"
+    },
+    {
+      "path": "scripts/phase-09-package-check.mjs",
+      "kind": "missing",
+      "size": 0,
+      "sha256": "4896eb867792ba2b71d774fbdeb6025503e7cc8c017db162b3028e688f9224eb"
+    },
+    {
+      "path": "vitest.config.ts",
+      "kind": "file",
+      "size": 4827,
+      "sha256": "0a738272fc7d0a7829dada6e1f0b79c7a38c20d302ee68980f5b1ffcba6de2e2"
+    }
+  ],
+  "inputHashes": {
+    ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json": "dd21e26a5a208f05072a18f0a54e78d58d4fb3e4910c56f011fec73aa70b31c4",
+    ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-REGISTER.json": "0e55734776cfe40718b68a9f9b81da921575ab02a200f98cadbcdfc622676a80",
+    ".planning/phases/09-react-and-svelte-adapters/09-RELEASE-EVIDENCE.json": "b9961bbf08dc97fdf5d8017d474ca8fa6ef986a20a2a9851e662f4c2f5cfb79d",
+    ".planning/phases/09-react-and-svelte-adapters/09-SECURITY.md": "5618eff4c961e4503ced4867648d489c2bb68a24334117ac378443e4dc60bb72",
+    ".planning/phases/09-react-and-svelte-adapters/09-VALIDATION.md": "815c3b051ac51a88a99b27290c5d6f8af2ccdf257b2162e34d35be25685402c5",
+    "examples/adapter-ssr/astro.config.mjs": "6459583bafefdaca81cfb87042a41f741f3852deee2800b7fdc86c5deeac521e",
+    "examples/adapter-ssr/package.json": "1963daadd4a08889e7ba902395183843e2d9dd8b19f4514c30fb6ae17cc2f0d9",
+    "examples/adapter-ssr/src/components/ReactIsland.tsx": "cf740a25beab0e31acbde3a1aa9e46a0e4a816293650c4a5f2f6a9d809442528",
+    "examples/adapter-ssr/src/components/SvelteIsland.svelte": "14b3571c3190e6ebf027a41e4c4cc38de38e7483a803740dbc93843b9316a7a2",
+    "examples/adapter-ssr/src/pages/index.astro": "e9a356b5f7d76c6f6a127ecef37017be81eaae4d122bd4ea9ea3c2d543f1a0fd",
+    "examples/adapter-ssr/src/shared/catalog.ts": "709760c9c9dbd044e07408363c4160652d58f8e8544f9b539a8b61a02e756469",
+    "examples/adapter-ssr/test/ssr.test.ts": "8688ee644cea8f99638256ddfed093937c8537d64ccccb0494faa81bc34e36e0",
+    "examples/adapter-ssr/tsconfig.json": "dfa16749a1d91a89e2383892a735755088588ade35d8fd4d13b052ecaeee64c0",
+    "package.json": "a8267855dba9a429225090c505a78c6169415e2978ce6fb8fcdd6b28e18d542a",
+    "packages/concierge-react/LICENSE": "08db1114b8ca7ac02d89dc9994f693bf89aef97a499f6342bee5bec73651b98d",
+    "packages/concierge-react/package.json": "af23889804b89e37d75d9bcc68d16136cf2f330ca4a59c7fbb7e8a2746689294",
+    "packages/concierge-react/src/client.tsx": "03a493661b15defccb8e5e850aa96995c9aa53955b3389330938c33743eb7f07",
+    "packages/concierge-react/src/index.ts": "52ea3d18b03a5aa3efea9826fff725ec2733e84579a988a18d2fbf5c341a3dfd",
+    "packages/concierge-react/test-d/public.test-d.ts": "4322502bcabb300ee659fa6bc609ee70b6975f37cbd368ae6017f1c2535f1a97",
+    "packages/concierge-react/test/artifact.test.ts": "85fd32174fd1d9afb0e4742a96b6511fceae2294678056a959ec48f8366219ca",
+    "packages/concierge-react/test/lifecycle.test.tsx": "a446fc7739e3d6551841ff378b0646cc6601f9384a5f4421bdff6393a1ca8fe0",
+    "packages/concierge-react/tsconfig.json": "4172788a1c59e756d88349fcac8a853effd80dbde37fb4bb6c25b21976e4dd26",
+    "packages/concierge-react/tsdown.config.ts": "d2fa00bc5b083a8c6cc31e90c580755b8029cec264cc7fba15a5bb33eceddffa",
+    "packages/concierge-svelte/LICENSE": "253c5d911ebeedbbc4f9afd34aeb0e2436d2acb5c21862bc0f60e54eb70b6994",
+    "packages/concierge-svelte/package.json": "4a3783c4e7e118c4b35246959f057fbaae5d478509e1d57a8baa9c6919c2aa17",
+    "packages/concierge-svelte/src/client.svelte.ts": "169c7a2b1432c5501e5575eef990668dc6a7bc3af375920b002f209a87520f56",
+    "packages/concierge-svelte/src/index.ts": "586c561c80372ec628241e8eda5396357a321b47700c0b89f49217063abbdac6",
+    "packages/concierge-svelte/svelte.config.js": "00f32d522136e24bdaf771fbb701e1b0152df2fbcceeeb4f23886b2ba9314289",
+    "packages/concierge-svelte/test/artifact.test.ts": "07bdb8e8932bbed24b32d3d9118afdb11413e4deb3b6d60f8816b93fdf20fe94",
+    "packages/concierge-svelte/test/Harness.svelte": "c90b25b23a86d4173dd319fefabe215ba01c089044f1ea18e4f95731ef0c40ff",
+    "packages/concierge-svelte/test/lifecycle.test.ts": "01de2484ad7bcf528b5d20a9e881df272704931b52fc7b0cada9bdd84b5f2f4e",
+    "packages/concierge-svelte/tsconfig.json": "4b6cc7fc6192c86e4aedfced14d2766e3b4f2cb19b244923b12ad248cfc1b099",
+    "packages/concierge/LICENSE": "49105772dad98fe866fbef3ed53b5d55e18402c5f4e9833fa527ebdd760ce193",
+    "pnpm-lock.yaml": "0e29065f823200f9bdb2284bdef721003f525f68fa60a2810046b1a7f720e0d4",
+    "scripts/phase-09-adapter-budget.mjs": "312fa9875bad33149ed8f5057f362e59a125c7b02aadb5a82254999a1a97b3a0",
+    "scripts/phase-09-mutation-battery.mjs": "27c2a9d1938ee8a94a69309f635ba869b013b9e6edc3695294c5afaa65cbe15a",
+    "scripts/phase-09-package-check.mjs": "4896eb867792ba2b71d774fbdeb6025503e7cc8c017db162b3028e688f9224eb",
+    "vitest.config.ts": "0a738272fc7d0a7829dada6e1f0b79c7a38c20d302ee68980f5b1ffcba6de2e2"
+  },
+  "sourceDigest": "e47452c174621433d2e5a4d56e6225ad42b010cc1518b5e15771be25047d6f50"
+}

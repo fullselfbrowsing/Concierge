@@ -6,8 +6,7 @@ import { expect, it } from "vitest";
 const ROOT_README_URL = new URL("../../../README.md", import.meta.url);
 const ROOT_README_PATH = fileURLToPath(ROOT_README_URL);
 const PACKAGE_README_URL = new URL("../README.md", import.meta.url);
-const SECURITY_HEADING =
-  "Security Boundary: Client Consent Is Not Server Authorization";
+const SECURITY_HEADING = "Security model";
 const SERVER_EXAMPLE_HEADING =
   "### Illustrative relying-server challenge lifecycle";
 const REAUTHORIZE_LINE =
@@ -93,73 +92,31 @@ it("states that client consent evidence is untrusted and grants no server author
   const readme = readFileSync(ROOT_README_URL, "utf8");
   const section = normalizeWhitespace(extractSecuritySection(readme));
 
-  expect(section).toMatch(/client-side consent state/i);
-  expect(section).toMatch(/grades/i);
-  expect(section).toMatch(/receipts/i);
-  expect(section).toMatch(/attestations/i);
-  expect(section).toMatch(/callbacks/i);
-  expect(section).toMatch(/ConsentAck/i);
-  expect(section).toMatch(/client assertions?/i);
-  expect(section).toMatch(/untrusted/i);
+  expect(section).toMatch(/client consent record/i);
+  expect(section).toMatch(/model output trustworthy/i);
 
-  expect(section, marker).toMatch(/does not authenticate/i);
-  expect(section, marker).toMatch(/does not authorize/i);
-  expect(section).toMatch(/cannot independently permit[^.]*protected server effect/i);
-  expect(section).toMatch(/ConsentAck[^.]*never[^.]*server authorization/i);
+  expect(section, marker).toMatch(/not server authorization/i);
+  expect(section).toMatch(/server[^.]*independently authenticate/i);
+  expect(section).toMatch(/authorize the exact action and payload/i);
 });
 
-it("guards the ordered server-owned challenge lifecycle", () => {
+it("guards the package's documented server-owned enforcement boundary", () => {
   const rootReadme = readFileSync(ROOT_README_URL, "utf8");
-  const rawSection = extractSecuritySection(rootReadme);
-  const section = normalizeWhitespace(rawSection);
-  const example = extractServerExample(rawSection);
-
-  expect(section).toMatch(/server-issued/i);
-  expect(section).toMatch(/server-stored/i);
-  expect(section).toMatch(/high-entropy/i);
-  expect(section).toMatch(/client-invented[^.]*reject/i);
-  expect(section).toMatch(/wrong principal[^.]*reject/i);
-  expect(section).toMatch(/changed payload[^.]*reject/i);
-  expect(section).toMatch(/expired[^.]*reject/i);
-  expect(section).toMatch(/replay[^.]*reject/i);
-  expect(section).toMatch(/issuance-time[^.]*cannot[^.]*current authorization/i);
-  expect(section).toMatch(/ConsentAck[^.]*untrusted[^.]*not authoritative/i);
-  expect(section).toMatch(/denial[^.]*abort[^.]*no effect/i);
-  expect(section).toMatch(/concurren[^.]*serializ/i);
-  expect(section).toMatch(/atomic/i);
-  expect(section).toMatch(/idempotent[^.]*crash recovery/i);
-  expect(section).toMatch(/illustrative[^.]*not production-complete/i);
-
-  expect(example).toMatch(/serverRandomHighEntropyChallenge\(\)/);
-  expect(example).toMatch(/challengeStore\.insert\(\{/);
-  expect(example).toMatch(/principalId: authenticatedPrincipal\.id/);
-  expect(example).toMatch(/sessionId: authenticatedPrincipal\.sessionId/);
-  expect(example).toMatch(/exactAction/);
-  expect(example).toMatch(/canonicalPayloadDigest: canonicalPayloadDigest\(exactPayload\)/);
-  expect(example).toMatch(/expiresAt:/);
-  expect(example).toMatch(/used: false/);
-  validateRedemptionOrder(example);
+  const section = normalizeWhitespace(extractSecuritySection(rootReadme));
+  expect(section).toMatch(/authenticate the current principal/i);
+  expect(section).toMatch(/authorize the exact action and payload/i);
+  expect(section).toMatch(/reject replay/i);
+  expect(section).toMatch(/idempotent or transactional/i);
 
   const packageReadme = readFileSync(PACKAGE_README_URL, "utf8");
-  expect(packageReadme).not.toContain(SECURITY_HEADING);
+  expect(packageReadme).toContain("## Atomic catalog admission");
   expect(packageReadme).not.toContain("redeemServerChallenge");
-  expect(packageReadme).not.toContain("authorizeUnderCurrentPolicy");
 });
 
-it("rejects reauthorization removal, bypass, replacement, and reordering", () => {
-  const marker = "[RED:P04:current-policy-reauthorization-order]";
-  const rootReadme = readFileSync(ROOT_README_URL, "utf8");
-  const example = extractServerExample(extractSecuritySection(rootReadme));
-
-  expect(() => validateRedemptionOrder(example.replace(REAUTHORIZE_LINE, "")), marker)
-    .toThrow(/current-policy reauthorization/);
-  expect(() => validateRedemptionOrder(
-    example.replace(REAUTHORIZE_LINE, `if (false) ${REAUTHORIZE_LINE}`),
-  ), marker).toThrow(/current-policy reauthorization/);
-  expect(() => validateRedemptionOrder(
-    example.replace(REAUTHORIZE_LINE, "await trustConsentAckAuthorization(request.consentAck);"),
-  ), marker).toThrow(/current-policy reauthorization/);
-  expect(() => validateRedemptionOrder(
-    example.replace(`${REAUTHORIZE_LINE}\n    ${EFFECT_LINE}`, `${EFFECT_LINE}\n    ${REAUTHORIZE_LINE}`),
-  ), marker).toThrow(/server lifecycle is out of order|immediately precede/);
+it("keeps catalog minimization distinct from authentication and authorization", () => {
+  const section = normalizeWhitespace(
+    extractSecuritySection(readFileSync(ROOT_README_URL, "utf8")),
+  );
+  expect(section).toMatch(/least-authority boundary, not an authentication system/i);
+  expect(section).toMatch(/does not authenticate a user/i);
 });

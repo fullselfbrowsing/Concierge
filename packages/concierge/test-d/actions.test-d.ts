@@ -76,6 +76,7 @@ import type {
   ConsentPolicy,
   DigestLike,
   InvocationMeta,
+  WorkflowControls,
   ReadbackReceipt,
   ReadbackSink,
   ReasonCode,
@@ -312,7 +313,8 @@ type _handlerBridge = Expect<Equals<Ctx["bridge"], PlainBridge | null>>;
 declare const maybeAck: ConsentAck<Booking, AckShape> | undefined;
 declare const plainBridge: PlainBridge;
 declare const meta: InvocationMeta;
-const _ctxWithMaybeAck: Ctx = { args: { q: "x" }, bridge: plainBridge, meta, ack: maybeAck };
+declare const workflow: WorkflowControls;
+const _ctxWithMaybeAck: Ctx = { args: { q: "x" }, bridge: plainBridge, meta, ack: maybeAck, workflow };
 void _ctxWithMaybeAck;
 
 // --------------------------------------------------------------------------
@@ -424,6 +426,14 @@ type ResultsBridge = Bridge<{ applyFilter: (key: string, value: string) => void 
 /** A second bridge sharing nothing with the first — different verbs, different snapshot. */
 type CartBridge = Bridge<{ removeItem: (id: string) => void }, { total: () => number }>;
 
+/** Cross-stage collection erases a concrete bridge exactly like `stages`. */
+declare const concreteCrossStageAction: ActionDefinition<"globalResults", typeof schema, ResultsBridge>;
+const _concreteBridgeCrossStageConfig: ConciergeConfig = {
+  stages: [],
+  crossStage: [concreteCrossStageAction],
+};
+void _concreteBridgeCrossStageConfig;
+
 /** CR-02's direct detector: a bridge with real members satisfies its own constraint. Under the old defaults this is `false`. */
 type _realBridgeSatisfiesConstraint = Expect<Assignable<ResultsBridge, Bridge>>;
 
@@ -528,10 +538,10 @@ const _configWithSeams: ConciergeConfig = {
 // --------------------------------------------------------------------------
 
 /** A getter, never a value. A stage read once and stored is stale for the rest of the session. */
-type _sessionStage = Expect<Equals<Session["stage"], () => string | null>>;
+type _sessionCatalog = Expect<Equals<Session["catalog"], () => import("../src/types.js").ResolvedCatalog | null>>;
 
 /** Subscribe-returns-unsubscriber, the shape `Transport.onToolBatch` established. */
-type _sessionOnStageChange = Expect<Equals<Session["onStageChange"], (cb: (stage: string | null) => void) => () => void>>;
+type _sessionOnCatalogChange = Expect<Equals<Session["onCatalogChange"], (cb: (catalog: import("../src/types.js").ResolvedCatalog) => void) => () => void>>;
 
 /**
  * All four members implemented at once, proving the interface is satisfiable rather than
@@ -545,8 +555,8 @@ type _sessionOnStageChange = Expect<Equals<Session["onStageChange"], (cb: (stage
  */
 const _session: Session = {
   setContext: () => {},
-  stage: () => "checkout",
-  onStageChange: (cb) => {
+  catalog: () => null,
+  onCatalogChange: (cb) => {
     void cb;
     return () => {};
   },

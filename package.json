@@ -6,11 +6,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fullselfbrowsing/concierge.git"
+    "url": "git+https://github.com/fullselfbrowsing/Concierge.git"
   },
-  "homepage": "https://github.com/fullselfbrowsing/concierge#readme",
+  "homepage": "https://github.com/fullselfbrowsing/Concierge#readme",
   "bugs": {
-    "url": "https://github.com/fullselfbrowsing/concierge/issues"
+    "url": "https://github.com/fullselfbrowsing/Concierge/issues"
   },
   "packageManager": "pnpm@11.17.0",
   "engines": {
@@ -20,19 +20,19 @@
     "build": "pnpm -r build",
     "test": "vitest run",
     "typecheck": "pnpm -r typecheck",
-    "check:artifact": "pnpm --filter @fullselfbrowsing/concierge exec publint --strict && pnpm exec attw --pack packages/concierge --profile esm-only",
+    "check:artifact": "pnpm --filter @full-self-browsing/concierge exec publint --strict && pnpm exec attw --pack packages/concierge --profile esm-only",
     "check:deps": "node scripts/pkg05-zero-runtime-deps.mjs packages/concierge/dist/index.js",
+    "check:telemetry-payload": "node scripts/check-telemetry-payload.mjs",
     "check:pack": "bash scripts/pack-install-check.sh",
     "check:node-floor": "bash scripts/node-floor-check.sh",
-    "test:phase09": "node scripts/phase-09-test-check.mjs",
-    "check:phase09:packages": "node scripts/phase-09-package-check.mjs all",
-    "check:phase09:budget": "node scripts/phase-09-adapter-budget.mjs check",
-    "check:phase09:static": "node scripts/phase-09-contract-check.mjs final",
-    "check:phase09:evidence": "node scripts/phase-09-mutation-battery.mjs verify all",
-    "check:phase09": "pnpm run test:phase09 && pnpm --filter @fullselfbrowsing/concierge-adapter-ssr check && pnpm --filter @fullselfbrowsing/concierge-adapter-ssr build && pnpm run check:phase09:packages && pnpm run check:phase09:budget && pnpm run check:phase09:static && pnpm run check:phase09:evidence",
-    "check:phase09:release": "pnpm run check:phase09 && node scripts/phase-09-workflow-check.mjs",
-    "version:phase09": "node scripts/phase-09-version.mjs",
-    "release": "node scripts/phase-09-publish-archives.mjs"
+    "check:release": "node scripts/release/check.mjs all",
+    "check:release:source": "node scripts/release/check.mjs source",
+    "check:release:workflow": "node scripts/release/check.mjs workflow",
+    "release:version": "node scripts/release/version.mjs apply",
+    "release:package": "node scripts/release/package.mjs export",
+    "release:compatibility": "node scripts/release/compatibility.mjs",
+    "release:seal": "node scripts/release/seal.mjs seal",
+    "release": "node scripts/release/publisher.mjs publish"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.5",
@@ -40,11 +40,12 @@
     "@sveltejs/vite-plugin-svelte": "7.2.0",
     "@testing-library/svelte": "5.4.2",
     "@vitejs/plugin-react": "5.2.0",
+    "fake-indexeddb": "6.2.5",
     "fs-native-extensions": "1.5.0",
     "jsdom": "29.1.1",
     "publint": "0.3.22",
     "rolldown": "1.2.0",
-    "svelte": "5.56.8",
+    "svelte": "5.56.9",
     "tsdown": "0.22.14",
     "typescript": "7.0.2",
     "vite": "8.1.5",

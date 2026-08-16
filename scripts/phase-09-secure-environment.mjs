@@ -1,5 +1,12 @@
 import { lstatSync, mkdirSync, statSync, writeFileSync } from "node:fs";
-import { isAbsolute, join, normalize, resolve } from "node:path";
+import {
+  delimiter as pathDelimiter,
+  dirname,
+  isAbsolute,
+  join,
+  normalize,
+  resolve,
+} from "node:path";
 
 export const PHASE09_PUBLIC_NPM_REGISTRY = "https://registry.npmjs.org/";
 
@@ -263,7 +270,7 @@ function makeEmptyPrivateFile(path) {
 export function createSecureChildEnvironment(
   ownedRoot,
   sourceEnvironment,
-  { directoryName = "child-environment" } = {},
+  { directoryName = "child-environment", executableDirectory = null } = {},
 ) {
   assert(
     isAbsolute(ownedRoot) && ownedRoot === normalize(resolve(ownedRoot)),
@@ -324,6 +331,18 @@ export function createSecureChildEnvironment(
     typeof environment.PATH === "string" && environment.PATH.length > 0,
     "secure child environment requires PATH",
   );
+  if (executableDirectory !== null) {
+    assert(
+      typeof executableDirectory === "string" &&
+        isAbsolute(executableDirectory) &&
+        executableDirectory === normalize(resolve(executableDirectory)) &&
+        dirname(executableDirectory) === ownedRoot &&
+        statSync(executableDirectory).isDirectory(),
+      "secure child executable directory must be an existing direct child of the owned root",
+    );
+    environment.PATH =
+      `${executableDirectory}${pathDelimiter}${environment.PATH}`;
+  }
   Object.assign(environment, {
     CI: "1",
     FORCE_COLOR: "0",

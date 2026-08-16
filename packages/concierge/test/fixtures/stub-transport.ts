@@ -5,6 +5,7 @@ import type {
   FailureOutcome,
   OutcomePresentationReport,
   OutcomeSink,
+  ResolvedCatalog,
   ToolBatch,
   Transport,
   TransportCapabilities,
@@ -391,40 +392,20 @@ export function createStubTransport(options: StubTransportOptions): StubTranspor
     };
   }
 
-  const transport: Transport = {
+  const transport = {
     capabilities,
     get status(): TransportStatus {
       return status;
     },
-    setTools: (tools: ReadonlyArray<EmittedTool>): void => {
-      catalogAttempts.push(tools);
+    setCatalog: (catalog: ResolvedCatalog): void => {
+      catalogAttempts.push(catalog.tools);
       if (failsAt(failures.setToolsAt, catalogAttempts.length)) {
         throw new Error(SET_TOOLS_FAILURE_MESSAGE);
       }
     },
     onStatusChange: subscribeStatus,
     onToolBatch: subscribeBatch,
-    respond: (callId: string, result: ActionResult) => {
-      const occurrence: number = responseAttempts.length + 1;
-      const behavior: StubResponseBehavior = responseBehaviorAt(
-        failures,
-        occurrence,
-      );
-      const attempt: StubTransportResponseAttempt = Object.freeze({
-        callId,
-        result: snapshotActionResult(result),
-      });
-      responseAttempts.push(attempt);
-      recordResponse(behavior, attempt);
-      if (behavior === "throw") {
-        throw new Error(RESPOND_FAILURE_MESSAGE);
-      }
-      if (behavior === "reject") {
-        return Promise.reject(new Error(RESPOND_REJECTION_MESSAGE));
-      }
-      successfulResponseAttempts.push(attempt);
-    },
-  };
+  } as unknown as Transport;
   Object.freeze(transport);
 
   const harness: StubTransportHarness = {

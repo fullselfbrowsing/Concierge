@@ -25,6 +25,7 @@ import {
 import { tmpdir } from "node:os";
 import {
   basename,
+  delimiter as pathDelimiter,
   dirname,
   isAbsolute,
   join,
@@ -64,11 +65,11 @@ const CONSUMER_TOOLING_MANIFEST_PATH =
   "scripts/fixtures/phase-09-foreign-consumer/package.json";
 const ASTRO_GENERATED_DIRECTORY = "examples/adapter-ssr/.astro";
 const ASTRO_HARNESS_PACKAGE =
-  "@fullselfbrowsing/concierge-adapter-ssr";
+  "@full-self-browsing/concierge-adapter-ssr";
 const ASTRO_PREREQUISITE_BUILD_PACKAGES = Object.freeze([
-  "@fullselfbrowsing/concierge",
-  "@fullselfbrowsing/concierge-react",
-  "@fullselfbrowsing/concierge-svelte",
+  "@full-self-browsing/concierge",
+  "@full-self-browsing/concierge-react",
+  "@full-self-browsing/concierge-svelte",
 ]);
 const GENERATED_PATHS = Object.freeze([
   ".planning/phases/09-react-and-svelte-adapters/09-MUTATION-EVIDENCE.json",
@@ -150,9 +151,9 @@ const EXPECTED_PHASE09_TEST_FILES = Object.freeze([
   "packages/concierge-svelte/test/lifecycle.test.ts",
 ]);
 const PUBLIC_PACKAGES = Object.freeze([
-  "@fullselfbrowsing/concierge",
-  "@fullselfbrowsing/concierge-react",
-  "@fullselfbrowsing/concierge-svelte",
+  "@full-self-browsing/concierge",
+  "@full-self-browsing/concierge-react",
+  "@full-self-browsing/concierge-svelte",
 ]);
 const VERSION_RECEIPT_DIGEST_PATHS = Object.freeze([
   "packages/concierge/package.json",
@@ -432,20 +433,20 @@ const EXPECTED_MAPPINGS = Object.freeze({
   }),
 });
 const COMPILE_COMMANDS = Object.freeze({
-  "M-09-R1": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge-react", "build"]),
-  "M-09-R2": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge-react", "build"]),
-  "M-09-S1": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge-svelte", "build"]),
-  "M-09-SSR1": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge-react", "build"]),
+  "M-09-R1": Object.freeze(["pnpm", "--filter", "@full-self-browsing/concierge-react", "build"]),
+  "M-09-R2": Object.freeze(["pnpm", "--filter", "@full-self-browsing/concierge-react", "build"]),
+  "M-09-S1": Object.freeze(["pnpm", "--filter", "@full-self-browsing/concierge-svelte", "build"]),
+  "M-09-SSR1": Object.freeze(["pnpm", "--filter", "@full-self-browsing/concierge-react", "build"]),
   "M-09-B1": Object.freeze(["node", "--check", "scripts/phase-09-adapter-budget.mjs"]),
-  "M-09-P1": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge-react", "build"]),
-  "M-09-C1": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge-react", "build"]),
-  "M-10-T01": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge", "build"]),
-  "M-10-T02": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge", "build"]),
-  "M-10-T03": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge", "build"]),
-  "M-10-T04": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge", "build"]),
-  "M-10-T05": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge", "build"]),
-  "M-10-T06": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge", "build"]),
-  "M-10-C01": Object.freeze(["pnpm", "--filter", "@fullselfbrowsing/concierge", "build"]),
+  "M-09-P1": Object.freeze(["pnpm", "--filter", "@full-self-browsing/concierge-react", "build"]),
+  "M-09-C1": Object.freeze(["pnpm", "--filter", "@full-self-browsing/concierge-react", "build"]),
+  "M-10-T01": Object.freeze(["pnpm", "--filter", "@full-self-browsing/concierge", "build"]),
+  "M-10-T02": Object.freeze(["pnpm", "--filter", "@full-self-browsing/concierge", "build"]),
+  "M-10-T03": Object.freeze(["pnpm", "--filter", "@full-self-browsing/concierge", "build"]),
+  "M-10-T04": Object.freeze(["pnpm", "--filter", "@full-self-browsing/concierge", "build"]),
+  "M-10-T05": Object.freeze(["pnpm", "--filter", "@full-self-browsing/concierge", "build"]),
+  "M-10-T06": Object.freeze(["pnpm", "--filter", "@full-self-browsing/concierge", "build"]),
+  "M-10-C01": Object.freeze(["pnpm", "--filter", "@full-self-browsing/concierge", "build"]),
   "M-10-E01": Object.freeze(["node", "--check", "scripts/phase-09-package-check.mjs"]),
   "M-10-G01": Object.freeze(["node", "--check", "scripts/phase-09-mutation-battery.mjs"]),
   "M-10-W01": Object.freeze(["node", "--check", "scripts/phase-09-mutation-battery.mjs"]),
@@ -1150,6 +1151,20 @@ function createOwnedTempRoot() {
   return root;
 }
 
+function installOwnedSearchTool(root) {
+  assertOwnedTempRoot(root);
+  const toolDirectory = join(root, "child-tools");
+  mkdirSync(toolDirectory, { mode: 0o700 });
+  const searchToolPath = join(toolDirectory, "rg");
+  writeFileSync(
+    searchToolPath,
+    "#!/bin/sh\nexec /usr/bin/grep -R -E \"$@\"\n",
+    { encoding: "utf8", flag: "wx" },
+  );
+  chmodSync(searchToolPath, 0o755);
+  return toolDirectory;
+}
+
 function removeOwnedTempRoot(root) {
   assertOwnedTempRoot(root);
   rmSync(root, { recursive: true, force: false });
@@ -1159,7 +1174,15 @@ function removeOwnedTempRoot(root) {
 async function withOwnedChildEnvironment(operation) {
   const root = createOwnedTempRoot();
   try {
-    const secure = createSecureChildEnvironment(root, process.env);
+    const sourcePath = process.env.PATH;
+    assert(
+      typeof sourcePath === "string" && sourcePath.length > 0,
+      "owned child environment requires PATH",
+    );
+    const toolDirectory = installOwnedSearchTool(root);
+    const secure = createSecureChildEnvironment(root, process.env, {
+      executableDirectory: toolDirectory,
+    });
     return await withChildEnvironment(secure.environment, () =>
       operation(root, secure),
     );
@@ -1917,7 +1940,8 @@ function syntheticCommand(exitCode, overrides = {}) {
   };
 }
 
-async function runSelfTest() {
+async function runSelfTest(outerRoot) {
+  assertOwnedTempRoot(outerRoot);
   const endpoints = outputEndpoints();
   const register = validateRegister(readRegister());
   const row = register.rows[0];
@@ -2575,6 +2599,23 @@ async function runSelfTest() {
   );
   pass("pnpm-owned-store-and-registry");
 
+  const ownedSearchTool = join(outerRoot, "child-tools", "rg");
+  const searchProbe = await runCommand(
+    "rg",
+    ["-n", "createStubTransport|stub-transport", "packages/concierge/src"],
+    { cwd: ROOT },
+  );
+  assert(
+    childEnvironment().PATH.split(pathDelimiter)[0] === dirname(ownedSearchTool) &&
+      existsSync(ownedSearchTool) &&
+      lstatSync(ownedSearchTool).isFile() &&
+      (statSync(ownedSearchTool).mode & 0o111) !== 0 &&
+      searchProbe.spawnError === null &&
+      searchProbe.exitCode === 1 &&
+      searchProbe.output === "",
+    "secure child environment did not provide the owned Phase 8 search tool",
+  );
+
   const sentinelEnvironment = Object.freeze({
     GITHUB_TOKEN: "phase09-secret-repository-probe",
     NODE_AUTH_TOKEN: "phase09-secret-npm-probe",
@@ -3055,7 +3096,7 @@ function verifyLedgers(root = ROOT) {
     assert(joined.includes(id), `${id}: supplemental current-byte evidence is missing`);
   }
   for (const token of [
-    "@fullselfbrowsing/concierge",
+    "@full-self-browsing/concierge",
     "08-consent-kernel",
     "M-09-B1",
     "M-09-SSR1",
@@ -3304,8 +3345,8 @@ async function runReleaseGates(baseline, outerRoot) {
   await run("check:pack", "pnpm", ["check:pack"]);
   await run("check:node-floor", "pnpm", ["check:node-floor"]);
   await run("test:phase09", "pnpm", ["test:phase09"]);
-  await run("astro-check", "pnpm", ["--filter", "@fullselfbrowsing/concierge-adapter-ssr", "check"]);
-  await run("astro-build", "pnpm", ["--filter", "@fullselfbrowsing/concierge-adapter-ssr", "build"]);
+  await run("astro-check", "pnpm", ["--filter", "@full-self-browsing/concierge-adapter-ssr", "check"]);
+  await run("astro-build", "pnpm", ["--filter", "@full-self-browsing/concierge-adapter-ssr", "build"]);
 
   const reportPath = join(outerRoot, "phase09-tests.json");
   await run(
@@ -3402,7 +3443,7 @@ wave_0_complete: true
 
 # Phase 09 Validation
 
-Revision-bound validation for @fullselfbrowsing/concierge, its React and Svelte adapters, and the inherited 08-consent-kernel records.
+Revision-bound validation for @full-self-browsing/concierge, its React and Svelte adapters, and the inherited 08-consent-kernel records.
 
 ## Task Traceability
 
@@ -3531,7 +3572,7 @@ function makeSecurityMarkdown({
   }).join("\n");
   return markdownSeal(`# Phase 09 Security
 
-Security closure for @fullselfbrowsing/concierge adapter delivery at revision ${releaseInputDigest}.
+Security closure for @full-self-browsing/concierge adapter delivery at revision ${releaseInputDigest}.
 
 | Threat | Surface | Disposition | Evidence |
 |---|---|---|---|
@@ -3736,20 +3777,11 @@ async function runVersionedPreflight(jobs, outerRoot) {
   );
 
   const safeEnvironment = childEnvironment();
-  const toolDirectory = join(outerRoot, "preflight-tools");
-  mkdirSync(toolDirectory);
-  const searchToolPath = join(toolDirectory, "rg");
-  writeFileSync(
-    searchToolPath,
-    "#!/bin/sh\nexec /usr/bin/grep -R -E \"$@\"\n",
-    { encoding: "utf8", flag: "wx" },
-  );
-  chmodSync(searchToolPath, 0o755);
   const finalized = await runCommand(
     "env",
     [
       "-i",
-      `PATH=${toolDirectory}:${safeEnvironment.PATH}`,
+      `PATH=${safeEnvironment.PATH}`,
       `LANG=${safeEnvironment.LANG ?? "C.UTF-8"}`,
       "node",
       "scripts/phase-09-mutation-battery.mjs",
@@ -3922,7 +3954,7 @@ async function runAll(
 async function main(arguments_) {
   const invocation = parseInvocation(arguments_);
   if (invocation.kind === "self-test") {
-    await withOwnedChildEnvironment(() => runSelfTest());
+    await withOwnedChildEnvironment((outerRoot) => runSelfTest(outerRoot));
     return;
   }
   if (invocation.kind === "preflight") {

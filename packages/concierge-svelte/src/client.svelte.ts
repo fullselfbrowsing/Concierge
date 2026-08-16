@@ -1,23 +1,36 @@
-import { getContext, setContext } from "svelte";
+import { getContext, onDestroy, setContext } from "svelte";
 
 import {
   assertSingleInstance,
   CONTRACT_VERSION,
-} from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";
 import type {
   Bridge,
   BridgeRegistry,
   Concierge,
   SnapshotNormalizer,
-} from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";
+import { mountConciergeTelemetry } from "@full-self-browsing/concierge/telemetry";
 
-const EXPECTED_CONTRACT_VERSION: number = 1;
+const EXPECTED_CONTRACT_VERSION: number = 2;
 const CONCIERGE_CONTEXT: symbol = Symbol(
-  "@fullselfbrowsing/concierge-svelte.context",
+  "@full-self-browsing/concierge-svelte.context",
 );
 
-export function provideConcierge(concierge: Concierge): Concierge {
-  return setContext(CONCIERGE_CONTEXT, concierge);
+export interface ProvideConciergeOptions {
+  readonly telemetry?: boolean | undefined;
+}
+
+export function provideConcierge(
+  concierge: Concierge,
+  options: ProvideConciergeOptions = {},
+): Concierge {
+  const provided: Concierge = setContext(CONCIERGE_CONTEXT, concierge);
+  if (options.telemetry !== false) {
+    const unmountTelemetry: () => void = mountConciergeTelemetry(concierge);
+    onDestroy(unmountTelemetry);
+  }
+  return provided;
 }
 
 export function useConcierge(): Concierge {
@@ -26,7 +39,7 @@ export function useConcierge(): Concierge {
 
   if (concierge === undefined) {
     throw new Error(
-      "@fullselfbrowsing/concierge-svelte: useConcierge requires an ancestor " +
+      "@full-self-browsing/concierge-svelte: useConcierge requires an ancestor " +
         "component to call provideConcierge(concierge) during initialization.",
     );
   }
@@ -46,9 +59,9 @@ export function useConciergeBridge<B extends Bridge>(
 
     if (CONTRACT_VERSION !== EXPECTED_CONTRACT_VERSION) {
       throw new Error(
-        `@fullselfbrowsing/concierge-svelte expected core contract v${EXPECTED_CONTRACT_VERSION} ` +
+        `@full-self-browsing/concierge-svelte expected core contract v${EXPECTED_CONTRACT_VERSION} ` +
           `but found v${CONTRACT_VERSION}; upgrade or reinstall ` +
-          `@fullselfbrowsing/concierge-svelte and @fullselfbrowsing/concierge together.`,
+          `@full-self-browsing/concierge-svelte and @full-self-browsing/concierge together.`,
       );
     }
 

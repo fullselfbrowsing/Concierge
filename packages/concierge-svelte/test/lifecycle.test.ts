@@ -1,14 +1,31 @@
 import { act, render } from "@testing-library/svelte";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createBridge } from "@fullselfbrowsing/concierge";
+import { createBridge } from "@full-self-browsing/concierge";
 import type {
   Bridge,
   BridgeRegistry,
+  CatalogRevision,
   Concierge,
-} from "@fullselfbrowsing/concierge";
+  DispatchEvent,
+  DispatchListener,
+} from "@full-self-browsing/concierge";
+
+const telemetryMount = vi.hoisted(() => vi.fn());
+
+vi.mock("@full-self-browsing/concierge/telemetry", () => ({
+  mountConciergeTelemetry: telemetryMount,
+}));
 
 import Harness from "./Harness.svelte";
+
+beforeEach(() => {
+  telemetryMount.mockImplementation(() => (): void => undefined);
+});
+
+afterEach(() => {
+  telemetryMount.mockReset();
+});
 
 type SnapshotProbe = {
   readonly live: { nested: { count: number } };
@@ -22,12 +39,54 @@ type TestBridge = Bridge<
 >;
 
 function conciergeStub(): Concierge {
+  const revision = Symbol("svelte-test-catalog") as ReturnType<Concierge["resolveCatalog"]>["revision"];
   return {
     dispatch: async () => ({ ok: true, message: "Done." }),
-    dispatchBatch: async () => [],
-    catalogFor: () => [],
-    stageFor: () => null,
+    dispatchBatch: async () => ({ kind: "completed", rows: [] }),
+    resolveCatalog: () => ({ stage: null, tools: [], revision }),
+    onDispatch: () => () => undefined,
     explain: () => ({ stage: null, stages: [], catalog: [] }),
+  };
+}
+
+function dispatchConciergeStub(): {
+  readonly concierge: Concierge;
+  readonly emitAccepted: (dispatchId: string) => void;
+  readonly listenerCount: () => number;
+} {
+  const listeners: Set<DispatchListener> = new Set<DispatchListener>();
+  const revision = Symbol("svelte-telemetry-order") as CatalogRevision;
+  const concierge: Concierge = {
+    dispatch: async () => ({ ok: true, message: "Done." }),
+    dispatchBatch: async () => ({ kind: "completed", rows: [] }),
+    resolveCatalog: () => ({ stage: null, tools: [], revision }),
+    onDispatch: (listener): (() => void) => {
+      listeners.add(listener);
+      return (): void => {
+        listeners.delete(listener);
+      };
+    },
+    explain: () => ({ stage: null, stages: [], catalog: [] }),
+  };
+
+  return {
+    concierge,
+    emitAccepted: (dispatchId): void => {
+      const event: DispatchEvent = {
+        dispatchId,
+        phase: "accepted",
+        name: "openProject",
+        stage: "portfolio",
+        catalogRevision: revision,
+        identity: null,
+        lineage: { rootDispatchId: dispatchId, depth: 0 },
+        input: { kind: "dropped" },
+        terminalAction: false,
+        terminalEntered: false,
+      };
+      for (const listener of listeners) void listener(event);
+    },
+    listenerCount: (): number => listeners.size,
   };
 }
 
@@ -78,7 +137,71 @@ function trackedRegistry(registry: BridgeRegistry): {
   };
 }
 
-describe("@fullselfbrowsing/concierge-svelte svelte-lifecycle", () => {
+describe("@full-self-browsing/concierge-svelte svelte-lifecycle", () => {
+  it("mounts and cleans telemetry on each component lifetime and honors false", () => {
+    const concierge: Concierge = conciergeStub();
+    const registry: BridgeRegistry = createBridge("svelte-telemetry");
+    const cleanups: Array<ReturnType<typeof vi.fn>> = [];
+    telemetryMount.mockImplementation(() => {
+      const release = vi.fn();
+      cleanups.push(release);
+      return release;
+    });
+
+    const first = render(Harness, {
+      concierge,
+      registry,
+      bridge: makeBridge("telemetry-first"),
+    });
+    expect(telemetryMount).toHaveBeenCalledTimes(1);
+    expect(telemetryMount).toHaveBeenCalledWith(concierge);
+    first.unmount();
+    expect(cleanups[0]).toHaveBeenCalledTimes(1);
+
+    const second = render(Harness, {
+      concierge,
+      registry,
+      bridge: makeBridge("telemetry-second"),
+    });
+    expect(telemetryMount).toHaveBeenCalledTimes(2);
+    second.unmount();
+    expect(cleanups[1]).toHaveBeenCalledTimes(1);
+
+    telemetryMount.mockClear();
+    const disabled = render(Harness, {
+      concierge,
+      registry,
+      bridge: makeBridge("telemetry-disabled"),
+      telemetry: false,
+    });
+    expect(telemetryMount).not.toHaveBeenCalled();
+    disabled.unmount();
+  });
+
+  it("subscribes telemetry before a descendant onMount dispatches", () => {
+    const activity = dispatchConciergeStub();
+    const registry: BridgeRegistry = createBridge("svelte-telemetry-order");
+    const observedDispatches: string[] = [];
+    telemetryMount.mockImplementation((concierge: Concierge) =>
+      concierge.onDispatch((event): void => {
+        observedDispatches.push(event.dispatchId);
+      }),
+    );
+
+    const mounted = render(Harness, {
+      concierge: activity.concierge,
+      registry,
+      bridge: makeBridge("telemetry-order"),
+      onChildMount: () => activity.emitAccepted("initial"),
+    });
+
+    expect(observedDispatches).toEqual(["initial"]);
+    expect(activity.listenerCount()).toBe(1);
+
+    mounted.unmount();
+    expect(activity.listenerCount()).toBe(0);
+  });
+
   it("preserves the exact Concierge context reference and names the missing provider remedy", () => {
     const concierge: Concierge = conciergeStub();
     const registry: BridgeRegistry = createBridge("svelte-context");
@@ -105,7 +228,7 @@ describe("@fullselfbrowsing/concierge-svelte svelte-lifecycle", () => {
         provide: false,
       }),
     ).toThrow(
-      "@fullselfbrowsing/concierge-svelte: useConcierge requires an ancestor " +
+      "@full-self-browsing/concierge-svelte: useConcierge requires an ancestor " +
         "component to call provideConcierge(concierge) during initialization.",
     );
   });

@@ -80,6 +80,9 @@ function _reasonExhaustive(): string {
     case "consent_required":
     case "consent_stale":
     case "grade_unavailable":
+    case "catalog_stale":
+    case "invalid_invocation":
+    case "identity_conflict":
       return r.reason;
     case undefined:
       return "";

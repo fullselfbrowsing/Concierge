@@ -4,5 +4,11 @@
     "jsx": "react-jsx",
     "rootDir": "."
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "test-d/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "overlay/**/*.ts",
+    "overlay/**/*.tsx",
+    "test-d/**/*.ts"
+  ]
 }

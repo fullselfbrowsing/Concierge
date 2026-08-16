@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 
 import { beforeAll, beforeEach, expect, it } from "vitest";
 
+import { dispatchV2 } from "./fixtures/v2-dispatch.js";
+
 const DIST_URL = new URL("../dist/index.js", import.meta.url);
 const DIST_PATH = fileURLToPath(DIST_URL);
 const KEY = Symbol.for("@fullselfbrowsing/concierge.contract");
@@ -161,7 +163,7 @@ it("encodes duplicate and matcher stage subjects", async () => {
         },
       ],
     });
-    concierge.stageFor({});
+    concierge.resolveCatalog({});
   });
 
   expect(duplicateWarnings).toHaveLength(1);
@@ -170,38 +172,19 @@ it("encodes duplicate and matcher stage subjects", async () => {
   expectEncodedSubject(matcherWarnings[0], "stage_match");
 });
 
-it("encodes runtime action subjects", async () => {
+it("rejects unsafe runtime action identifiers before diagnostics", async () => {
   const missing = action(HOSTILE_SUBJECT, () => ({ ok: true, message: "unused" }));
   delete missing.handler;
+  let result;
   const missingWarnings = await withCapturedWarnings(async () => {
     const concierge = createConcierge({
       stages: [{ id: "active", match: () => true, actions: [missing] }],
     });
-    await concierge.dispatch({}, HOSTILE_SUBJECT, {});
-  });
-  const resultWarnings = await withCapturedWarnings(async () => {
-    const concierge = createConcierge({
-      stages: [
-        {
-          id: "active",
-          match: () => true,
-          actions: [
-            action(HOSTILE_SUBJECT, () => ({
-              ok: true,
-              reason: "declined",
-              message: "normalized",
-            })),
-          ],
-        },
-      ],
-    });
-    await concierge.dispatch({}, HOSTILE_SUBJECT, {});
+    result = await dispatchV2(concierge, {}, HOSTILE_SUBJECT, {});
   });
 
-  expect(missingWarnings).toHaveLength(1);
-  expectEncodedSubject(missingWarnings[0], "handler_missing");
-  expect(resultWarnings).toHaveLength(1);
-  expectEncodedSubject(resultWarnings[0], "invalid_result");
+  expect(result).toMatchObject({ ok: false, reason: "invalid_invocation" });
+  expect(missingWarnings).toEqual([]);
 });
 
 it("encodes catalog diagnostic action subjects", async () => {

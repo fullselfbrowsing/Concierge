@@ -17,7 +17,7 @@ const TURN_IDENTITY_ORDER: readonly TurnIdentityProvenance[] =
   ]);
 
 const CONSENT_PROFILE_MARKER: unique symbol = Symbol(
-  "@fullselfbrowsing/concierge.consent-profile",
+  "@full-self-browsing/concierge.consent-profile",
 );
 
 export const WEAKEST_CONSENT_PROFILE: ConsentProfile =

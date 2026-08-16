@@ -17,7 +17,7 @@ function requireArtifact(path: string): string {
   if (!existsSync(path) || !statSync(path).isFile() || statSync(path).size <= 0) {
     throw new Error(
       `${path} is missing or empty. This suite requires a successful ` +
-        `@fullselfbrowsing/concierge-react package build.`,
+        `@full-self-browsing/concierge-react package build.`,
     );
   }
 
@@ -62,7 +62,7 @@ async function withoutBrowserGlobals<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
-describe("the built @fullselfbrowsing/concierge-react entries", () => {
+describe("the built @full-self-browsing/concierge-react entries", () => {
   it("preserves one client directive, guard order, and zero-registration server rendering", async () => {
     const rootSource = requireArtifact(ROOT_PATH);
     const clientSource = requireArtifact(CLIENT_PATH);
@@ -76,7 +76,7 @@ describe("the built @fullselfbrowsing/concierge-react entries", () => {
     const guardSequence = [
       "assertSingleInstance()",
       "CONTRACT_VERSION !== EXPECTED_CONTRACT_VERSION",
-      "@fullselfbrowsing/concierge-react expected core contract v",
+      "@full-self-browsing/concierge-react expected core contract v",
       "but found v",
       "upgrade or reinstall",
       "registry.register(bridge)",
@@ -89,7 +89,7 @@ describe("the built @fullselfbrowsing/concierge-react entries", () => {
       );
       previousIndex = index;
     }
-    expect(clientSource).toMatch(/EXPECTED_CONTRACT_VERSION\s*=\s*1\b/u);
+    expect(clientSource).toMatch(/EXPECTED_CONTRACT_VERSION\s*=\s*2\b/u);
 
     await withoutBrowserGlobals(async () => {
       const [root, client, core] = await Promise.all([
@@ -99,7 +99,9 @@ describe("the built @fullselfbrowsing/concierge-react entries", () => {
       ]);
 
       expect(Object.keys(root)).toEqual([]);
+      expect(typeof client.ConciergeActivityOverlay).toBe("function");
       expect(typeof client.ConciergeProvider).toBe("function");
+      expect(typeof client.useConciergeActivity).toBe("function");
       expect(typeof client.useConciergeBridge).toBe("function");
       expect(typeof core.createBridge).toBe("function");
 
@@ -119,9 +121,13 @@ describe("the built @fullselfbrowsing/concierge-react entries", () => {
       };
       const concierge = {
         dispatch: async () => ({ ok: true, message: "Done." }),
-        dispatchBatch: async () => [],
-        catalogFor: () => [],
-        stageFor: () => null,
+        dispatchBatch: async () => ({ kind: "completed", rows: [] }),
+        resolveCatalog: () => ({
+          stage: null,
+          tools: [],
+          revision: Symbol("artifact-catalog"),
+        }),
+        onDispatch: () => () => undefined,
         explain: () => ({ stage: null, stages: [], catalog: [] }),
       };
 
@@ -140,11 +146,19 @@ describe("the built @fullselfbrowsing/concierge-react entries", () => {
         createElement(
           client.ConciergeProvider,
           { concierge },
-          createElement(ServerConsumer),
+          createElement(
+            "div",
+            null,
+            createElement(client.ConciergeActivityOverlay, {
+              poweredByFSB: true,
+            }),
+            createElement(ServerConsumer),
+          ),
         ),
       );
 
       expect(markup).toContain("exact-server-value");
+      expect(markup).not.toContain("Powered by FSB");
       expect(registrations).toBe(0);
       expect(registry.read()).toBeNull();
     });

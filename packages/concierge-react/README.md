@@ -1,10 +1,18 @@
-# @fullselfbrowsing/concierge-react
+<div align="center">
 
-React lifecycle bindings for an existing
-[`@fullselfbrowsing/concierge`](https://github.com/fullselfbrowsing/concierge)
+<img src="https://raw.githubusercontent.com/fullselfbrowsing/Concierge/main/assets/concierge-wordmark-horizontal.svg" alt="Concierge" width="280">
+
+# `@full-self-browsing/concierge-react`
+
+</div>
+
+React lifecycle bindings and optional action-state chrome for an existing
+[`@full-self-browsing/concierge`](https://github.com/fullselfbrowsing/Concierge)
 instance and bridge registry.
 
-This package is pre-alpha and has not been published yet.
+Version 0.2 is a public preview of contract 2. It supports React 18 and 19,
+requires Node 22.12 or newer for server rendering, and does not support Edge
+runtimes in the 0.2 line.
 
 ## Entry points
 
@@ -17,18 +25,20 @@ import type {
   Bridge,
   BridgeRegistry,
   Concierge,
-} from "@fullselfbrowsing/concierge-react";
+} from "@full-self-browsing/concierge-react";
 ```
 
 Import runtime bindings only from the client entry:
 
 ```tsx
 import {
+  ConciergeActivityOverlay,
   ConciergeProvider,
   useConcierge,
+  useConciergeActivity,
   useConciergeBridge,
   useConciergeValue,
-} from "@fullselfbrowsing/concierge-react/client";
+} from "@full-self-browsing/concierge-react/client";
 ```
 
 The client entry carries the `"use client"` directive. The package root and
@@ -45,8 +55,8 @@ objects in application code with the public `createBridge` and
 import {
   createBridge,
   createConcierge,
-} from "@fullselfbrowsing/concierge";
-import type { Bridge } from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";
+import type { Bridge } from "@full-self-browsing/concierge";
 
 import { resultsActions } from "./actions.js";
 
@@ -97,7 +107,7 @@ import {
   useConcierge,
   useConciergeBridge,
   useConciergeValue,
-} from "@fullselfbrowsing/concierge-react/client";
+} from "@full-self-browsing/concierge-react/client";
 
 import {
   concierge,
@@ -147,11 +157,52 @@ export function ResultsRoute(props: ResultsBindingProps) {
 }
 ```
 
-`ConciergeProvider` only carries the supplied reference through React context.
-It does not construct, clone, subscribe to, or start the core instance.
+`ConciergeProvider` carries the supplied reference through React context and,
+by default, mounts the browser-only anonymous telemetry runtime. Pass
+`telemetry={false}` to leave this provider's runtime uninstrumented. Multiple
+providers for the same Concierge object in one document share one runtime, so
+React StrictMode does not inflate the active-instance count. See the
+[telemetry privacy contract](https://github.com/fullselfbrowsing/Concierge/blob/main/docs/privacy.md)
+for the exact payload and origin-wide opt-out API.
+
+## Optional action visuals
+
+`ConciergeActivityOverlay` is opt-in, pointer-transparent UI chrome driven only
+by `onDispatch`. It keeps overlapping parent and child dispatches active
+independently, removes itself after the final terminal event, and never enters
+dispatch control flow.
+
+```tsx
+<ConciergeProvider concierge={concierge}>
+  <ConciergeActivityOverlay
+    glow={{
+      color: "#ff6b35",
+      secondaryColor: "#635bff",
+      intensity: 0.72,
+    }}
+    poweredByFSB
+  />
+  <App />
+</ConciergeProvider>
+```
+
+Rendering the component enables the glow by default. Set `glow={false}` to
+disable it. The `poweredByFSB` badge defaults to `false` and appears only while
+an action is active. When enabled, its position defaults to `bottom-left`; pass
+an object with `position`, `color`, `backgroundColor`, and `borderColor` to
+override its presentation. Both layers use fixed positioning, ignore pointer
+input, and accept a shared `zIndex`.
+
+For application-owned visuals, `useConciergeActivity()` exposes the same
+concurrency-safe active boolean without rendering anything.
 
 ## Lifecycle guarantees
 
+- `ConciergeProvider` subscribes once through `onDispatch` before descendant
+  layout effects and shares its activity state with every
+  `useConciergeActivity` consumer. Activity is keyed by `dispatchId`, so
+  repeated lifecycle phases do not inflate activity and one terminal child
+  cannot hide an active parent.
 - `useConciergeBridge` calls `registry.register(bridge)` only from
   `useEffect` and returns that exact registration unsubscriber as cleanup.
 - React StrictMode's development sequence—setup, cleanup, setup—therefore
@@ -179,10 +230,10 @@ untrusted at the server boundary. A relying server must independently
 authenticate the current principal and authorize the exact action and payload
 under current server policy immediately before any protected effect.
 
-The React adapter owns only context propagation, committed-value mirroring,
-and effect-scoped bridge registration. Application and core code continue to
-own action declarations, catalogs, dispatch, sessions, consent, transports,
-scheduling, and results.
+The React adapter owns context propagation, committed-value mirroring,
+effect-scoped bridge registration, and optional observer-driven action chrome.
+Application and core code continue to own action declarations, catalogs,
+dispatch, sessions, consent, transports, scheduling, and results.
 
 ## License
 

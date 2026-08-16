@@ -37,7 +37,7 @@ const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const ADAPTERS = Object.freeze([
   Object.freeze({
-    name: "@fullselfbrowsing/concierge-react",
+    name: "@full-self-browsing/concierge-react",
     root: "packages/concierge-react",
     expected: Object.freeze([
       "packages/concierge-react/src/client.tsx",
@@ -45,7 +45,7 @@ const ADAPTERS = Object.freeze([
     ]),
   }),
   Object.freeze({
-    name: "@fullselfbrowsing/concierge-svelte",
+    name: "@full-self-browsing/concierge-svelte",
     root: "packages/concierge-svelte",
     expected: Object.freeze([
       "packages/concierge-svelte/src/client.svelte.ts",
@@ -541,7 +541,8 @@ function inspectProductionNode(path, sourceFile, node) {
     const moduleName = node.moduleSpecifier?.text;
     if (
       typeof moduleName === "string" &&
-      moduleName.startsWith("@fullselfbrowsing/concierge/")
+      moduleName.startsWith("@full-self-browsing/concierge/") &&
+      moduleName !== "@full-self-browsing/concierge/telemetry"
     ) {
       rejectResponsibility(
         path,
@@ -950,7 +951,7 @@ async function runSelfTest() {
       "independent-over-limit",
       async () => runInventoryAndBudgetGate(root),
       "LINE_BUDGET",
-      "@fullselfbrowsing/concierge-react measured 152",
+      "@full-self-browsing/concierge-react measured 152",
     );
     await writeFile(
       resolve(root, overLimitPath),
@@ -974,7 +975,7 @@ async function runSelfTest() {
       "regex-delimiters-do-not-hide-authored-lines",
       async () => runInventoryAndBudgetGate(root),
       "LINE_BUDGET",
-      "@fullselfbrowsing/concierge-react measured 154",
+      "@full-self-browsing/concierge-react measured 154",
     );
     await writeFile(
       resolve(root, overLimitPath),

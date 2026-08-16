@@ -9,7 +9,14 @@ export default defineConfig({
   dts: true,
   clean: true,
   outDir: "dist",
-  external: ["@fullselfbrowsing/concierge", "react", "react-dom"],
+  deps: {
+    neverBundle: [
+      "@full-self-browsing/concierge",
+      "@full-self-browsing/concierge/telemetry",
+      "react",
+      "react-dom",
+    ],
+  },
   plugins: [
     {
       name: "strip-source-client-directive",

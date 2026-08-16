@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { dispatchV2 } from "./fixtures/v2-dispatch.js";
+
 const DIST_URL = new URL("../dist/index.js", import.meta.url);
 const DIST_PATH = fileURLToPath(DIST_URL);
 const CONTRACT_KEY = Symbol.for("@fullselfbrowsing/concierge.contract");
@@ -150,7 +152,7 @@ function createFlow({
     gateEntries,
     reviewEntries,
     async review() {
-      return concierge.dispatch(ACTIVE_CONTEXT, "review", {}, {
+      return dispatchV2(concierge, ACTIVE_CONTEXT, "review", {}, {
         callId: "review-call",
         responseId: "review-response",
         userTurnId: "review-turn",
@@ -160,7 +162,7 @@ function createFlow({
       });
     },
     async confirm(callId = "confirm-call") {
-      return concierge.dispatch(ACTIVE_CONTEXT, "confirm", {}, {
+      return dispatchV2(concierge, ACTIVE_CONTEXT, "confirm", {}, {
         callId,
         responseId: "confirm-response",
         userTurnId: "confirm-turn",

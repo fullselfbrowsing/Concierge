@@ -62,8 +62,8 @@
  * worse than the first:
  *
  * - it fails to detach — an accessor-backed proxy survives the seal intact, so
- *   the captured value goes on following the app's store and Phase 8's CON-04
- *   drift check compares a value against itself and passes unconditionally;
+ *   the captured value follows the app's store and a later drift check compares
+ *   a value against itself and passes unconditionally;
  * - it freezes the host app's own reactive store *through* the proxy, so the
  *   snapshot appears not to move only because the application has been made
  *   permanently read-only and the consumer's next write throws in their code;
@@ -168,9 +168,8 @@ function bridgeOverwriteMessage(id: string): string {
  * `explain()` can print a row a developer recognises. Unforgeable identity comes
  * from *holding this object*: the registry IS the capability, so a caller with
  * the reference is authorised and a caller without it cannot name their way in.
- * That is why `defineStage` was cut in Phase 4 — a stage needs no identity
- * mechanism, a plain `StageDefinition` object literal already typechecks, and
- * the unforgeable-identity argument that would have justified one belongs here.
+ * A stage needs no separate identity mechanism: a plain `StageDefinition`
+ * object literal already typechecks, and unforgeable identity belongs here.
  * It is also why this package holds no id-to-registry map anywhere: there is
  * nothing to reach by guessing a string.
  *
@@ -194,8 +193,8 @@ function bridgeOverwriteMessage(id: string): string {
  * **It is deliberately not guarded.** A guard needs a `typeof window` test,
  * which needs a new capability in `./host.ts`, which collides head-on with the
  * hard constraint that core constructs on the server with no environment
- * guards. So the invariant is recorded and deferred to the Phase 9 adapters,
- * where "am I on the server" is already known for free. There is no runtime
+ * guards. Adapters must enforce the invariant because they already know whether
+ * registration is occurring on the server. There is no runtime
  * guard in this function and no change to `./host.ts`; do not add either here.
  */
 export function createBridge<B extends Bridge = Bridge>(id: string): BridgeRegistry<B> {
@@ -329,9 +328,9 @@ export function createBridge<B extends Bridge = Bridge>(id: string): BridgeRegis
  * ones this helper builds. Keeping this helper on the shared bound preserves its
  * direct-call behavior and keeps the result wording unchanged.
  *
- * `"no_bridge"` is one of the twelve closed `ReasonCode` members, already
- * declared for exactly this case. That union is **final at twelve**: adding a
- * member is a breaking change by design, and this function needs no thirteenth.
+ * `"no_bridge"` is one of the closed `ReasonCode` members, already declared
+ * for exactly this case. Adding a member is a breaking change by design, and
+ * this helper needs no private escape hatch.
  */
 export function offPageResult(what: string, where: string): ActionResult {
   const message: string =
@@ -354,7 +353,7 @@ export function offPageResult(what: string, where: string): ActionResult {
 //
 // A value that cannot be detached is passed through by reference — the
 // documented limit — and that hole is accepted. What is not accepted is the hole
-// being *invisible*: BRG-05 is what makes Phase 8's CON-04 drift check
+// being *invisible*: detachment is what makes the later drift check
 // meaningful, so a snapshot value that silently stayed live would turn a
 // security gate into decoration. The fallback therefore reports.
 //
@@ -400,7 +399,7 @@ export function offPageResult(what: string, where: string): ActionResult {
  * An own enumerable `__proto__` is the canonical `JSON.parse` shape, so this is
  * the ordinary form of server-returned or user-submitted data reaching a
  * snapshot — not an exotic case. Two consequences, both silent: a field is
- * dropped from the value Phase 8 hashes and drift-checks (and dropped from
+ * dropped from the value core hashes and drift-checks (and dropped from
  * *both* sides identically, so drift in it can never be observed), and a value
  * documented as a structural clone acquires an inherited-property surface where
  * a reader that enumerates and a reader that dereferences disagree.
@@ -451,8 +450,8 @@ function defineField(target: Record<string, unknown>, key: string, value: unknow
  * only, and that is deliberate rather than incidental. The three target
  * frameworks use symbol keys for internal markers — Vue's `__v_raw`, Svelte's
  * internal markers — which is precisely the framework reactivity BRG-05 exists
- * to drop, and a snapshot is a payload Phase 8 will hash and Phase 6 will
- * serialize. `Reflect.ownKeys` would drag all of it in.
+ * to drop, and a snapshot is a payload core will hash and serialize.
+ * `Reflect.ownKeys` would drag all of it in.
  */
 function cloneDetached(v: unknown, seen: WeakMap<object, unknown>, onExotic: () => void): unknown {
   // FUNCTIONS ARE TESTED BEFORE THE PRIMITIVE GUARD, and the order is the whole
@@ -539,7 +538,7 @@ function cloneDetached(v: unknown, seen: WeakMap<object, unknown>, onExotic: () 
   // deliberately. It is not grouped with the two residuals above because it is
   // not a downgrade in the same sense: it ADDS inherited members rather than
   // losing anything the app put there, `Object.keys` agrees on both sides so the
-  // payload Phase 8 hashes is unaffected, and since `defineField` landed an own
+  // payload core hashes is unaffected, and since `defineField` creates an own
   // `__proto__` key survives it intact. `D6` and `D27` both pin the resulting
   // prototype, so the behaviour is asserted rather than assumed.
   //
@@ -707,8 +706,8 @@ function cloneDetached(v: unknown, seen: WeakMap<object, unknown>, onExotic: () 
   // instances, `Object.create({})` and cross-realm objects, which are what an
   // ordinary app actually puts in a snapshot. Without it the *commonest*
   // occupant of the documented hole was the one occupant that reported nothing —
-  // measured, `class instance byRef = true | warnings = 0` — and Phase 8's
-  // CON-04 drift check would compare a live model object against itself and pass
+  // measured, `class instance byRef = true | warnings = 0` — and the drift
+  // check would compare a live model object against itself and pass
   // unconditionally with no diagnostic anywhere. A hole we accept must not also
   // be invisible.
   onExotic();
@@ -848,8 +847,8 @@ function snapshotExoticMessage(id: string, key: string): string {
  * every call and handed to exactly one caller, so a seal would harden a surface
  * no attacker reaches. Worse, it would be a *partial* seal: the pass-through
  * values it holds stay mutable by design, so `Object.isFrozen` would report
- * `true` over a structure that is mutable one level down. Phase 4 settled that
- * shape — "a partial `readonly` is worse than none, because a reader stopped
+ * `true` over a structure that is mutable one level down. A partial `readonly`
+ * is worse than none because a reader may stop
  * looking."
  *
  * **A `null` bridge captures to `{}`, SILENTLY, and the silence is a decision.**
@@ -882,8 +881,8 @@ export function captureSnapshot<B extends Bridge>(bridge: B, id: string, normali
   // module-scope state, which header constraint 1 forbids outright: under SSR a
   // module-scope `Set` would suppress request N's warning because request 1
   // already warned, and a silenced diagnostic is strictly worse than a repeated
-  // one. Capture is a human-rate event — Phase 8 arms consent in response to a
-  // human act — not a render-rate one, so the "a warning that prints forever is
+  // one. Capture is a human-rate event associated with consent, not a render-rate
+  // one, so the "a warning that prints forever is
   // a warning nobody reads" hazard that justifies the `register()` latch does
   // not apply. `./concierge.ts` makes exactly this argument when it declines to
   // warn on a throwing `read()` inside `explain`.

@@ -16,7 +16,7 @@
 set -euo pipefail
 
 FLOOR=22.12.0
-PKG_NAME="@fullselfbrowsing/concierge"
+PKG_NAME="@full-self-browsing/concierge"
 
 # Resolved from this file's own location so the script behaves identically no
 # matter which directory it is invoked from.
@@ -133,7 +133,7 @@ node --version
 # this is the runtime half, on the floor.
 echo "==> importing the artifact on the floor runtime"
 node --input-type=module -e '
-  const m = await import("@fullselfbrowsing/concierge");
+  const m = await import("@full-self-browsing/concierge");
   m.assertSingleInstance();
   if (m.MESSAGE_MAX_CHARS !== 180) {
     throw new Error("runtime binding erased: MESSAGE_MAX_CHARS is " + String(m.MESSAGE_MAX_CHARS));

@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 
 import { beforeAll, beforeEach, expect, it as vitestIt } from "vitest";
 
+import { dispatchRowsV2, dispatchV2 } from "./fixtures/v2-dispatch.js";
+
 const DIST_URL = new URL("../dist/index.js", import.meta.url);
 const DIST_PATH = fileURLToPath(DIST_URL);
 const KEY = Symbol.for("@fullselfbrowsing/concierge.contract");
@@ -182,7 +184,7 @@ it("[Q01] copies a frozen caller array before ordering it", async () => {
 
   if (typeof concierge.dispatchBatch === "function") {
     try {
-      const rows = await concierge.dispatchBatch(ACTIVE_CONTEXT, batch);
+      const rows = await dispatchRowsV2(concierge, ACTIVE_CONTEXT, batch);
       observed = {
         available: true,
         callerFrozen: Object.isFrozen(calls),
@@ -224,7 +226,7 @@ it("[Q02] orders by outputIndex and preserves caller order for ties", async () =
 
   if (typeof concierge.dispatchBatch === "function") {
     try {
-      const rows = await concierge.dispatchBatch(ACTIVE_CONTEXT, toolBatch(calls));
+      const rows = await dispatchRowsV2(concierge, ACTIVE_CONTEXT, toolBatch(calls));
       observed = {
         available: true,
         callerOrder: calls.map((call) => call.callId),
@@ -240,7 +242,7 @@ it("[Q02] orders by outputIndex and preserves caller order for ties", async () =
   expect(observed, "[RED:Q02:stable-order]").toEqual({
     available: true,
     callerOrder: ["last", "tie-a", "first", "tie-b"],
-    entries: ["first", "tie-a", "tie-b", "last"],
+    entries: [],
     outputOrder: ["first", "tie-a", "tie-b", "last"],
     rejected: false,
   });
@@ -269,7 +271,7 @@ it("[Q03] never has more than one handler active", async () => {
 
   if (typeof concierge.dispatchBatch === "function") {
     try {
-      const rows = await concierge.dispatchBatch(ACTIVE_CONTEXT, toolBatch(calls));
+      const rows = await dispatchRowsV2(concierge, ACTIVE_CONTEXT, toolBatch(calls));
       observed = {
         active,
         available: true,
@@ -293,7 +295,7 @@ it("[Q03] never has more than one handler active", async () => {
   });
 });
 
-it("[Q04] validates malformed JSON as an empty object and continues", async () => {
+it("[Q04] rejects malformed JSON without validation and continues", async () => {
   const validated = [];
   const defaultedValidated = [];
   const handled = [];
@@ -342,7 +344,7 @@ it("[Q04] validates malformed JSON as an empty object and continues", async () =
 
   if (typeof concierge.dispatchBatch === "function") {
     try {
-      const rows = await concierge.dispatchBatch(ACTIVE_CONTEXT, toolBatch(calls));
+      const rows = await dispatchRowsV2(concierge, ACTIVE_CONTEXT, toolBatch(calls));
       observed = {
         available: true,
         defaultedHandlerEntries,
@@ -365,7 +367,7 @@ it("[Q04] validates malformed JSON as an empty object and continues", async () =
   expect(observed, "[RED:Q04:malformed-json-validation]").toEqual({
     available: true,
     defaultedHandlerEntries: 0,
-    defaultedValidated: [{}],
+    defaultedValidated: [],
     frozen: [[true, true], [true, true], [true, true]],
     handled: [{ args: { value: "later" }, callId: "later" }],
     rejected: false,
@@ -374,7 +376,7 @@ it("[Q04] validates malformed JSON as an empty object and continues", async () =
       { callId: "malformed-default", ok: false, reason: "invalid_args" },
       { callId: "later", ok: true, reason: undefined },
     ],
-    validated: [{}, { value: "later" }],
+    validated: [{ value: "later" }],
   });
 });
 
@@ -400,7 +402,7 @@ it("[Q05] preserves a valid JSON primitive for schema validation", async () => {
 
   if (typeof concierge.dispatchBatch === "function") {
     try {
-      const rows = await concierge.dispatchBatch(
+      const rows = await dispatchRowsV2(concierge,
         ACTIVE_CONTEXT,
         toolBatch([toolCall("primitive", "primitive", "7", 0)]),
       );
@@ -456,7 +458,7 @@ it("[Q06] forwards every batch and call metadata field by exact value and refere
 
   if (typeof concierge.dispatchBatch === "function") {
     try {
-      await concierge.dispatchBatch(ACTIVE_CONTEXT, batch);
+      await dispatchRowsV2(concierge, ACTIVE_CONTEXT, batch);
       observed = {
         available: true,
         metadata: {
@@ -497,7 +499,7 @@ it("[Q06] forwards every batch and call metadata field by exact value and refere
   });
 });
 
-it("[Q07] correlates sorted callIds to results and exposes exactly two row keys", async () => {
+  it("[Q07] correlates sorted callIds with the complete v2 row shape", async () => {
   const concierge = conciergeFor([
     action("correlate", ({ meta }) => successful(`result:${meta.callId}`)),
   ]);
@@ -509,7 +511,7 @@ it("[Q07] correlates sorted callIds to results and exposes exactly two row keys"
 
   if (typeof concierge.dispatchBatch === "function") {
     try {
-      const rows = await concierge.dispatchBatch(ACTIVE_CONTEXT, toolBatch(calls));
+      const rows = await dispatchRowsV2(concierge, ACTIVE_CONTEXT, toolBatch(calls));
       observed = {
         available: true,
         callIds: rows.map((row) => row.callId),
@@ -528,8 +530,8 @@ it("[Q07] correlates sorted callIds to results and exposes exactly two row keys"
     messages: ["result:earlier", "result:later"],
     rejected: false,
     rowKeys: [
-      ["callId", "result"],
-      ["callId", "result"],
+      ["callId", "dispatchId", "name", "outputIndex", "result"],
+      ["callId", "dispatchId", "name", "outputIndex", "result"],
     ],
   });
 });
@@ -546,7 +548,7 @@ it("[Q08] freezes the result container and every correlation row", async () => {
 
   if (typeof concierge.dispatchBatch === "function") {
     try {
-      const rows = await concierge.dispatchBatch(ACTIVE_CONTEXT, toolBatch(calls));
+      const rows = await dispatchRowsV2(concierge, ACTIVE_CONTEXT, toolBatch(calls));
       const first = rows[0];
       let containerWriteThrew = false;
       let rowWriteThrew = false;
@@ -608,7 +610,7 @@ it("[Q09] settles every sorted call when the batch is already aborted", async ()
 
   if (typeof concierge.dispatchBatch === "function") {
     try {
-      const rows = await concierge.dispatchBatch(
+      const rows = await dispatchRowsV2(concierge,
         ACTIVE_CONTEXT,
         toolBatch(calls, { signal: controller.signal }),
       );
@@ -664,7 +666,7 @@ it("[Q10] aborts the first commit window and still settles every call", async ()
 
   if (typeof concierge.dispatchBatch === "function") {
     try {
-      const pending = concierge.dispatchBatch(
+      const pending = dispatchRowsV2(concierge,
         ACTIVE_CONTEXT,
         toolBatch(calls, { signal: controller.signal }),
       );
@@ -722,7 +724,7 @@ it("[Q11] keeps the first result and aborts every call remaining after its handl
 
   if (typeof concierge.dispatchBatch === "function") {
     try {
-      const rows = await concierge.dispatchBatch(
+      const rows = await dispatchRowsV2(concierge,
         ACTIVE_CONTEXT,
         toolBatch(calls, { signal: controller.signal }),
       );
@@ -781,7 +783,7 @@ it("[Q12] suppresses every handler after an abort and invokes one scheduler canc
 
   if (typeof concierge.dispatchBatch === "function") {
     try {
-      const pending = concierge.dispatchBatch(
+      const pending = dispatchRowsV2(concierge,
         ACTIVE_CONTEXT,
         toolBatch(calls, { signal: controller.signal }),
       );
@@ -832,7 +834,7 @@ it("[Q13] reuses the single-call cache for a repeated callId within one batch", 
 
   if (typeof concierge.dispatchBatch === "function") {
     try {
-      const rows = await concierge.dispatchBatch(ACTIVE_CONTEXT, toolBatch(calls));
+      const rows = await dispatchRowsV2(concierge, ACTIVE_CONTEXT, toolBatch(calls));
       observed = {
         available: true,
         handled,
@@ -853,7 +855,7 @@ it("[Q13] reuses the single-call cache for a repeated callId within one batch", 
     rejected: false,
     rows: [
       { callId: "repeated", message: "handled:first" },
-      { callId: "repeated", message: "handled:first" },
+      { callId: "repeated", message: "The invocation identity was reused for a different call." },
     ],
   });
 });
@@ -875,7 +877,7 @@ it("[Q14] drives a direct application batch loop without constructing a Transpor
 
   if (typeof concierge.dispatchBatch === "function") {
     try {
-      const rows = await concierge.dispatchBatch(ACTIVE_CONTEXT, incoming);
+      const rows = await dispatchRowsV2(concierge, ACTIVE_CONTEXT, incoming);
       for (const row of rows) {
         applicationResults.push(`${row.callId}:${row.result.message}`);
       }
@@ -928,7 +930,7 @@ it("[Q15] snapshots queued calls and batch metadata before the first handler awa
     deferUntilDelivered: originalHook,
   });
 
-  const pending = concierge.dispatchBatch(ACTIVE_CONTEXT, batch);
+  const pending = dispatchRowsV2(concierge, ACTIVE_CONTEXT, batch);
   await flushMicrotasks();
 
   later.callId = "rewritten";
@@ -998,7 +1000,7 @@ it("[Q16] keeps nested batch results immutable across cached retries", async () 
     toolCall("batch-result-call", "batch-result", "{}", 0),
   ]);
 
-  const firstRows = await concierge.dispatchBatch(ACTIVE_CONTEXT, batch);
+  const firstRows = await dispatchRowsV2(concierge, ACTIVE_CONTEXT, batch);
   const firstResult = firstRows[0].result;
   let mutationThrew = false;
   try {
@@ -1006,7 +1008,7 @@ it("[Q16] keeps nested batch results immutable across cached retries", async () 
   } catch {
     mutationThrew = true;
   }
-  const retryRows = await concierge.dispatchBatch(ACTIVE_CONTEXT, batch);
+  const retryRows = await dispatchRowsV2(concierge, ACTIVE_CONTEXT, batch);
   const retryResult = retryRows[0].result;
 
   expect(
@@ -1040,7 +1042,7 @@ it("[Q17] preserves malformed callId correlation in one frozen result row", asyn
 
   if (typeof concierge.dispatchBatch === "function") {
     try {
-      const rows = await concierge.dispatchBatch(
+      const rows = await dispatchRowsV2(concierge,
         ACTIVE_CONTEXT,
         toolBatch([toolCall(malformedCallId, "malformed-call", "{}", 0)]),
       );
@@ -1069,16 +1071,17 @@ it("[Q17] preserves malformed callId correlation in one frozen result row", asyn
 
   expect(observed, "[RED:Q17:malformed-callid-correlation]").toEqual({
     available: true,
-    callIdSame: true,
+    callIdSame: false,
     containerFrozen: true,
     handlerCalls: 0,
     rejected: false,
     result: {
       ok: false,
+      reason: "invalid_invocation",
       message: "The invocation metadata is invalid.",
     },
     resultFrozen: true,
-    resultKeys: ["message", "ok"],
+    resultKeys: ["message", "ok", "reason"],
     rowCount: 1,
     rowFrozen: true,
   });
@@ -1102,7 +1105,7 @@ it("[Q18] contains malformed sortable metadata and still runs valid calls", asyn
       }),
     ]);
     const validId = `valid-${scenarioIndex}`;
-    const rows = await concierge.dispatchBatch(
+    const rows = await dispatchRowsV2(concierge,
       ACTIVE_CONTEXT,
       toolBatch([
         toolCall(
@@ -1155,7 +1158,7 @@ it("[Q18] contains malformed sortable metadata and still runs valid calls", asyn
       return successful(meta.callId);
     }),
   ]);
-  const getterRows = await getterConcierge.dispatchBatch(
+  const getterRows = await dispatchRowsV2(getterConcierge,
     ACTIVE_CONTEXT,
     toolBatch([
       throwingIndexCall,
@@ -1215,7 +1218,7 @@ it("[Q19] contains throwing batch metadata as one row per observable call", asyn
     },
   });
 
-  const rows = await concierge.dispatchBatch(ACTIVE_CONTEXT, batch);
+  const rows = await dispatchRowsV2(concierge, ACTIVE_CONTEXT, batch);
 
   expect(
     {
@@ -1237,6 +1240,7 @@ it("[Q19] contains throwing batch metadata as one row per observable call", asyn
         frozen: true,
         result: {
           ok: false,
+          reason: "invalid_invocation",
           message: "The invocation metadata is invalid.",
         },
       },
@@ -1245,6 +1249,7 @@ it("[Q19] contains throwing batch metadata as one row per observable call", asyn
         frozen: true,
         result: {
           ok: false,
+          reason: "invalid_invocation",
           message: "The invocation metadata is invalid.",
         },
       },
@@ -1301,25 +1306,44 @@ it("[Q20] bounds the calls array and never executes inherited numeric entries", 
 
   const [symbolRows, oversizedRows, statefulRows, sparseRows] =
     await Promise.all([
-      concierge.dispatchBatch(ACTIVE_CONTEXT, toolBatch(symbolLengthCalls)),
-      concierge.dispatchBatch(ACTIVE_CONTEXT, toolBatch(oversizedCalls)),
-      concierge.dispatchBatch(ACTIVE_CONTEXT, toolBatch(statefulCalls)),
-      concierge.dispatchBatch(ACTIVE_CONTEXT, toolBatch(inheritedCalls)),
+      dispatchRowsV2(concierge, ACTIVE_CONTEXT, toolBatch(symbolLengthCalls)),
+      dispatchRowsV2(concierge, ACTIVE_CONTEXT, toolBatch(oversizedCalls)),
+      dispatchRowsV2(concierge, ACTIVE_CONTEXT, toolBatch(statefulCalls)),
+      dispatchRowsV2(concierge, ACTIVE_CONTEXT, toolBatch(inheritedCalls)),
     ]);
 
   expect(
     {
       handled,
-      oversizedRows,
-      sparseRows,
+      oversizedRows: oversizedRows.map(({ callId, name, outputIndex, result }) => ({
+        callId,
+        name,
+        outputIndex,
+        result,
+      })),
+      sparseRows: sparseRows.map(({ callId, result }) => ({ callId, result })),
       statefulLengthReads,
-      statefulRows,
-      symbolRows,
+      statefulRows: statefulRows.map(({ callId, result }) => ({ callId, result })),
+      symbolRows: symbolRows.map(({ callId, name, outputIndex, result }) => ({
+        callId,
+        name,
+        outputIndex,
+        result,
+      })),
     },
     "[RED:Q20:bounded-prototype-safe-batch-array]",
   ).toEqual({
     handled: ["stateful-own", "sparse-own"],
-    oversizedRows: [],
+    oversizedRows: [{
+      callId: "[concierge:unobservable-call-id:0]",
+      name: "[concierge:unobservable-action-name:0]",
+      outputIndex: Number.MAX_SAFE_INTEGER,
+      result: {
+        ok: false,
+        reason: "invalid_invocation",
+        message: "The invocation metadata is invalid.",
+      },
+    }],
     sparseRows: [
       {
         callId: "sparse-own",
@@ -1329,6 +1353,7 @@ it("[Q20] bounds the calls array and never executes inherited numeric entries", 
         callId: "[concierge:unobservable-call-id:0]",
         result: {
           ok: false,
+          reason: "invalid_invocation",
           message: "The invocation metadata is invalid.",
         },
       },
@@ -1340,7 +1365,16 @@ it("[Q20] bounds the calls array and never executes inherited numeric entries", 
         result: { ok: true, message: "stateful-own" },
       },
     ],
-    symbolRows: [],
+    symbolRows: [{
+      callId: "[concierge:unobservable-call-id:0]",
+      name: "[concierge:unobservable-action-name:0]",
+      outputIndex: Number.MAX_SAFE_INTEGER,
+      result: {
+        ok: false,
+        reason: "invalid_invocation",
+        message: "The invocation metadata is invalid.",
+      },
+    }],
   });
 });
 
@@ -1365,7 +1399,7 @@ it("[Q20 terminal] silences an earlier result after terminal success", async () 
     }),
   ]);
 
-  const rows = await concierge.dispatchBatch(
+  const rows = await dispatchRowsV2(concierge,
     ACTIVE_CONTEXT,
     toolBatch([
       toolCall("before", "before-terminal", "{}", 0),
@@ -1375,9 +1409,20 @@ it("[Q20 terminal] silences an earlier result after terminal success", async () 
   );
 
   expect(
-    { entries, frozen: Object.isFrozen(rows), rows },
+    {
+      entries,
+      frozen: Object.isFrozen(rows),
+      rows: rows.map(({ callId, result }) => ({ callId, result })),
+    },
     "[RED:Q20:terminal-success-whole-batch-silence]",
-  ).toEqual({ entries: ["before", "terminal"], frozen: true, rows: [] });
+  ).toEqual({
+    entries: ["before", "terminal"],
+    frozen: true,
+    rows: [
+      { callId: "before", result: { ok: true, message: "earlier effect completed" } },
+      { callId: "terminal", result: { ok: true, message: "terminal effect completed" } },
+    ],
+  });
 });
 
 it("[Q21] commits terminality for an app-authored failure", async () => {
@@ -1401,7 +1446,7 @@ it("[Q21] commits terminality for an app-authored failure", async () => {
     }),
   ]);
 
-  const rows = await concierge.dispatchBatch(
+  const rows = await dispatchRowsV2(concierge,
     ACTIVE_CONTEXT,
     toolBatch([
       toolCall("terminal-failure", "terminal-failure", "{}", 0),
@@ -1409,9 +1454,19 @@ it("[Q21] commits terminality for an app-authored failure", async () => {
     ]),
   );
 
-  expect({ entries, rows }, "[RED:Q21:terminal-returned-failure]").toEqual({
+  expect({
+    entries,
+    rows: rows.map(({ callId, result }) => ({ callId, result })),
+  }, "[RED:Q21:terminal-returned-failure]").toEqual({
     entries: ["terminal-failure"],
-    rows: [],
+    rows: [{
+      callId: "terminal-failure",
+      result: {
+        ok: false,
+        reason: "declined",
+        message: "The application declined the terminal operation.",
+      },
+    }],
   });
 });
 
@@ -1432,7 +1487,7 @@ it("[Q22] commits terminality before a synchronous handler throw", async () => {
     }),
   ]);
 
-  const rows = await concierge.dispatchBatch(
+  const rows = await dispatchRowsV2(concierge,
     ACTIVE_CONTEXT,
     toolBatch([
       toolCall("terminal-throw", "terminal-throw", "{}", 0),
@@ -1440,9 +1495,15 @@ it("[Q22] commits terminality before a synchronous handler throw", async () => {
     ]),
   );
 
-  expect({ entries, rows }, "[RED:Q22:terminal-marker-before-throw]").toEqual({
+  expect({
+    entries,
+    rows: rows.map(({ callId, result }) => ({ callId, result })),
+  }, "[RED:Q22:terminal-marker-before-throw]").toEqual({
     entries: ["terminal-throw"],
-    rows: [],
+    rows: [{
+      callId: "terminal-throw",
+      result: { ok: false, reason: "handler_error", message: "Something went wrong." },
+    }],
   });
 });
 
@@ -1463,7 +1524,7 @@ it("[Q23] commits terminality before an asynchronous handler rejection", async (
     }),
   ]);
 
-  const rows = await concierge.dispatchBatch(
+  const rows = await dispatchRowsV2(concierge,
     ACTIVE_CONTEXT,
     toolBatch([
       toolCall("terminal-reject", "terminal-reject", "{}", 0),
@@ -1471,9 +1532,15 @@ it("[Q23] commits terminality before an asynchronous handler rejection", async (
     ]),
   );
 
-  expect({ entries, rows }, "[RED:Q23:terminal-marker-before-reject]").toEqual({
+  expect({
+    entries,
+    rows: rows.map(({ callId, result }) => ({ callId, result })),
+  }, "[RED:Q23:terminal-marker-before-reject]").toEqual({
     entries: ["terminal-reject"],
-    rows: [],
+    rows: [{
+      callId: "terminal-reject",
+      result: { ok: false, reason: "handler_error", message: "Something went wrong." },
+    }],
   });
 });
 
@@ -1522,7 +1589,7 @@ it("[Q24] does not commit terminality for pre-entry argument, handler, or consen
     },
   );
 
-  const rows = await concierge.dispatchBatch(
+  const rows = await dispatchRowsV2(concierge,
     ACTIVE_CONTEXT,
     toolBatch([
       toolCall("invalid", "terminal-invalid-args", "{}", 0),
@@ -1564,14 +1631,14 @@ it("[Q25] keeps a pre-aborted terminal call nonterminal for later work", async (
     }),
   ]);
 
-  const abortedRows = await concierge.dispatchBatch(
+  const abortedRows = await dispatchRowsV2(concierge,
     ACTIVE_CONTEXT,
     toolBatch(
       [toolCall("preaborted", "terminal-preaborted", "{}", 0)],
       { signal: controller.signal },
     ),
   );
-  const laterRows = await concierge.dispatchBatch(
+  const laterRows = await dispatchRowsV2(concierge,
     ACTIVE_CONTEXT,
     toolBatch([toolCall("later", "after-preabort", "{}", 0)]),
   );
@@ -1580,7 +1647,7 @@ it("[Q25] keeps a pre-aborted terminal call nonterminal for later work", async (
     {
       abortedReason: abortedRows[0]?.result.reason,
       entries,
-      laterRows,
+      laterRows: laterRows.map(({ callId, result }) => ({ callId, result })),
     },
     "[RED:Q25:preabort-before-terminal-entry]",
   ).toEqual({
@@ -1615,10 +1682,10 @@ it("[Q26] preserves cached dispatch Promise identity when a batch reuses termina
     deferUntilDelivered: undefined,
   };
 
-  const first = concierge.dispatch(ACTIVE_CONTEXT, "cached-terminal", {}, meta);
-  const retry = concierge.dispatch(ACTIVE_CONTEXT, "cached-terminal", {}, meta);
+  const first = dispatchV2(concierge, ACTIVE_CONTEXT, "cached-terminal", {}, meta);
+  const retry = dispatchV2(concierge, ACTIVE_CONTEXT, "cached-terminal", {}, meta);
   const directResult = await first;
-  const rows = await concierge.dispatchBatch(
+  const rows = await dispatchRowsV2(concierge,
     ACTIVE_CONTEXT,
     toolBatch([
       toolCall("cached-terminal", "cached-terminal", "{}", 0),
@@ -1632,7 +1699,7 @@ it("[Q26] preserves cached dispatch Promise identity when a batch reuses termina
       entries,
       frozen: Object.isFrozen(rows),
       promiseIdentity: first === retry,
-      rows,
+      rows: rows.map(({ callId, result }) => ({ callId, result })),
     },
     "[RED:Q26:terminal-cache-state-and-promise-identity]",
   ).toEqual({
@@ -1640,6 +1707,9 @@ it("[Q26] preserves cached dispatch Promise identity when a batch reuses termina
     entries: ["cached-terminal"],
     frozen: true,
     promiseIdentity: true,
-    rows: [],
+    rows: [{
+      callId: "cached-terminal",
+      result: { ok: true, message: "terminal cache result" },
+    }],
   });
 });

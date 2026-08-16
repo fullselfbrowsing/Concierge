@@ -1,63 +1,11 @@
 /**
- * `createConcierge` — catalog assembly, stage resolution, the memoized
- * per-stage projection, `explain`, and context-aware direct dispatch (STG-01,
- * STG-02, STG-03, STG-04, SEC-03, DX-01, CAT-01, DSP-01–05, DSP-08–09).
+ * Concierge construction, atomic catalog resolution, dispatch, workflow, and
+ * lifecycle observation.
  *
- * A separate module from `./catalog.ts`, deliberately. That file's header
- * states that every catalog rule lives there, so "did we check X?" is a
- * one-file question; stage resolution is not a catalog rule, and folding it in
- * would dilute the one property that claim exists to buy. What lives here is
- * the layer above: many stages become one flat catalog, and that one catalog
- * becomes many per-stage projections of itself.
- *
- * ---------------------------------------------------------------------------
- * Three constraints whose violation is SILENT
- * ---------------------------------------------------------------------------
- *
- * **1. The catalog memo is instance-local and lazily allocated, and the reason
- * is cross-request state pollution under SSR.** Application modules are
- * initialised once when a long-lived server boots, and the same module
- * instances are then reused for every request that process serves.
- * `.planning/research/ARCHITECTURE.md:380-405` quotes Vue's own definition of
- * that failure and cites TanStack Router shipping exactly this bug, where one
- * request's leaked state made every subsequent GET return a 307 until the
- * process was restarted. A module-scope catalog memo would be shared by every
- * `createConcierge` in the process, so two configs in one server would serve
- * each other's catalogs under colliding keys. Per-instance mutable structures
- * are therefore `let`s inside the factory body, `null` until first use. The
- * sole module-level mutable association is a private `WeakMap` from a
- * Concierge handle to its internal batch executor; weak keys prevent
- * retention, and one instance's key cannot read another instance's executor.
- *
- * An earlier draft justified the same rule on bundler grounds instead — that a
- * module-scope structure is elided from a consumer build. Re-measured under
- * rolldown 1.2.0, it does **not** reproduce: a module-scope `Map` read by an
- * exported function is retained, and behaves identically bundled and
- * unbundled. The rule survived its justification being wrong, which is exactly
- * why the justification is written down rather than assumed.
- *
- * **2. The shallow seal on a projection is complete ONLY because its elements
- * are shared and already deep-frozen, and the two decisions are coupled.** One
- * `EmittedTool` per action is built once during assembly, and every per-stage
- * array holds those same objects by reference. Building fresh elements per
- * projection would turn the cheap seal into `./catalog.ts`'s
- * breach-that-reports-success: `Object.isFrozen(projection)` returns `true`
- * while every element stays mutable. Measured this phase — under the
- * shared-and-already-frozen form all seven tamper vectors throw, and it is
- * 510× cheaper than a recursive walk per projection (0.0074 ms against 3.78 ms
- * for 40 projections), because `deepFreeze` deliberately has no
- * `Object.isFrozen` early-out and re-walks every already-frozen JSON Schema
- * subtree beneath it.
- *
- * **3. `stage.match` is called from exactly one place.** Every additional call
- * site is a second copy of the throw policy, a second copy of the non-boolean
- * policy and a second warn-once latch — and a second opportunity for `explain`
- * and `stageFor` to disagree about the same context.
- *
- * Like `./types.ts`, `./contract.ts`, `./json-schema.ts`, `./host.ts` and
- * `./catalog.ts`, this file has no runtime dependency, no framework reference
- * and no DOM access — it must construct on a server under Next App Router,
- * Nuxt or SvelteKit with no environment guards.
+ * All mutable registries are factory-local. Catalog snapshots reuse an
+ * instance-local revision only while stage and dynamic availability are
+ * identical. Stage matchers and availability predicates fail closed, and this
+ * module remains framework- and DOM-independent for server evaluation.
  */
 
 import { buildCatalog, deepFreeze } from "./catalog.js";
@@ -77,8 +25,7 @@ import {
 } from "./consent-evidence.js";
 import {
   authoredResult,
-  deriveDispatchKey,
-  executeDispatchBatch,
+  encodeInvocationValue,
   isAbortSignalLike,
   isAborted,
   normalizeActionResult,
@@ -92,11 +39,7 @@ import {
   warnHost,
 } from "./host.js";
 import { USER_CANCELLED, USER_DECLINED } from "./types.js";
-import type {
-  ArgumentValidation,
-  CommitWaitOutcome,
-  InternalBatchOutcome,
-} from "./dispatch.js";
+import type { ArgumentValidation, CommitWaitOutcome } from "./dispatch.js";
 import type { InvocationValueSnapshot } from "./dispatch.js";
 import type { Catalog, CatalogEntry } from "./catalog.js";
 import type {
@@ -110,7 +53,10 @@ import type {
   ActionResult,
   AbortSignalLike,
   AnyActionDefinition,
+  BatchDispatchOutcome,
   Bridge,
+  CatalogRevision,
+  ChildActionRequest,
   Concierge,
   ConciergeConfig,
   ConsentAck,
@@ -118,30 +64,31 @@ import type {
   ConsentPolicy,
   ConsentProfile,
   DeliveryReport,
+  DispatchEvent,
+  DispatchLineage,
+  DispatchListener,
+  DispatchRef,
+  DispatchRequest,
+  DispatchRow,
   EmittedTool,
   Explanation,
+  InvocationIdentity,
   InvocationMeta,
+  ObservedInput,
+  ResolvedCatalog,
   Scheduler,
   StageContext,
   StageExplanation,
   ToolBatch,
+  WorkflowControls,
 } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Module scope — one private weak association and immutable constants
 // ---------------------------------------------------------------------------
 
-type InternalBatchDispatcher = (
-  ctx: StageContext,
-  batch: ToolBatch,
-) => Promise<InternalBatchOutcome>;
-
-const INTERNAL_BATCH_DISPATCHERS: WeakMap<Concierge, InternalBatchDispatcher> =
-  /* @__PURE__ */ new WeakMap<Concierge, InternalBatchDispatcher>();
-
-const EMPTY_BATCH_ROWS: ReadonlyArray<
-  Readonly<{ callId: string; result: ActionResult }>
-> = Object.freeze([]);
+const EMPTY_DISPATCH_ROWS: ReadonlyArray<DispatchRow> = Object.freeze([]);
+const MAX_V2_BATCH_CALLS = 10_000;
 
 /**
  * The `skip` set `explain()` hands to `deepFreeze`. Empty, because the object
@@ -163,30 +110,267 @@ const EMPTY_BATCH_ROWS: ReadonlyArray<
  */
 const NO_SKIP: ReadonlySet<object> = /* @__PURE__ */ new Set<object>();
 
-/**
- * Resolve the richer occurrence result only for a Concierge created by this
- * module. Structural test doubles and compatible third-party implementations
- * retain the public nonterminal behavior.
- */
-export async function dispatchBatchOutcomeFor(
-  concierge: Concierge,
-  ctx: StageContext,
-  batch: ToolBatch,
-): Promise<InternalBatchOutcome> {
-  const internal: InternalBatchDispatcher | undefined =
-    INTERNAL_BATCH_DISPATCHERS.get(concierge);
-  if (internal !== undefined) return internal(ctx, batch);
+const NEVER_ABORTED_SIGNAL: AbortSignalLike = /* @__PURE__ */ Object.freeze({
+  aborted: false,
+  addEventListener(): void {},
+  removeEventListener(): void {},
+});
 
-  const rows = await concierge.dispatchBatch(ctx, batch);
-  return Object.freeze({ rows, terminalEntered: false });
-}
+const DROPPED_INPUT: ObservedInput = /* @__PURE__ */ Object.freeze({
+  kind: "dropped" as const,
+});
 
 interface DispatchExecutionState {
   terminalEntered: boolean;
+  terminalRef?: DispatchRef | undefined;
+  rootDispatchId?: string | undefined;
+}
+
+interface AtomicCatalogResolution {
+  readonly index: number | null;
+  readonly names: readonly string[];
+  readonly resolved: ResolvedCatalog;
+}
+
+interface V2DedupeDescriptor {
+  readonly revision: CatalogRevision;
+  readonly name: string;
+  readonly input: string;
+  readonly outputIndex: number;
+  readonly userTurnId: string;
+}
+
+interface GuardedValue {
+  readonly ok: boolean;
+  readonly value: unknown;
+}
+
+interface V2CallSnapshot {
+  readonly valid: boolean;
+  readonly callIdValid: boolean;
+  readonly callId: string;
+  readonly rawCallId: unknown;
+  readonly callIdReadable: boolean;
+  readonly nameValid: boolean;
+  readonly name: string;
+  readonly rawName: unknown;
+  readonly nameReadable: boolean;
+  readonly argumentsText: string | null;
+  readonly rawArguments: unknown;
+  readonly argumentsReadable: boolean;
+  readonly outputIndexValid: boolean;
+  readonly outputIndex: number;
+  readonly rawOutputIndex: unknown;
+  readonly outputIndexReadable: boolean;
+  readonly source: object | null;
+  readonly sortIndex: number | null;
+  readonly originalIndex: number;
+}
+
+interface V2CallsSnapshot {
+  readonly ok: boolean;
+  readonly calls: ReadonlyArray<V2CallSnapshot>;
+}
+
+function guardedValue(read: () => unknown): GuardedValue {
+  try {
+    return { ok: true, value: read() };
+  } catch {
+    return { ok: false, value: undefined };
+  }
+}
+
+function fallbackCallId(index: number): string {
+  return `[concierge:unobservable-call-id:${index}]`;
+}
+
+function fallbackActionName(index: number): string {
+  return `[concierge:unobservable-action-name:${index}]`;
+}
+
+function fallbackOutputIndex(index: number): number {
+  return Number.MAX_SAFE_INTEGER - index;
+}
+
+/** Snapshot every observable batch occurrence without dropping malformed rows. */
+function snapshotV2Calls(value: unknown): V2CallsSnapshot {
+  let isArray: boolean;
+  try {
+    isArray = Array.isArray(value);
+  } catch {
+    return { ok: false, calls: Object.freeze([]) };
+  }
+  if (!isArray) return { ok: false, calls: Object.freeze([]) };
+
+  const calls = value as ReadonlyArray<unknown>;
+  const lengthRead: GuardedValue = guardedValue(() => calls.length);
+  if (
+    !lengthRead.ok ||
+    typeof lengthRead.value !== "number" ||
+    !Number.isSafeInteger(lengthRead.value) ||
+    lengthRead.value < 0 ||
+    lengthRead.value > MAX_V2_BATCH_CALLS
+  ) {
+    return { ok: false, calls: Object.freeze([]) };
+  }
+
+  const snapshots: V2CallSnapshot[] = [];
+  for (let originalIndex = 0; originalIndex < lengthRead.value; originalIndex += 1) {
+    const ownRead: GuardedValue = guardedValue(
+      () => Object.prototype.hasOwnProperty.call(calls, originalIndex),
+    );
+    const rawRead: GuardedValue = ownRead.ok && ownRead.value === true
+      ? guardedValue(() => calls[originalIndex])
+      : { ok: false, value: undefined };
+    const raw: unknown = rawRead.value;
+    const objectLike: boolean =
+      rawRead.ok && typeof raw === "object" && raw !== null;
+    const record = objectLike ? raw as Record<string, unknown> : null;
+    const callIdRead: GuardedValue = record === null
+      ? { ok: false, value: undefined }
+      : guardedValue(() => record["callId"]);
+    const nameRead: GuardedValue = record === null
+      ? { ok: false, value: undefined }
+      : guardedValue(() => record["name"]);
+    const argumentsRead: GuardedValue = record === null
+      ? { ok: false, value: undefined }
+      : guardedValue(() => record["arguments"]);
+    const outputIndexRead: GuardedValue = record === null
+      ? { ok: false, value: undefined }
+      : guardedValue(() => record["outputIndex"]);
+
+    const callIdValid: boolean = callIdRead.ok &&
+      isSafeIdentifier(callIdRead.value);
+    const nameValid: boolean = nameRead.ok && isSafeIdentifier(nameRead.value);
+    const callId: string = callIdValid
+      ? callIdRead.value as string
+      : fallbackCallId(originalIndex);
+    const name: string = nameValid
+      ? nameRead.value as string
+      : fallbackActionName(originalIndex);
+    const validOutputIndex: boolean = outputIndexRead.ok &&
+      typeof outputIndexRead.value === "number" &&
+      Number.isSafeInteger(outputIndexRead.value) &&
+      outputIndexRead.value >= 0;
+    const outputIndex: number = validOutputIndex
+      ? outputIndexRead.value as number
+      : fallbackOutputIndex(originalIndex);
+    const argumentsText: string | null =
+      argumentsRead.ok && typeof argumentsRead.value === "string"
+        ? argumentsRead.value
+        : null;
+
+    snapshots.push(Object.freeze({
+      valid: objectLike &&
+        callIdValid &&
+        nameValid &&
+        argumentsText !== null &&
+        validOutputIndex,
+      callIdValid,
+      callId,
+      rawCallId: callIdRead.value,
+      callIdReadable: callIdRead.ok,
+      nameValid,
+      name,
+      rawName: nameRead.value,
+      nameReadable: nameRead.ok,
+      argumentsText,
+      rawArguments: argumentsRead.value,
+      argumentsReadable: argumentsRead.ok,
+      outputIndexValid: validOutputIndex,
+      outputIndex,
+      rawOutputIndex: outputIndexRead.value,
+      outputIndexReadable: outputIndexRead.ok,
+      source: record,
+      sortIndex: validOutputIndex ? outputIndex : null,
+      originalIndex,
+    }));
+  }
+
+  snapshots.sort((left, right): number => {
+    if (left.sortIndex === null) {
+      return right.sortIndex === null
+        ? left.originalIndex - right.originalIndex
+        : 1;
+    }
+    if (right.sortIndex === null) return -1;
+    return left.sortIndex === right.sortIndex
+      ? left.originalIndex - right.originalIndex
+      : left.sortIndex - right.sortIndex;
+  });
+  return { ok: true, calls: Object.freeze(snapshots) };
+}
+
+interface V2DedupeRecord {
+  readonly descriptor: V2DedupeDescriptor;
+  readonly promise: Promise<ActionResult>;
+  pending: boolean;
+  settledAt: number | null;
+}
+
+interface WorkflowRootState {
+  readonly rootDispatchId: string;
+  readonly signal: AbortSignalLike;
+  readonly executionState: DispatchExecutionState;
+  steps: number;
+  failure: ActionResult | null;
+  terminalResult: ActionResult | null;
+  terminalRef: DispatchRef | null;
+}
+
+interface V2Occurrence {
+  readonly context: StageContext;
+  readonly dispatchId: string;
+  readonly identity: Readonly<InvocationIdentity> | null;
+  readonly lineage: DispatchLineage;
+  readonly meta: InvocationMeta;
+  readonly resolution: AtomicCatalogResolution;
+  readonly root: WorkflowRootState;
+}
+
+interface QueuedDispatchEvent {
+  readonly event: DispatchEvent;
+  readonly listeners: ReadonlyArray<DispatchListener>;
+}
+
+interface WorkflowRuntime {
+  readonly controls: WorkflowControls;
+  readonly seal: () => void;
+  readonly drain: () => Promise<void>;
+  readonly unwind: () => Promise<void>;
+}
+
+interface PipelineObservation {
+  accepted: boolean;
+  input: ObservedInput;
 }
 
 type InvocationMetaSnapshot =
   | { readonly ok: true; readonly value: InvocationMeta }
+  | { readonly ok: false };
+
+type DispatchRequestSnapshot =
+  | {
+      readonly ok: true;
+      readonly name: string;
+      readonly input: unknown;
+      readonly revision: CatalogRevision;
+      readonly identity: Readonly<InvocationIdentity> | null;
+      readonly meta: InvocationMeta;
+    }
+  | { readonly ok: false; readonly reason: "invalid_args" | "invalid_invocation" };
+
+type DispatchEnvelopeSnapshot =
+  | {
+      readonly ok: true;
+      readonly name: string;
+      readonly rawInput: unknown;
+      readonly inputReadable: boolean;
+      readonly source: object;
+      readonly revision: CatalogRevision;
+      readonly identity: Readonly<InvocationIdentity> | null;
+      readonly meta: InvocationMeta;
+    }
   | { readonly ok: false };
 
 interface CapturedConsentConfiguration {
@@ -203,6 +387,7 @@ interface ConsentGenerationBase {
   readonly preparedReadback: PreparedReadback | null;
   readonly readbackHash: string | null;
   readonly responseId: string;
+  readonly sessionId: string | null;
   readonly snapshot: Readonly<Record<string, unknown>>;
   readonly userTurnId: string;
   readonly verifiedReadback: VerifiedReadbackEvidence | null;
@@ -512,6 +697,149 @@ function snapshotInvocationMeta(
   }
 }
 
+function isSafeIdentifier(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 1024) {
+    return false;
+  }
+  for (let index: number = 0; index < value.length; index += 1) {
+    const code: number = value.charCodeAt(index);
+    if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) return false;
+  }
+  return true;
+}
+
+/** Snapshot identity and control metadata before reading untrusted input data. */
+function snapshotDispatchEnvelope(request: unknown): DispatchEnvelopeSnapshot {
+  if (typeof request !== "object" || request === null) {
+    return { ok: false };
+  }
+
+  const source = request as Record<string, unknown>;
+  const nameRead: GuardedValue = guardedValue(() => source["name"]);
+  const revisionRead: GuardedValue = guardedValue(
+    () => source["catalogRevision"],
+  );
+  const identityRead: GuardedValue = guardedValue(() => source["identity"]);
+  const signalRead: GuardedValue = guardedValue(() => source["signal"]);
+  const deliveryRead: GuardedValue = guardedValue(
+    () => source["deferUntilDelivered"],
+  );
+  const inputRead: GuardedValue = guardedValue(() => source["input"]);
+  const name: unknown = nameRead.value;
+  const revision: unknown = revisionRead.value;
+  const identityValue: unknown = identityRead.value;
+  const signal: unknown = signalRead.value;
+  const deferUntilDelivered: unknown = deliveryRead.value;
+
+  if (
+    !nameRead.ok ||
+    !revisionRead.ok ||
+    !identityRead.ok ||
+    !signalRead.ok ||
+    !deliveryRead.ok ||
+    !isSafeIdentifier(name) ||
+    typeof revision !== "symbol" ||
+    (signal !== undefined && !isAbortSignalLike(signal)) ||
+    (deferUntilDelivered !== undefined &&
+      typeof deferUntilDelivered !== "function")
+  ) {
+    return { ok: false };
+  }
+
+  let identity: Readonly<InvocationIdentity> | null = null;
+  if (identityValue !== undefined) {
+    if (typeof identityValue !== "object" || identityValue === null) {
+      return { ok: false };
+    }
+    const raw = identityValue as Record<string, unknown>;
+    const sessionIdRead: GuardedValue = guardedValue(() => raw["sessionId"]);
+    const responseIdRead: GuardedValue = guardedValue(() => raw["responseId"]);
+    const callIdRead: GuardedValue = guardedValue(() => raw["callId"]);
+    const userTurnIdRead: GuardedValue = guardedValue(() => raw["userTurnId"]);
+    const outputIndexRead: GuardedValue = guardedValue(() => raw["outputIndex"]);
+    const sessionId: unknown = sessionIdRead.value;
+    const responseId: unknown = responseIdRead.value;
+    const callId: unknown = callIdRead.value;
+    const userTurnId: unknown = userTurnIdRead.value;
+    const outputIndex: unknown = outputIndexRead.value;
+    if (
+      !sessionIdRead.ok ||
+      !responseIdRead.ok ||
+      !callIdRead.ok ||
+      !userTurnIdRead.ok ||
+      !outputIndexRead.ok ||
+      !isSafeIdentifier(sessionId) ||
+      !isSafeIdentifier(responseId) ||
+      !isSafeIdentifier(callId) ||
+      !isSafeIdentifier(userTurnId) ||
+      typeof outputIndex !== "number" ||
+      !Number.isSafeInteger(outputIndex) ||
+      outputIndex < 0
+    ) {
+      return { ok: false };
+    }
+    identity = Object.freeze({
+      sessionId,
+      responseId,
+      callId,
+      userTurnId,
+      outputIndex,
+    });
+  }
+
+  const meta: InvocationMeta = Object.freeze({
+    responseId: identity?.responseId,
+    userTurnId: identity?.userTurnId,
+    callId: identity?.callId,
+    outputIndex: identity?.outputIndex,
+    signal: signal as AbortSignalLike | undefined,
+    deferUntilDelivered:
+      deferUntilDelivered as InvocationMeta["deferUntilDelivered"],
+  });
+
+  return {
+    ok: true,
+    name,
+    rawInput: inputRead.value,
+    inputReadable: inputRead.ok,
+    source: request,
+    revision: revision as CatalogRevision,
+    identity,
+    meta,
+  };
+}
+
+/** Detach and validate input after identity and control metadata are stable. */
+function snapshotDispatchEnvelopeInput(
+  envelope: Extract<DispatchEnvelopeSnapshot, { readonly ok: true }>,
+): DispatchRequestSnapshot {
+  if (!envelope.inputReadable) {
+    return { ok: false, reason: "invalid_args" };
+  }
+  const detached: InvocationValueSnapshot = snapshotInvocationValue(
+    envelope.rawInput,
+  );
+  if (!detached.ok || encodeInvocationValue(detached.value) === null) {
+    return { ok: false, reason: "invalid_args" };
+  }
+  return {
+    ok: true,
+    name: envelope.name,
+    input: detached.value,
+    revision: envelope.revision,
+    identity: envelope.identity,
+    meta: envelope.meta,
+  };
+}
+
+/** Snapshot the complete v2 request before any asynchronous work begins. */
+function snapshotDispatchRequest(request: unknown): DispatchRequestSnapshot {
+  const envelope: DispatchEnvelopeSnapshot = snapshotDispatchEnvelope(request);
+  return envelope.ok
+    ? snapshotDispatchEnvelopeInput(envelope)
+    : { ok: false, reason: "invalid_invocation" };
+}
+
 /** Convert a consent declaration and its authored fallback into fixed data. */
 function snapshotConsentPolicy(
   policy: NonNullable<AnyActionDefinition["consent"]>,
@@ -577,6 +905,15 @@ function validateWindowMs(value: number, field: string): number {
   return value;
 }
 
+function validateWorkflowLimit(value: number, field: string): number {
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new TypeError(
+      `Invalid Concierge configuration: ${field} must be a positive safe integer.`,
+    );
+  }
+  return value;
+}
+
 // ---------------------------------------------------------------------------
 // Module-private helpers
 // ---------------------------------------------------------------------------
@@ -598,8 +935,8 @@ function validateWindowMs(value: number, field: string): number {
  * by declaration order, so two stages sharing an id still serve their own
  * actions — measured, on three stages sharing one id, each of which returned
  * exactly its own action list. What *is* genuinely ambiguous is the reporting:
- * `stageFor()`, `Session.stage()` and `explain()` all return the id, so two
- * rows a developer reads are indistinguishable. Claiming more would be a false
+ * resolved catalogs and `explain()` both return the id, so two rows a developer
+ * reads are indistinguishable. Claiming more would be a false
  * alarm about scoping; claiming less would leave a real ambiguity unreported.
  *
  * **The scan behind it keeps TWO sets, not one.** `seenStageIds` answers "have
@@ -618,7 +955,7 @@ function validateWindowMs(value: number, field: string): number {
 function duplicateStageIdMessage(id: string): string {
   return (
     `concierge: [duplicate_stage_id] stage ${encodeDiagnosticSubject(id)}: two stages declare this id, and ` +
-    `\`stageFor()\`, \`Session.stage()\` and \`explain()\` all report it, so the two are ` +
+    `resolved catalogs and \`explain()\` both report it, so the two are ` +
     `indistinguishable to a developer reading any of them. Catalog scoping is unaffected — ` +
     `the per-stage catalog is keyed by declaration order, not by id. ` +
     `Fix: give each stage a distinct id.`
@@ -630,8 +967,8 @@ function duplicateStageIdMessage(id: string): string {
  * states for `stage.match`, applied to the other consumer-supplied seam a stage
  * carries.
  *
- * `bridgeStatus` is its only caller today. Phase 6's dispatcher is the second,
- * and there must never be a third: the throw policy below and the not-declared
+ * `bridgeStatus` and the dispatcher share this seam, and there must not be a
+ * second resolution path: the throw policy below and the not-declared
  * policy below it are each written once here, so `explain` and a dispatcher
  * cannot drift into two readers that disagree about the same stage. A second
  * resolution path is not a duplicate function, it is a second answer to "is this
@@ -669,11 +1006,9 @@ function duplicateStageIdMessage(id: string): string {
  * `bridgeStatus` keeps its own `stage.bridge === undefined` early return ahead of
  * the call rather than reconstructing the distinction from this return value.
  *
- * The parameter is spelled `ConciergeConfig["stages"][number]` for the reason
- * already recorded on `bridgeStatus` below: the `any` lives in `types.ts`, where
- * D-07's measured contravariance reason justifies it, and re-spelling it here
- * would be a second, unargued occurrence of an erasure that was argued once.
- * Because that collection is erased, `registry.read()` yields `any`; the
+ * The parameter preserves the erased heterogeneous bridge collection from
+ * `ConciergeConfig.stages`. Because that collection is erased,
+ * `registry.read()` yields `any`; the
  * explicit `Bridge | null` return annotation is what stops the erasure
  * propagating to every caller.
  */
@@ -704,14 +1039,8 @@ function resolveBridge(stage: ConciergeConfig["stages"][number]): Bridge | null 
  *   invisible in every other channel this package has.
  * - `{id, registered: true}` — `read()` returned a bridge.
  *
- * **The shape survives Phase 5 unchanged, which is why it was chosen.** `id`
- * and `read()` are both on the declared `BridgeRegistry` interface *today*, so
- * `createBridge` arriving later produces a conforming object and changes
- * nothing here. That is also what makes DX-01's bridge clause fully testable in
- * this phase with no Phase 5 code: a hand-rolled
- * `{id, read: () => mounted, register: () => () => {}}` is exactly what the
- * exported interface admits, and nothing about such a test changes when the
- * real registry ships.
+ * `id` and `read()` come directly from the structural `BridgeRegistry`
+ * interface, so built-in and application-owned registries report identically.
  *
  * **`read()` is consumer code, so it is guarded the same way `match` is.** A
  * throwing `read()` is not a registration, and it is not a reason to take down
@@ -724,10 +1053,8 @@ function resolveBridge(stage: ConciergeConfig["stages"][number]): Bridge | null 
  * structured `registered: false` row is already in front of the person who
  * asked for it.
  *
- * The parameter is spelled `ConciergeConfig["stages"][number]` rather than
- * `StageDefinition<any>`. The `any` already lives in `types.ts`, where D-07's
- * measured contravariance reason justifies it; re-spelling it here would be a
- * second, unargued occurrence of an erasure that was argued once.
+ * The parameter reuses `ConciergeConfig`'s heterogeneous stage element type
+ * instead of introducing another bridge erasure here.
  */
 function bridgeStatus(
   stage: ConciergeConfig["stages"][number],
@@ -756,44 +1083,12 @@ function bridgeStatus(
 // ---------------------------------------------------------------------------
 
 /**
- * Assemble one catalog from every declared stage, then serve a stage-scoped,
- * reference-stable, sealed view of it.
+ * Build one framework-neutral Concierge from all stage and cross-stage action
+ * declarations.
  *
- * ---------------------------------------------------------------------------
- * CAT-01's name union stops at the config boundary, and that is correct
- * ---------------------------------------------------------------------------
- *
- * `buildCatalog`'s `const` type parameter carries the literal name union — that
- * is CAT-01's mechanism and it is real. It does not survive this function, and
- * a reader who assumes it should will burn a wave trying to preserve it.
- * Measured three ways under this repo's exact flags:
- *
- * | Assembly path | Derived `names[number]` |
- * |---|---|
- * | `buildCatalog([alpha, beta])` — the documented path | `"alpha" \| "beta"` |
- * | `buildCatalog([...stage.actions])`, `stage satisfies StageDefinition` | `"alpha"` |
- * | the flat assembly this function performs | **`string`** |
- *
- * **The cause is not `flatMap`.** It is `ConciergeConfig.stages:
- * ReadonlyArray<StageDefinition<any>>` — D-07's deliberate erasure, taken for a
- * measured contravariance reason (`StageDefinition<ResultsBridge>` is not
- * assignable to `StageDefinition<Bridge>`, TS2375). Reading the actions back
- * out of an erased collection cannot recover what the collection erased.
- *
- * **Nothing downstream wants the union today**, which is why no requirement is
- * unmet: `Concierge.dispatch(name: string, …)`, `EmittedTool.name: string` and
- * `Session.stage(): string | null` all take the open type.
- *
- * **Measured and deliberately not taken:**
- * `createConcierge<const C extends ConciergeConfig>(config: C)` **does** recover
- * the union inside a config literal. It is not taken because the union has
- * nowhere to go — `Concierge` is not generic, and making it generic ripples
- * into `Session`, `SessionConfig` and every adapter — and because the inline
- * `defineAction` widening documented on `ConciergeConfig.stages` sits upstream
- * of it, so the recovery would work at some call sites and silently not at
- * others. A partially-recovered union is worse than an honestly open one, for
- * the same reason a `readonly` that does not go all the way down is worse than
- * none.
+ * Declarations and policy capabilities are captured at construction. One flat
+ * validated catalog backs every atomic stage/availability projection, so
+ * duplicate names and consent targets are checked across the whole app.
  */
 export function createConcierge(config: ConciergeConfig): Concierge {
   const capturedConsent: CapturedConsentConfiguration =
@@ -820,6 +1115,14 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   const dedupeWindowMs: number = validateWindowMs(
     config.dedupeWindowMs ?? 600,
     "dedupeWindowMs",
+  );
+  const maxWorkflowDepth: number = validateWorkflowLimit(
+    config.maxWorkflowDepth ?? 16,
+    "maxWorkflowDepth",
+  );
+  const maxWorkflowSteps: number = validateWorkflowLimit(
+    config.maxWorkflowSteps ?? 256,
+    "maxWorkflowSteps",
   );
 
   // ONE flat build over every stage's actions followed by the cross-stage
@@ -914,7 +1217,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   //
   //     buildCatalog is happy:                    [ 'a', 'b' ]
   //     id-keyed projection silently collapses:   {"results":["b"]}
-  //     stageFor resolves to: results  ->  projection would be [ 'b' ]
+  //     resolved stage is: results    ->  projection would be [ 'b' ]
   //
   // Nothing already in the codebase can see it. `buildCatalog` receives a flat
   // action array and has no concept of a stage; `duplicate_action_name` does
@@ -922,8 +1225,8 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   // reached entirely through legal, type-correct configuration.
   //
   // Keying by declaration index makes the collapse impossible at zero new
-  // surface cost. What it does NOT widen: the id is still what `stageFor`,
-  // `Session.stage()` and `explain()` report, so the ambiguity remains visible
+  // surface cost. What it does NOT widen: the id is still what resolved
+  // catalogs and `explain()` report, so the ambiguity remains visible
   // to a human — which is why the scan below still warns. Both halves are
   // required; either alone leaves a defect.
   //
@@ -945,32 +1248,19 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     seenStageIds.add(stage.id);
   }
 
-  // Instance-local mutable state. Every structure is `null` until its first
-  // use, per header constraint 1 — a server process reuses this module across
-  // every request it serves, and any one of these at module scope would carry
-  // one config's answers, retries, or warnings into another's.
-  //
-  // **A `Map` and not a null-prototype record, because the key type is
-  // `number | null`.** That is a measurement, not a preference. A record cannot
-  // hold a `null` key, so it needs a sentinel — and every sentinel string is a
-  // legal stage id. It cannot hold a number key without stringifying it, and
-  // `String(null)` collides with a stage whose id is literally `"null"`. All
-  // three failure shapes were reproduced:
-  //
-  //     Map handles a null key natively:            [ 'cross' ]
-  //     record + sentinel, stage id === sentinel:   [ 'FROM THE STAGE NAMED THE SENTINEL' ]
-  //     record + String(null) key, stage id 'null': [ "a stage whose id is literally 'null'" ]
-  //
-  // `catalog.ts:260-268` is the reason this does not contradict `Catalog.byName`
-  // being a record: "a frozen `Map` is not frozen" governs anything that must be
-  // frozen, and settles that a `Map` remains correct for mutable state. This
-  // memo is never frozen and is never part of the catalog, so it is the case
-  // that sentence carves out rather than the case it rules against.
-  let memo: Map<number | null, ReadonlyArray<EmittedTool>> | null = null;
+  // All mutable runtime state is instance-local so server requests cannot
+  // share catalog capabilities, retry records, listeners, or consent state.
+  let resolvedMemo: Map<string, ResolvedCatalog> | null = null;
+  let v2Dispatches: Map<string, V2DedupeRecord> | null = null;
+  let dispatchListeners: Map<number, DispatchListener> | null = null;
+  let nextDispatchListenerId: number = 0;
+  let nextDispatchId: bigint = 0n;
+  let nextInvalidInputId: bigint = 0n;
+  const invalidInputIds: WeakMap<object, bigint> = new WeakMap<object, bigint>();
+  const invalidSymbolIds: Map<symbol, bigint> = new Map<symbol, bigint>();
+  const dispatchEventQueue: QueuedDispatchEvent[] = [];
+  let dispatchEventScheduled: boolean = false;
   let warnedStages: Set<string> | null = null;
-  let dispatchPromises: Map<string, Promise<ActionResult>> | null = null;
-  let dispatchSettledAt: Map<string, number> | null = null;
-  let dispatchPending: Set<string> | null = null;
   let dispatchExecutionStates:
     | WeakMap<Promise<ActionResult>, DispatchExecutionState>
     | null = null;
@@ -978,12 +1268,20 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   let consentGenerations: Map<string, ConsentGeneration> | null = null;
   let nextConsentGeneration: bigint = 0n;
 
+  /** Address review authority by both its session namespace and action name. */
+  function consentSlotKey(
+    sessionId: string | null,
+    reviewName: string,
+  ): string {
+    return JSON.stringify([sessionId, reviewName]);
+  }
+
   /** Delete a generation only while the caller still owns its review slot. */
-  function closeConsentGeneration(reviewName: string, generation: bigint): void {
+  function closeConsentGeneration(slotKey: string, generation: bigint): void {
     const current: ConsentGeneration | undefined =
-      consentGenerations?.get(reviewName);
+      consentGenerations?.get(slotKey);
     if (current?.generation === generation) {
-      consentGenerations?.delete(reviewName);
+      consentGenerations?.delete(slotKey);
     }
   }
 
@@ -1028,12 +1326,12 @@ export function createConcierge(config: ConciergeConfig): Concierge {
 
   /** Arm one owned pending generation from snapshotted delivery evidence. */
   async function observeReviewDelivery(
-    reviewName: string,
+    slotKey: string,
     pending: ConsentGenerationBase & { readonly status: "pendingDelivery" },
     report: DeliveryReport,
   ): Promise<void> {
     const current: ConsentGeneration | undefined =
-      consentGenerations?.get(reviewName);
+      consentGenerations?.get(slotKey);
     if (
       current?.generation !== pending.generation ||
       current.status !== "pendingDelivery" ||
@@ -1046,11 +1344,11 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       ...pending,
       status: "verifyingDelivery" as const,
     });
-    consentGenerations?.set(reviewName, claimed);
+    consentGenerations?.set(slotKey, claimed);
 
     const deliverySnapshot = snapshotDeliveryEvidence(report);
     if (!deliverySnapshot.ok) {
-      closeConsentGeneration(reviewName, pending.generation);
+      closeConsentGeneration(slotKey, pending.generation);
       return;
     }
     const delivery: DeliveryEvidenceSnapshot = deliverySnapshot.value;
@@ -1059,14 +1357,14 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       delivery.responseId !== pending.responseId ||
       delivery.outcome !== "completed"
     ) {
-      closeConsentGeneration(reviewName, pending.generation);
+      closeConsentGeneration(slotKey, pending.generation);
       return;
     }
 
     const observedAct: unknown = delivery.attestation?.act;
     if (observedAct === "declined" || observedAct === "dismissed") {
       consentGenerations?.set(
-        reviewName,
+        slotKey,
         Object.freeze({ ...claimed, status: observedAct }),
       );
       return;
@@ -1095,7 +1393,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       attestation.userTurnId.length > 0 &&
       attestation.userTurnId !== claimed.userTurnId;
     if (hasAttestedClaim && !completeAttestedClaim) {
-      closeConsentGeneration(reviewName, claimed.generation);
+      closeConsentGeneration(slotKey, claimed.generation);
       return;
     }
     if (completeAttestedClaim) {
@@ -1104,7 +1402,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         attestation === undefined ||
         typeof attestation.userTurnId !== "string"
       ) {
-        closeConsentGeneration(reviewName, claimed.generation);
+        closeConsentGeneration(slotKey, claimed.generation);
         return;
       }
       const freshHash: string | null = await digestReadback(
@@ -1112,7 +1410,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         verified.canonical,
       );
       const stillOwned: ConsentGeneration | undefined =
-        consentGenerations?.get(reviewName);
+        consentGenerations?.get(slotKey);
       if (
         stillOwned?.generation !== claimed.generation ||
         stillOwned.status !== "verifyingDelivery" ||
@@ -1121,7 +1419,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         return;
       }
       if (freshHash !== verified.hash) {
-        closeConsentGeneration(reviewName, claimed.generation);
+        closeConsentGeneration(slotKey, claimed.generation);
         return;
       }
       achievedGrade = "attested";
@@ -1131,14 +1429,14 @@ export function createConcierge(config: ConciergeConfig): Concierge {
 
     if (!isMeasuredConsentGrade(achievedGrade)) {
       consentGenerations?.set(
-        reviewName,
+        slotKey,
         Object.freeze({ ...claimed, status: "gradeUnavailable" }),
       );
       return;
     }
 
     consentGenerations?.set(
-      reviewName,
+      slotKey,
       Object.freeze({
         ...claimed,
         achievedGrade,
@@ -1195,9 +1493,9 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   /**
    * The ONLY place `stage.match` is invoked — header constraint 3.
    *
-   * `catalogFor`, `stageFor` and `explain` all reach a matcher through here, so
-   * the throw policy, the non-boolean policy and the warn-once latch exist once
-   * and cannot drift apart into three readers that disagree about the same
+   * catalog resolution and `explain` both reach a matcher through here, so the
+   * throw policy, the non-boolean policy and the warn-once latch exist once and
+   * cannot drift apart into readers that disagree about the same
    * context.
    */
   function runMatch(stage: ConciergeConfig["stages"][number], ctx: StageContext): boolean {
@@ -1287,83 +1585,76 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     return null;
   }
 
-  /**
-   * The memoized per-stage projection — STG-04's referential identity.
-   *
-   * **This function never sees a `ctx`.** That is what makes "memoize by
-   * resolved stage, not by context identity" mechanical rather than a
-   * discipline someone has to remember: there is no context in scope to key on
-   * even by accident. Two distinct context objects that resolve to the same
-   * stage get the identical array, measured — React's `useSyncExternalStore`
-   * compares snapshots with `Object.is` and Svelte 5's `$derived` with `===`,
-   * so a fresh-but-equal array is an infinite render, not a slow one.
-   *
-   * **The no-stage branch returns the CROSS-STAGE actions, not an empty
-   * array.** `ConciergeConfig.crossStage` is declared "available in every
-   * stage"; an unrouted page is still a page, and silently stripping actions
-   * the developer explicitly marked global would contradict the declaration
-   * they wrote.
-   *
-   * Rejected: an empty frozen array. "Fail closed" is the right instinct for
-   * *consent*, and it is the wrong one here — it would silently disable
-   * `signOut`-shaped actions on any page no stage happens to match, which is
-   * every 404 and every route a developer has not added a stage for yet. The
-   * situation is not hidden either way: `stageFor` returns `null` and `explain`
-   * reports every stage's `matched: false`, so the diagnosis is one call away
-   * rather than absent.
-   */
-  function projectFor(index: number | null): ReadonlyArray<EmittedTool> {
-    memo ??= new Map<number | null, ReadonlyArray<EmittedTool>>();
+  /** Resolve dynamic action availability exactly once for one matched stage. */
+  function resolveForIndex(
+    index: number | null,
+    ctx: StageContext,
+  ): AtomicCatalogResolution {
+    const candidates: readonly string[] =
+      index === null ? crossNames : (namesByStage[index] ?? crossNames);
+    const names: string[] = [];
+    let bitmap: string = "";
 
-    const hit: ReadonlyArray<EmittedTool> | undefined = memo.get(index);
-    if (hit !== undefined) {
-      return hit;
-    }
-
-    const names: readonly string[] = index === null ? crossNames : (namesByStage[index] ?? crossNames);
-    const projected: EmittedTool[] = names
-      .map((name) => toolByName[name])
-      .filter((tool): tool is EmittedTool => tool !== undefined);
-    const built: ReadonlyArray<EmittedTool> = Object.freeze(projected);
-
-    memo.set(index, built);
-    return built;
-  }
-
-  /** Remove every settled retry whose full post-settlement window elapsed. */
-  function sweepSettledDispatches(now: number): void {
-    if (
-      dispatchPromises === null ||
-      dispatchSettledAt === null ||
-      dispatchPending === null
-    ) {
-      return;
-    }
-
-    for (const [key, settledAt] of dispatchSettledAt) {
-      if (dispatchPending.has(key)) {
+    for (const name of candidates) {
+      const entry: CatalogEntry | undefined = catalog.byName[name];
+      if (entry === undefined) {
+        bitmap += "0";
         continue;
       }
-      if (now - settledAt >= dedupeWindowMs) {
-        dispatchSettledAt.delete(key);
-        dispatchPromises.delete(key);
+
+      const predicate: AnyActionDefinition["availableWhen"] =
+        entry.action.availableWhen;
+      let available: boolean = predicate === undefined;
+      if (predicate !== undefined) {
+        try {
+          const answer: unknown = predicate(ctx);
+          available = answer === true;
+          if (typeof answer !== "boolean") {
+            warnDispatchOnce(
+              `availability-non-boolean:${name}`,
+              `concierge: [availability_predicate] action ${encodeDiagnosticSubject(name)}: its \`availableWhen(ctx)\` did not return a boolean, so the action is unavailable. Fix: return exactly true or false for every context.`,
+            );
+          }
+        } catch {
+          available = false;
+          warnDispatchOnce(
+            `availability-threw:${name}`,
+            `concierge: [availability_predicate] action ${encodeDiagnosticSubject(name)}: its \`availableWhen(ctx)\` threw, so the action is unavailable. Fix: make the predicate total and free of assumptions about context fields.`,
+          );
+        }
       }
+
+      bitmap += available ? "1" : "0";
+      if (available) names.push(name);
     }
+
+    const key: string = `${index === null ? "none" : `stage:${index}`}:${bitmap}`;
+    resolvedMemo ??= new Map<string, ResolvedCatalog>();
+    let resolved: ResolvedCatalog | undefined = resolvedMemo.get(key);
+    if (resolved === undefined) {
+      const tools: ReadonlyArray<EmittedTool> = Object.freeze(
+        names
+          .map((name) => toolByName[name])
+          .filter((tool): tool is EmittedTool => tool !== undefined),
+      );
+      resolved = Object.freeze({
+        stage: index === null ? null : (stages[index]?.id ?? null),
+        revision: Symbol("concierge.catalog") as CatalogRevision,
+        tools,
+      });
+      resolvedMemo.set(key, resolved);
+    }
+
+    return {
+      index,
+      names: Object.freeze([...names]),
+      resolved,
+    };
   }
 
-  /** Begin the settled access window without replacing the cached Promise. */
-  function markDispatchSettled(key: string, promise: Promise<ActionResult>): void {
-    if (
-      dispatchPromises === null ||
-      dispatchSettledAt === null ||
-      dispatchPending === null ||
-      dispatchPromises.get(key) !== promise
-    ) {
-      return;
-    }
-
-    dispatchPending.delete(key);
-    dispatchSettledAt.set(key, Date.now());
+  /** The sole public catalog resolver: stage, availability and revision agree. */
+  function resolveCatalog(ctx: StageContext): ResolvedCatalog {
+    return resolveForIndex(resolveIndex(ctx), ctx).resolved;
   }
 
   /** Associate private control state without wrapping or replacing a Promise. */
@@ -1377,19 +1668,663 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     return promise;
   }
 
-  function resolvedDispatch(result: ActionResult): Promise<ActionResult> {
-    return trackDispatchPromise(
-      Promise.resolve(result),
-      { terminalEntered: false },
-    );
+  function allocateDispatchId(): string {
+    nextDispatchId += 1n;
+    return `dispatch-${nextDispatchId}`;
   }
 
-  function terminalEnteredFor(promise: Promise<ActionResult>): boolean {
-    return dispatchExecutionStates?.get(promise)?.terminalEntered === true;
+  function drainDispatchEvents(): void {
+    dispatchEventScheduled = false;
+    while (dispatchEventQueue.length > 0) {
+      const queued: QueuedDispatchEvent | undefined = dispatchEventQueue.shift();
+      if (queued === undefined) continue;
+      for (const listener of queued.listeners) {
+        try {
+          const returned: void | Promise<void> = listener(queued.event);
+          if (returned !== undefined) {
+            void Promise.resolve(returned).catch(() => {
+              warnDispatchOnce(
+                "dispatch-listener-rejected",
+                "concierge: [dispatch_listener_failed] a dispatch listener rejected; dispatch continued.",
+              );
+            });
+          }
+        } catch {
+          warnDispatchOnce(
+            "dispatch-listener-threw",
+            "concierge: [dispatch_listener_failed] a dispatch listener threw; dispatch continued.",
+          );
+        }
+      }
+    }
+  }
+
+  function emitDispatch(event: DispatchEvent): void {
+    const frozen: DispatchEvent = deepFreeze(
+      event,
+      NO_SKIP,
+      new WeakSet<object>(),
+    );
+    dispatchEventQueue.push({
+      event: frozen,
+      listeners: Object.freeze([...(dispatchListeners?.values() ?? [])]),
+    });
+    if (!dispatchEventScheduled) {
+      dispatchEventScheduled = true;
+      void Promise.resolve().then(drainDispatchEvents);
+    }
+  }
+
+  function onDispatch(listener: DispatchListener): () => void {
+    if (typeof listener !== "function") {
+      throw new TypeError("A dispatch listener must be callable.");
+    }
+    dispatchListeners ??= new Map<number, DispatchListener>();
+    nextDispatchListenerId += 1;
+    const id: number = nextDispatchListenerId;
+    dispatchListeners.set(id, listener);
+    let active: boolean = true;
+    return (): void => {
+      if (!active) return;
+      active = false;
+      if (dispatchListeners?.get(id) === listener) {
+        dispatchListeners.delete(id);
+      }
+    };
+  }
+
+  function observedInputFor(
+    entry: CatalogEntry,
+    validated: unknown,
+  ): ObservedInput {
+    const policy: AnyActionDefinition["redact"] = entry.action.redact;
+    if (policy === "drop") return DROPPED_INPUT;
+
+    let exposed: unknown = validated;
+    if (typeof policy === "function") {
+      try {
+        exposed = policy(validated);
+      } catch {
+        warnDispatchOnce(
+          `redaction-threw:${entry.action.name}`,
+          `concierge: [redaction_failed] action ${encodeDiagnosticSubject(entry.action.name)}: its redaction projection threw, so observer input was dropped. Fix: make the projection total and return invocation data.`,
+        );
+        return DROPPED_INPUT;
+      }
+    }
+
+    const snapshot: InvocationValueSnapshot = snapshotInvocationValue(exposed, true);
+    if (!snapshot.ok || encodeInvocationValue(snapshot.value) === null) {
+      warnDispatchOnce(
+        `redaction-invalid:${entry.action.name}`,
+        `concierge: [redaction_failed] action ${encodeDiagnosticSubject(entry.action.name)}: its observer projection was not safe invocation data, so observer input was dropped. Fix: return acyclic plain data without accessors or exotic objects.`,
+      );
+      return DROPPED_INPUT;
+    }
+    return Object.freeze({ kind: "included", value: snapshot.value });
+  }
+
+  function eventTerminalPhase(result: ActionResult): "succeeded" | "failed" | "cancelled" {
+    if (result.ok) return "succeeded";
+    switch (result.reason) {
+      case "aborted":
+      case "cancelled":
+      case "declined":
+      case "superseded":
+        return "cancelled";
+      default:
+        return "failed";
+    }
+  }
+
+  function latchWorkflowFailure(
+    root: WorkflowRootState,
+    result: ActionResult,
+  ): void {
+    if (root.failure === null && !result.ok) root.failure = result;
+  }
+
+  function workflowRuntimeFor(occurrence: V2Occurrence): WorkflowRuntime {
+    const cleanups: Array<() => void | Promise<void>> = [];
+    const childSteps: Map<
+      string,
+      Readonly<{
+        context: unknown;
+        name: string;
+        input: string;
+        promise: Promise<ActionResult>;
+      }>
+    > = new Map();
+    let acceptingWork: boolean = true;
+    let acceptingCleanup: boolean = true;
+    let localTail: Promise<void> = Promise.resolve();
+
+    const childLineage = (stepId: string): DispatchLineage => Object.freeze({
+      rootDispatchId: occurrence.root.rootDispatchId,
+      parentDispatchId: occurrence.dispatchId,
+      stepId,
+      depth: occurrence.lineage.depth + 1,
+    });
+
+    const rejectedChild = (
+      context: StageContext,
+      name: string | null,
+      stepId: string,
+      result: ActionResult,
+    ): Promise<ActionResult> => {
+      const resolution: AtomicCatalogResolution = resolveForIndex(
+        resolveIndex(context),
+        context,
+      );
+      return rejectedV2Dispatch(
+        context,
+        resolution,
+        name,
+        null,
+        occurrence.meta,
+        result,
+        { root: occurrence.root, lineage: childLineage(stepId) },
+      );
+    };
+
+    const enqueueFailure = (
+      context: StageContext,
+      name: string | null,
+      stepId: string,
+      failure: ActionResult,
+      latch: boolean = true,
+    ): Promise<ActionResult> => {
+      let resolveOperation!: (result: ActionResult) => void;
+      const operation = new Promise<ActionResult>((resolve) => {
+        resolveOperation = resolve;
+      });
+      const prior: Promise<void> = localTail;
+      const run = async (): Promise<void> => {
+        await prior;
+        if (
+          occurrence.root.terminalRef !== null ||
+          occurrence.root.terminalResult !== null
+        ) {
+          const superseded: ActionResult = authoredResult(
+            false,
+            "The workflow step was skipped after terminal execution began.",
+            "superseded",
+          );
+          resolveOperation(await rejectedChild(
+            context,
+            name,
+            stepId,
+            superseded,
+          ));
+          return;
+        }
+        if (occurrence.root.failure !== null) {
+          const superseded: ActionResult = authoredResult(
+            false,
+            "The workflow step was skipped after an earlier step failed.",
+            "superseded",
+          );
+          resolveOperation(await rejectedChild(
+            context,
+            name,
+            stepId,
+            superseded,
+          ));
+          return;
+        }
+        if (latch) latchWorkflowFailure(occurrence.root, failure);
+        resolveOperation(await rejectedChild(
+          context,
+          name,
+          stepId,
+          failure,
+        ));
+      };
+      localTail = run().catch(() => {
+        const contained: ActionResult = authoredResult(
+          false,
+          "Something went wrong.",
+          "handler_error",
+        );
+        latchWorkflowFailure(occurrence.root, contained);
+        void rejectedChild(
+          context,
+          name,
+          stepId,
+          contained,
+        ).then(resolveOperation);
+      });
+      return operation;
+    };
+
+    const controls: WorkflowControls = Object.freeze({
+      signal: occurrence.root.signal,
+      run(request: ChildActionRequest): Promise<ActionResult> {
+        if (!acceptingWork) {
+          warnDispatchOnce(
+            "workflow-run-late",
+            "concierge: [workflow_lifecycle] a child action was refused after its handler completed.",
+          );
+          return rejectedChild(
+            occurrence.context,
+            null,
+            "[late]",
+            authoredResult(
+            false,
+            "The workflow step arrived after its parent completed.",
+            "superseded",
+            ),
+          );
+        }
+
+        let stepId: unknown;
+        let name: unknown;
+        let input: unknown;
+        let childContext: unknown;
+        try {
+          stepId = request.stepId;
+          name = request.name;
+          input = request.input;
+          childContext = request.context ?? occurrence.context;
+        } catch {
+          const failure: ActionResult = authoredResult(
+            false,
+            "The workflow step is invalid.",
+            "invalid_invocation",
+          );
+          return enqueueFailure(
+            occurrence.context,
+            null,
+            "[unobservable]",
+            failure,
+          );
+        }
+
+        const observableStepId: string = isSafeIdentifier(stepId)
+          ? stepId
+          : "[invalid]";
+        const observableName: string | null = isSafeIdentifier(name)
+          ? name
+          : null;
+        const context: StageContext =
+          typeof childContext === "object" && childContext !== null
+            ? childContext as StageContext
+            : occurrence.context;
+        const rawInputKey: string = (() => {
+          const snapshot: InvocationValueSnapshot = snapshotInvocationValue(input);
+          const encoded: string | null = snapshot.ok
+            ? encodeInvocationValue(snapshot.value)
+            : null;
+          return encoded ?? invalidInputDescriptor(input);
+        })();
+
+        if (
+          !isSafeIdentifier(stepId) ||
+          !isSafeIdentifier(name) ||
+          typeof childContext !== "object" ||
+          childContext === null
+        ) {
+          const failure: ActionResult = authoredResult(
+            false,
+            "The workflow step is invalid.",
+            "invalid_invocation",
+          );
+          if (isSafeIdentifier(stepId)) {
+            const existing = childSteps.get(stepId);
+            if (existing !== undefined) {
+              if (
+                existing.context === childContext &&
+                existing.name === String(name) &&
+                existing.input === rawInputKey
+              ) {
+                return existing.promise;
+              }
+              return enqueueFailure(
+                context,
+                observableName,
+                observableStepId,
+                authoredResult(
+                  false,
+                  "The workflow step identity was reused for a different action.",
+                  "identity_conflict",
+                ),
+              );
+            }
+            const operation: Promise<ActionResult> = enqueueFailure(
+              context,
+              observableName,
+              observableStepId,
+              failure,
+            );
+            childSteps.set(stepId, Object.freeze({
+              context: childContext,
+              name: String(name),
+              input: rawInputKey,
+              promise: operation,
+            }));
+            return operation;
+          }
+          return enqueueFailure(context, observableName, observableStepId, failure);
+        }
+
+        const inputSnapshot: InvocationValueSnapshot = snapshotInvocationValue(input);
+        const inputKey: string | null = inputSnapshot.ok
+          ? encodeInvocationValue(inputSnapshot.value)
+          : null;
+        if (!inputSnapshot.ok || inputKey === null) {
+          const failure: ActionResult = authoredResult(
+            false,
+            "The workflow step arguments are invalid.",
+            "invalid_args",
+          );
+          const existing = childSteps.get(stepId);
+          if (existing !== undefined) {
+            if (
+              existing.context === childContext &&
+              existing.name === name &&
+              existing.input === rawInputKey
+            ) {
+              return existing.promise;
+            }
+            return enqueueFailure(
+              context,
+              name,
+              stepId,
+              authoredResult(
+                false,
+                "The workflow step identity was reused for a different action.",
+                "identity_conflict",
+              ),
+            );
+          }
+          const operation: Promise<ActionResult> = enqueueFailure(
+            context,
+            name,
+            stepId,
+            failure,
+          );
+          childSteps.set(stepId, Object.freeze({
+            context: childContext,
+            name,
+            input: rawInputKey,
+            promise: operation,
+          }));
+          return operation;
+        }
+
+        const existing = childSteps.get(stepId);
+        if (existing !== undefined) {
+          if (
+            existing.context === context &&
+            existing.name === name &&
+            existing.input === inputKey
+          ) {
+            return existing.promise;
+          }
+          const conflict: ActionResult = authoredResult(
+            false,
+            "The workflow step identity was reused for a different action.",
+            "identity_conflict",
+          );
+          return enqueueFailure(context, name, stepId, conflict);
+        }
+
+        let resolveOperation!: (result: ActionResult) => void;
+        const operation: Promise<ActionResult> = new Promise<ActionResult>((resolve) => {
+          resolveOperation = resolve;
+        });
+        childSteps.set(stepId, Object.freeze({
+          context,
+          name,
+          input: inputKey,
+          promise: operation,
+        }));
+
+        const prior: Promise<void> = localTail;
+        const run = async (): Promise<void> => {
+          await prior;
+          if (occurrence.root.failure !== null) {
+            resolveOperation(await rejectedChild(
+              context,
+              name,
+              stepId,
+              authoredResult(
+                false,
+                "The workflow step was skipped after an earlier step failed.",
+                "superseded",
+              ),
+            ));
+            return;
+          }
+          if (
+            occurrence.root.terminalRef !== null ||
+            occurrence.root.terminalResult !== null
+          ) {
+            resolveOperation(await rejectedChild(
+              context,
+              name,
+              stepId,
+              authoredResult(
+              false,
+              "The workflow step was skipped after terminal execution began.",
+              "superseded",
+              ),
+            ));
+            return;
+          }
+          if (
+            occurrence.lineage.depth + 1 > maxWorkflowDepth ||
+            occurrence.root.steps >= maxWorkflowSteps
+          ) {
+            const failure: ActionResult = authoredResult(
+              false,
+              "The workflow exceeded its safety limit.",
+              "handler_error",
+            );
+            latchWorkflowFailure(occurrence.root, failure);
+            resolveOperation(await rejectedChild(
+              context,
+              name,
+              stepId,
+              failure,
+            ));
+            return;
+          }
+          occurrence.root.steps += 1;
+          const childIndex: number = occurrence.root.steps;
+          const resolution: AtomicCatalogResolution = resolveForIndex(
+            resolveIndex(context),
+            context,
+          );
+          const parentIdentity: Readonly<InvocationIdentity> | null =
+            occurrence.identity;
+          const identity: InvocationIdentity = Object.freeze({
+            sessionId: parentIdentity?.sessionId ??
+              `workflow-${occurrence.root.rootDispatchId}`,
+            responseId: parentIdentity?.responseId ??
+              occurrence.root.rootDispatchId,
+            callId: `workflow:${occurrence.dispatchId}:${childIndex}`,
+            userTurnId: parentIdentity?.userTurnId ??
+              occurrence.root.rootDispatchId,
+            outputIndex: childIndex,
+          });
+          const childSnapshot: DispatchRequestSnapshot = snapshotDispatchRequest({
+            name,
+            input: inputSnapshot.value,
+            catalogRevision: resolution.resolved.revision,
+            identity,
+            signal: occurrence.root.signal,
+            deferUntilDelivered: occurrence.meta.deferUntilDelivered,
+          });
+          if (!childSnapshot.ok) {
+            const failure: ActionResult = authoredResult(
+              false,
+              "The workflow step is invalid.",
+              childSnapshot.reason,
+            );
+            latchWorkflowFailure(occurrence.root, failure);
+            resolveOperation(failure);
+            return;
+          }
+          const lineage: DispatchLineage = childLineage(stepId);
+          const result: ActionResult = await dispatchV2FromSnapshot(
+            context,
+            childSnapshot,
+            resolution,
+            { root: occurrence.root, lineage },
+          );
+          latchWorkflowFailure(occurrence.root, result);
+          resolveOperation(result);
+        };
+        localTail = run().catch(() => {
+          const failure: ActionResult = authoredResult(
+            false,
+            "Something went wrong.",
+            "handler_error",
+          );
+          latchWorkflowFailure(occurrence.root, failure);
+          resolveOperation(failure);
+        });
+        return operation;
+      },
+      delay(ms: number): Promise<void> {
+        if (!acceptingWork) {
+          warnDispatchOnce(
+            "workflow-delay-late",
+            "concierge: [workflow_lifecycle] a delay was refused after its handler completed.",
+          );
+          return Promise.reject(new Error("workflow completed"));
+        }
+        const prior: Promise<void> = localTail;
+        const operation = async (): Promise<void> => {
+          await prior;
+          if (occurrence.root.failure !== null || occurrence.root.terminalRef !== null) {
+            throw new Error("workflow stopped");
+          }
+          if (!Number.isFinite(ms) || ms < 0) {
+            const failure: ActionResult = authoredResult(
+              false,
+              "The workflow delay is invalid.",
+              "handler_error",
+            );
+            latchWorkflowFailure(occurrence.root, failure);
+            throw new Error("invalid workflow delay");
+          }
+          if (occurrence.root.steps >= maxWorkflowSteps) {
+            const failure: ActionResult = authoredResult(
+              false,
+              "The workflow exceeded its safety limit.",
+              "handler_error",
+            );
+            latchWorkflowFailure(occurrence.root, failure);
+            throw new Error("workflow limit");
+          }
+          occurrence.root.steps += 1;
+
+          let scheduler: Scheduler | undefined = configuredScheduler;
+          if (scheduler === undefined) {
+            try {
+              scheduler = readHostScheduler();
+            } catch {
+              scheduler = undefined;
+            }
+          }
+          const wait: CommitWaitOutcome = await waitForCommit(
+            scheduler,
+            ms,
+            occurrence.root.signal,
+          );
+          if (wait === "aborted" || isAborted(occurrence.root.signal)) {
+            const failure: ActionResult = authoredResult(
+              false,
+              "The workflow was cancelled.",
+              "aborted",
+            );
+            latchWorkflowFailure(occurrence.root, failure);
+            throw new Error("workflow aborted");
+          }
+          if (wait === "unavailable") {
+            const failure: ActionResult = authoredResult(
+              false,
+              "The workflow timer is unavailable.",
+              "handler_error",
+            );
+            latchWorkflowFailure(occurrence.root, failure);
+            throw new Error("workflow timer unavailable");
+          }
+        };
+        const promise: Promise<void> = operation();
+        localTail = promise.catch(() => {});
+        return promise;
+      },
+      cleanup(fn: () => void | Promise<void>): () => void {
+        if (!acceptingCleanup || typeof fn !== "function") {
+          warnDispatchOnce(
+            "workflow-cleanup-late",
+            "concierge: [workflow_cleanup] cleanup registration was refused after unwinding began.",
+          );
+          return (): void => {};
+        }
+        const entry: { active: boolean; fn: () => void | Promise<void> } = {
+          active: true,
+          fn,
+        };
+        cleanups.push((): void | Promise<void> => {
+          if (!entry.active) return;
+          entry.active = false;
+          return entry.fn();
+        });
+        return (): void => {
+          entry.active = false;
+        };
+      },
+    });
+
+    return {
+      controls,
+      seal(): void {
+        acceptingWork = false;
+        acceptingCleanup = false;
+      },
+      async drain(): Promise<void> {
+        try {
+          await localTail;
+        } catch {
+          // Individual operations already latched their safe result.
+        }
+      },
+      async unwind(): Promise<void> {
+        acceptingCleanup = false;
+        let cleanupFailed: boolean = false;
+        for (let index: number = cleanups.length - 1; index >= 0; index -= 1) {
+          const cleanup: (() => void | Promise<void>) | undefined = cleanups[index];
+          if (cleanup === undefined) continue;
+          try {
+            await cleanup();
+          } catch {
+            cleanupFailed = true;
+          }
+        }
+        if (cleanupFailed) {
+          if (occurrence.root.failure === null) {
+            occurrence.root.failure = authoredResult(
+              false,
+              "Something went wrong during cleanup.",
+              "handler_error",
+            );
+          } else {
+            warnDispatchOnce(
+              "workflow-cleanup-failed",
+              "concierge: [workflow_cleanup] a cleanup failed after an earlier workflow failure; the earlier result was preserved.",
+            );
+          }
+        }
+      },
+    };
   }
 
   /** Execute one call after the synchronous deduplication boundary. */
-  async function runDispatchPipeline(
+  async function runDispatchPipelineCore(
     index: number | null,
     entry: CatalogEntry,
     name: string,
@@ -1397,6 +2332,9 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     meta: InvocationMeta,
     argumentsMalformed: boolean,
     executionState: DispatchExecutionState,
+    workflow: WorkflowControls,
+    occurrence: V2Occurrence | null,
+    observation: PipelineObservation,
   ): Promise<ActionResult> {
     const handler: unknown = entry.action.handler;
     if (typeof handler !== "function") {
@@ -1419,10 +2357,13 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       );
     }
 
+    const consentSessionId: string | null =
+      occurrence?.identity?.sessionId ?? null;
+    const actionConsentSlotKey: string = consentSlotKey(consentSessionId, name);
     const replacesReviewAuthority: boolean = reviewNames.has(name);
     if (replacesReviewAuthority) {
       // Validation is the freshness boundary. Every later failure stays closed.
-      consentGenerations?.delete(name);
+      consentGenerations?.delete(actionConsentSlotKey);
     }
 
     let preparedReadback: PreparedReadback | null = null;
@@ -1444,7 +2385,11 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     } else {
       validatedSnapshot = snapshotInvocationValue(validation.value, true);
     }
-    if (!validatedSnapshot.ok) {
+    if (
+      !validatedSnapshot.ok ||
+      (occurrence !== null &&
+        encodeInvocationValue(validatedSnapshot.value) === null)
+    ) {
       return authoredResult(
         false,
         "The action arguments are invalid.",
@@ -1464,18 +2409,22 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         preparedReadback,
         readbackHash: null,
         responseId: meta.responseId ?? "",
+        sessionId: consentSessionId,
         snapshot: captureReviewSnapshot(index),
         status: "reviewing",
         userTurnId: meta.userTurnId ?? "",
         verifiedReadback: null,
       });
       consentGenerations ??= new Map<string, ConsentGeneration>();
-      consentGenerations.set(name, reviewingGeneration);
+      consentGenerations.set(actionConsentSlotKey, reviewingGeneration);
     }
 
     const closeOwnedReview = (): void => {
       if (reviewingGeneration !== null) {
-        closeConsentGeneration(name, reviewingGeneration.generation);
+        closeConsentGeneration(
+          actionConsentSlotKey,
+          reviewingGeneration.generation,
+        );
       }
     };
 
@@ -1490,6 +2439,23 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       );
     }
 
+    if (occurrence !== null) {
+      observation.input = observedInputFor(entry, validatedSnapshot.value);
+      observation.accepted = true;
+      emitDispatch({
+        dispatchId: occurrence.dispatchId,
+        name,
+        stage: occurrence.resolution.resolved.stage,
+        catalogRevision: occurrence.resolution.resolved.revision,
+        identity: occurrence.identity,
+        lineage: occurrence.lineage,
+        input: observation.input,
+        terminalAction: entry.action.terminal === true,
+        terminalEntered: false,
+        phase: "accepted",
+      });
+    }
+
     if (entry.action.effects?.readOnly !== true) {
       let scheduler: Scheduler | undefined = configuredScheduler;
       if (scheduler === undefined) {
@@ -1498,6 +2464,22 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         } catch {
           scheduler = undefined;
         }
+      }
+
+      if (occurrence !== null && commitWindowMs > 0) {
+        emitDispatch({
+          dispatchId: occurrence.dispatchId,
+          name,
+          stage: occurrence.resolution.resolved.stage,
+          catalogRevision: occurrence.resolution.resolved.revision,
+          identity: occurrence.identity,
+          lineage: occurrence.lineage,
+          input: observation.input,
+          terminalAction: entry.action.terminal === true,
+          terminalEntered: false,
+          phase: "waiting",
+          wait: "commit_window",
+        });
       }
 
       const wait: CommitWaitOutcome = await waitForCommit(
@@ -1547,11 +2529,19 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     let consentAck: ConsentAck<unknown, unknown> | undefined;
     const policy: ConsentPolicy<unknown> | undefined = entry.action.consent;
     if (policy !== undefined) {
+      if (occurrence !== null && occurrence.lineage.depth > 0) {
+        closeOwnedReview();
+        return missingConsentResult(policy);
+      }
       const reviewName: string = policy.requires;
+      const reviewConsentSlotKey: string = consentSlotKey(
+        consentSessionId,
+        reviewName,
+      );
       const owned: ConsentGeneration | undefined =
-        consentGenerations?.get(reviewName);
+        consentGenerations?.get(reviewConsentSlotKey);
       if (owned?.status === "gradeUnavailable") {
-        closeConsentGeneration(reviewName, owned.generation);
+        closeConsentGeneration(reviewConsentSlotKey, owned.generation);
         closeOwnedReview();
         return authoredResult(
           false,
@@ -1560,11 +2550,14 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         );
       }
       if (owned?.status === "declined" || owned?.status === "dismissed") {
-        closeConsentGeneration(reviewName, owned.generation);
+        closeConsentGeneration(reviewConsentSlotKey, owned.generation);
         closeOwnedReview();
         return owned.status === "declined" ? USER_DECLINED : USER_CANCELLED;
       }
-      if (owned?.status !== "armed") {
+      if (
+        owned?.status !== "armed" ||
+        owned.sessionId !== consentSessionId
+      ) {
         closeOwnedReview();
         return missingConsentResult(policy);
       }
@@ -1582,7 +2575,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       }
 
       if (!isMeasuredConsentGrade(owned.achievedGrade)) {
-        closeConsentGeneration(reviewName, owned.generation);
+        closeConsentGeneration(reviewConsentSlotKey, owned.generation);
         closeOwnedReview();
         return authoredResult(
           false,
@@ -1595,7 +2588,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         (owned.readbackHash === null ||
           owned.confirmationUserTurnId === null)
       ) {
-        closeConsentGeneration(reviewName, owned.generation);
+        closeConsentGeneration(reviewConsentSlotKey, owned.generation);
         closeOwnedReview();
         return authoredResult(
           false,
@@ -1609,7 +2602,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       if (
         consentGradeRank(owned.achievedGrade) < consentGradeRank(minimumGrade)
       ) {
-        closeConsentGeneration(reviewName, owned.generation);
+        closeConsentGeneration(reviewConsentSlotKey, owned.generation);
         closeOwnedReview();
         return authoredResult(
           false,
@@ -1631,7 +2624,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         snapshotsMatch = false;
       }
       if (!snapshotsMatch) {
-        closeConsentGeneration(reviewName, owned.generation);
+        closeConsentGeneration(reviewConsentSlotKey, owned.generation);
         closeOwnedReview();
         return authoredResult(
           false,
@@ -1651,17 +2644,18 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       }
 
       const stillOwned: ConsentGeneration | undefined =
-        consentGenerations?.get(reviewName);
+        consentGenerations?.get(reviewConsentSlotKey);
       if (
         stillOwned?.status !== "armed" ||
-        stillOwned.generation !== owned.generation
+        stillOwned.generation !== owned.generation ||
+        stillOwned.sessionId !== consentSessionId
       ) {
         closeOwnedReview();
         return missingConsentResult(policy);
       }
 
       // Authority is one-shot across every action sharing this review name.
-      closeConsentGeneration(reviewName, owned.generation);
+      closeConsentGeneration(reviewConsentSlotKey, owned.generation);
       consentAck = Object.freeze(
         owned.achievedGrade === "attested"
           ? {
@@ -1686,12 +2680,38 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     try {
       if (entry.action.terminal === true) {
         executionState.terminalEntered = true;
+        if (occurrence !== null) {
+          const enteredBy: DispatchRef = Object.freeze({
+            dispatchId: occurrence.dispatchId,
+            name,
+            callId: occurrence.identity?.callId ?? occurrence.dispatchId,
+            outputIndex: occurrence.identity?.outputIndex ?? 0,
+            lineage: occurrence.lineage,
+          });
+          executionState.terminalRef = enteredBy;
+          occurrence.root.terminalRef = enteredBy;
+        }
+      }
+      if (occurrence !== null) {
+        emitDispatch({
+          dispatchId: occurrence.dispatchId,
+          name,
+          stage: occurrence.resolution.resolved.stage,
+          catalogRevision: occurrence.resolution.resolved.revision,
+          identity: occurrence.identity,
+          lineage: occurrence.lineage,
+          input: observation.input,
+          terminalAction: entry.action.terminal === true,
+          terminalEntered: executionState.terminalEntered,
+          phase: "executing",
+        });
       }
       handlerReturn = handler({
         args: validatedSnapshot.value,
         bridge,
         meta,
         ack: consentAck,
+        workflow,
       });
     } catch {
       closeOwnedReview();
@@ -1756,7 +2776,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     }
 
     const currentReview: ConsentGeneration | undefined =
-      consentGenerations?.get(name);
+      consentGenerations?.get(actionConsentSlotKey);
     if (
       currentReview?.generation !== reviewingGeneration.generation ||
       currentReview.status !== "reviewing" ||
@@ -1780,7 +2800,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         return normalizedResult;
       }
       const afterPresentation: ConsentGeneration | undefined =
-        consentGenerations?.get(name);
+        consentGenerations?.get(actionConsentSlotKey);
       if (
         afterPresentation?.generation !== reviewingGeneration.generation ||
         afterPresentation.status !== "reviewing" ||
@@ -1799,7 +2819,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         reviewingGeneration.preparedReadback.canonical,
       );
       const afterDigest: ConsentGeneration | undefined =
-        consentGenerations?.get(name);
+        consentGenerations?.get(actionConsentSlotKey);
       if (
         afterDigest?.generation !== reviewingGeneration.generation ||
         afterDigest.status !== "reviewing" ||
@@ -1833,170 +2853,1001 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       status: "pendingDelivery" as const,
       verifiedReadback,
     });
-    consentGenerations?.set(name, pendingDelivery);
+    consentGenerations?.set(actionConsentSlotKey, pendingDelivery);
     try {
       deliveryHook((report: DeliveryReport): void => {
-        void observeReviewDelivery(name, pendingDelivery, report);
+        void observeReviewDelivery(actionConsentSlotKey, pendingDelivery, report);
       });
     } catch {
-      closeConsentGeneration(name, reviewingGeneration.generation);
+      closeConsentGeneration(
+        actionConsentSlotKey,
+        reviewingGeneration.generation,
+      );
     }
 
     return normalizedResult;
   }
 
-  /**
-   * Dispatch is deliberately not async. The final pipeline Promise is stored
-   * synchronously and cache hits return that exact object by reference.
-   */
-  function dispatch(
-    ctx: StageContext,
+  async function runDispatchPipeline(
+    index: number | null,
+    entry: CatalogEntry,
     name: string,
     args: unknown,
-    meta?: InvocationMeta,
-    argumentsMalformed: boolean = false,
+    meta: InvocationMeta,
+    argumentsMalformed: boolean,
+    executionState: DispatchExecutionState,
+    occurrence: V2Occurrence,
   ): Promise<ActionResult> {
-    const index: number | null = resolveIndex(ctx);
-    const allowedNames: readonly string[] =
-      index === null ? crossNames : (namesByStage[index] ?? crossNames);
-
-    // Reserved prototype spellings are ordinary keys in the catalog's frozen
-    // null-prototype lookup. Authorization still stays ahead of the cache: a
-    // key proves retry identity, never stage authority.
-    if (!allowedNames.includes(name)) {
-      return resolvedDispatch(
-        authoredResult(
-          false,
-          "This action is not available in the current stage.",
-          "unknown_action",
-        ),
-      );
-    }
-
-    const entry: CatalogEntry | undefined = catalog.byName[name];
-    if (entry === undefined) {
-      return resolvedDispatch(
-        authoredResult(
-          false,
-          "This action is not available in the current stage.",
-          "unknown_action",
-        ),
-      );
-    }
-
-    const argsSnapshot: InvocationValueSnapshot = snapshotInvocationValue(args);
-    if (!argsSnapshot.ok) {
-      return resolvedDispatch(
-        authoredResult(
-          false,
-          "The action arguments are invalid.",
-          "invalid_args",
-        ),
-      );
-    }
-
-    const metaSnapshot: InvocationMetaSnapshot = snapshotInvocationMeta(meta);
-    if (!metaSnapshot.ok) {
-      return resolvedDispatch(
-        authoredResult(
-          false,
-          "The invocation metadata is invalid.",
-        ),
-      );
-    }
-
-    const derivedKey: string | null = deriveDispatchKey(
-      name,
-      argsSnapshot.value,
-      metaSnapshot.value,
-      index,
-    );
-    const key: string | null =
-      derivedKey === null
-        ? null
-        : argumentsMalformed
-          ? `malformed:${derivedKey}`
-          : derivedKey;
-    if (key === null) {
-      const executionState: DispatchExecutionState = {
-        terminalEntered: false,
-      };
-      return trackDispatchPromise(
-        runDispatchPipeline(
-          index,
-          entry,
-          name,
-          argsSnapshot.value,
-          metaSnapshot.value,
-          argumentsMalformed,
-          executionState,
-        ),
-        executionState,
-      );
-    }
-
-    dispatchPromises ??= new Map<string, Promise<ActionResult>>();
-    dispatchSettledAt ??= new Map<string, number>();
-    dispatchPending ??= new Set<string>();
-
-    sweepSettledDispatches(Date.now());
-    const hit: Promise<ActionResult> | undefined = dispatchPromises.get(key);
-    if (hit !== undefined) {
-      return hit;
-    }
-
-    const executionState: DispatchExecutionState = {
-      terminalEntered: false,
+    const observation: PipelineObservation = {
+      accepted: false,
+      input: DROPPED_INPUT,
     };
-    const promise: Promise<ActionResult> = Promise.resolve().then(() =>
-      runDispatchPipeline(
+    const workflow: WorkflowRuntime = workflowRuntimeFor(occurrence);
+    let result: ActionResult;
+    try {
+      result = await runDispatchPipelineCore(
         index,
         entry,
         name,
-        argsSnapshot.value,
-        metaSnapshot.value,
+        args,
+        meta,
         argumentsMalformed,
         executionState,
-      ),
-    );
-    trackDispatchPromise(promise, executionState);
-    dispatchPromises.set(key, promise);
-    dispatchSettledAt.delete(key);
-    dispatchPending.add(key);
+        workflow.controls,
+        occurrence,
+        observation,
+      );
+    } catch {
+      result = authoredResult(false, "Something went wrong.", "handler_error");
+    }
 
-    const observeSettlement = (): void => {
-      markDispatchSettled(key, promise);
+    workflow.seal();
+    await workflow.drain();
+    latchWorkflowFailure(occurrence.root, result);
+    await workflow.unwind();
+
+    if (
+      occurrence.root.terminalRef?.dispatchId === occurrence.dispatchId &&
+      occurrence.root.terminalResult === null
+    ) {
+      occurrence.root.terminalResult = occurrence.root.failure ?? result;
+    }
+    if (occurrence.root.terminalResult !== null) {
+      result = occurrence.root.terminalResult;
+    } else if (occurrence.root.failure !== null) {
+      result = occurrence.root.failure;
+    }
+
+    emitDispatch({
+      dispatchId: occurrence.dispatchId,
+      name,
+      stage: occurrence.resolution.resolved.stage,
+      catalogRevision: occurrence.resolution.resolved.revision,
+      identity: occurrence.identity,
+      lineage: occurrence.lineage,
+      input: observation.input,
+      terminalAction: entry.action.terminal === true,
+      phase: eventTerminalPhase(result),
+      result,
+      terminalEntered: occurrence.root.terminalRef !== null,
+    });
+    return result;
+  }
+
+  function rootOccurrence(
+    ctx: StageContext,
+    resolution: AtomicCatalogResolution,
+    meta: InvocationMeta,
+    executionState: DispatchExecutionState,
+    identity: Readonly<InvocationIdentity> | null = null,
+  ): V2Occurrence {
+    const dispatchId: string = allocateDispatchId();
+    executionState.rootDispatchId = dispatchId;
+    const lineage: DispatchLineage = Object.freeze({
+      rootDispatchId: dispatchId,
+      depth: 0,
+    });
+    const root: WorkflowRootState = {
+      rootDispatchId: dispatchId,
+      signal: meta.signal ?? NEVER_ABORTED_SIGNAL,
+      executionState,
+      steps: 0,
+      failure: null,
+      terminalResult: null,
+      terminalRef: null,
     };
-    void promise.then(observeSettlement, observeSettlement);
+    return {
+      context: ctx,
+      dispatchId,
+      identity,
+      lineage,
+      meta,
+      resolution,
+      root,
+    };
+  }
 
+  function dedupeDescriptorEquals(
+    left: V2DedupeDescriptor,
+    right: V2DedupeDescriptor,
+  ): boolean {
+    return left.revision === right.revision &&
+      left.name === right.name &&
+      left.input === right.input &&
+      left.outputIndex === right.outputIndex &&
+      left.userTurnId === right.userTurnId;
+  }
+
+  function sweepV2Dispatches(now: number): void {
+    if (v2Dispatches === null) return;
+    for (const [key, record] of v2Dispatches) {
+      if (
+        !record.pending &&
+        record.settledAt !== null &&
+        now - record.settledAt >= dedupeWindowMs
+      ) {
+        v2Dispatches.delete(key);
+      }
+    }
+  }
+
+  function identityKey(identity: Readonly<InvocationIdentity>): string {
+    return JSON.stringify([
+      identity.sessionId,
+      identity.responseId,
+      identity.callId,
+    ]);
+  }
+
+  function invalidObjectId(value: object): bigint {
+    let id: bigint | undefined = invalidInputIds.get(value);
+    if (id === undefined) {
+      nextInvalidInputId += 1n;
+      id = nextInvalidInputId;
+      invalidInputIds.set(value, id);
+    }
+    return id;
+  }
+
+  function invalidSymbolId(value: symbol): bigint {
+    let id: bigint | undefined = invalidSymbolIds.get(value);
+    if (id === undefined) {
+      nextInvalidInputId += 1n;
+      id = nextInvalidInputId;
+      invalidSymbolIds.set(value, id);
+    }
+    return id;
+  }
+
+  function invalidPrimitiveDescriptor(value: unknown): string {
+    if (value === null) return "null";
+    if (value === undefined) return "undefined";
+    if (typeof value === "boolean") return `boolean:${value ? "1" : "0"}`;
+    if (typeof value === "string") return `string:${JSON.stringify(value)}`;
+    if (typeof value === "bigint") return `bigint:${value}`;
+    if (typeof value === "symbol") return `symbol:${invalidSymbolId(value)}`;
+    if (typeof value === "number") {
+      const encoded: string = Number.isNaN(value)
+        ? "NaN"
+        : value === Number.POSITIVE_INFINITY
+          ? "+Infinity"
+          : value === Number.NEGATIVE_INFINITY
+            ? "-Infinity"
+            : Object.is(value, -0)
+              ? "-0"
+              : String(value);
+      return `number:${encoded}`;
+    }
+    return `type:${typeof value}`;
+  }
+
+  function invalidInputDescriptor(value: unknown): string {
+    const seen: WeakSet<object> = new WeakSet<object>();
+    const budget = { remaining: 10_000 };
+
+    const visit = (current: unknown): string => {
+      if (
+        (typeof current !== "object" || current === null) &&
+        typeof current !== "function"
+      ) {
+        return invalidPrimitiveDescriptor(current);
+      }
+
+      const objectValue: object = current as object;
+      const id: bigint = invalidObjectId(objectValue);
+      if (seen.has(objectValue)) return `ref:${id}`;
+      if (budget.remaining <= 0) return `object:${id}:budget`;
+      budget.remaining -= 1;
+      seen.add(objectValue);
+
+      let prototype: object | null;
+      let keys: readonly PropertyKey[];
+      try {
+        prototype = Object.getPrototypeOf(objectValue) as object | null;
+        keys = Reflect.ownKeys(objectValue);
+      } catch {
+        return `object:${id}:unreadable`;
+      }
+      if (keys.length > MAX_V2_BATCH_CALLS) {
+        return `object:${id}:keys:${keys.length}:over-limit`;
+      }
+
+      const prototypeDescriptor: string = prototype === null
+        ? "null"
+        : `object:${invalidObjectId(prototype)}`;
+      const parts: string[] = [];
+      for (const key of keys) {
+        if (budget.remaining <= 0) {
+          parts.push("budget");
+          break;
+        }
+        budget.remaining -= 1;
+        const keyDescriptor: string = typeof key === "symbol"
+          ? `symbol:${invalidSymbolId(key)}`
+          : `string:${JSON.stringify(key)}`;
+        let descriptor: PropertyDescriptor | undefined;
+        try {
+          descriptor = Object.getOwnPropertyDescriptor(objectValue, key);
+        } catch {
+          parts.push(`${keyDescriptor}=unreadable`);
+          continue;
+        }
+        if (descriptor === undefined) {
+          parts.push(`${keyDescriptor}=missing`);
+          continue;
+        }
+        const flags: string = `${descriptor.enumerable === true ? "e" : "-"}${descriptor.configurable === true ? "c" : "-"}`;
+        if ("value" in descriptor) {
+          parts.push(
+            `${keyDescriptor}=data:${flags}${descriptor.writable === true ? "w" : "-"}:${visit(descriptor.value)}`,
+          );
+        } else {
+          const getter: string = descriptor.get === undefined
+            ? "none"
+            : `object:${invalidObjectId(descriptor.get)}`;
+          const setter: string = descriptor.set === undefined
+            ? "none"
+            : `object:${invalidObjectId(descriptor.set)}`;
+          parts.push(`${keyDescriptor}=accessor:${flags}:${getter}:${setter}`);
+        }
+      }
+      return `object:${id}:prototype:${prototypeDescriptor}:{${parts.join(",")}}`;
+    };
+
+    return `[concierge:invalid-input:${visit(value)}]`;
+  }
+
+  function unreadablePropertyDescriptor(source: object, key: string): string {
+    const sourceId: bigint = invalidObjectId(source);
+    let descriptor: PropertyDescriptor | undefined;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(source, key);
+    } catch {
+      return `[concierge:unreadable-property:${sourceId}:${key}:unreadable]`;
+    }
+    if (descriptor === undefined) {
+      return `[concierge:unreadable-property:${sourceId}:${key}:inherited]`;
+    }
+    if ("value" in descriptor) {
+      return `[concierge:unreadable-property:${sourceId}:${key}:data:${invalidInputDescriptor(descriptor.value)}]`;
+    }
+    const getter: string = descriptor.get === undefined
+      ? "none"
+      : String(invalidObjectId(descriptor.get));
+    const setter: string = descriptor.set === undefined
+      ? "none"
+      : String(invalidObjectId(descriptor.set));
+    return `[concierge:unreadable-property:${sourceId}:${key}:accessor:${getter}:${setter}]`;
+  }
+
+  function observedPropertyDescriptor(
+    source: object | null,
+    key: string,
+    readable: boolean,
+    value: unknown,
+  ): string {
+    return readable
+      ? invalidInputDescriptor(value)
+      : source === null
+        ? `[concierge:unreadable-property:none:${key}]`
+        : unreadablePropertyDescriptor(source, key);
+  }
+
+  function rejectedV2Dispatch(
+    ctx: StageContext,
+    resolution: AtomicCatalogResolution,
+    name: string | null,
+    identity: Readonly<InvocationIdentity> | null,
+    meta: InvocationMeta,
+    result: ActionResult,
+    inherited?: Readonly<{
+      root: WorkflowRootState;
+      lineage: DispatchLineage;
+    }>,
+  ): Promise<ActionResult> {
+    const executionState: DispatchExecutionState =
+      inherited?.root.executionState ?? { terminalEntered: false };
+    const occurrence: V2Occurrence = inherited === undefined
+      ? rootOccurrence(ctx, resolution, meta, executionState, identity)
+      : {
+          context: ctx,
+          dispatchId: allocateDispatchId(),
+          identity,
+          lineage: inherited.lineage,
+          meta,
+          resolution,
+          root: inherited.root,
+        };
+    emitDispatch({
+      dispatchId: occurrence.dispatchId,
+      name,
+      stage: resolution.resolved.stage,
+      catalogRevision: resolution.resolved.revision,
+      identity,
+      lineage: occurrence.lineage,
+      input: DROPPED_INPUT,
+      terminalAction: false,
+      terminalEntered: inherited?.root.terminalRef !== null &&
+        inherited?.root.terminalRef !== undefined,
+      phase: eventTerminalPhase(result),
+      result,
+    });
+    return trackDispatchPromise(Promise.resolve(result), executionState);
+  }
+
+  function rejectedV2DispatchWithIdentity(
+    ctx: StageContext,
+    resolution: AtomicCatalogResolution,
+    name: string,
+    identity: Readonly<InvocationIdentity>,
+    meta: InvocationMeta,
+    revision: CatalogRevision,
+    inputDescriptor: string,
+    result: ActionResult,
+  ): Promise<ActionResult> {
+    const key: string = identityKey(identity);
+    const descriptor: V2DedupeDescriptor = {
+      revision,
+      name,
+      input: inputDescriptor,
+      outputIndex: identity.outputIndex,
+      userTurnId: identity.userTurnId,
+    };
+    v2Dispatches ??= new Map<string, V2DedupeRecord>();
+    sweepV2Dispatches(Date.now());
+    const existing: V2DedupeRecord | undefined = v2Dispatches.get(key);
+    if (existing !== undefined) {
+      return dedupeDescriptorEquals(existing.descriptor, descriptor)
+        ? existing.promise
+        : rejectedV2Dispatch(
+            ctx,
+            resolution,
+            name,
+            identity,
+            meta,
+            authoredResult(
+              false,
+              "The invocation identity was reused for a different call.",
+              "identity_conflict",
+            ),
+          );
+    }
+    return cacheV2Dispatch(
+      key,
+      descriptor,
+      rejectedV2Dispatch(ctx, resolution, name, identity, meta, result),
+    );
+  }
+
+  function cacheV2Dispatch(
+    key: string,
+    descriptor: V2DedupeDescriptor,
+    promise: Promise<ActionResult>,
+  ): Promise<ActionResult> {
+    v2Dispatches ??= new Map<string, V2DedupeRecord>();
+    const record: V2DedupeRecord = {
+      descriptor,
+      promise,
+      pending: true,
+      settledAt: null,
+    };
+    v2Dispatches.set(key, record);
+    const settle = (): void => {
+      if (v2Dispatches?.get(key) !== record) return;
+      record.pending = false;
+      record.settledAt = Date.now();
+    };
+    void promise.then(settle, settle);
     return promise;
   }
 
-  /** Retain rows and terminal state until the caller chooses a projection. */
-  function dispatchBatchInternally(
+  function dispatchV2FromSnapshot(
+    ctx: StageContext,
+    request: Extract<DispatchRequestSnapshot, { readonly ok: true }>,
+    resolution: AtomicCatalogResolution,
+    inherited?: Readonly<{
+      root: WorkflowRootState;
+      lineage: DispatchLineage;
+    }>,
+  ): Promise<ActionResult> {
+    const inputKey: string | null = encodeInvocationValue(request.input);
+    if (inputKey === null) {
+      const rejected: Promise<ActionResult> = rejectedV2Dispatch(
+        ctx,
+        resolution,
+        request.name,
+        request.identity,
+        request.meta,
+        authoredResult(false, "The action arguments are invalid.", "invalid_args"),
+        inherited,
+      );
+      if (request.identity === null) return rejected;
+      return cacheV2Dispatch(
+        identityKey(request.identity),
+        {
+          revision: request.revision,
+          name: request.name,
+          input: invalidInputDescriptor(request.input),
+          outputIndex: request.identity.outputIndex,
+          userTurnId: request.identity.userTurnId,
+        },
+        rejected,
+      );
+    }
+
+    let key: string | null = null;
+    let descriptor: V2DedupeDescriptor | null = null;
+    if (request.identity !== null) {
+      key = identityKey(request.identity);
+      descriptor = {
+        revision: request.revision,
+        name: request.name,
+        input: inputKey,
+        outputIndex: request.identity.outputIndex,
+        userTurnId: request.identity.userTurnId,
+      };
+      v2Dispatches ??= new Map<string, V2DedupeRecord>();
+      sweepV2Dispatches(Date.now());
+      const existing: V2DedupeRecord | undefined = v2Dispatches.get(key);
+      if (existing !== undefined) {
+        if (dedupeDescriptorEquals(existing.descriptor, descriptor)) {
+          return existing.promise;
+        }
+        return rejectedV2Dispatch(
+          ctx,
+          resolution,
+          request.name,
+          request.identity,
+          request.meta,
+          authoredResult(
+            false,
+            "The invocation identity was reused for a different call.",
+            "identity_conflict",
+          ),
+          inherited,
+        );
+      }
+    }
+
+    // Retry identity is authoritative before live-catalog admission. An exact
+    // retry must retain Promise identity even after the catalog advances, while
+    // reusing the same tuple with any changed descriptor is a conflict rather
+    // than a stale-catalog result.
+    if (request.revision !== resolution.resolved.revision) {
+      const rejected: Promise<ActionResult> = rejectedV2Dispatch(
+        ctx,
+        resolution,
+        resolution.names.includes(request.name) ? request.name : null,
+        request.identity,
+        request.meta,
+        authoredResult(
+          false,
+          "The available actions changed before this call was accepted.",
+          "catalog_stale",
+        ),
+        inherited,
+      );
+      return key === null || descriptor === null
+        ? rejected
+        : cacheV2Dispatch(key, descriptor, rejected);
+    }
+
+    if (!resolution.names.includes(request.name)) {
+      const rejected: Promise<ActionResult> = rejectedV2Dispatch(
+        ctx,
+        resolution,
+        null,
+        request.identity,
+        request.meta,
+        authoredResult(
+          false,
+          "This action is not available in the current stage.",
+          "unknown_action",
+        ),
+        inherited,
+      );
+      return key === null || descriptor === null
+        ? rejected
+        : cacheV2Dispatch(key, descriptor, rejected);
+    }
+    const entry: CatalogEntry | undefined = catalog.byName[request.name];
+    if (entry === undefined) {
+      const rejected: Promise<ActionResult> = rejectedV2Dispatch(
+        ctx,
+        resolution,
+        null,
+        request.identity,
+        request.meta,
+        authoredResult(
+          false,
+          "This action is not available in the current stage.",
+          "unknown_action",
+        ),
+        inherited,
+      );
+      return key === null || descriptor === null
+        ? rejected
+        : cacheV2Dispatch(key, descriptor, rejected);
+    }
+
+    const executionState: DispatchExecutionState =
+      inherited?.root.executionState ?? { terminalEntered: false };
+    const occurrence: V2Occurrence = inherited === undefined
+      ? rootOccurrence(
+          ctx,
+          resolution,
+          request.meta,
+          executionState,
+          request.identity,
+        )
+      : {
+          context: ctx,
+          dispatchId: allocateDispatchId(),
+          identity: request.identity,
+          lineage: inherited.lineage,
+          meta: request.meta,
+          resolution,
+          root: inherited.root,
+        };
+    const promise: Promise<ActionResult> = Promise.resolve().then(() =>
+      runDispatchPipeline(
+        resolution.index,
+        entry,
+        request.name,
+        request.input,
+        request.meta,
+        false,
+        executionState,
+        occurrence,
+      ),
+    );
+    trackDispatchPromise(promise, executionState);
+
+    if (key !== null && descriptor !== null && v2Dispatches !== null) {
+      cacheV2Dispatch(key, descriptor, promise);
+    }
+    return promise;
+  }
+
+  /** v2 public dispatch; deliberately not async so retries share a Promise. */
+  function dispatchV2(
+    ctx: StageContext,
+    request: DispatchRequest,
+  ): Promise<ActionResult> {
+    const resolution: AtomicCatalogResolution = resolveForIndex(
+      resolveIndex(ctx),
+      ctx,
+    );
+    const envelope: DispatchEnvelopeSnapshot = snapshotDispatchEnvelope(request);
+    if (!envelope.ok) {
+      return rejectedV2Dispatch(
+        ctx,
+        resolution,
+        null,
+        null,
+        Object.freeze({}),
+        authoredResult(
+          false,
+          "The invocation identity is invalid.",
+          "invalid_invocation",
+        ),
+      );
+    }
+
+    const detached: InvocationValueSnapshot = envelope.inputReadable
+      ? snapshotInvocationValue(envelope.rawInput)
+      : { ok: false };
+    const encoded: string | null = detached.ok
+      ? encodeInvocationValue(detached.value)
+      : null;
+    const inputDescriptor: string = encoded ?? (
+      envelope.inputReadable
+        ? invalidInputDescriptor(envelope.rawInput)
+        : unreadablePropertyDescriptor(envelope.source, "input")
+    );
+
+    // A reused tuple is resolved before input snapshotting. This preserves the
+    // exact cached Promise for an exact retry and classifies every changed or
+    // unencodable retry descriptor as an identity conflict.
+    if (envelope.identity !== null) {
+      v2Dispatches ??= new Map<string, V2DedupeRecord>();
+      sweepV2Dispatches(Date.now());
+      const existing: V2DedupeRecord | undefined = v2Dispatches.get(
+        identityKey(envelope.identity),
+      );
+      if (existing !== undefined) {
+        if (
+          dedupeDescriptorEquals(existing.descriptor, {
+            revision: envelope.revision,
+            name: envelope.name,
+            input: inputDescriptor,
+            outputIndex: envelope.identity.outputIndex,
+            userTurnId: envelope.identity.userTurnId,
+          })
+        ) {
+          return existing.promise;
+        }
+        return rejectedV2Dispatch(
+          ctx,
+          resolution,
+          envelope.name,
+          envelope.identity,
+          envelope.meta,
+          authoredResult(
+            false,
+            "The invocation identity was reused for a different call.",
+            "identity_conflict",
+          ),
+        );
+      }
+    }
+
+    if (!detached.ok || encoded === null) {
+      const result: ActionResult = authoredResult(
+        false,
+        "The action arguments are invalid.",
+        "invalid_args",
+      );
+      if (envelope.identity !== null) {
+        return rejectedV2DispatchWithIdentity(
+          ctx,
+          resolution,
+          envelope.name,
+          envelope.identity,
+          envelope.meta,
+          envelope.revision,
+          inputDescriptor,
+          result,
+        );
+      }
+      return rejectedV2Dispatch(
+        ctx,
+        resolution,
+        envelope.name,
+        null,
+        envelope.meta,
+        result,
+      );
+    }
+    return dispatchV2FromSnapshot(ctx, {
+      ok: true,
+      name: envelope.name,
+      input: detached.value,
+      revision: envelope.revision,
+      identity: envelope.identity,
+      meta: envelope.meta,
+    }, resolution);
+  }
+
+  /** Execute an ordered v2 batch and expose terminal control explicitly. */
+  async function dispatchBatchV2(
     ctx: StageContext,
     batch: ToolBatch,
-  ): Promise<InternalBatchOutcome> {
-    return executeDispatchBatch(ctx, batch, dispatch, terminalEnteredFor);
-  }
+  ): Promise<BatchDispatchOutcome> {
+    const resolution: AtomicCatalogResolution = resolveForIndex(
+      resolveIndex(ctx),
+      ctx,
+    );
 
-  /** Execute a copied batch while keeping terminal control state private. */
-  async function dispatchBatch(
-    ctx: StageContext,
-    batch: ToolBatch,
-  ): Promise<ReadonlyArray<Readonly<{ callId: string; result: ActionResult }>>> {
-    const outcome: InternalBatchOutcome =
-      await dispatchBatchInternally(ctx, batch);
-    return outcome.terminalEntered ? EMPTY_BATCH_ROWS : outcome.rows;
-  }
+    const sessionIdRead: GuardedValue = guardedValue(() => batch.sessionId);
+    const responseIdRead: GuardedValue = guardedValue(() => batch.responseId);
+    const revisionRead: GuardedValue = guardedValue(() => batch.catalogRevision);
+    const userTurnIdRead: GuardedValue = guardedValue(() => batch.userTurnId);
+    const signalRead: GuardedValue = guardedValue(() => batch.signal);
+    const deliveryRead: GuardedValue = guardedValue(
+      () => batch.deferUntilDelivered,
+    );
+    const callsRead: GuardedValue = guardedValue(() => batch.calls);
+    const sessionId: unknown = sessionIdRead.value;
+    const responseId: unknown = responseIdRead.value;
+    const revision: unknown = revisionRead.value;
+    const userTurnId: unknown = userTurnIdRead.value;
+    const signal: unknown = signalRead.value;
+    const deferUntilDelivered: unknown = deliveryRead.value;
+    const callsSnapshot: V2CallsSnapshot = snapshotV2Calls(callsRead.value);
+    const calls: ReadonlyArray<V2CallSnapshot> = callsSnapshot.calls;
 
-  function catalogFor(ctx: StageContext): ReadonlyArray<EmittedTool> {
-    return projectFor(resolveIndex(ctx));
-  }
+    const duplicateIndexes: Set<number> = new Set<number>();
+    for (let index: number = 1; index < calls.length; index += 1) {
+      if (
+        calls[index]?.sortIndex !== null &&
+        calls[index]?.sortIndex === calls[index - 1]?.sortIndex
+      ) {
+        duplicateIndexes.add(calls[index]?.sortIndex ?? -1);
+      }
+    }
 
-  function stageFor(ctx: StageContext): string | null {
-    const index: number | null = resolveIndex(ctx);
-    return index === null ? null : (stages[index]?.id ?? null);
+    const invalidBatchCallDescriptor = (
+      call: V2CallSnapshot,
+      envelopeInvalid: boolean,
+    ): string => JSON.stringify({
+      kind: envelopeInvalid ? "invalid-batch-envelope" : "invalid-call",
+      callId: observedPropertyDescriptor(
+        call.source,
+        "callId",
+        call.callIdReadable,
+        call.rawCallId,
+      ),
+      name: observedPropertyDescriptor(
+        call.source,
+        "name",
+        call.nameReadable,
+        call.rawName,
+      ),
+      arguments: observedPropertyDescriptor(
+        call.source,
+        "arguments",
+        call.argumentsReadable,
+        call.rawArguments,
+      ),
+      outputIndex: observedPropertyDescriptor(
+        call.source,
+        "outputIndex",
+        call.outputIndexReadable,
+        call.rawOutputIndex,
+      ),
+    });
+
+    const rows: DispatchRow[] = [];
+    const invalidEnvelope: boolean =
+      !sessionIdRead.ok ||
+      !responseIdRead.ok ||
+      !revisionRead.ok ||
+      !userTurnIdRead.ok ||
+      !signalRead.ok ||
+      !deliveryRead.ok ||
+      !callsRead.ok ||
+      !callsSnapshot.ok ||
+      !isSafeIdentifier(sessionId) ||
+      !isSafeIdentifier(responseId) ||
+      typeof revision !== "symbol" ||
+      !isSafeIdentifier(userTurnId) ||
+      (signal !== undefined && !isAbortSignalLike(signal)) ||
+      (deferUntilDelivered !== undefined && typeof deferUntilDelivered !== "function") ||
+      duplicateIndexes.size > 0;
+    if (invalidEnvelope) {
+      if (calls.length === 0) {
+        const result: ActionResult = authoredResult(
+          false,
+          "The invocation metadata is invalid.",
+          "invalid_invocation",
+        );
+        const promise: Promise<ActionResult> = rejectedV2Dispatch(
+          ctx,
+          resolution,
+          null,
+          null,
+          Object.freeze({}),
+          result,
+        );
+        const correlated: ActionResult = await promise;
+        const state: DispatchExecutionState | undefined =
+          dispatchExecutionStates?.get(promise);
+        return Object.freeze({
+          kind: "completed",
+          rows: Object.freeze([Object.freeze({
+            dispatchId: state?.rootDispatchId ?? allocateDispatchId(),
+            callId: fallbackCallId(0),
+            name: fallbackActionName(0),
+            outputIndex: fallbackOutputIndex(0),
+            result: correlated,
+          })]),
+        });
+      }
+      for (const call of calls) {
+        const result: ActionResult = authoredResult(
+          false,
+          "The invocation metadata is invalid.",
+          "invalid_invocation",
+        );
+        const canCorrelate: boolean =
+          isSafeIdentifier(sessionId) &&
+          isSafeIdentifier(responseId) &&
+          typeof revision === "symbol" &&
+          isSafeIdentifier(userTurnId) &&
+          call.callIdValid &&
+          call.outputIndexValid;
+        const identity: InvocationIdentity | null = canCorrelate
+          ? Object.freeze({
+              sessionId: sessionId as string,
+              responseId: responseId as string,
+              callId: call.callId,
+              userTurnId: userTurnId as string,
+              outputIndex: call.outputIndex,
+            })
+          : null;
+        const meta: InvocationMeta = identity === null
+          ? Object.freeze({})
+          : Object.freeze({
+              responseId,
+              userTurnId,
+              callId: call.callId,
+              outputIndex: call.outputIndex,
+            });
+        const promise: Promise<ActionResult> = identity === null
+          ? rejectedV2Dispatch(
+              ctx,
+              resolution,
+              call.name,
+              null,
+              meta,
+              result,
+            )
+          : rejectedV2DispatchWithIdentity(
+              ctx,
+              resolution,
+              call.name,
+              identity,
+              meta,
+              revision as CatalogRevision,
+              invalidBatchCallDescriptor(call, true),
+              result,
+            );
+        const correlated: ActionResult = await promise;
+        const state: DispatchExecutionState | undefined =
+          dispatchExecutionStates?.get(promise);
+        rows.push(Object.freeze({
+          dispatchId: state?.rootDispatchId ?? allocateDispatchId(),
+          callId: call.callId,
+          name: call.name,
+          outputIndex: call.outputIndex,
+          result: correlated,
+        }));
+      }
+      return Object.freeze({ kind: "completed", rows: Object.freeze(rows) });
+    }
+
+    for (const call of calls) {
+      const identity: InvocationIdentity = Object.freeze({
+        sessionId: sessionId as string,
+        responseId: responseId as string,
+        callId: call.callId,
+        userTurnId: userTurnId as string,
+        outputIndex: call.outputIndex,
+      });
+      const meta: InvocationMeta = Object.freeze({
+        responseId: responseId as string,
+        userTurnId: userTurnId as string,
+        callId: call.callId,
+        outputIndex: call.outputIndex,
+        signal: signal as AbortSignalLike | undefined,
+        deferUntilDelivered:
+          deferUntilDelivered as InvocationMeta["deferUntilDelivered"],
+      });
+      if (!call.valid || call.argumentsText === null) {
+        const invalid: ActionResult = authoredResult(
+          false,
+          "The invocation metadata is invalid.",
+          "invalid_invocation",
+        );
+        const promise: Promise<ActionResult> =
+          call.callIdValid && call.outputIndexValid
+            ? rejectedV2DispatchWithIdentity(
+                ctx,
+                resolution,
+                call.name,
+                identity,
+                meta,
+                revision as CatalogRevision,
+                invalidBatchCallDescriptor(call, false),
+                invalid,
+              )
+            : rejectedV2Dispatch(
+                ctx,
+                resolution,
+                call.nameValid ? call.name : null,
+                null,
+                meta,
+                invalid,
+              );
+        const result: ActionResult = await promise;
+        const state: DispatchExecutionState | undefined =
+          dispatchExecutionStates?.get(promise);
+        rows.push(Object.freeze({
+          dispatchId: state?.rootDispatchId ?? allocateDispatchId(),
+          callId: call.callId,
+          name: call.name,
+          outputIndex: call.outputIndex,
+          result,
+        }));
+        continue;
+      }
+
+      let input: unknown;
+      let parseFailed: boolean = false;
+      try {
+        input = JSON.parse(call.argumentsText);
+      } catch {
+        input = undefined;
+        parseFailed = true;
+      }
+      const request: DispatchRequest = {
+        name: call.name,
+        input,
+        catalogRevision: revision as CatalogRevision,
+        identity,
+        signal: signal as AbortSignalLike | undefined,
+        deferUntilDelivered:
+          deferUntilDelivered as InvocationMeta["deferUntilDelivered"],
+      };
+      let promise: Promise<ActionResult>;
+      if (parseFailed) {
+        promise = rejectedV2DispatchWithIdentity(
+          ctx,
+          resolution,
+          call.name,
+          identity,
+          meta,
+          revision as CatalogRevision,
+          `[concierge:malformed-json:${call.argumentsText}]`,
+          authoredResult(false, "The action arguments are invalid.", "invalid_args"),
+        );
+      } else {
+        const snapshot: DispatchRequestSnapshot = snapshotDispatchRequest(request);
+        promise = snapshot.ok
+          ? dispatchV2FromSnapshot(ctx, snapshot, resolution)
+          : rejectedV2DispatchWithIdentity(
+              ctx,
+              resolution,
+              call.name,
+              identity,
+              meta,
+              revision as CatalogRevision,
+              `[concierge:parsed-invalid:${call.argumentsText}]`,
+              authoredResult(
+                false,
+                "The action arguments are invalid.",
+                "invalid_args",
+              ),
+            );
+      }
+      const result: ActionResult = await promise;
+      const state: DispatchExecutionState | undefined =
+        dispatchExecutionStates?.get(promise);
+      const dispatchId: string = state?.rootDispatchId ?? allocateDispatchId();
+      rows.push(Object.freeze({
+        dispatchId,
+        callId: call.callId,
+        name: call.name,
+        outputIndex: call.outputIndex,
+        result,
+      }));
+      if (state?.terminalEntered === true) {
+        const enteredBy: DispatchRef = state.terminalRef ?? Object.freeze({
+          dispatchId,
+          name: call.name,
+          callId: call.callId,
+          outputIndex: call.outputIndex,
+          lineage: Object.freeze({ rootDispatchId: dispatchId, depth: 0 }),
+        });
+        return Object.freeze({
+          kind: "terminal",
+          rows: Object.freeze(rows),
+          enteredBy,
+        });
+      }
+    }
+    return Object.freeze({ kind: "completed", rows: Object.freeze(rows) });
   }
 
   /**
@@ -2004,9 +3855,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
    * registered, and what the agent can currently see — answered in one pass.
    *
    * **The returned object is deliberately NOT identity-stable: a fresh object
-   * every call, by design.** This is the one member of `Concierge` that must
-   * never be memoized, and it is the exact inverse of `catalogFor`'s rule three
-   * functions up. Do not wire it into `useSyncExternalStore` or any other
+   * every call, by design.** Do not wire it into `useSyncExternalStore` or any other
    * referential-equality subscription — it would loop forever, which is
    * precisely the defect STG-04's memo exists to prevent. The requirement that
    * motivates this whole phase is one line away from being violated by the
@@ -2030,7 +3879,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     // The cost is one extra matcher call per stage, on a call that happens at
     // human debugging rate. The accepted consequence, recorded rather than
     // hidden: a matcher with a side effect fires more often under `explain`
-    // than under `stageFor`. Matchers are pure by contract, so this is a
+    // than under ordinary first-match resolution. Matchers are pure by contract, so this is a
     // consequence of violating the contract rather than of this decision.
     const rows: StageExplanation[] = stages.map(
       (stage): StageExplanation => ({
@@ -2041,8 +3890,8 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     );
 
     // **The active position is derived from the recorded rows, never from a
-    // second matcher evaluation.** Calling `stageFor` here would re-run every
-    // matcher, and consumer code is under no obligation to answer the same way
+    // second matcher evaluation.** Re-resolving the stage here would re-run
+    // matchers, and consumer code is under no obligation to answer the same way
     // twice. Measured, with a matcher carrying an internal counter:
     //
     //     two-pass: {"stage":"flaky","stages":[{"id":"flaky","matched":false}]}
@@ -2054,17 +3903,12 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     const firstMatch: number = rows.findIndex((row) => row.matched);
     const activeIndex: number | null = firstMatch === -1 ? null : firstMatch;
 
-    // **`projectFor(activeIndex)`, not `catalogFor(ctx)`.** Reading the memo
-    // directly is what guarantees `explain().catalog` and `explain().stage`
-    // cannot disagree; `catalogFor` would re-resolve, and under a
-    // non-deterministic matcher it could land on a different stage than the
-    // rows above recorded — reintroducing the two-pass contradiction through a
-    // different door.
+    // Availability is evaluated against the already-selected position so the
+    // explanation and resolved catalog use the same dynamic filtering rules
+    // without a second matcher pass.
     //
     // **`explain` writes nothing to the console.** Structured return only, no
-    // warning of its own. Phase 3's precedent is that the structured value is
-    // the assertable channel and console output is the convenience one, and a
-    // convenience with no test is a surface with no guarantee. (`runMatch` may
+    // warning of its own. (`runMatch` may
     // still warn about a broken matcher during this call — that is the matcher
     // policy firing, not `explain` printing.)
     //
@@ -2078,7 +3922,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       {
         stage: activeIndex === null ? null : (stages[activeIndex]?.id ?? null),
         stages: rows,
-        catalog: projectFor(activeIndex).map((tool) => tool.name),
+        catalog: resolveForIndex(activeIndex, ctx).names,
       },
       NO_SKIP,
       new WeakSet<object>(),
@@ -2102,17 +3946,13 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   // a wrong reason attached to a right decision is how a right decision gets
   // reversed by the first reader who checks it.
   const concierge: Concierge = {
-    dispatch,
-    dispatchBatch,
-    catalogFor,
-    stageFor,
+    dispatch: dispatchV2,
+    dispatchBatch: dispatchBatchV2,
+    resolveCatalog,
+    onDispatch,
     explain,
   };
   const configuredConcierge: Concierge =
     attachConsentProfile(concierge, capturedConsent.profile);
-  INTERNAL_BATCH_DISPATCHERS.set(
-    configuredConcierge,
-    dispatchBatchInternally,
-  );
   return configuredConcierge;
 }

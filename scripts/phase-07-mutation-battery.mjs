@@ -1732,7 +1732,7 @@ function runFullVitest(reportPath, root = ROOT) {
 function runTypecheck(root = ROOT) {
   return command("pnpm", [
     "--filter",
-    "@fullselfbrowsing/concierge",
+    "@full-self-browsing/concierge",
     "typecheck",
   ], { cwd: root });
 }
@@ -3364,7 +3364,7 @@ function selfTest() {
   assertNoUntrackedRevisionInputs([]);
   assert(
     isInstalledDependencyPath(
-      "packages/concierge/test/fixtures/adapter-alpha/node_modules/@fullselfbrowsing/concierge",
+      "packages/concierge/test/fixtures/adapter-alpha/node_modules/@full-self-browsing/concierge",
     ) &&
       !isInstalledDependencyPath(
         "packages/concierge/test/untracked-release-input.test.ts",

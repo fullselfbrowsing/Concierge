@@ -163,13 +163,12 @@ const streamingTransport: Transport = {
     dynamicCatalog: true,
   },
   status: "connecting",
-  setTools: () => {},
+  setCatalog: () => {},
   onStatusChange: (cb: (status: TransportStatus) => void) => {
     void cb;
     return unsubscribe;
   },
   onToolBatch: () => unsubscribe,
-  respond: () => {},
 };
 
 /**
@@ -187,13 +186,12 @@ const commandPaletteTransport: Transport = {
     dynamicCatalog: false,
   },
   status: "closed",
-  setTools: () => {},
+  setCatalog: () => {},
   onStatusChange: (cb: (status: TransportStatus) => void) => {
     void cb;
     return unsubscribe;
   },
   onToolBatch: () => unsubscribe,
-  respond: () => {},
 };
 
 /**
@@ -204,7 +202,7 @@ const commandPaletteTransport: Transport = {
  */
 type _transportStatus = Expect<Equals<TransportStatus, "idle" | "connecting" | "connected" | "closed">>;
 type _transportStatusCallback = Expect<Equals<Transport["onStatusChange"], (cb: (status: TransportStatus) => void) => () => void>>;
-type _transportKeys = Expect<Equals<keyof Transport, "capabilities" | "status" | "setTools" | "onStatusChange" | "onToolBatch" | "respond">>;
+type _transportKeys = Expect<Equals<keyof Transport, "capabilities" | "status" | "setCatalog" | "onStatusChange" | "onToolBatch">>;
 type _transportStatusIsReadonly = Expect<Equals<Pick<Transport, "status">, { readonly status: TransportStatus }>>;
 
 // --------------------------------------------------------------------------
@@ -290,15 +288,16 @@ const _interruptedWithAttestation: DeliveryReport = {
 
 /**
  * The transport-side envelope, assembled the way a real transport assembles it. The
- * dispatcher then forwards `userTurnId`, `signal`, and `deferUntilDelivered` straight into
- * an `InvocationMeta`, and every one of the three is optional on both sides — so either
- * both accept the same possibly-absent value or the forward needs a cast at the boundary
- * the consent gate reads.
+ * dispatcher forwards complete turn identity plus the optional signal and delivery hook
+ * into invocation metadata. Adapters must close missing turn identity before they create
+ * this envelope.
  */
 const _batchFromOptionalSources: ToolBatch = {
+  sessionId: "session",
   responseId: "r",
+  catalogRevision: Symbol("catalog") as import("../src/types.js").CatalogRevision,
   calls: [],
-  userTurnId: maybeStr,
+  userTurnId: maybeStr ?? "turn-fallback",
   signal: maybeSig,
   deferUntilDelivered: maybeHook,
 };

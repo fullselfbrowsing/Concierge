@@ -8,7 +8,7 @@ import type { Session, SessionConfig, SessionDiagnostic, SessionDiagnosticCode, 
 import type { FailureOutcome, FailureOutcomeRow, OutcomePresentationReport, OutcomeSink, ReasonCode } from "../src/types.js";
 
 type _createSessionSignature = Expect<Equals<typeof createSession, (config: SessionConfig) => Session>>;
-type _sessionKeys = Expect<Equals<keyof Session, "setContext" | "stage" | "onStageChange" | "stop">>;
+type _sessionKeys = Expect<Equals<keyof Session, "setContext" | "catalog" | "onCatalogChange" | "stop">>;
 type _sessionStop = Expect<Equals<Session["stop"], () => Promise<void>>>;
 type _failureOutcomeRowKeys = Expect<Equals<keyof FailureOutcomeRow, "callId" | "reason" | "message">>;
 type _failureOutcomeRowIsReadonly = Expect<Equals<FailureOutcomeRow, { readonly callId: string; readonly reason: ReasonCode | undefined; readonly message: string }>>;
@@ -22,7 +22,7 @@ type _sessionConfigInitialContext = Expect<Equals<SessionConfig["initialContext"
 type _sessionConfigOnDiagnostic = Expect<Equals<SessionConfig["onDiagnostic"], ((diagnostic: SessionDiagnostic) => void) | undefined>>;
 type _sessionConfigMinimumIsUsable = Expect<Assignable<{ concierge: SessionConfig["concierge"]; transport: SessionConfig["transport"]; presentOutcome: OutcomeSink }, SessionConfig>>;
 type _sessionConfigRejectsMissingOutcomeSink = Expect<Not<Assignable<{ concierge: SessionConfig["concierge"]; transport: SessionConfig["transport"] }, SessionConfig>>>;
-type _sessionDiagnosticCodes = Expect<Equals<SessionDiagnosticCode, "catalog_publish_failed" | "batch_dispatch_failed" | "response_failed" | "stage_listener_failed" | "transport_subscribe_failed" | "transport_unsubscribe_failed" | "catalog_clear_failed" | "abort_signal_failed" | "batch_without_context" | "outcome_presentation_failed">>;
+type _sessionDiagnosticCodes = Expect<Equals<SessionDiagnosticCode, "catalog_publish_failed" | "batch_dispatch_failed" | "response_failed" | "catalog_listener_failed" | "stage_listener_failed" | "transport_subscribe_failed" | "transport_unsubscribe_failed" | "catalog_clear_failed" | "abort_signal_failed" | "batch_without_context" | "outcome_presentation_failed">>;
 type _sessionDiagnosticKeys = Expect<Equals<keyof SessionDiagnostic, "code" | "message">>;
 type _sessionDiagnosticIsReadonly = Expect<Equals<SessionDiagnostic, { readonly code: SessionDiagnosticCode; readonly message: string }>>;
 type _knownDiagnosticCodeIsUsable = Expect<Assignable<"response_failed", SessionDiagnosticCode>>;
@@ -59,8 +59,8 @@ const _configRejectsExtraField: SessionConfig = {
 
 const _sessionRejectsVoidStop: Session = {
   setContext: () => {},
-  stage: () => null,
-  onStageChange: () => () => {},
+  catalog: () => null,
+  onCatalogChange: () => () => {},
   // @ts-expect-error stop must expose the asynchronous drain boundary.
   stop: () => {},
 };

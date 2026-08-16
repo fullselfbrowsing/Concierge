@@ -3,7 +3,7 @@
     Bridge,
     BridgeRegistry,
     Concierge,
-  } from "@fullselfbrowsing/concierge";
+  } from "@full-self-browsing/concierge";
 
   import {
     provideConcierge,
@@ -11,6 +11,7 @@
     useConcierge,
     useConciergeBridge,
   } from "../src/client.svelte.js";
+  import MountProbe from "./MountProbe.svelte";
 
   type SnapshotValue = {
     nested: {
@@ -29,7 +30,9 @@
     readonly registry: BridgeRegistry;
     readonly bridge: Bridge;
     readonly provide?: boolean;
+    readonly telemetry?: boolean;
     readonly onContext?: (concierge: Concierge) => void;
+    readonly onChildMount?: () => void;
     readonly onInitialize?: (registered: boolean) => void;
     readonly onSnapshot?: (probe: SnapshotProbe) => void;
   };
@@ -39,12 +42,14 @@
   const getRegistry = (): BridgeRegistry => props.registry;
   const getBridge = (): Bridge => props.bridge;
   const getProvide = (): boolean => props.provide ?? true;
+  const getTelemetry = (): boolean | undefined => props.telemetry;
   const getOnContext = (): Props["onContext"] => props.onContext;
+  const getOnChildMount = (): Props["onChildMount"] => props.onChildMount;
   const getOnInitialize = (): Props["onInitialize"] => props.onInitialize;
   const getOnSnapshot = (): Props["onSnapshot"] => props.onSnapshot;
 
   if (getProvide()) {
-    provideConcierge(getConcierge());
+    provideConcierge(getConcierge(), { telemetry: getTelemetry() });
   }
 
   const observed: Concierge = useConcierge();
@@ -63,4 +68,10 @@
       live.nested.count = count;
     },
   });
+
+  const handleChildMount = (): void => {
+    getOnChildMount()?.();
+  };
 </script>
+
+<MountProbe onMounted={handleChildMount} />

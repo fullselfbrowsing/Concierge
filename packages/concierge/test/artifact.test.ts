@@ -96,9 +96,9 @@ describe("the built artifact still carries every value export", () => {
     expect(Object.isFrozen(m.CONSENT_GRADE_ORDER)).toBe(true);
   });
 
-  it("CONTRACT_VERSION reaches dist/index.js as the integer 1", async () => {
+  it("CONTRACT_VERSION reaches dist/index.js as the integer 2", async () => {
     const m = await import(DIST_URL.href);
-    expect(m.CONTRACT_VERSION).toBe(1);
+    expect(m.CONTRACT_VERSION).toBe(2);
   });
 
   it("assertSingleInstance reaches dist/index.js as a callable function", async () => {

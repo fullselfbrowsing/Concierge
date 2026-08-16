@@ -34,9 +34,9 @@ const GITHUB_BUILD_TYPE =
   "https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1";
 const GITHUB_BUILDER = "https://github.com/actions/runner/github-hosted";
 const PACKAGE_ORDER = Object.freeze([
-  "@fullselfbrowsing/concierge",
-  "@fullselfbrowsing/concierge-react",
-  "@fullselfbrowsing/concierge-svelte",
+  "@full-self-browsing/concierge",
+  "@full-self-browsing/concierge-react",
+  "@full-self-browsing/concierge-svelte",
 ]);
 const SEAL_FILENAME = "phase-09-release-seal.json";
 const SHA256 = /^[0-9a-f]{64}$/u;
@@ -1129,7 +1129,7 @@ async function runSelfTest() {
   try {
     const fixture = createSyntheticSet(resumeRoot);
     const registry = stubRegistry({
-      failPublish: new Set(["@fullselfbrowsing/concierge-react"]),
+      failPublish: new Set(["@full-self-browsing/concierge-react"]),
       seal: fixture.seal,
     });
     await expectAsyncFailure("core-success-react-failure", "PUBLISH_AMBIGUOUS", () =>
@@ -1147,10 +1147,10 @@ async function runSelfTest() {
         rerun.published === 2 &&
         JSON.stringify(registry.publishes) ===
           JSON.stringify([
-            "@fullselfbrowsing/concierge",
-            "@fullselfbrowsing/concierge-react",
-            "@fullselfbrowsing/concierge-react",
-            "@fullselfbrowsing/concierge-svelte",
+            "@full-self-browsing/concierge",
+            "@full-self-browsing/concierge-react",
+            "@full-self-browsing/concierge-react",
+            "@full-self-browsing/concierge-svelte",
           ]),
       "SELF_TEST",
       "safe rerun did not skip exact core and finish both adapters",

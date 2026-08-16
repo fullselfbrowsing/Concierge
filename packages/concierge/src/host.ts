@@ -14,7 +14,7 @@
  * placed above a bare `const c = console;` did **not** report an
  * unused-directive diagnostic — which is the proof that the error underneath it
  * is real rather than a stale belief about the lib set. The same holds for
- * `structuredClone` and, per `.planning/STATE.md`, for `setTimeout`.
+ * `structuredClone` and `setTimeout`.
  *
  * **Both obvious repairs are forbidden.** Adding `@types/node` is named in
  * `CLAUDE.md`'s *What NOT to Use*: it "pulls DOM-adjacent globals and silently

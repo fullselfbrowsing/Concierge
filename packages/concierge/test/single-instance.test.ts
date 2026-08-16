@@ -114,7 +114,9 @@ const DIST_PATH = fileURLToPath(DIST_URL);
 // two copies of this package that share no bindings, so its identity is the
 // STRING and nothing else. Importing the symbol from the artifact under test
 // would make this suite agree with whatever the artifact happens to say.
-const KEY = Symbol.for("@fullselfbrowsing/concierge.contract");
+const LEGACY_KEY_TEXT = "@fullselfbrowsing/concierge.contract";
+const RENAMED_KEY_TEXT = "@full-self-browsing/concierge.contract";
+const KEY = Symbol.for(LEGACY_KEY_TEXT);
 const SUITE_TITLE =
   "PKG-04 — one core instance across two independently-resolved copies";
 
@@ -222,19 +224,21 @@ describe(SUITE_TITLE, () => {
     //
     // Present: the guard survives into a real consumer bundle, which is the
     // whole reason it lives inside a function body instead of at module scope.
-    expect(calls).toContain("@fullselfbrowsing/concierge.contract");
+    expect(calls).toContain(LEGACY_KEY_TEXT);
+    expect(calls).not.toContain(RENAMED_KEY_TEXT);
 
     // Absent: the executable form of the measured claim that the registry code
     // itself contributes ZERO bytes when it is not called. The uncalled bundle
     // is not empty — it still carries the constant it imports — but none of
     // those bytes are the registry's. This is `sideEffects: false` being
     // honest in the direction that costs the package nothing.
-    expect(uncalled).not.toContain("@fullselfbrowsing/concierge.contract");
+    expect(uncalled).not.toContain(LEGACY_KEY_TEXT);
+    expect(uncalled).not.toContain(RENAMED_KEY_TEXT);
   });
 
-  it("F2 — a contract-version mismatch throws a message naming both versions and the remediation", async () => {
-    // Exactly what a second, older copy of core would have left behind.
-    registry[KEY] = { version: 0 };
+  it("F2 — a legacy v1 record makes v2 throw with both versions and the remediation", async () => {
+    // Exactly what a v0.1 source, tarball, or Git installation left behind.
+    registry[KEY] = { version: 1 };
 
     const { assertSingleInstance } = await import(`${DIST_HREF}?mismatch=1`);
 
@@ -243,6 +247,7 @@ describe(SUITE_TITLE, () => {
     // versions but not the fix would satisfy the first while leaving the
     // developer with nothing to do.
     expect(() => assertSingleInstance()).toThrow(/two different copies/);
+    expect(() => assertSingleInstance()).toThrow(/contract v1 and v2/);
     expect(() => assertSingleInstance()).toThrow(/peerDependency/);
   });
 
@@ -367,9 +372,13 @@ describe(SUITE_TITLE, () => {
     let batchSubscribers = 0;
     const concierge = {
       dispatch: () => Promise.resolve({ ok: false, message: "unused" }),
-      dispatchBatch: () => Promise.resolve(Object.freeze([])),
-      catalogFor: () => Object.freeze([]),
-      stageFor: () => null,
+      dispatchBatch: () => Promise.resolve(Object.freeze({ kind: "completed", rows: [] })),
+      resolveCatalog: () => Object.freeze({
+        stage: null,
+        revision: Symbol("catalog"),
+        tools: Object.freeze([]),
+      }),
+      onDispatch: () => () => {},
       explain: () => Object.freeze({ stage: null, stages: [], catalog: [] }),
     };
     const transport = {
@@ -380,7 +389,7 @@ describe(SUITE_TITLE, () => {
         dynamicCatalog: true,
       }),
       status: "idle",
-      setTools: () => {},
+      setCatalog: () => {},
       onStatusChange: () => {
         statusSubscribers += 1;
         let live = true;
@@ -399,7 +408,6 @@ describe(SUITE_TITLE, () => {
           batchSubscribers -= 1;
         };
       },
-      respond: () => {},
     };
 
     const session = createSession({
