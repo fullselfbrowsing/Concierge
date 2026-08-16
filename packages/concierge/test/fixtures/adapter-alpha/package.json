@@ -3,6 +3,10 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "peerDependencies": { "@full-self-browsing/concierge": "workspace:^" },
-  "devDependencies": { "@full-self-browsing/concierge": "workspace:*" }
+  "peerDependencies": {
+    "@full-self-browsing/concierge": "workspace:^"
+  },
+  "devDependencies": {
+    "@full-self-browsing/concierge": "workspace:*"
+  }
 }
