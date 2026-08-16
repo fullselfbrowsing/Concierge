@@ -214,7 +214,7 @@ jobs:
 
       - name: Install Chromium, Firefox, and WebKit
         working-directory: ${{ runner.temp }}/release-example
-        run: ./node_modules/.bin/playwright install --with-deps chromium firefox webkit
+        run: node ./node_modules/@playwright/test/cli.js install --with-deps chromium firefox webkit
 
       - name: Exercise the signed bridge in every release browser
         working-directory: ${{ runner.temp }}/release-example
