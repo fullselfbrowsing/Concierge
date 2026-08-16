@@ -1,6 +1,6 @@
 {
   "name": "@full-self-browsing/concierge-svelte",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": false,
   "description": "Svelte bindings for @full-self-browsing/concierge",
   "keywords": [
