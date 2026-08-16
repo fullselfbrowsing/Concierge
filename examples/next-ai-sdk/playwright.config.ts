@@ -17,7 +17,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "pnpm build && pnpm start --port 3100",
+    command: "npm run build && npm start -- --port 3100",
     url: "http://127.0.0.1:3100",
     reuseExistingServer: process.env.CI !== "1",
     timeout: 240_000,
