@@ -3,7 +3,7 @@
     provideConcierge,
     useConcierge,
     useConciergeBridge,
-  } from "@fullselfbrowsing/concierge-svelte/client.svelte";
+  } from "@full-self-browsing/concierge-svelte/client.svelte";
 
   import type { AdapterSsrSide } from "../shared/catalog.js";
 
@@ -20,7 +20,7 @@
 
   const evidence = JSON.stringify({
     adapter: "svelte",
-    entry: "@fullselfbrowsing/concierge-svelte/client.svelte",
+    entry: "@full-self-browsing/concierge-svelte/client.svelte",
     exactConcierge,
     identity,
     registry: registry.read() === null ? null : "registered",
@@ -30,7 +30,7 @@
 <data
   data-adapter-evidence="svelte"
   data-concierge="exact"
-  data-entry="@fullselfbrowsing/concierge-svelte/client.svelte"
+  data-entry="@full-self-browsing/concierge-svelte/client.svelte"
   data-registry="null"
   value={identity}
 >{evidence}</data>

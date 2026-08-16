@@ -70,6 +70,11 @@ export const CONTRACT_VERSION = 2;
  * computes the same key. A fresh `Symbol()` per copy would hand each one a
  * private slot and the guard would never fire.
  *
+ * The registry string predates the public npm scope rename. It is a private,
+ * cross-version ABI, so it deliberately retains the v0.1 spelling; changing it
+ * with the package name would let old and new contract versions create separate
+ * slots and bypass this guard.
+ *
  * Annotated `symbol` rather than left to infer `unique symbol`, because nothing
  * here wants the nominal identity of this particular binding; the registry
  * string is the identity. Module-private and deliberately not re-exported from
@@ -126,11 +131,11 @@ export function assertSingleInstance(): void {
   }
 
   throw new Error(
-    `concierge: two different copies of @fullselfbrowsing/concierge are loaded ` +
+    `concierge: two different copies of @full-self-browsing/concierge are loaded ` +
       `(contract v${prior.version} and v${CONTRACT_VERSION}). Adapters must ` +
       `resolve the same core instance — check that every ` +
-      `@fullselfbrowsing/concierge-* package has core as a peerDependency and ` +
+      `@full-self-browsing/concierge-* package has core as a peerDependency and ` +
       `that your lockfile has exactly one entry for it. ` +
-      `Run: pnpm why @fullselfbrowsing/concierge`,
+      `Run: pnpm why @full-self-browsing/concierge`,
   );
 }

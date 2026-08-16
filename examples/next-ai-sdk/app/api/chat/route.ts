@@ -3,10 +3,10 @@ import { randomUUID } from "node:crypto";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import {
   createAISDKAdapter,
-} from "@fullselfbrowsing/concierge/ai-sdk";
+} from "@full-self-browsing/concierge/ai-sdk";
 import {
   createSignedBatchIssuer,
-} from "@fullselfbrowsing/concierge/ai-sdk/server";
+} from "@full-self-browsing/concierge/ai-sdk/server";
 import {
   convertToModelMessages,
   createUIMessageStream,

@@ -752,13 +752,13 @@ function evaluateContracts(root) {
         ? FIRST_RELEASE_CORE_PEER
         : "workspace:^";
 
-      api.check(manifest?.name === "@fullselfbrowsing/concierge-react", "react-package-name", "packages/concierge-react/package.json", "@fullselfbrowsing/concierge-react", manifest?.name ?? "absent");
+      api.check(manifest?.name === "@full-self-browsing/concierge-react", "react-package-name", "packages/concierge-react/package.json", "@full-self-browsing/concierge-react", manifest?.name ?? "absent");
       api.check(manifest?.private === false, "react-public-package", "packages/concierge-react/package.json", "private false", manifest?.private ?? "absent");
       api.check(manifest?.type === "module" && manifest?.sideEffects === false, "react-esm-side-effects", "packages/concierge-react/package.json", "ESM and sideEffects false", `${manifest?.type ?? "absent"}/${manifest?.sideEffects ?? "absent"}`);
       api.check(isRecord(manifest?.exports?.["."]) && isRecord(manifest?.exports?.["./client"]), "react-two-exports", "packages/concierge-react/package.json", "root and ./client maps", "inspected");
-      api.check(manifest?.peerDependencies?.["@fullselfbrowsing/concierge"] === expectedCorePeer, "react-core-peer", "packages/concierge-react/package.json", expectedCorePeer, manifest?.peerDependencies?.["@fullselfbrowsing/concierge"] ?? "absent");
-      api.check(manifest?.devDependencies?.["@fullselfbrowsing/concierge"] === "workspace:*", "react-core-dev-link", "packages/concierge-react/package.json", "workspace:*", manifest?.devDependencies?.["@fullselfbrowsing/concierge"] ?? "absent");
-      api.check(manifest?.dependencies?.["@fullselfbrowsing/concierge"] === undefined, "react-no-core-dependency", "packages/concierge-react/package.json", "ordinary dependency absent", manifest?.dependencies?.["@fullselfbrowsing/concierge"] ?? "absent");
+      api.check(manifest?.peerDependencies?.["@full-self-browsing/concierge"] === expectedCorePeer, "react-core-peer", "packages/concierge-react/package.json", expectedCorePeer, manifest?.peerDependencies?.["@full-self-browsing/concierge"] ?? "absent");
+      api.check(manifest?.devDependencies?.["@full-self-browsing/concierge"] === "workspace:*", "react-core-dev-link", "packages/concierge-react/package.json", "workspace:*", manifest?.devDependencies?.["@full-self-browsing/concierge"] ?? "absent");
+      api.check(manifest?.dependencies?.["@full-self-browsing/concierge"] === undefined, "react-no-core-dependency", "packages/concierge-react/package.json", "ordinary dependency absent", manifest?.dependencies?.["@full-self-browsing/concierge"] ?? "absent");
       api.check(manifest?.peerDependencies?.react === "^18.2.0 || ^19.0.0" && manifest?.peerDependencies?.["react-dom"] === "^18.2.0 || ^19.0.0", "react-framework-peers", "packages/concierge-react/package.json", "React 18.2/19 peers", "inspected");
       for (const [name, expected] of Object.entries({
         react: "19.2.8",
@@ -772,12 +772,12 @@ function evaluateContracts(root) {
       api.check(arrayEquals(manifest?.files ?? [], ["dist", "src", "README.md", "LICENSE"]), "react-files-list", "packages/concierge-react/package.json", "dist/src/README/LICENSE", JSON.stringify(manifest?.files ?? []));
       api.check(manifest?.scripts?.build === "tsdown" && String(manifest?.scripts?.test ?? "").includes("react-lifecycle"), "react-package-scripts", "packages/concierge-react/package.json", "tsdown and exact lifecycle project", "inspected");
       api.check(tsconfig.includes("src/**/*.tsx") && tsconfig.includes("test-d/**/*.ts"), "react-tsconfig-inputs", "packages/concierge-react/tsconfig.json", "TSX and type-test inputs", "inspected");
-      for (const token of ["src/index.ts", "src/client.tsx", "fileName", "use client", "react", "@fullselfbrowsing/concierge"]) {
+      for (const token of ["src/index.ts", "src/client.tsx", "fileName", "use client", "react", "@full-self-browsing/concierge"]) {
         api.check(build.includes(token), `react-build-${token}`, "packages/concierge-react/tsdown.config.ts", `live ${token} fingerprint`, build.includes(token) ? "present" : "absent");
       }
       api.check(/platform\s*:\s*["']neutral["']/u.test(build) && /format\s*:\s*["']esm["']/u.test(build), "react-neutral-esm-build", "packages/concierge-react/tsdown.config.ts", "neutral ESM", "inspected");
       api.check(license.length > 0 && license === coreLicense, "react-license-copy", "packages/concierge-react/LICENSE", "byte-identical core license", license === coreLicense ? "equal" : "different");
-      api.check(lock.includes("packages/concierge-react:") && lock.includes("@fullselfbrowsing/concierge"), "react-lock-importer", "pnpm-lock.yaml", "React importer and core link", "inspected");
+      api.check(lock.includes("packages/concierge-react:") && lock.includes("@full-self-browsing/concierge"), "react-lock-importer", "pnpm-lock.yaml", "React importer and core link", "inspected");
     }),
   );
 
@@ -815,7 +815,7 @@ function evaluateContracts(root) {
         api.check(artifact.includes(token), `react-artifact-${token}`, "packages/concierge-react/test/artifact.test.ts", `artifact assertion for ${token}`, artifact.includes(token) ? "present" : "absent");
       }
       api.check(hasOrderedTokens(artifact, ["EXPECTED_CONTRACT_VERSION", "registry.register"]), "react-artifact-guard-order", "packages/concierge-react/test/artifact.test.ts", "literal guard before registration", "inspected");
-      api.check(types.includes("@fullselfbrowsing/concierge-react/client"), "react-public-type-import", "packages/concierge-react/test-d/public.test-d.ts", "public client import", "inspected");
+      api.check(types.includes("@full-self-browsing/concierge-react/client"), "react-public-type-import", "packages/concierge-react/test-d/public.test-d.ts", "public client import", "inspected");
       api.check(typesSource.includes("@ts-expect-error") && types.includes("ConciergeProvider") && types.includes("useConciergeBridge"), "react-type-contract", "packages/concierge-react/test-d/public.test-d.ts", "positive and negative public API assertions", "inspected");
       api.check(!types.includes("/src/") && !types.includes("/dist/"), "react-no-private-type-import", "packages/concierge-react/test-d/public.test-d.ts", "no private/dist import", "inspected");
     }),
@@ -833,16 +833,16 @@ function evaluateContracts(root) {
         ? FIRST_RELEASE_CORE_PEER
         : "workspace:^";
 
-      api.check(manifest?.name === "@fullselfbrowsing/concierge-svelte", "svelte-package-name", "packages/concierge-svelte/package.json", "@fullselfbrowsing/concierge-svelte", manifest?.name ?? "absent");
+      api.check(manifest?.name === "@full-self-browsing/concierge-svelte", "svelte-package-name", "packages/concierge-svelte/package.json", "@full-self-browsing/concierge-svelte", manifest?.name ?? "absent");
       api.check(manifest?.type === "module" && manifest?.sideEffects === false, "svelte-esm-side-effects", "packages/concierge-svelte/package.json", "ESM and sideEffects false", "inspected");
       api.check(isRecord(manifest?.exports?.["."]) && isRecord(manifest?.exports?.["./client.svelte"]), "svelte-two-exports", "packages/concierge-svelte/package.json", "root and ./client.svelte maps", "inspected");
       for (const exportName of [".", "./client.svelte"]) {
         const entry = manifest?.exports?.[exportName];
         api.check(exactObjectKeys(entry, ["types", "svelte", "import", "default"]), `svelte-export-conditions-${exportName}`, "packages/concierge-svelte/package.json", "types/svelte/import/default only", JSON.stringify(Object.keys(entry ?? {})));
       }
-      api.check(manifest?.peerDependencies?.["@fullselfbrowsing/concierge"] === expectedCorePeer && manifest?.peerDependencies?.svelte === "^5.0.0", "svelte-peers", "packages/concierge-svelte/package.json", `core ${expectedCorePeer} and Svelte ^5`, "inspected");
-      api.check(manifest?.devDependencies?.["@fullselfbrowsing/concierge"] === "workspace:*", "svelte-core-dev-link", "packages/concierge-svelte/package.json", "workspace:*", manifest?.devDependencies?.["@fullselfbrowsing/concierge"] ?? "absent");
-      api.check(manifest?.dependencies?.["@fullselfbrowsing/concierge"] === undefined, "svelte-no-core-dependency", "packages/concierge-svelte/package.json", "ordinary dependency absent", manifest?.dependencies?.["@fullselfbrowsing/concierge"] ?? "absent");
+      api.check(manifest?.peerDependencies?.["@full-self-browsing/concierge"] === expectedCorePeer && manifest?.peerDependencies?.svelte === "^5.0.0", "svelte-peers", "packages/concierge-svelte/package.json", `core ${expectedCorePeer} and Svelte ^5`, "inspected");
+      api.check(manifest?.devDependencies?.["@full-self-browsing/concierge"] === "workspace:*", "svelte-core-dev-link", "packages/concierge-svelte/package.json", "workspace:*", manifest?.devDependencies?.["@full-self-browsing/concierge"] ?? "absent");
+      api.check(manifest?.dependencies?.["@full-self-browsing/concierge"] === undefined, "svelte-no-core-dependency", "packages/concierge-svelte/package.json", "ordinary dependency absent", manifest?.dependencies?.["@full-self-browsing/concierge"] ?? "absent");
       for (const [name, expected] of Object.entries({
         svelte: "5.56.8",
         "@sveltejs/package": "2.5.8",
@@ -880,7 +880,7 @@ function evaluateContracts(root) {
       api.check(/return\s+(?:unregister|registry\.register\(bridge\))/u.test(client), "svelte-exact-cleanup-return", SVELTE_SOURCE_PATHS[1], "returned registration cleanup", "inspected");
       api.check(/function\s+svelteSnapshotNormalizer\s*<T>\s*\(value\s*:\s*T\)\s*:\s*T/u.test(client) && /function\s+svelteSnapshotNormalizer\s*\(value\s*:\s*unknown\)\s*:\s*unknown/u.test(client), "svelte-normalizer-overload", SVELTE_SOURCE_PATHS[1], "generic plus unknown overload", "inspected");
       api.check(!/\b(?:structuredClone|JSON\.stringify|createContext|createConcierge)\b/u.test(client), "svelte-native-thin-runtime", SVELTE_SOURCE_PATHS[1], "no clone/store/core construction", "inspected");
-      api.check(/export\s+type\s*\{/u.test(rootEntry) && /from\s+["']@fullselfbrowsing\/concierge["']/u.test(rootEntry) && !/(?:client\.svelte|\bcreateConcierge\b|\bprovideConcierge\b|\buseConcierge(?:Bridge)?\b|\bsvelteSnapshotNormalizer\b|\bsetContext\b|\bgetContext\b|\$effect)/u.test(rootEntry), "svelte-public-root", SVELTE_SOURCE_PATHS[0], "server-safe public-core type root with client helpers split to ./client.svelte", "inspected");
+      api.check(/export\s+type\s*\{/u.test(rootEntry) && /from\s+["']@full-self-browsing\/concierge["']/u.test(rootEntry) && !/(?:client\.svelte|\bcreateConcierge\b|\bprovideConcierge\b|\buseConcierge(?:Bridge)?\b|\bsvelteSnapshotNormalizer\b|\bsetContext\b|\bgetContext\b|\$effect)/u.test(rootEntry), "svelte-public-root", SVELTE_SOURCE_PATHS[0], "server-safe public-core type root with client helpers split to ./client.svelte", "inspected");
       api.check(harness.includes("const getRegistry") && harness.includes("const getBridge") && harness.includes("useConciergeBridge(getRegistry, getBridge)") && !harness.includes("state_referenced_locally") && !/window\.|document\.|navigator\./u.test(stripJsComments(harness)), "svelte-real-harness", "packages/concierge-svelte/test/Harness.svelte", "getter-driven component hook without suppressions or host reads", "inspected");
       for (const token of ["mount", "rerender", "unmount", "cleanupCalls", "T03", "S1", "T04", "expect("]) {
         api.check(lifecycle.includes(token), `svelte-lifecycle-${token}`, "packages/concierge-svelte/test/lifecycle.test.ts", `assertion-observed ${token}`, lifecycle.includes(token) ? "present" : "absent");
@@ -911,16 +911,16 @@ function evaluateContracts(root) {
       const page = stripJsComments(api.text("examples/adapter-ssr/src/pages/index.astro"));
       const test = stripJsComments(api.text("examples/adapter-ssr/test/ssr.test.ts"));
 
-      api.check(manifest?.name === "@fullselfbrowsing/concierge-adapter-ssr" && manifest?.private === true, "astro-private-package", "examples/adapter-ssr/package.json", "named private package", "inspected");
+      api.check(manifest?.name === "@full-self-browsing/concierge-adapter-ssr" && manifest?.private === true, "astro-private-package", "examples/adapter-ssr/package.json", "named private package", "inspected");
       for (const [name, expected] of Object.entries({
         astro: "7.2.0",
         "@astrojs/react": "6.0.2",
         "@astrojs/svelte": "9.0.1",
         "@astrojs/check": "0.9.10",
         typescript: "6.0.3",
-        "@fullselfbrowsing/concierge": "workspace:*",
-        "@fullselfbrowsing/concierge-react": "workspace:*",
-        "@fullselfbrowsing/concierge-svelte": "workspace:*",
+        "@full-self-browsing/concierge": "workspace:*",
+        "@full-self-browsing/concierge-react": "workspace:*",
+        "@full-self-browsing/concierge-svelte": "workspace:*",
       })) {
         api.check(manifest?.devDependencies?.[name] === expected, `astro-dev-pin-${name}`, "examples/adapter-ssr/package.json", expected, manifest?.devDependencies?.[name] ?? "absent");
       }
@@ -929,8 +929,8 @@ function evaluateContracts(root) {
       }
       api.check(tsconfig.includes("astro/tsconfigs/strict"), "astro-strict-tsconfig", "examples/adapter-ssr/tsconfig.json", "Astro strict config", "inspected");
       api.check(catalog.includes("createRequestHarness") && catalog.includes("createBridge") && catalog.includes("createConcierge") && catalog.includes("svelteSnapshotNormalizer"), "astro-request-factory", "examples/adapter-ssr/src/shared/catalog.ts", "request-local shared harness", "inspected");
-      api.check(reactIsland.includes("@fullselfbrowsing/concierge-react/client") && reactIsland.includes("useConciergeBridge"), "astro-react-island", "examples/adapter-ssr/src/components/ReactIsland.tsx", "public injected React client", "inspected");
-      api.check(svelteIsland.includes("@fullselfbrowsing/concierge-svelte/client.svelte") && svelteIsland.includes("useConciergeBridge(() => registry, () => bridge)"), "astro-svelte-island", "examples/adapter-ssr/src/components/SvelteIsland.svelte", "public getter-injected Svelte client", "inspected");
+      api.check(reactIsland.includes("@full-self-browsing/concierge-react/client") && reactIsland.includes("useConciergeBridge"), "astro-react-island", "examples/adapter-ssr/src/components/ReactIsland.tsx", "public injected React client", "inspected");
+      api.check(svelteIsland.includes("@full-self-browsing/concierge-svelte/client.svelte") && svelteIsland.includes("useConciergeBridge(() => registry, () => bridge)"), "astro-svelte-island", "examples/adapter-ssr/src/components/SvelteIsland.svelte", "public getter-injected Svelte client", "inspected");
       api.check(page.includes("adapter-ssr-evidence") && page.includes("application/json"), "astro-machine-evidence", "examples/adapter-ssr/src/pages/index.astro", "JSON evidence block", "inspected");
       api.check(!/[<]style\b|\bclass=|tailwind|document\.|window\.|navigator\./u.test([catalog, reactIsland, svelteIsland, page].join("\n")), "astro-headless-server-source", "examples/adapter-ssr/src", "no UI styling/host reads", "inspected");
       for (const token of ["mkdtemp", "ADAPTER_SSR_OUT_DIR", "astro", "index.html", "ASTRO_SSR_EVIDENCE", "renders=2", "registries=null", "globals=absent", "SSR1", "T04", "expect("]) {
@@ -971,8 +971,8 @@ function evaluateContracts(root) {
       for (const token of [
         "mkdtemp",
         "pnpm pack",
-        "@fullselfbrowsing/concierge-react",
-        "@fullselfbrowsing/concierge-svelte",
+        "@full-self-browsing/concierge-react",
+        "@full-self-browsing/concierge-svelte",
         "publint",
         "attw",
         "realpath",
@@ -1275,7 +1275,7 @@ function evaluateContracts(root) {
       for (const id of evidenceIsCurrent ? MUTATION_IDS : LEGACY_MUTATION_IDS) {
         api.check(mutationEvidence.includes(id), `mutation-evidence-${id}`, `${PHASE_DIRECTORY}/09-MUTATION-EVIDENCE.json`, "green row evidence", mutationEvidence.includes(id) ? "present" : "absent");
       }
-      for (const token of ["@fullselfbrowsing/concierge", "08-consent-kernel", "phase-09-package-check", "phase-09-adapter-budget"]) {
+      for (const token of ["@full-self-browsing/concierge", "08-consent-kernel", "phase-09-package-check", "phase-09-adapter-budget"]) {
         api.check(releaseEvidence.includes(token), `release-evidence-${token}`, `${PHASE_DIRECTORY}/09-RELEASE-EVIDENCE.json`, "revision-bound release evidence", releaseEvidence.includes(token) ? "present" : "absent");
       }
       for (let index = 1; index <= 13; index += 1) {

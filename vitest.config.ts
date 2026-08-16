@@ -79,7 +79,7 @@ function svelte({ hot }: { readonly hot: boolean }) {
 //      had run — inverting the `typecheck` before `build` order that mutant P4
 //      exists to justify and that the CI workflow and the clean-checkout gate
 //      both depend on.
-//   3. `test/fixtures/probe.ts` imports `@fullselfbrowsing/concierge` by bare
+//   3. `test/fixtures/probe.ts` imports `@full-self-browsing/concierge` by bare
 //      specifier and is compiled by a FOREIGN program (the scratch project in
 //      plan 02-09). Keeping `test/fixtures/` out of this repo's own program is
 //      a feature, not an omission.
@@ -101,6 +101,7 @@ export default defineConfig({
             "**/node_modules/**",
             "**/.git/**",
             "packages/concierge/test/ai-sdk/**/*.test.ts",
+            "packages/concierge/test/telemetry/**/*.test.ts",
           ],
         },
       },
@@ -109,6 +110,13 @@ export default defineConfig({
           name: "ai-sdk-adapter",
           environment: "node",
           include: ["packages/concierge/test/ai-sdk/**/*.test.ts"],
+        },
+      },
+      {
+        test: {
+          name: "browser-telemetry",
+          environment: "jsdom",
+          include: ["packages/concierge/test/telemetry/**/*.test.ts"],
         },
       },
       {

@@ -14,7 +14,7 @@ import {
 } from "./config.mjs";
 
 const MODES = Object.freeze(["config", "source", "release", "workflow", "all"]);
-const CORE = "@fullselfbrowsing/concierge";
+const CORE = "@full-self-browsing/concierge";
 
 function readJson(path, label) {
   try {
@@ -117,13 +117,14 @@ function assertPackageManifest(config, spec, manifest, mode) {
       "./ai-sdk",
       "./ai-sdk/server",
       "./ai-sdk/browser",
+      "./telemetry",
       "./package.json",
     ];
     assert(
       JSON.stringify(Object.keys(manifest.exports ?? {})) ===
         JSON.stringify(expectedExports),
       "PACKAGE_EXPORTS",
-      "Core and AI SDK subpath exports drifted",
+      "Core, AI SDK, and telemetry subpath exports drifted",
     );
     assert(
       manifest.exports["./ai-sdk/server"]?.browser ===
@@ -215,6 +216,7 @@ function checkWorkflow(config) {
     "scripts/release/version.mjs apply",
     "scripts/release/package.mjs export",
     "scripts/release/seal.mjs",
+    "pnpm check:telemetry-payload",
     "prepare-sealed-example",
     "CONCIERGE_RELEASE_BROWSERS: \"1\"",
     "chromium firefox webkit",

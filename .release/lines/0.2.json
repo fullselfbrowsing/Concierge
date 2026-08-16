@@ -28,19 +28,19 @@
   },
   "packages": [
     {
-      "name": "@fullselfbrowsing/concierge",
+      "name": "@full-self-browsing/concierge",
       "path": "packages/concierge",
       "role": "core",
       "requiresCore": false
     },
     {
-      "name": "@fullselfbrowsing/concierge-react",
+      "name": "@full-self-browsing/concierge-react",
       "path": "packages/concierge-react",
       "role": "react",
       "requiresCore": true
     },
     {
-      "name": "@fullselfbrowsing/concierge-svelte",
+      "name": "@full-self-browsing/concierge-svelte",
       "path": "packages/concierge-svelte",
       "role": "svelte",
       "requiresCore": true

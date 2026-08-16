@@ -39,6 +39,7 @@ jobs:
 
       - run: pnpm build
       - run: pnpm typecheck
+      - run: pnpm check:telemetry-payload
       - run: pnpm test
 
       - name: Certify exact archives with dependency, Publint, and ATTW gates
@@ -80,12 +81,12 @@ jobs:
           npm install --ignore-scripts --no-audit --no-fund --strict-peer-deps \
             ../archives/*.tgz ai@7.0.64 react@19.2.8 react-dom@19.2.8 svelte@5.56.9
           node --input-type=module <<'NODE'
-          import { CONTRACT_VERSION, assertSingleInstance } from "@fullselfbrowsing/concierge";
-          const adapter = await import("@fullselfbrowsing/concierge/ai-sdk");
-          await import("@fullselfbrowsing/concierge/ai-sdk/server");
-          await import("@fullselfbrowsing/concierge/ai-sdk/browser");
-          await import("@fullselfbrowsing/concierge-react");
-          await import("@fullselfbrowsing/concierge-svelte");
+          import { CONTRACT_VERSION, assertSingleInstance } from "@full-self-browsing/concierge";
+          const adapter = await import("@full-self-browsing/concierge/ai-sdk");
+          await import("@full-self-browsing/concierge/ai-sdk/server");
+          await import("@full-self-browsing/concierge/ai-sdk/browser");
+          await import("@full-self-browsing/concierge-react");
+          await import("@full-self-browsing/concierge-svelte");
           assertSingleInstance();
           if (CONTRACT_VERSION !== 2 || adapter.EXPECTED_CORE_CONTRACT_VERSION !== 2) {
             throw new Error("contract v2 did not survive the packed install");
@@ -134,5 +135,5 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @fullselfbrowsing/concierge-example-next-ai-sdk exec playwright install --with-deps chromium
-      - run: pnpm --filter @fullselfbrowsing/concierge-example-next-ai-sdk exec playwright test --project=chromium
+      - run: pnpm --filter @full-self-browsing/concierge-example-next-ai-sdk exec playwright install --with-deps chromium
+      - run: pnpm --filter @full-self-browsing/concierge-example-next-ai-sdk exec playwright test --project=chromium

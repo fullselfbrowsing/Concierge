@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { DeliveryReport } from "@fullselfbrowsing/concierge";
+import type { DeliveryReport } from "@full-self-browsing/concierge";
 
 import { createPortfolioConcierge } from "../src/portfolio-concierge";
 import type { PortfolioBridge, PortfolioContext } from "../src/portfolio-concierge";

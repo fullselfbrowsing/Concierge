@@ -4,9 +4,9 @@
   "commit": false,
   "fixed": [
     [
-      "@fullselfbrowsing/concierge",
-      "@fullselfbrowsing/concierge-react",
-      "@fullselfbrowsing/concierge-svelte"
+      "@full-self-browsing/concierge",
+      "@full-self-browsing/concierge-react",
+      "@full-self-browsing/concierge-svelte"
     ]
   ],
   "linked": [],

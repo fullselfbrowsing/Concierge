@@ -95,7 +95,7 @@ Run the narrow test while iterating, then the repository gates before review:
 pnpm build
 pnpm typecheck
 pnpm test
-pnpm --filter @fullselfbrowsing/concierge-example-next-ai-sdk build
+pnpm --filter @full-self-browsing/concierge-example-next-ai-sdk build
 
 node scripts/release/version.mjs self-test
 node scripts/release/package.mjs self-test
@@ -128,15 +128,15 @@ network model behavior are not release authorization.
 
 The public release set is exactly:
 
-1. `@fullselfbrowsing/concierge`
-2. `@fullselfbrowsing/concierge-react`
-3. `@fullselfbrowsing/concierge-svelte`
+1. `@full-self-browsing/concierge`
+2. `@full-self-browsing/concierge-react`
+3. `@full-self-browsing/concierge-svelte`
 
 They belong to one fixed Changesets group and must leave a Version Packages PR
 at the same version. A user-visible change adds a changeset naming all three at
 the same bump level. Private examples and fixtures are never versioned.
 
-Adapters keep core as `peerDependencies["@fullselfbrowsing/concierge"] =
+Adapters keep core as `peerDependencies["@full-self-browsing/concierge"] =
 "workspace:^"` and `devDependencies = "workspace:*"`; core is never an ordinary
 adapter dependency. Core exposes AI SDK support only through explicit subpaths
 and keeps `ai` as the optional peer `^6.0.0 || ^7.0.0`.

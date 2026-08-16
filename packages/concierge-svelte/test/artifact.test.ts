@@ -43,7 +43,7 @@ function requireArtifact(path: string): string {
   if (!existsSync(path) || !statSync(path).isFile() || statSync(path).size <= 0) {
     throw new Error(
       `${path} is missing or empty. This suite requires a successful ` +
-        `@fullselfbrowsing/concierge-svelte svelte-package build.`,
+        `@full-self-browsing/concierge-svelte svelte-package build.`,
     );
   }
 
@@ -100,7 +100,7 @@ async function withoutBrowserGlobals<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
-describe("the built @fullselfbrowsing/concierge-svelte entries", () => {
+describe("the built @full-self-browsing/concierge-svelte entries", () => {
   it("maps every public condition to a nonempty svelte-package artifact", () => {
     const manifest = readManifest();
     const rootConditions = manifest.exports["."];
@@ -108,8 +108,8 @@ describe("the built @fullselfbrowsing/concierge-svelte entries", () => {
 
     expect(manifest.scripts.build).toBe("svelte-package");
     expect(JSON.stringify(manifest)).not.toContain("tsdown");
-    expect(manifest.dependencies?.["@fullselfbrowsing/concierge"]).toBeUndefined();
-    expect(manifest.peerDependencies["@fullselfbrowsing/concierge"]).toBe(
+    expect(manifest.dependencies?.["@full-self-browsing/concierge"]).toBeUndefined();
+    expect(manifest.peerDependencies["@full-self-browsing/concierge"]).toBe(
       "workspace:^",
     );
     expect(Object.keys(rootConditions)).toEqual([
@@ -157,10 +157,12 @@ describe("the built @fullselfbrowsing/concierge-svelte entries", () => {
       "index.js",
     ]);
     expect(rootSource).not.toContain("createConcierge");
-    expect(clientSource).toContain('from "@fullselfbrowsing/concierge"');
+    expect(clientSource).toContain('from "@full-self-browsing/concierge"');
     expect(clientSource).not.toContain("concierge.contract.global");
     expect(rootTypes).toContain("SnapshotNormalizer");
     expect(clientTypes).toContain("provideConcierge");
+    expect(clientTypes).toContain("ProvideConciergeOptions");
+    expect(clientTypes).toContain("telemetry?: boolean");
     expect(clientTypes).toContain("useConcierge");
     expect(clientTypes).toContain("useConciergeBridge");
     expect(clientTypes).toContain("getRegistry");
@@ -179,7 +181,7 @@ describe("the built @fullselfbrowsing/concierge-svelte entries", () => {
       "const bridge = getBridge()",
       "assertSingleInstance()",
       "CONTRACT_VERSION !== EXPECTED_CONTRACT_VERSION",
-      "@fullselfbrowsing/concierge-svelte expected core contract v",
+      "@full-self-browsing/concierge-svelte expected core contract v",
       "but found v",
       "upgrade or reinstall",
       "registry.register(bridge)",

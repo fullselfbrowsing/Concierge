@@ -12,7 +12,7 @@
 // `export type { … }` block — is silently legal in both directions that matter:
 // `tsc -p tsconfig.test-d.json` exits **0**, the emit build exits **0**, and
 // `dist/index.js` quietly loses the runtime binding. A consumer's
-// `import { MESSAGE_MAX_CHARS } from "@fullselfbrowsing/concierge"` then
+// `import { MESSAGE_MAX_CHARS } from "@full-self-browsing/concierge"` then
 // resolves to `undefined` at runtime with no diagnostic anywhere in this
 // repository. Measured against the real `src/`, not assumed — the verified trap
 // table is `02-RESEARCH.md:689-701`.

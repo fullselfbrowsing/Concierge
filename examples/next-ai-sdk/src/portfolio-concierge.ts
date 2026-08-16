@@ -3,7 +3,7 @@ import {
   createConcierge,
   defineAction,
   offPageResult,
-} from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";
 import type {
   ActionDefinition,
   Bridge,
@@ -12,7 +12,7 @@ import type {
   AbortSignalLike,
   StageContext,
   StandardSchemaV1,
-} from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";
 import { z } from "zod";
 
 export interface PortfolioContext extends StageContext {

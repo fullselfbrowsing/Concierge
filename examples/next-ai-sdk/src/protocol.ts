@@ -1,4 +1,4 @@
-import type { SignedToolBatchEnvelopeV1 } from "@fullselfbrowsing/concierge/ai-sdk";
+import type { SignedToolBatchEnvelopeV1 } from "@full-self-browsing/concierge/ai-sdk";
 
 export const CONCIERGE_AUDIENCE = "concierge-next-ai-sdk-example";
 export const SESSION_COOKIE = "concierge_example_session";

@@ -10,7 +10,12 @@ export default defineConfig({
   clean: true,
   outDir: "dist",
   deps: {
-    neverBundle: ["@fullselfbrowsing/concierge", "react", "react-dom"],
+    neverBundle: [
+      "@full-self-browsing/concierge",
+      "@full-self-browsing/concierge/telemetry",
+      "react",
+      "react-dom",
+    ],
   },
   plugins: [
     {

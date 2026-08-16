@@ -112,8 +112,8 @@ function parseEvidence(html: string, renderId: string): SsrEvidence {
   expect(evidence.schemaVersion).toBe(1);
   expect(evidence.renderId).toBe(renderId);
   expect(evidence.adapters).toEqual({
-    react: "@fullselfbrowsing/concierge-react/client",
-    svelte: "@fullselfbrowsing/concierge-svelte/client.svelte",
+    react: "@full-self-browsing/concierge-react/client",
+    svelte: "@full-self-browsing/concierge-svelte/client.svelte",
   });
   expect(evidence.globals, "T04 browser globals must be absent").toEqual({
     window: false,
@@ -164,10 +164,10 @@ function parseEvidence(html: string, renderId: string): SsrEvidence {
     "T04/SSR1 React render payload must remain registration-silent",
   ).not.toContain("&quot;registry&quot;:&quot;registered&quot;");
   expect(html).toContain(
-    'data-entry="@fullselfbrowsing/concierge-react/client"',
+    'data-entry="@full-self-browsing/concierge-react/client"',
   );
   expect(html).toContain(
-    'data-entry="@fullselfbrowsing/concierge-svelte/client.svelte"',
+    'data-entry="@full-self-browsing/concierge-svelte/client.svelte"',
   );
 
   return evidence;

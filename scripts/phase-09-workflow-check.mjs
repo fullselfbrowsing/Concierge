@@ -21,16 +21,16 @@ const NPM_INTEGRITY =
   "sha512-82gRxKrh/eY5UnNorkTFcdBQAGpgjWehkfGVqAGlJjejEtJZGGJUqjo3mbBTNbc5BTnPKGVtGPBZGhElujX5cw==";
 const FIRST_RELEASE_CORE_PEER = "workspace:^0.0.0 || ^0.1.0";
 const PUBLIC_PACKAGES = Object.freeze([
-  "@fullselfbrowsing/concierge",
-  "@fullselfbrowsing/concierge-react",
-  "@fullselfbrowsing/concierge-svelte",
+  "@full-self-browsing/concierge",
+  "@full-self-browsing/concierge-react",
+  "@full-self-browsing/concierge-svelte",
 ]);
 const EXACT_ROOT_SCRIPTS = Object.freeze({
   build: "pnpm -r build",
   test: "vitest run",
   typecheck: "pnpm -r typecheck",
   "check:artifact":
-    "pnpm --filter @fullselfbrowsing/concierge exec publint --strict && pnpm exec attw --pack packages/concierge --profile esm-only",
+    "pnpm --filter @full-self-browsing/concierge exec publint --strict && pnpm exec attw --pack packages/concierge --profile esm-only",
   "check:deps":
     "node scripts/pkg05-zero-runtime-deps.mjs packages/concierge/dist/index.js",
   "check:pack": "bash scripts/pack-install-check.sh",
@@ -42,7 +42,7 @@ const EXACT_ROOT_SCRIPTS = Object.freeze({
   "check:phase09:evidence":
     "node scripts/phase-09-mutation-battery.mjs verify all",
   "check:phase09":
-    "pnpm run test:phase09 && pnpm --filter @fullselfbrowsing/concierge-adapter-ssr check && pnpm --filter @fullselfbrowsing/concierge-adapter-ssr build && pnpm run check:phase09:packages && pnpm run check:phase09:budget && pnpm run check:phase09:static && pnpm run check:phase09:evidence",
+    "pnpm run test:phase09 && pnpm --filter @full-self-browsing/concierge-adapter-ssr check && pnpm --filter @full-self-browsing/concierge-adapter-ssr build && pnpm run check:phase09:packages && pnpm run check:phase09:budget && pnpm run check:phase09:static && pnpm run check:phase09:evidence",
   "check:phase09:release":
     "pnpm run check:phase09 && node scripts/phase-09-workflow-check.mjs",
   "version:phase09": "node scripts/phase-09-version.mjs",
@@ -960,7 +960,7 @@ function validateCi(workflow) {
       floor.executable.includes("node-version: '22.12.0'") &&
       floor.executable.includes("process.version !== 'v22.12.0'") &&
       floor.executable.includes("npm init -y && npm install --no-audit --no-fund ./*.tgz") &&
-      floor.executable.includes('import("@fullselfbrowsing/concierge")'),
+      floor.executable.includes('import("@full-self-browsing/concierge")'),
     "CI_FLOOR",
     "the separate npm-only Node floor job drifted",
   );

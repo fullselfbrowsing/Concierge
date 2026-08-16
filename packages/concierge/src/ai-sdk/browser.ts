@@ -1,7 +1,7 @@
 import {
   assertSingleInstance,
   CONTRACT_VERSION,
-} from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";
 import type {
   ActionResult,
   BatchDispatchOutcome,
@@ -12,7 +12,7 @@ import type {
   StageContext,
   ToolBatch,
   ToolCall,
-} from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";
 
 import { createAISDKAdapter } from "./index.js";
 import type {
@@ -91,7 +91,7 @@ function assertContract(): void {
   const actual: number = CONTRACT_VERSION;
   if (actual !== EXPECTED_CORE_CONTRACT_VERSION) {
     throw new ConciergeAISDKConfigurationError(
-      `@fullselfbrowsing/concierge/ai-sdk expected core contract v${EXPECTED_CORE_CONTRACT_VERSION} ` +
+      `@full-self-browsing/concierge/ai-sdk expected core contract v${EXPECTED_CORE_CONTRACT_VERSION} ` +
         `but found v${actual}; upgrade or reinstall both packages together.`,
     );
   }
@@ -510,26 +510,53 @@ export function createIndexedDBReplayStore(options: Readonly<{
     );
   }
   let databasePromise: Promise<IDBDatabase> | null = null;
+  let opened: IDBDatabase | null = null;
+
+  function forget(db: IDBDatabase): void {
+    if (opened === db) {
+      opened = null;
+      databasePromise = null;
+    }
+  }
 
   function database(): Promise<IDBDatabase> {
     if (factory === undefined) {
       return Promise.reject(new Error("IndexedDB is unavailable."));
     }
-    databasePromise ??= new Promise<IDBDatabase>((resolve, reject) => {
-      const request: IDBOpenDBRequest = factory.open(databaseName, 1);
+    if (databasePromise !== null) return databasePromise;
+    databasePromise = new Promise<IDBDatabase>((resolve, reject) => {
+      let request: IDBOpenDBRequest;
+      try {
+        request = factory.open(databaseName, 1);
+      } catch (error) {
+        reject(error);
+        return;
+      }
       request.onupgradeneeded = (): void => {
         const db: IDBDatabase = request.result;
         if (!db.objectStoreNames.contains("nonces")) {
           db.createObjectStore("nonces", { keyPath: "key" });
         }
       };
-      request.onsuccess = (): void => resolve(request.result);
+      request.onsuccess = (): void => {
+        const db: IDBDatabase = request.result;
+        opened = db;
+        db.onversionchange = (): void => {
+          db.close();
+          forget(db);
+        };
+        db.onclose = (): void => forget(db);
+        resolve(db);
+      };
       request.onerror = (): void => reject(
         request.error ?? new Error("IndexedDB open failed."),
       );
       request.onblocked = (): void => reject(
         new Error("IndexedDB open was blocked."),
       );
+    }).catch((error: unknown): never => {
+      databasePromise = null;
+      throw error;
     });
     return databasePromise;
   }
@@ -931,7 +958,6 @@ export function createSignedBrowserBridge(input: Readonly<{
         }),
       });
     }
-    if (epochSignal.aborted) return reject("catalog_changed");
     const completed: CompletedBrowserBatchReport | null = completedReport(
       batch.identity,
       batch.claims,

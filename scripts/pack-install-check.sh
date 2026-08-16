@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/pack-install-check.sh — PKG-02
 #
-# Packs @fullselfbrowsing/concierge, installs the tarball into a throwaway
+# Packs @full-self-browsing/concierge, installs the tarball into a throwaway
 # project that is NOT part of this workspace, typechecks a consumer-side probe
 # against the SHIPPED declarations with skipLibCheck off, and imports the
 # shipped runtime.
@@ -20,7 +20,7 @@ set -euo pipefail
 # matter which directory it is invoked from.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PKG_DIR="$REPO_ROOT/packages/concierge"
-PKG_NAME="@fullselfbrowsing/concierge"
+PKG_NAME="@full-self-browsing/concierge"
 
 START_EPOCH=$(date +%s)
 
@@ -64,6 +64,17 @@ if printf '%s\n' "$TAR_ENTRIES" | grep -Eq 'stub-transport|(^|/)package/(test|te
   echo "FAIL: [RED:P01:stub-tarball-exclusion] tarball contains a test fixture or stub transport" >&2
   exit 1
 fi
+for required in \
+  package/dist/telemetry/index.js \
+  package/dist/telemetry/index.d.ts \
+  package/dist/telemetry/index.js.map \
+  package/dist/telemetry/index.d.ts.map
+do
+  if ! printf '%s\n' "$TAR_ENTRIES" | grep -Fxq "$required"; then
+    echo "FAIL: packed browser telemetry subpath is missing $required" >&2
+    exit 1
+  fi
+done
 
 cd "$OUT"
 
@@ -135,7 +146,8 @@ echo "==> typechecking the probe against the shipped .d.ts (skipLibCheck: false)
 # binding was erased from dist/index.js. This exercises the shipped runtime.
 echo "==> importing the shipped runtime"
 node --input-type=module -e '
-  const m = await import("@fullselfbrowsing/concierge");
+  const m = await import("@full-self-browsing/concierge");
+  const telemetry = await import("@full-self-browsing/concierge/telemetry");
   if (m.MESSAGE_MAX_CHARS !== 180) {
     throw new Error("runtime binding erased: MESSAGE_MAX_CHARS is " + String(m.MESSAGE_MAX_CHARS));
   }
@@ -169,6 +181,20 @@ node --input-type=module -e '
   ) {
     throw new Error("runtime USER_DECLINED contract drifted");
   }
+  const telemetryExports = [
+    "getConciergeTelemetryStatus",
+    "mountConciergeTelemetry",
+    "onConciergeTelemetryStatusChange",
+    "setConciergeTelemetryEnabled",
+  ];
+  if (JSON.stringify(Object.keys(telemetry).sort()) !== JSON.stringify(telemetryExports)) {
+    throw new Error("telemetry runtime export drift");
+  }
+  const noOpUnmount = telemetry.mountConciergeTelemetry(concierge);
+  if (typeof noOpUnmount !== "function") {
+    throw new Error("telemetry SSR mount did not fail closed");
+  }
+  noOpUnmount();
 '
 
 echo "==> wall time: $(( $(date +%s) - START_EPOCH ))s"

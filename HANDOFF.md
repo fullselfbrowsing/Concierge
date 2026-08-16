@@ -20,9 +20,9 @@ contract v2. The repository contains:
 
 The public package set is one fixed trio at a shared `0.2.x` version:
 
-1. `@fullselfbrowsing/concierge`
-2. `@fullselfbrowsing/concierge-react`
-3. `@fullselfbrowsing/concierge-svelte`
+1. `@full-self-browsing/concierge`
+2. `@full-self-browsing/concierge-react`
+3. `@full-self-browsing/concierge-svelte`
 
 Do not infer registry publication from the repository version. Check npm and
 the release workflow. First publication remains externally blocked until the
@@ -112,7 +112,7 @@ pnpm install --frozen-lockfile
 pnpm build
 pnpm typecheck
 pnpm test
-pnpm --filter @fullselfbrowsing/concierge-example-next-ai-sdk build
+pnpm --filter @full-self-browsing/concierge-example-next-ai-sdk build
 
 node scripts/release/version.mjs self-test
 node scripts/release/package.mjs self-test

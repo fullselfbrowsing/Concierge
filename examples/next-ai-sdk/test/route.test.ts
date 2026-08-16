@@ -26,7 +26,7 @@ describe("POST /api/chat", () => {
   });
 
   afterEach(() => {
-    vi.doUnmock("@fullselfbrowsing/concierge/ai-sdk/server");
+    vi.doUnmock("@full-self-browsing/concierge/ai-sdk/server");
     vi.resetModules();
     vi.unstubAllEnvs();
     delete process.env.CONCIERGE_DETERMINISTIC_TEST;
@@ -66,10 +66,10 @@ describe("POST /api/chat", () => {
 
   it("signals regeneration instead of silently dropping a server-stale catalog", async () => {
     vi.resetModules();
-    vi.doMock("@fullselfbrowsing/concierge/ai-sdk/server", async () => {
+    vi.doMock("@full-self-browsing/concierge/ai-sdk/server", async () => {
       const actual = await vi.importActual<
-        typeof import("@fullselfbrowsing/concierge/ai-sdk/server")
-      >("@fullselfbrowsing/concierge/ai-sdk/server");
+        typeof import("@full-self-browsing/concierge/ai-sdk/server")
+      >("@full-self-browsing/concierge/ai-sdk/server");
       return {
         ...actual,
         createSignedBatchIssuer: () => ({

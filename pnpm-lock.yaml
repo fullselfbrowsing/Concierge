@@ -67,13 +67,13 @@ importers:
       '@astrojs/svelte':
         specifier: 9.0.1
         version: 9.0.1(@types/node@24.10.1)(astro@7.2.0(@emnapi/core@2.0.0-alpha.3)(@emnapi/runtime@2.0.0-alpha.3)(@types/node@24.10.1)(yaml@2.9.0))(esbuild@0.28.2)(svelte@5.56.9)(typescript@6.0.3)(yaml@2.9.0)
-      '@fullselfbrowsing/concierge':
+      '@full-self-browsing/concierge':
         specifier: workspace:*
         version: link:../../packages/concierge
-      '@fullselfbrowsing/concierge-react':
+      '@full-self-browsing/concierge-react':
         specifier: workspace:*
         version: link:../../packages/concierge-react
-      '@fullselfbrowsing/concierge-svelte':
+      '@full-self-browsing/concierge-svelte':
         specifier: workspace:*
         version: link:../../packages/concierge-svelte
       '@types/react':
@@ -103,10 +103,10 @@ importers:
       '@ai-sdk/react':
         specifier: 4.0.67
         version: 4.0.67(react@19.2.8)(zod@4.4.3)
-      '@fullselfbrowsing/concierge':
+      '@full-self-browsing/concierge':
         specifier: workspace:*
         version: link:../../packages/concierge
-      '@fullselfbrowsing/concierge-react':
+      '@full-self-browsing/concierge-react':
         specifier: workspace:*
         version: link:../../packages/concierge-react
       '@openrouter/ai-sdk-provider':
@@ -168,7 +168,7 @@ importers:
 
   packages/concierge-react:
     devDependencies:
-      '@fullselfbrowsing/concierge':
+      '@full-self-browsing/concierge':
         specifier: workspace:*
         version: link:../concierge
       '@testing-library/react':
@@ -189,7 +189,7 @@ importers:
 
   packages/concierge-svelte:
     devDependencies:
-      '@fullselfbrowsing/concierge':
+      '@full-self-browsing/concierge':
         specifier: workspace:*
         version: link:../concierge
       '@sveltejs/package':
@@ -213,13 +213,13 @@ importers:
 
   packages/concierge/test/fixtures/adapter-alpha:
     devDependencies:
-      '@fullselfbrowsing/concierge':
+      '@full-self-browsing/concierge':
         specifier: workspace:*
         version: link:../../..
 
   packages/concierge/test/fixtures/adapter-beta:
     devDependencies:
-      '@fullselfbrowsing/concierge':
+      '@full-self-browsing/concierge':
         specifier: workspace:*
         version: link:../../..
 

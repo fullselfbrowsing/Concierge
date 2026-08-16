@@ -3,4 +3,4 @@ export type {
   BridgeRegistry,
   Concierge,
   SnapshotNormalizer,
-} from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";

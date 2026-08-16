@@ -5,7 +5,7 @@
     "outDir": "./dist/ai-sdk",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "paths": {
-      "@fullselfbrowsing/concierge": ["./src/index.ts"]
+      "@full-self-browsing/concierge": ["./src/index.ts"]
     }
   },
   "include": ["src/ai-sdk/**/*.ts"]

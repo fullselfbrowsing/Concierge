@@ -14,6 +14,10 @@ import {
 export const ARCHIVE_MANIFEST_FILENAME = "release-archives.json";
 const SHA256 = /^[0-9a-f]{64}$/u;
 const SHA512 = /^sha512-[A-Za-z0-9+/]+={0,2}$/u;
+const CORE_REGISTRY_SIGNATURES = Object.freeze([
+  'Symbol.for("@fullselfbrowsing/concierge.contract")',
+  'Symbol.for("@full-self-browsing/concierge.contract")',
+]);
 
 function tar(arguments_, label) {
   const result = spawnSync("tar", arguments_, {
@@ -83,7 +87,7 @@ function validateRuntimeExternalization(config, spec, path, entries) {
   if (spec.requiresCore) {
     assert(
       importsPeer(config.packages[0].name) &&
-        !source.includes('Symbol.for("@fullselfbrowsing/concierge.contract")') &&
+        !CORE_REGISTRY_SIGNATURES.some((signature) => source.includes(signature)) &&
         !source.includes("function createConcierge("),
       "ARCHIVE_PEER_BUNDLE",
       `${spec.name} must import core as a peer without bundling a core copy`,

@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE_ROOT = join(ROOT, "packages/concierge/src");
+const EXPLICIT_TELEMETRY_ROOT = join(SOURCE_ROOT, "telemetry");
 const RESULT_PATH_FILES = new Set([
   "packages/concierge/src/concierge.ts",
   "packages/concierge/src/dispatch.ts",
@@ -137,6 +138,7 @@ function enumerateTypeScriptFiles(directory) {
       throw new Error(`ambiguous source entry is a symlink: ${portablePath(path)}`);
     }
     if (entry.isDirectory()) {
+      if (resolve(path) === resolve(EXPLICIT_TELEMETRY_ROOT)) continue;
       files.push(...enumerateTypeScriptFiles(path));
     } else if (entry.isFile()) {
       if (entry.name.endsWith(".ts")) files.push(path);

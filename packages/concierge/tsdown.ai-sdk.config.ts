@@ -14,8 +14,9 @@ export default defineConfig({
   outDir: "dist/ai-sdk",
   tsconfig: "tsconfig.ai-sdk.json",
   deps: {
-    neverBundle: ["@fullselfbrowsing/concierge", "ai"],
+    neverBundle: ["@full-self-browsing/concierge", "ai"],
   },
-  publint: { level: "error" },
-  attw: { level: "error", profile: "esm-only" },
+  // The telemetry build runs these gates after every package export exists.
+  publint: false,
+  attw: false,
 });

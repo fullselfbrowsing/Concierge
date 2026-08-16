@@ -81,8 +81,9 @@ jobs:
           node scripts/release/compatibility.mjs self-test
           pnpm build
           pnpm typecheck
+          pnpm check:telemetry-payload
           pnpm test
-          pnpm --filter @fullselfbrowsing/concierge-example-next-ai-sdk build
+          pnpm --filter @full-self-browsing/concierge-example-next-ai-sdk build
 
       - name: Allocate exact release inputs
         run: |
@@ -287,9 +288,9 @@ jobs:
           ) throw new Error("release seal identity or digest drifted");
 
           const pinned = {
-            "config.mjs": "467b615be0160abecf21ace0ebe55814e56864c7f673e1f569867d652545fa8f",
+            "config.mjs": "f6ecee16c34c1cf27b6f2eeee3701314c2b4324db152791111cecc6ab51299a7",
             "release-publisher.mjs": "ae010272f10e604380b8bf6f8e4cc9379112fa78a774f3360f35010826f08a9f",
-            "release-line.json": "b4a8fb96dede573f40cc36ed736208ef191777b3f268636d6505a83b4e329a97",
+            "release-line.json": "06706bfef1b06028d3066a6e4b938df9ecfbaa196ea0bafba5ae39f1a32d3da0",
           };
           const expected = ["release-seal.json"];
           for (const record of seal.tools) {

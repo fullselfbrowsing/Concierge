@@ -1,4 +1,4 @@
-# @fullselfbrowsing/concierge-react
+# @full-self-browsing/concierge-react
 
 ## 0.2.0
 

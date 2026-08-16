@@ -179,7 +179,7 @@ function selfTest() {
   assert(new Set(names).size === 3, "SELF_TEST", "archive names are not unique");
   assert(
     names[2] === expectedArchiveFilename(
-      "@fullselfbrowsing/concierge-svelte",
+      "@full-self-browsing/concierge-svelte",
       config.initialVersion,
     ),
     "SELF_TEST",

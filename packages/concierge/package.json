@@ -1,5 +1,5 @@
 {
-  "name": "@fullselfbrowsing/concierge",
+  "name": "@full-self-browsing/concierge",
   "version": "0.2.0",
   "description": "Typed, consent-gated actions that let an AI agent operate your web app",
   "keywords": [
@@ -44,6 +44,10 @@
       "types": "./dist/ai-sdk/browser.d.ts",
       "default": "./dist/ai-sdk/browser.js"
     },
+    "./telemetry": {
+      "types": "./dist/telemetry/index.d.ts",
+      "default": "./dist/telemetry/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -71,8 +75,8 @@
     }
   },
   "scripts": {
-    "build": "tsdown && tsdown --config tsdown.ai-sdk.config.ts",
-    "typecheck": "tsc -p tsconfig.test-d.json && tsc -p tsconfig.ai-sdk.test-d.json"
+    "build": "tsdown && tsdown --config tsdown.ai-sdk.config.ts && tsdown --config tsdown.telemetry.config.ts",
+    "typecheck": "tsc -p tsconfig.test-d.json && tsc -p tsconfig.ai-sdk.test-d.json && tsc -p tsconfig.telemetry.json --noEmit"
   },
   "devDependencies": {
     "arktype": "2.2.3",

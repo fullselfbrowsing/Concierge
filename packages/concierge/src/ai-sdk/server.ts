@@ -1,8 +1,8 @@
 import {
   assertSingleInstance,
   CONTRACT_VERSION,
-} from "@fullselfbrowsing/concierge";
-import type { StageContext } from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";
+import type { StageContext } from "@full-self-browsing/concierge";
 
 import type {
   ConciergeAISDKAdapter,
@@ -209,7 +209,7 @@ function assertContract(): void {
   const actual: number = CONTRACT_VERSION;
   if (actual !== EXPECTED_CORE_CONTRACT_VERSION) {
     throw new ConciergeAISDKConfigurationError(
-      `@fullselfbrowsing/concierge/ai-sdk expected core contract v${EXPECTED_CORE_CONTRACT_VERSION} ` +
+      `@full-self-browsing/concierge/ai-sdk expected core contract v${EXPECTED_CORE_CONTRACT_VERSION} ` +
         `but found v${actual}; upgrade or reinstall both packages together.`,
     );
   }

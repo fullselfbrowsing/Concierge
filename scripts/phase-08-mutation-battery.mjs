@@ -1908,7 +1908,7 @@ function runFullVitest(reportPath, root = ROOT) {
 function runTypecheck(root = ROOT) {
   return command("pnpm", [
     "--filter",
-    "@fullselfbrowsing/concierge",
+    "@full-self-browsing/concierge",
     "typecheck",
   ], { cwd: root });
 }

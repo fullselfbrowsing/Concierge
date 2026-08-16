@@ -72,7 +72,7 @@ import {
   buildCatalog,
   createConcierge,
   createSession,
-} from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";
 import type {
   ActionResult,
   CatalogRevision,
@@ -101,7 +101,17 @@ import type {
   Transport,
   TransportStatus,
   TurnIdentityProvenance,
-} from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";
+import {
+  getConciergeTelemetryStatus,
+  mountConciergeTelemetry,
+  onConciergeTelemetryStatusChange,
+  setConciergeTelemetryEnabled,
+} from "@full-self-browsing/concierge/telemetry";
+import type {
+  ConciergeTelemetryReason,
+  ConciergeTelemetryStatus,
+} from "@full-self-browsing/concierge/telemetry";
 
 /**
  * The shipped interface is constructible from a plain object literal under
@@ -293,6 +303,24 @@ export const foreignConcierge: Concierge = {
       catalog: Object.freeze([]),
     }),
 };
+
+/** The browser-only telemetry subpath is present and fully typed in the pack. */
+export const foreignTelemetryReason: ConciergeTelemetryReason = "enabled";
+export const foreignTelemetryStatus: ConciergeTelemetryStatus = Object.freeze({
+  enabled: true,
+  reason: foreignTelemetryReason,
+  serverDeletionPending: false,
+});
+export const foreignTelemetryMount: (concierge: Concierge) => () => void =
+  mountConciergeTelemetry;
+export const foreignTelemetryGet: () => Promise<ConciergeTelemetryStatus> =
+  getConciergeTelemetryStatus;
+export const foreignTelemetrySet: (
+  enabled: boolean,
+) => Promise<ConciergeTelemetryStatus> = setConciergeTelemetryEnabled;
+export const foreignTelemetryListen: (
+  listener: (status: ConciergeTelemetryStatus) => void,
+) => () => void = onConciergeTelemetryStatusChange;
 
 /** Pin the closed diagnostic vocabulary and immutable public shape. */
 export const foreignDiagnosticCode: SessionDiagnosticCode = "response_failed";

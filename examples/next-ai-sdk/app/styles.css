@@ -32,9 +32,31 @@ button { cursor: pointer; }
 .message { padding: .75rem; border-radius: .65rem; background: #1a2134; white-space: pre-wrap; }
 .composer input { flex: 1; min-width: 12rem; padding: .65rem; border-radius: .55rem; border: 1px solid #52618c; background: #080b12; color: inherit; }
 .overlay { min-height: 5rem; padding: .8rem; border: 1px solid #3b466b; border-radius: .7rem; color: #b9c6ef; }
+.visual-options { margin-top: .75rem; color: #b9c6ef; }
+.visual-options summary { cursor: pointer; user-select: none; }
+.visual-options-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .6rem .9rem;
+  margin-top: .7rem;
+  padding: .75rem;
+  border: 1px solid #29304a;
+  border-radius: .7rem;
+  background: #0b0f1a;
+}
+.visual-options-grid label { display: flex; align-items: center; gap: .5rem; font-size: .8rem; }
+.visual-options-grid input[type="color"] {
+  width: 2.2rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: .3rem;
+  background: transparent;
+}
 .status { color: #9dacd8; }
 
 @media (max-width: 850px) {
   .shell { grid-template-columns: 1fr; }
   .chat { border-left: 0; border-top: 1px solid #29304a; }
+  .visual-options-grid { grid-template-columns: 1fr; }
 }

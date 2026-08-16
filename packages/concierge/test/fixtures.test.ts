@@ -4,7 +4,7 @@
 // What escapes without this file:
 //
 // F1a, F1b and F2 in `single-instance.test.ts` are runtime guards, and every
-// one of them would still pass if someone moved `@fullselfbrowsing/concierge`
+// one of them would still pass if someone moved `@full-self-browsing/concierge`
 // from `peerDependencies` to `dependencies` in every adapter. That edit is
 // exactly the packaging regression that causes two physical copies to be
 // installed — which splits the bridge registry, splits the dedup window, and
@@ -85,7 +85,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 // The name under test, written once. It is the string a real adapter puts in
 // its own manifest, so it is also the string this file must read back.
-const CORE_NAME = "@fullselfbrowsing/concierge";
+const CORE_NAME = "@full-self-browsing/concierge";
 
 // The two fixture adapters, as directory URLs. Each is a genuine workspace
 // member: `pnpm-workspace.yaml` globs `packages/concierge/test/fixtures/*`

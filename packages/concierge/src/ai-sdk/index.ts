@@ -1,7 +1,7 @@
 import {
   assertSingleInstance,
   CONTRACT_VERSION,
-} from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";
 import type {
   ActionResult,
   CatalogRevision,
@@ -10,7 +10,7 @@ import type {
   ResolvedCatalog,
   StageContext,
   ToolCall,
-} from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";
 import { jsonSchema, tool } from "ai";
 import type { JSONSchema7, JSONValue, ToolResultPart, ToolSet } from "ai";
 
@@ -131,7 +131,7 @@ function assertContract(): void {
   const actual: number = CONTRACT_VERSION;
   if (actual !== EXPECTED_CORE_CONTRACT_VERSION) {
     throw new ConciergeAISDKConfigurationError(
-      `@fullselfbrowsing/concierge/ai-sdk expected core contract v${EXPECTED_CORE_CONTRACT_VERSION} ` +
+      `@full-self-browsing/concierge/ai-sdk expected core contract v${EXPECTED_CORE_CONTRACT_VERSION} ` +
         `but found v${actual}; upgrade or reinstall both packages together.`,
     );
   }

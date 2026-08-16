@@ -1,5 +1,5 @@
 /**
- * @fullselfbrowsing/concierge contract v2.
+ * @full-self-browsing/concierge contract v2.
  *
  * The framework-neutral core declares typed, consent-gated actions; resolves
  * stage, dynamic availability, tools, and a local catalog revision atomically;

@@ -3,7 +3,7 @@ import type {
   FailureOutcome,
   InvocationMeta,
   ToolCall,
-} from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";
 
 export const SIGNED_ENVELOPE_VERSION = 1 as const;
 export const EXPECTED_CORE_CONTRACT_VERSION = 2 as const;

@@ -30,9 +30,9 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC_PACKAGES = Object.freeze([
-  "@fullselfbrowsing/concierge",
-  "@fullselfbrowsing/concierge-react",
-  "@fullselfbrowsing/concierge-svelte",
+  "@full-self-browsing/concierge",
+  "@full-self-browsing/concierge-react",
+  "@full-self-browsing/concierge-svelte",
 ]);
 const ADAPTER_MANIFEST_PATHS = Object.freeze([
   "packages/concierge-react/package.json",
@@ -1351,9 +1351,9 @@ function runSelfTest() {
   controls += 1;
 
   const syntheticChangesetBytes = Buffer.from(
-    '---\n"@fullselfbrowsing/concierge": minor\n' +
-      '"@fullselfbrowsing/concierge-react": minor\n' +
-      '"@fullselfbrowsing/concierge-svelte": minor\n---\n\nBounded release summary.\n',
+    '---\n"@full-self-browsing/concierge": minor\n' +
+      '"@full-self-browsing/concierge-react": minor\n' +
+      '"@full-self-browsing/concierge-svelte": minor\n---\n\nBounded release summary.\n',
   );
   const syntheticChangeset = parseChangeset(
     ".changeset/example.md",

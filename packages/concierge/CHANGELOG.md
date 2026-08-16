@@ -1,4 +1,4 @@
-# @fullselfbrowsing/concierge
+# @full-self-browsing/concierge
 
 ## 0.2.0
 

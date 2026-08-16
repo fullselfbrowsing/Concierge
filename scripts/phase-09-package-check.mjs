@@ -56,9 +56,9 @@ const NPM = process.platform === "win32" ? "npm.cmd" : "npm";
 const PACK_COMMAND = "pnpm pack";
 const MUTATION_RUNNER_PARENT_MARKER = "PHASE09_CREDENTIAL_FREE_ENV";
 const MUTATION_RUNNER_PNPM_POLICY = "PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN";
-const CORE_NAME = "@fullselfbrowsing/concierge";
-const REACT_NAME = "@fullselfbrowsing/concierge-react";
-const SVELTE_NAME = "@fullselfbrowsing/concierge-svelte";
+const CORE_NAME = "@full-self-browsing/concierge";
+const REACT_NAME = "@full-self-browsing/concierge-react";
+const SVELTE_NAME = "@full-self-browsing/concierge-svelte";
 const FIRST_RELEASE_CORE_PEER = "workspace:^0.0.0 || ^0.1.0";
 const CONSUMER_TOOLING_FIXTURE = join(
   REPOSITORY_ROOT,
@@ -528,7 +528,7 @@ function validateArchiveContents(archive, liveManifestOverride = null) {
     }
     for (const entry of entries) {
       assert(
-        !/^package\/(?:node_modules\/)?@fullselfbrowsing\/concierge\//u.test(entry) &&
+        !/^package\/(?:node_modules\/)?@full-self-browsing\/concierge\//u.test(entry) &&
           !/^package\/src\/(?:bridge|catalog|concierge|consent-evidence|consent-profile|contract|define-action|dispatch|host|json-schema|message|session|types)\.ts$/u.test(
             entry,
           ),
@@ -600,7 +600,7 @@ function inspectInstalledTopology(consumerDirectory) {
   for (const manifestPath of [reactManifest, svelteManifest]) {
     const nestedCore = join(
       dirname(manifestPath),
-      "node_modules/@fullselfbrowsing/concierge/package.json",
+      "node_modules/@full-self-browsing/concierge/package.json",
     );
     assert(
       !existsSync(nestedCore),

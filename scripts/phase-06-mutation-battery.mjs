@@ -1553,7 +1553,7 @@ function runFullVitest(reportPath) {
 function runTypecheck() {
   return command("pnpm", [
     "--filter",
-    "@fullselfbrowsing/concierge",
+    "@full-self-browsing/concierge",
     "typecheck",
   ]);
 }

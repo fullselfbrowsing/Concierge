@@ -41,7 +41,8 @@ HTTP-only session bootstrap.
 - [`src/concierge-demo.tsx`](./src/concierge-demo.tsx) treats streamed calls as
   display-only, verifies signed batches through IndexedDB replay protection,
   maps completed reports to `addToolOutput`, and drives its overlay only from
-  `onDispatch` events.
+  `onDispatch` events. Its Action visuals panel demonstrates the optional
+  two-color glow and action-only “Powered by FSB” badge.
 - [`src/deterministic-model.ts`](./src/deterministic-model.ts) uses AI SDK's
   `MockLanguageModelV3` for route and browser tests; it is enabled only through
   the explicit test environment switch.

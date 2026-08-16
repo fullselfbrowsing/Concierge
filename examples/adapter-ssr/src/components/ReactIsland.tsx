@@ -3,7 +3,7 @@ import {
   useConcierge,
   useConciergeBridge,
   useConciergeValue,
-} from "@fullselfbrowsing/concierge-react/client";
+} from "@full-self-browsing/concierge-react/client";
 
 import type { AdapterSsrSide } from "../shared/catalog.js";
 
@@ -19,7 +19,7 @@ function ReactEvidence({
 
   const evidence = JSON.stringify({
     adapter: "react",
-    entry: "@fullselfbrowsing/concierge-react/client",
+    entry: "@full-self-browsing/concierge-react/client",
     exactConcierge,
     identity: readIdentity(),
     registry: registry.read() === null ? null : "registered",
@@ -29,7 +29,7 @@ function ReactEvidence({
     <data
       data-adapter-evidence="react"
       data-concierge="exact"
-      data-entry="@fullselfbrowsing/concierge-react/client"
+      data-entry="@full-self-browsing/concierge-react/client"
       data-registry="null"
       value={readIdentity()}
     >

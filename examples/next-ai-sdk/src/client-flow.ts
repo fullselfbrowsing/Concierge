@@ -1,4 +1,4 @@
-import type { BrowserBatchReport } from "@fullselfbrowsing/concierge/ai-sdk/browser";
+import type { BrowserBatchReport } from "@full-self-browsing/concierge/ai-sdk/browser";
 
 export interface ClientFlowOperations {
   readonly addToolOutput: (update: Readonly<{

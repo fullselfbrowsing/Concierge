@@ -1,7 +1,7 @@
 /**
  * Build config for the ESM-only, runtime-neutral package root. Optional AI SDK
- * subpaths are emitted by `tsdown.ai-sdk.config.ts`, which then validates the
- * complete package with Publint and ATTW.
+ * subpaths are emitted by dedicated builds; the final telemetry build then
+ * validates the complete package with Publint and ATTW.
  *
  * This file is package-local **deliberately**, not by omission. The root script
  * stays `pnpm -r build` so that every package declares its own builder. That is

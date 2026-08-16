@@ -1,14 +1,18 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { ConciergeProvider, useConciergeBridge } from "@fullselfbrowsing/concierge-react/client";
+import {
+  ConciergeActivityOverlay,
+  ConciergeProvider,
+  useConciergeBridge,
+} from "@full-self-browsing/concierge-react/client";
 import {
   createIndexedDBReplayStore,
   createSignedBrowserBridge,
-} from "@fullselfbrowsing/concierge/ai-sdk/browser";
+} from "@full-self-browsing/concierge/ai-sdk/browser";
 import type {
   SignedBrowserBridge,
-} from "@fullselfbrowsing/concierge/ai-sdk/browser";
+} from "@full-self-browsing/concierge/ai-sdk/browser";
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import type { DataUIPart, UIMessage } from "ai";
 import {
@@ -72,6 +76,10 @@ export function ConciergeDemo() {
   const [bootstrap, setBootstrap] = useState<BootstrapResponse | null>(null);
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [input, setInput] = useState("");
+  const [glowEnabled, setGlowEnabled] = useState(true);
+  const [glowColor, setGlowColor] = useState("#ff6b35");
+  const [secondaryGlowColor, setSecondaryGlowColor] = useState("#635bff");
+  const [poweredByFSB, setPoweredByFSB] = useState(true);
 
   const context: PortfolioContext = useMemo(() => ({
     pathname,
@@ -340,6 +348,16 @@ export function ConciergeDemo() {
 
   return (
     <ConciergeProvider concierge={runtime.concierge}>
+      <ConciergeActivityOverlay
+        glow={glowEnabled
+          ? {
+              color: glowColor,
+              secondaryColor: secondaryGlowColor,
+              intensity: 0.72,
+            }
+          : false}
+        poweredByFSB={poweredByFSB}
+      />
       <main className="shell">
         <section className="portfolio">
           <p className="status">Stage: {pathname} · Voice: {voiceActive ? "active" : "inactive"}</p>
@@ -361,6 +379,47 @@ export function ConciergeDemo() {
         <section className="chat">
           <h2>AI SDK + OpenRouter</h2>
           <div className="overlay" aria-live="polite">{overlay}</div>
+          <details className="visual-options">
+            <summary>Action visuals</summary>
+            <div className="visual-options-grid">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={glowEnabled}
+                  onChange={(event) => setGlowEnabled(event.currentTarget.checked)}
+                />
+                Edge glow
+              </label>
+              <label>
+                Primary
+                <input
+                  aria-label="Primary glow color"
+                  type="color"
+                  value={glowColor}
+                  onChange={(event) => setGlowColor(event.currentTarget.value)}
+                  disabled={!glowEnabled}
+                />
+              </label>
+              <label>
+                Secondary
+                <input
+                  aria-label="Secondary glow color"
+                  type="color"
+                  value={secondaryGlowColor}
+                  onChange={(event) => setSecondaryGlowColor(event.currentTarget.value)}
+                  disabled={!glowEnabled}
+                />
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={poweredByFSB}
+                  onChange={(event) => setPoweredByFSB(event.currentTarget.checked)}
+                />
+                Powered by FSB badge
+              </label>
+            </div>
+          </details>
           {notice === null ? null : <p className="notice" role="status">{notice}</p>}
           {bootstrapError === null ? null : <p role="alert">{bootstrapError}</p>}
           <div className="messages">

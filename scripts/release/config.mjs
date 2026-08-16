@@ -7,9 +7,9 @@ export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const DEFAULT_RELEASE_LINE_PATH = join(ROOT, ".release/lines/0.2.json");
 
 const PACKAGE_NAMES = Object.freeze([
-  "@fullselfbrowsing/concierge",
-  "@fullselfbrowsing/concierge-react",
-  "@fullselfbrowsing/concierge-svelte",
+  "@full-self-browsing/concierge",
+  "@full-self-browsing/concierge-react",
+  "@full-self-browsing/concierge-svelte",
 ]);
 const PACKAGE_ROLES = Object.freeze(["core", "react", "svelte"]);
 const SHA512_INTEGRITY = /^sha512-[A-Za-z0-9+/]+={0,2}$/u;

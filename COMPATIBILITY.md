@@ -8,7 +8,7 @@ fixed release set and share runtime contract v2.
 | Component | Supported range | Release certification |
 | --- | --- | --- |
 | Node.js | `>=22.12.0` | 22.12 floor consumer and Node 24 CI/publisher |
-| `@fullselfbrowsing/concierge` | `^0.2.0` | Same patch as every adapter |
+| `@full-self-browsing/concierge` | `^0.2.0` | Same patch as every adapter |
 | React | `^18.2.0 || ^19.0.0` | 18.2 and 19.2 lines |
 | React DOM | `^18.2.0 || ^19.0.0` | Matches React |
 | Svelte | `^5.0.0` | 5.0 floor and current 5.56.9 |
@@ -38,9 +38,9 @@ contract. Other AI SDK providers can consume the same `ToolSet`.
 
 - The package roots for React and Svelte are server-safe. Import client
   lifecycle bindings from `/client` and `/client.svelte` respectively.
-- `@fullselfbrowsing/concierge/ai-sdk/server` is Node/server code and resolves
+- `@full-self-browsing/concierge/ai-sdk/server` is Node/server code and resolves
   to a fail-closed unavailable module under the browser condition.
-- `@fullselfbrowsing/concierge/ai-sdk/browser` needs WebCrypto. Its IndexedDB
+- `@full-self-browsing/concierge/ai-sdk/browser` needs WebCrypto. Its IndexedDB
   replay store additionally needs a browser IndexedDB implementation.
 - The full Next example declares the Node runtime. Edge deployment is not part
   of the 0.2 support matrix.
@@ -60,11 +60,11 @@ and every runtime entry checks contract v2 before registration or dispatch.
 Upgrade the trio and regenerate the lockfile together:
 
 ```sh
-pnpm up @fullselfbrowsing/concierge@^0.2 \
-  @fullselfbrowsing/concierge-react@^0.2 \
-  @fullselfbrowsing/concierge-svelte@^0.2
+pnpm up @full-self-browsing/concierge@^0.2 \
+  @full-self-browsing/concierge-react@^0.2 \
+  @full-self-browsing/concierge-svelte@^0.2
 
-pnpm why @fullselfbrowsing/concierge
+pnpm why @full-self-browsing/concierge
 ```
 
 The final command should converge on one physical core version. See the

@@ -32,7 +32,7 @@ import {
   validateArchiveDirectory,
 } from "./archive.mjs";
 
-const CORE = "@fullselfbrowsing/concierge";
+const CORE = "@full-self-browsing/concierge";
 const AI_MATRIX = Object.freeze(["6.0.0", "6.0.253", "7.0.0", "7.0.64"]);
 const FRAMEWORK_MATRIX = Object.freeze([
   Object.freeze({
@@ -180,12 +180,14 @@ function runAdapterCell(root, inputs, aiVersion) {
   });
   writeFileSync(
     join(directory, "smoke.mjs"),
-    `import { CONTRACT_VERSION } from "@fullselfbrowsing/concierge";\n` +
-      `import { EXPECTED_CORE_CONTRACT_VERSION, SIGNED_ENVELOPE_VERSION, toAISDKTools } from "@fullselfbrowsing/concierge/ai-sdk";\n` +
-      `const server = await import("@fullselfbrowsing/concierge/ai-sdk/server");\n` +
-      `const browser = await import("@fullselfbrowsing/concierge/ai-sdk/browser");\n` +
+    `import { CONTRACT_VERSION } from "@full-self-browsing/concierge";\n` +
+      `import { EXPECTED_CORE_CONTRACT_VERSION, SIGNED_ENVELOPE_VERSION, toAISDKTools } from "@full-self-browsing/concierge/ai-sdk";\n` +
+      `const server = await import("@full-self-browsing/concierge/ai-sdk/server");\n` +
+      `const browser = await import("@full-self-browsing/concierge/ai-sdk/browser");\n` +
+      `const telemetry = await import("@full-self-browsing/concierge/telemetry");\n` +
       `if (CONTRACT_VERSION !== 2 || EXPECTED_CORE_CONTRACT_VERSION !== 2 || SIGNED_ENVELOPE_VERSION !== 1) throw new Error("contract drift");\n` +
       `if (typeof server.createSignedBatchIssuer !== "function" || typeof browser.createSignedBrowserBridge !== "function") throw new Error("subpath export drift");\n` +
+      `if (JSON.stringify(Object.keys(telemetry).sort()) !== JSON.stringify(["getConciergeTelemetryStatus","mountConciergeTelemetry","onConciergeTelemetryStatusChange","setConciergeTelemetryEnabled"])) throw new Error("telemetry subpath export drift");\n` +
       `const tools = toAISDKTools([{ type: "function", name: "probe", description: "Probe", parameters: { type: "object", properties: { value: { type: "string" } }, required: ["value"], additionalProperties: false } }]);\n` +
       `if (!Object.isFrozen(tools) || typeof tools.probe !== "object" || tools.probe === null || !("inputSchema" in tools.probe) || "execute" in tools.probe) throw new Error("tool conversion drift");\n` +
       `process.stdout.write(JSON.stringify({ ai: ${JSON.stringify(aiVersion)}, contract: CONTRACT_VERSION, tools: Object.keys(tools) }) + "\\n");\n`,
@@ -211,10 +213,10 @@ function runFrameworkCell(root, inputs, cell) {
     type: "module",
     dependencies: {
       [CORE]: archives[CORE],
-      "@fullselfbrowsing/concierge-react":
-        archives["@fullselfbrowsing/concierge-react"],
-      "@fullselfbrowsing/concierge-svelte":
-        archives["@fullselfbrowsing/concierge-svelte"],
+      "@full-self-browsing/concierge-react":
+        archives["@full-self-browsing/concierge-react"],
+      "@full-self-browsing/concierge-svelte":
+        archives["@full-self-browsing/concierge-svelte"],
       react: cell.react,
       "react-dom": cell.reactDom,
       svelte: cell.svelte,
@@ -230,11 +232,11 @@ function runFrameworkCell(root, inputs, cell) {
     join(directory, "smoke.mjs"),
     `import { createElement } from "react";\n` +
       `import { renderToString } from "react-dom/server";\n` +
-      `import { CONTRACT_VERSION } from "@fullselfbrowsing/concierge";\n` +
-      `const reactRoot = await import("@fullselfbrowsing/concierge-react");\n` +
-      `const reactClient = await import("@fullselfbrowsing/concierge-react/client");\n` +
-      `const svelteRoot = await import("@fullselfbrowsing/concierge-svelte");\n` +
-      `const svelteClient = await import("@fullselfbrowsing/concierge-svelte/client.svelte");\n` +
+      `import { CONTRACT_VERSION } from "@full-self-browsing/concierge";\n` +
+      `const reactRoot = await import("@full-self-browsing/concierge-react");\n` +
+      `const reactClient = await import("@full-self-browsing/concierge-react/client");\n` +
+      `const svelteRoot = await import("@full-self-browsing/concierge-svelte");\n` +
+      `const svelteClient = await import("@full-self-browsing/concierge-svelte/client.svelte");\n` +
       `const html = renderToString(createElement(reactClient.ConciergeProvider, { concierge: {} }, createElement("span", null, "ssr")));\n` +
       `if (CONTRACT_VERSION !== 2 || html !== "<span>ssr</span>" || typeof reactRoot !== "object" || typeof svelteRoot !== "object" || typeof svelteClient.provideConcierge !== "function") throw new Error("framework ESM SSR import drift");\n` +
       `process.stdout.write(JSON.stringify({ react: ${JSON.stringify(cell.react)}, svelte: ${JSON.stringify(cell.svelte)}, html }) + "\\n");\n`,
@@ -242,11 +244,13 @@ function runFrameworkCell(root, inputs, cell) {
   );
   writeFileSync(
     join(directory, "consumer.ts"),
-    `import type { Bridge, BridgeRegistry, Concierge } from "@fullselfbrowsing/concierge";\n` +
-      `import type { Concierge as ReactConcierge } from "@fullselfbrowsing/concierge-react";\n` +
-      `import { ConciergeProvider, useConcierge as useReactConcierge, useConciergeBridge as useReactBridge } from "@fullselfbrowsing/concierge-react/client";\n` +
-      `import type { Concierge as SvelteConcierge } from "@fullselfbrowsing/concierge-svelte";\n` +
-      `import { provideConcierge, useConcierge as useSvelteConcierge, useConciergeBridge as useSvelteBridge } from "@fullselfbrowsing/concierge-svelte/client.svelte";\n` +
+      `import type { Bridge, BridgeRegistry, Concierge } from "@full-self-browsing/concierge";\n` +
+      `import type { ConciergeTelemetryStatus } from "@full-self-browsing/concierge/telemetry";\n` +
+      `import { getConciergeTelemetryStatus, mountConciergeTelemetry, onConciergeTelemetryStatusChange, setConciergeTelemetryEnabled } from "@full-self-browsing/concierge/telemetry";\n` +
+      `import type { Concierge as ReactConcierge } from "@full-self-browsing/concierge-react";\n` +
+      `import { ConciergeProvider, useConcierge as useReactConcierge, useConciergeBridge as useReactBridge } from "@full-self-browsing/concierge-react/client";\n` +
+      `import type { Concierge as SvelteConcierge } from "@full-self-browsing/concierge-svelte";\n` +
+      `import { provideConcierge, useConcierge as useSvelteConcierge, useConciergeBridge as useSvelteBridge } from "@full-self-browsing/concierge-svelte/client.svelte";\n` +
       `import { createElement } from "react";\n` +
       `import { renderToString } from "react-dom/server";\n` +
       `declare const concierge: Concierge & ReactConcierge & SvelteConcierge;\n` +
@@ -256,7 +260,7 @@ function runFrameworkCell(root, inputs, cell) {
       `const svelteGetter: () => Concierge = useSvelteConcierge;\n` +
       `const element = createElement(ConciergeProvider, { concierge }, "typed");\n` +
       `const html: string = renderToString(element);\n` +
-      `if (false) { provideConcierge(concierge); useReactBridge(registry, bridge); useSvelteBridge(() => registry, () => bridge); }\n` +
+      `if (false) { const release: () => void = mountConciergeTelemetry(concierge); const pending: Promise<ConciergeTelemetryStatus> = getConciergeTelemetryStatus(); const unlisten: () => void = onConciergeTelemetryStatusChange(() => {}); const enabled: Promise<ConciergeTelemetryStatus> = setConciergeTelemetryEnabled(true); release(); unlisten(); void pending; void enabled; provideConcierge(concierge); useReactBridge(registry, bridge); useSvelteBridge(() => registry, () => bridge); }\n` +
       `void reactGetter; void svelteGetter; void html;\n`,
     "utf8",
   );
@@ -277,7 +281,7 @@ function runFrameworkCell(root, inputs, cell) {
   install(directory, `framework ${cell.label}`);
   runTopologyProbe(
     directory,
-    [CORE, "@fullselfbrowsing/concierge-react", "@fullselfbrowsing/concierge-svelte"],
+    [CORE, "@full-self-browsing/concierge-react", "@full-self-browsing/concierge-svelte"],
     inputs.version,
     `framework ${cell.label}`,
   );
@@ -310,10 +314,10 @@ function configureNextExample(directory, inputs, cell, buildOnly) {
     ...manifest.dependencies,
     "@ai-sdk/react": cell.react,
     [CORE]: archives[CORE],
-    "@fullselfbrowsing/concierge-react":
-      archives["@fullselfbrowsing/concierge-react"],
-    "@fullselfbrowsing/concierge-svelte":
-      archives["@fullselfbrowsing/concierge-svelte"],
+    "@full-self-browsing/concierge-react":
+      archives["@full-self-browsing/concierge-react"],
+    "@full-self-browsing/concierge-svelte":
+      archives["@full-self-browsing/concierge-svelte"],
     "@openrouter/ai-sdk-provider": cell.openrouter,
     ai: cell.ai,
     svelte: FRAMEWORK_MATRIX.at(-1).svelte,

@@ -1,8 +1,8 @@
 {
-  "name": "@fullselfbrowsing/concierge-svelte",
+  "name": "@full-self-browsing/concierge-svelte",
   "version": "0.2.0",
   "private": false,
-  "description": "Svelte bindings for @fullselfbrowsing/concierge",
+  "description": "Svelte bindings for @full-self-browsing/concierge",
   "keywords": [
     "ai",
     "agent",
@@ -55,7 +55,7 @@
     "node": ">=22.12.0"
   },
   "peerDependencies": {
-    "@fullselfbrowsing/concierge": "workspace:^",
+    "@full-self-browsing/concierge": "workspace:^",
     "svelte": "^5.0.0"
   },
   "scripts": {
@@ -64,7 +64,7 @@
     "test": "vitest run --root ../.. --project svelte-lifecycle"
   },
   "devDependencies": {
-    "@fullselfbrowsing/concierge": "workspace:*",
+    "@full-self-browsing/concierge": "workspace:*",
     "@sveltejs/package": "2.5.8",
     "@sveltejs/vite-plugin-svelte": "7.2.0",
     "@testing-library/svelte": "5.4.2",

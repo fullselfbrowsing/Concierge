@@ -1,4 +1,4 @@
-# @fullselfbrowsing/concierge-svelte
+# @full-self-browsing/concierge-svelte
 
 ## 0.2.0
 

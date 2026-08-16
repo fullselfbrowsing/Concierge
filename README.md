@@ -44,9 +44,9 @@ The three packages are one fixed release set. Install and upgrade them together.
 
 | Package | Purpose |
 | --- | --- |
-| `@fullselfbrowsing/concierge` | Framework-neutral catalog, dispatch, consent, workflow, and transport runtime |
-| `@fullselfbrowsing/concierge-react` | React context and effect-scoped bridge registration |
-| `@fullselfbrowsing/concierge-svelte` | Svelte context, bridge registration, and `$state` snapshot normalization |
+| `@full-self-browsing/concierge` | Framework-neutral catalog, dispatch, consent, workflow, and transport runtime |
+| `@full-self-browsing/concierge-react` | React context, bridge registration, and optional action glow/badge overlay |
+| `@full-self-browsing/concierge-svelte` | Svelte context, bridge registration, and `$state` snapshot normalization |
 
 The core package also exposes optional AI SDK 6/7 integration through its
 `/ai-sdk`, `/ai-sdk/server`, and `/ai-sdk/browser` subpaths.
@@ -60,8 +60,8 @@ or dispatch rather than operating with split safety state.
 For React with AI SDK 7:
 
 ```sh
-pnpm add @fullselfbrowsing/concierge@^0.2 \
-  @fullselfbrowsing/concierge-react@^0.2 \
+pnpm add @full-self-browsing/concierge@^0.2 \
+  @full-self-browsing/concierge-react@^0.2 \
   ai@^7 @ai-sdk/react@^4 zod
 ```
 
@@ -74,7 +74,7 @@ import {
   createConcierge,
   defineAction,
   offPageResult,
-} from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";
 import { z } from "zod";
 
 const projectBridge = createBridge<{
@@ -116,13 +116,25 @@ const catalog = concierge.resolveCatalog({ pathname: "/projects" });
 
 Mount the same registry with the framework adapter and live getter-based state.
 The React client entry is
-`@fullselfbrowsing/concierge-react/client`; the Svelte client entry is
-`@fullselfbrowsing/concierge-svelte/client.svelte`. Their package roots are
+`@full-self-browsing/concierge-react/client`; the Svelte client entry is
+`@full-self-browsing/concierge-svelte/client.svelte`. Their package roots are
 server-safe.
+
+Mounted React and Svelte runtimes send default-on, anonymous usage estimates to
+FSB's aggregate stats pipeline. The browser-only
+`@full-self-browsing/concierge/telemetry` subpath exposes status and opt-out APIs;
+the core package root remains storage-, timer-, DOM-, and network-free. See the
+[telemetry privacy contract](docs/privacy.md) for the exact ten-field payload,
+origin-scoped identity, retention, and stop-and-erase behavior.
+
+React applications can also opt into `ConciergeActivityOverlay` from the client
+entry. It renders a configurable two-color edge glow while dispatches are
+active and can show an independently optional “Powered by FSB” badge. Apps that
+own their own activity UI can use `useConciergeActivity()` instead.
 
 ## AI SDK 6 and 7
 
-`@fullselfbrowsing/concierge/ai-sdk` deliberately separates model-facing tools
+`@full-self-browsing/concierge/ai-sdk` deliberately separates model-facing tools
 from browser authority:
 
 1. The server resolves the current Concierge catalog and passes

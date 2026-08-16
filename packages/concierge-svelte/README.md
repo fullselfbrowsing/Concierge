@@ -2,12 +2,12 @@
 
 <img src="https://raw.githubusercontent.com/fullselfbrowsing/Concierge/main/assets/concierge-wordmark-horizontal.svg" alt="Concierge" width="280">
 
-# `@fullselfbrowsing/concierge-svelte`
+# `@full-self-browsing/concierge-svelte`
 
 </div>
 
 Svelte 5 context, lifecycle, and snapshot bindings for an existing
-[`@fullselfbrowsing/concierge`](https://github.com/fullselfbrowsing/Concierge)
+[`@full-self-browsing/concierge`](https://github.com/fullselfbrowsing/Concierge)
 instance and bridge registry.
 
 Version 0.2 is a public preview of contract 2. It supports Svelte 5, requires
@@ -25,7 +25,7 @@ import type {
   BridgeRegistry,
   Concierge,
   SnapshotNormalizer,
-} from "@fullselfbrowsing/concierge-svelte";
+} from "@full-self-browsing/concierge-svelte";
 ```
 
 Import compiled runtime bindings from the rune-aware client entry:
@@ -36,7 +36,7 @@ import {
   svelteSnapshotNormalizer,
   useConcierge,
   useConciergeBridge,
-} from "@fullselfbrowsing/concierge-svelte/client.svelte";
+} from "@full-self-browsing/concierge-svelte/client.svelte";
 ```
 
 ## Construct core in application setup
@@ -50,11 +50,11 @@ snapshot normalizer when core captures its configuration.
 import {
   createBridge,
   createConcierge,
-} from "@fullselfbrowsing/concierge";
-import type { Bridge } from "@fullselfbrowsing/concierge";
+} from "@full-self-browsing/concierge";
+import type { Bridge } from "@full-self-browsing/concierge";
 import {
   svelteSnapshotNormalizer,
-} from "@fullselfbrowsing/concierge-svelte/client.svelte";
+} from "@full-self-browsing/concierge-svelte/client.svelte";
 
 import { bookingActions } from "./actions.js";
 
@@ -102,7 +102,7 @@ Svelte context; descendants call `useConcierge` to read that same reference.
     provideConcierge,
     useConcierge,
     useConciergeBridge,
-  } from "@fullselfbrowsing/concierge-svelte/client.svelte";
+  } from "@full-self-browsing/concierge-svelte/client.svelte";
 
   import {
     bookingRegistry,
@@ -140,6 +140,12 @@ The bridge is an ordinary public core `Bridge`, and `bookingRegistry` is the
 existing registry returned by public `createBridge`. The snapshot member stays
 a getter: after `booking.traveler.name = "Grace"`, a registry read observes
 `"Grace"` without a store-shaped wrapper or subscription loop.
+
+`provideConcierge` mounts anonymous browser telemetry by default. Pass
+`provideConcierge(concierge, { telemetry: false })` to leave this runtime
+uninstrumented. Remounts of the same Concierge object share one runtime. See
+the [telemetry privacy contract](https://github.com/fullselfbrowsing/Concierge/blob/main/docs/privacy.md)
+for the exact payload and origin-wide stop-and-erase API.
 
 ## Why the snapshot normalizer is required
 

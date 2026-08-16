@@ -13,9 +13,9 @@ do not authorize a 0.2 release and must not be edited into the current flow.
 
 Publish order is load-bearing:
 
-1. `@fullselfbrowsing/concierge`
-2. `@fullselfbrowsing/concierge-react`
-3. `@fullselfbrowsing/concierge-svelte`
+1. `@full-self-browsing/concierge`
+2. `@full-self-browsing/concierge-react`
+3. `@full-self-browsing/concierge-svelte`
 
 Core is first because each adapter has a core peer. All three manifests, packed
 archives, Changesets output, release seal, registry versions, and `latest` tags
@@ -29,13 +29,13 @@ release run.
 
 ### 1. Confirm ownership and names
 
-Confirm that the npm `@fullselfbrowsing` organization or user scope exists and
+Confirm that the npm `@full-self-browsing` organization or user scope exists and
 the maintainer has package/settings write permission. Recheck all three names:
 
 ```sh
-npm view @fullselfbrowsing/concierge version
-npm view @fullselfbrowsing/concierge-react version
-npm view @fullselfbrowsing/concierge-svelte version
+npm view @full-self-browsing/concierge version
+npm view @full-self-browsing/concierge-react version
+npm view @full-self-browsing/concierge-svelte version
 ```
 
 An `E404` means no public package record exists; it does not prove scope write
@@ -59,7 +59,7 @@ cd "$bootstrap_dir"
 
 # Repeat with each exact package name and matching packages/<directory> value.
 npm init --yes
-npm pkg set name='@fullselfbrowsing/concierge'
+npm pkg set name='@full-self-browsing/concierge'
 npm pkg set version='0.0.0-bootstrap.0'
 npm pkg set description='Registry bootstrap only; install a supported release.'
 npm pkg set type='module'
@@ -82,7 +82,7 @@ Use a fresh temporary directory for each package. Confirm that only `bootstrap`
 points to the inert version and that `latest` is absent:
 
 ```sh
-npm view @fullselfbrowsing/concierge dist-tags --json
+npm view @full-self-browsing/concierge dist-tags --json
 ```
 
 Do not publish any repository-built `0.1.0`, assign `latest`, or use an
@@ -98,9 +98,9 @@ npm install --global npm@11.19.0
 npm login
 
 for package in \
-  @fullselfbrowsing/concierge \
-  @fullselfbrowsing/concierge-react \
-  @fullselfbrowsing/concierge-svelte
+  @full-self-browsing/concierge \
+  @full-self-browsing/concierge-react \
+  @full-self-browsing/concierge-svelte
 do
   npm trust github "$package" \
     --repo fullselfbrowsing/Concierge \
@@ -169,7 +169,7 @@ node scripts/release/publisher.mjs self-test
 pnpm build
 pnpm typecheck
 pnpm test
-pnpm --filter @fullselfbrowsing/concierge-example-next-ai-sdk build
+pnpm --filter @full-self-browsing/concierge-example-next-ai-sdk build
 ```
 
 To reproduce archive certification locally, allocate a new empty directory
@@ -263,9 +263,9 @@ After publication, independently check:
 
 ```sh
 for package in \
-  @fullselfbrowsing/concierge \
-  @fullselfbrowsing/concierge-react \
-  @fullselfbrowsing/concierge-svelte
+  @full-self-browsing/concierge \
+  @full-self-browsing/concierge-react \
+  @full-self-browsing/concierge-svelte
 do
   npm view "$package" version dist-tags dist.integrity dist.attestations --json
 done

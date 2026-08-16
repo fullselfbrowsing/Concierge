@@ -10,7 +10,7 @@ import {
   loadReleaseLine,
 } from "./config.mjs";
 
-const CORE = "@fullselfbrowsing/concierge";
+const CORE = "@full-self-browsing/concierge";
 
 function run(command, arguments_, label) {
   const result = spawnSync(command, arguments_, {

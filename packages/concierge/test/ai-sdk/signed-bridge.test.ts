@@ -968,6 +968,39 @@ describe("signed server-to-browser dispatch", () => {
     expect(await store.consume("same-key", 70_000, 70_001)).toBe(true);
   });
 
+  it("retries IndexedDB open after a transient blocked failure", async () => {
+    let opens = 0;
+    const indexedDB = {
+      open(name: string, version?: number): IDBOpenDBRequest {
+        opens += 1;
+        if (opens === 1) {
+          const request = {
+            result: undefined,
+            error: null,
+            onupgradeneeded: null,
+            onsuccess: null,
+            onerror: null,
+            onblocked: null,
+          } as IDBOpenDBRequest;
+          queueMicrotask(() => {
+            request.onblocked?.call(request, new Event("blocked"));
+          });
+          return request;
+        }
+        return fakeIndexedDB.open(name, version);
+      },
+    } as IDBFactory;
+    const store = createIndexedDBReplayStore({
+      indexedDB,
+      databaseName: `retry-open-${crypto.randomUUID()}`,
+    });
+
+    await expect(store.consume("key", 11_000, 10_000)).rejects.toThrow(
+      "IndexedDB open was blocked.",
+    );
+    expect(await store.consume("key", 11_000, 10_000)).toBe(true);
+  });
+
   it("defaults to IndexedDB and fails closed without dispatch when it is absent", async () => {
     let dispatches = 0;
     const revision = Symbol("indexeddb-default");
@@ -1187,6 +1220,52 @@ describe("signed server-to-browser dispatch", () => {
     await bridge.setContext({ pathname: "/settings", render: 2 });
     expect(dispatchSignal?.aborted).toBe(false);
     finishDispatch();
+    expect((await accepted).kind).toBe("completed");
+  });
+
+  it("keeps a completed batch when the catalog changes after handlers finish", async () => {
+    let finishDispatch: (() => void) | undefined;
+    let tools = Object.freeze([emittedTool("setTheme")]);
+    let revision = Symbol("first");
+    const concierge = fakeConcierge(
+      () => ({ stage: "settings", revision, tools }),
+      async (_context, batch) => {
+        await new Promise<void>((resolve) => {
+          finishDispatch = resolve;
+        });
+        const call = (batch.calls as Array<Record<string, unknown>>)[0];
+        return {
+          kind: "completed",
+          rows: [{
+            dispatchId: "dispatch-1",
+            callId: call?.callId,
+            name: call?.name,
+            outputIndex: call?.outputIndex,
+            result: { ok: true, message: "Done." },
+          }],
+        };
+      },
+    );
+    const fixture = await preparedFixture({ concierge });
+    const bridge = createSignedBrowserBridge({
+      concierge,
+      audience: "example.test",
+      sessionId: "session-1",
+      publicKeys: new Map([["key-1", {
+        format: "crypto-key",
+        key: fixture.keys.publicKey,
+      }]]),
+      replayStore: createTestMemoryReplayStore(),
+      presentOutcome: async () => ({ outcome: "completed" }),
+      initialContext: {},
+      now: () => fixture.now,
+    });
+    const accepted = bridge.accept(fixture.envelope);
+    await waitUntil(() => finishDispatch !== undefined);
+    tools = Object.freeze([emittedTool("otherTool")]);
+    revision = Symbol("second");
+    await bridge.setContext({ changed: true });
+    finishDispatch?.();
     expect((await accepted).kind).toBe("completed");
   });
 

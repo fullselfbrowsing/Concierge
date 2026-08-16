@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/fullselfbrowsing/Concierge/main/assets/concierge-wordmark-horizontal.svg" alt="Concierge" width="280">
 
-# `@fullselfbrowsing/concierge`
+# `@full-self-browsing/concierge`
 
 </div>
 
@@ -17,12 +17,31 @@ Edge runtimes are not supported in the 0.2 line.
 ## Install
 
 ```sh
-pnpm add @fullselfbrowsing/concierge
+pnpm add @full-self-browsing/concierge
 ```
 
 React and Svelte lifecycle bindings are published separately. Optional AI SDK
 6/7 tool definitions and the signed browser bridge are available from
-`@fullselfbrowsing/concierge/ai-sdk`, `/ai-sdk/server`, and `/ai-sdk/browser`.
+`@full-self-browsing/concierge/ai-sdk`, `/ai-sdk/server`, and `/ai-sdk/browser`.
+Anonymous browser usage reporting is isolated in the optional
+`@full-self-browsing/concierge/telemetry` subpath; importing this package root
+continues to perform no browser storage, timer, DOM, or network work.
+
+React and Svelte mount telemetry by default. Vanilla browser integrations can
+mount it explicitly and offer an origin-wide opt-out:
+
+```ts
+import {
+  mountConciergeTelemetry,
+  setConciergeTelemetryEnabled,
+} from "@full-self-browsing/concierge/telemetry";
+
+const unmountTelemetry = mountConciergeTelemetry(concierge);
+await setConciergeTelemetryEnabled(false);
+```
+
+See the repository's [telemetry privacy contract](https://github.com/fullselfbrowsing/Concierge/blob/main/docs/privacy.md)
+for the exact payload and retention behavior.
 
 ## Atomic catalog admission
 

@@ -1,6 +1,6 @@
 # AI SDK 6 and 7 integration
 
-`@fullselfbrowsing/concierge/ai-sdk` converts an atomic Concierge catalog to an
+`@full-self-browsing/concierge/ai-sdk` converts an atomic Concierge catalog to an
 AI SDK `ToolSet` and, for split server/browser applications, carries complete
 tool calls through a signed, replay-protected envelope.
 
@@ -13,8 +13,8 @@ It does not depend on experimental AI SDK callbacks.
 AI SDK 7 and React:
 
 ```sh
-pnpm add @fullselfbrowsing/concierge@^0.2 \
-  @fullselfbrowsing/concierge-react@^0.2 \
+pnpm add @full-self-browsing/concierge@^0.2 \
+  @full-self-browsing/concierge-react@^0.2 \
   ai@^7 @ai-sdk/react@^4
 ```
 
@@ -26,9 +26,9 @@ adapter itself is provider-neutral.
 
 | Import | Runtime |
 | --- | --- |
-| `@fullselfbrowsing/concierge/ai-sdk` | Shared tool conversion, catalog preparation, and result correlation |
-| `@fullselfbrowsing/concierge/ai-sdk/server` | ES256 batch issuer; never import into a client component |
-| `@fullselfbrowsing/concierge/ai-sdk/browser` | Signature verification, replay protection, live-catalog check, and dispatch |
+| `@full-self-browsing/concierge/ai-sdk` | Shared tool conversion, catalog preparation, and result correlation |
+| `@full-self-browsing/concierge/ai-sdk/server` | ES256 batch issuer; never import into a client component |
+| `@full-self-browsing/concierge/ai-sdk/browser` | Signature verification, replay protection, live-catalog check, and dispatch |
 
 The server subpath has an explicit fail-closed browser condition. All entries
 check core contract v2 before doing work.
@@ -39,7 +39,7 @@ Construct one Concierge instance per application runtime and resolve the
 catalog from server-validated state for every request or model step:
 
 ```ts
-import { createAISDKAdapter } from "@fullselfbrowsing/concierge/ai-sdk";
+import { createAISDKAdapter } from "@full-self-browsing/concierge/ai-sdk";
 
 const adapter = createAISDKAdapter({ concierge });
 const catalog = await adapter.resolveCatalog({
@@ -119,7 +119,7 @@ Create an issuer and sign only after it re-resolves the current context:
 
 ```ts
 import { createSignedBatchIssuer } from
-  "@fullselfbrowsing/concierge/ai-sdk/server";
+  "@full-self-browsing/concierge/ai-sdk/server";
 
 const issuer = createSignedBatchIssuer({
   adapter,
@@ -172,7 +172,7 @@ multiple tabs share an atomic replay decision:
 import {
   createIndexedDBReplayStore,
   createSignedBrowserBridge,
-} from "@fullselfbrowsing/concierge/ai-sdk/browser";
+} from "@full-self-browsing/concierge/ai-sdk/browser";
 
 const signedBridge = createSignedBrowserBridge({
   concierge,

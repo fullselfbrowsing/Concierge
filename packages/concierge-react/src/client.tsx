@@ -1,54 +1,27 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-} from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   assertSingleInstance,
   CONTRACT_VERSION,
-} from "@fullselfbrowsing/concierge";
-import type {
-  Bridge,
-  BridgeRegistry,
-  Concierge,
-} from "@fullselfbrowsing/concierge";
-import type {
-  Context,
-  PropsWithChildren,
-  ReactElement,
-} from "react";
+} from "@full-self-browsing/concierge";
+import type { Bridge, BridgeRegistry } from "@full-self-browsing/concierge";
+
+export {
+  ConciergeActivityOverlay,
+  ConciergeProvider,
+  useConcierge,
+  useConciergeActivity,
+} from "../overlay/activity.js";
+export type {
+  ConciergeActivityOverlayProps,
+  ConciergeBadgePosition,
+  ConciergeGlowOptions,
+  ConciergePoweredByFSBOptions,
+  ConciergeProviderProps,
+} from "../overlay/activity.js";
 
 const EXPECTED_CONTRACT_VERSION: number = 2;
-const ConciergeContext: Context<Concierge | null> =
-  createContext<Concierge | null>(null);
-
-export function ConciergeProvider({
-  concierge,
-  children,
-}: PropsWithChildren<{ readonly concierge: Concierge }>): ReactElement {
-  return (
-    <ConciergeContext.Provider value={concierge}>
-      {children}
-    </ConciergeContext.Provider>
-  );
-}
-
-export function useConcierge(): Concierge {
-  const concierge: Concierge | null = useContext(ConciergeContext);
-
-  if (concierge === null) {
-    throw new Error(
-      "@fullselfbrowsing/concierge-react: useConcierge must be used within " +
-        "<ConciergeProvider concierge={...}>.",
-    );
-  }
-
-  return concierge;
-}
 
 export function useConciergeValue<T>(value: T): () => T {
   const valueRef = useRef<T>(value);
@@ -69,9 +42,9 @@ export function useConciergeBridge<B extends Bridge>(
 
     if (CONTRACT_VERSION !== EXPECTED_CONTRACT_VERSION) {
       throw new Error(
-        `@fullselfbrowsing/concierge-react expected core contract v${EXPECTED_CONTRACT_VERSION} ` +
+        `@full-self-browsing/concierge-react expected core contract v${EXPECTED_CONTRACT_VERSION} ` +
           `but found v${CONTRACT_VERSION}; upgrade or reinstall ` +
-          `@fullselfbrowsing/concierge-react and @fullselfbrowsing/concierge together.`,
+          `@full-self-browsing/concierge-react and @full-self-browsing/concierge together.`,
       );
     }
 
