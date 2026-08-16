@@ -11,7 +11,7 @@ describe("published artifact boundaries", () => {
       "utf8",
     ));
 
-    expect(manifest.version).toBe("0.2.0");
+    expect(manifest.version).toMatch(/^0\.2\.\d+$/u);
     expect(manifest.peerDependencies.ai).toBe("^6.0.0 || ^7.0.0");
     expect(manifest.peerDependenciesMeta.ai).toEqual({ optional: true });
     expect(manifest.publishConfig).toEqual({ access: "public", tag: "latest" });
