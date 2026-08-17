@@ -289,7 +289,7 @@ jobs:
 
           const pinned = {
             "config.mjs": "f6ecee16c34c1cf27b6f2eeee3701314c2b4324db152791111cecc6ab51299a7",
-            "release-publisher.mjs": "ae010272f10e604380b8bf6f8e4cc9379112fa78a774f3360f35010826f08a9f",
+            "release-publisher.mjs": "a6757a8a8c5f4ef67ab6318e8f492844c6b100bf0f12051a6fd1d5b9bd9f0636",
             "release-line.json": "06706bfef1b06028d3066a6e4b938df9ecfbaa196ea0bafba5ae39f1a32d3da0",
           };
           const expected = ["release-seal.json"];
