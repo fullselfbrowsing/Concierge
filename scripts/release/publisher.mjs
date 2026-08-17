@@ -595,8 +595,12 @@ async function publish(configuredDirectory) {
       const result = registry.publish(archive);
       assertInputsUnchanged(inputs);
       if (!successful(result)) {
+        const detail = String(result.output ?? "")
+          .replace(/(token|authorization|bearer|otp)[=:\s]+\S+/giu, "$1=[redacted]")
+          .trim()
+          .slice(-1500);
         throw new Error(
-          `[PUBLISH_AMBIGUOUS] ${archive.name}@${archive.version} publish returned an error; rerun this exact sealed release to determine registry state`,
+          `[PUBLISH_AMBIGUOUS] ${archive.name}@${archive.version} publish returned an error (status ${String(result.status)}); rerun this exact sealed release to determine registry state${detail ? `: ${detail}` : ""}`,
         );
       }
       await validateAfterPublish(archive, registry, inputs);
