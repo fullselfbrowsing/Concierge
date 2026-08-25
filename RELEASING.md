@@ -1,13 +1,13 @@
-# Releasing Concierge 0.2
+# Releasing Concierge 0.3
 
-Concierge publishes one fixed trio at one stable `0.2.x` version under the
+Concierge publishes one fixed trio at one stable `0.3.x` version under the
 npm `latest` dist-tag. Release artifacts are built without publish credentials,
 independently sealed from a clean checkout, and published byte-for-byte from a
 protected GitHub environment using npm trusted publishing.
 
-The live release identity is `.release/lines/0.2.json`. Historical Phase 09
+The live release identity is `.release/lines/0.3.json`. Historical Phase 09
 scripts and `.planning` evidence reproduce the unpublished v0.1 milestone; they
-do not authorize a 0.2 release and must not be edited into the current flow.
+do not authorize a 0.3 release and must not be edited into the current flow.
 
 ## Fixed release set
 
@@ -19,7 +19,7 @@ Publish order is load-bearing:
 
 Core is first because each adapter has a core peer. All three manifests, packed
 archives, Changesets output, release seal, registry versions, and `latest` tags
-must agree. Contract v2 is fixed throughout the 0.2 line.
+must agree. Contract v3 is fixed throughout the 0.3 line.
 
 ## One-time registry bootstrap
 
@@ -71,7 +71,7 @@ npm pkg set publishConfig.access='public'
 npm pkg set publishConfig.tag='bootstrap'
 
 # Replace the generated entry with a module that fails loudly if installed.
-printf '%s\n' 'throw new Error("This is an inert Concierge registry bootstrap; install 0.2 or newer.");' > index.js
+printf '%s\n' 'throw new Error("This is an inert Concierge registry bootstrap; install 0.3 or newer.");' > index.js
 npm pkg set main='./index.js'
 npm pkg set exports='./index.js'
 
@@ -145,9 +145,9 @@ job must run on a GitHub-hosted runner and receive only `id-token: write`.
 A release Changeset names all three public packages at the same bump level.
 They are one exact fixed group in `.changeset/config.json`.
 
-For a 0.2 patch, keep every adapter's source core peer at `workspace:^`. For a
+For a 0.3 patch, keep every adapter's source core peer at `workspace:^`. For a
 future pre-1.0 minor, first use a bounded old/new transition such as
-`workspace:^0.2.3 || ^0.3.0`; the version wrapper verifies the target and
+`workspace:^0.3.3 || ^0.4.0`; the version wrapper verifies the target and
 normalizes the Version Packages PR back to `workspace:^`. Never publish a broad
 `>=0.0.0` core peer.
 
@@ -207,9 +207,9 @@ Pushing a Changeset to `main` causes `changesets/action` to open or update a
 Version Packages PR through `scripts/release/version.mjs`. Review that the PR:
 
 - consumes at least one intended Changeset;
-- gives all three packages one stable `0.2.x` version;
+- gives all three packages one stable `0.3.x` version;
 - updates all three changelogs;
-- retains contract v2 for a patch;
+- retains contract v3 for a patch;
 - leaves adapter core peers as canonical `workspace:^`;
 - contains only expected manifest, changelog, and lockfile changes.
 

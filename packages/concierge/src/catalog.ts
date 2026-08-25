@@ -117,6 +117,8 @@ export type CatalogIssueCode =
   | "schema_not_emittable"
   | "schema_root_not_object"
   | "redaction_missing"
+  | "output_schema_invalid"
+  | "output_redaction_missing"
   | "consent_target_missing"
   | "consent_self_reference"
   | "consent_grade_unavailable"
@@ -296,15 +298,16 @@ const validatorByEntry: WeakMap<CatalogEntry, CatalogValidator> = new WeakMap<
   CatalogEntry,
   CatalogValidator
 >();
+const outputValidatorByEntry: WeakMap<CatalogEntry, CatalogValidator> =
+  new WeakMap<CatalogEntry, CatalogValidator>();
 
 function unusableValidator(): never {
   throw new TypeError("The catalog entry has no captured validator.");
 }
 
 /** Read and bind the consumer-owned Standard Schema capability exactly once. */
-function captureValidator(action: AnyActionDefinition): CatalogValidator {
+function captureSchemaValidator(schema: unknown): CatalogValidator {
   try {
-    const schema: unknown = action.schema;
     if ((typeof schema !== "object" && typeof schema !== "function") || schema === null) {
       return unusableValidator;
     }
@@ -322,12 +325,29 @@ function captureValidator(action: AnyActionDefinition): CatalogValidator {
   }
 }
 
+function captureValidator(action: AnyActionDefinition): CatalogValidator {
+  return captureSchemaValidator(action.schema);
+}
+
 /** Invoke only the capability captured while the catalog entry was built. */
 export function validateCatalogEntry(
   entry: CatalogEntry,
   value: unknown,
 ): unknown {
   return (validatorByEntry.get(entry) ?? unusableValidator)(value);
+}
+
+/** Whether this entry declared a structured action result validator. */
+export function hasCatalogEntryOutput(entry: CatalogEntry): boolean {
+  return outputValidatorByEntry.has(entry);
+}
+
+/** Validate structured action data with the capability captured at build time. */
+export function validateCatalogEntryOutput(
+  entry: CatalogEntry,
+  value: unknown,
+): unknown {
+  return (outputValidatorByEntry.get(entry) ?? unusableValidator)(value);
 }
 
 /**
@@ -445,8 +465,7 @@ type PropertyBag = Record<string, unknown>;
  * truthful zero-based index instead of requiring a synthetic action name or
  * escaping through a property-read `TypeError`.
  */
-function hasStandardSchema(action: AnyActionDefinition): boolean {
-  const schema: unknown = action.schema;
+function isStandardSchema(schema: unknown): boolean {
   if ((typeof schema !== "object" && typeof schema !== "function") || schema === null) {
     return false;
   }
@@ -455,6 +474,43 @@ function hasStandardSchema(action: AnyActionDefinition): boolean {
     return false;
   }
   return typeof (std as PropertyBag)["vendor"] === "string";
+}
+
+function hasStandardSchema(action: AnyActionDefinition): boolean {
+  return isStandardSchema(action.schema);
+}
+
+type CapturedOutputDeclaration = Readonly<{
+  schema: unknown;
+  redact: unknown;
+}>;
+
+/** Read an optional output declaration without trusting inherited properties. */
+function captureOutputDeclaration(
+  action: AnyActionDefinition,
+): CapturedOutputDeclaration | null | false {
+  try {
+    const view: PropertyBag = action as unknown as PropertyBag;
+    if (!Object.hasOwn(view, "output")) {
+      return null;
+    }
+    const output: unknown = view["output"];
+    if (output === undefined) return null;
+    if (typeof output !== "object" || output === null) {
+      return false;
+    }
+    const declaration: PropertyBag = output as PropertyBag;
+    return {
+      schema: Object.hasOwn(declaration, "schema")
+        ? declaration["schema"]
+        : undefined,
+      redact: Object.hasOwn(declaration, "redact")
+        ? declaration["redact"]
+        : undefined,
+    };
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -1005,7 +1061,9 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
   const seenNames: Set<string> = new Set<string>();
   const entries: CatalogEntry[] = [];
   const names: string[] = [];
-  const validators: Set<object> = new Set<object>();
+  const freezeSkips: Set<object> = new Set<object>();
+  const capturedOutputs: Map<AnyActionDefinition, CapturedOutputDeclaration> =
+    new Map<AnyActionDefinition, CapturedOutputDeclaration>();
 
   // What CAT-03's post-pass iterates: one entry per DISTINCT declared name,
   // whatever else went wrong with that declaration. Neither array already in
@@ -1087,6 +1145,33 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
         problem: "its `availableWhen` member is not callable, so availability cannot be evaluated safely.",
         fix: "omit `availableWhen`, or provide a total function that returns a boolean for every stage context.",
       });
+    }
+
+    const outputDeclaration: CapturedOutputDeclaration | null | false =
+      captureOutputDeclaration(action);
+    if (outputDeclaration === false ||
+      (outputDeclaration !== null && !isStandardSchema(outputDeclaration.schema))) {
+      issues.push({
+        code: "output_schema_invalid",
+        action: action.name,
+        problem: "its `output.schema` is missing or is not a Standard Schema validator, so returned data cannot be validated.",
+        fix: "remove the `output` declaration when the action returns no data, or provide a Standard Schema validator in `output.schema`.",
+      });
+    } else if (outputDeclaration !== null) {
+      if (
+        outputDeclaration.redact !== "drop" &&
+        outputDeclaration.redact !== "passthrough" &&
+        typeof outputDeclaration.redact !== "function"
+      ) {
+        issues.push({
+          code: "output_redaction_missing",
+          action: action.name,
+          problem: "its structured output declares no valid observer redaction policy.",
+          fix: 'add `output.redact: "drop"`, `"passthrough"`, or a safe projection function.',
+        });
+      } else {
+        capturedOutputs.set(action, outputDeclaration);
+      }
     }
 
     // DX-03 — reach `vendorOf` only once the read is known to be safe.
@@ -1238,23 +1323,56 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
     // then actually hold down. `deepFreeze`'s accessor skip covers what the
     // spread does not flatten: `effects`, `consent`, `parameters`, and anything
     // nested below them.
+    const capturedOutput: CapturedOutputDeclaration | undefined =
+      capturedOutputs.get(action);
+    const outputCopy: AnyActionDefinition["output"] | undefined =
+      capturedOutput === undefined
+      ? undefined
+      : Object.freeze({
+          schema: capturedOutput.schema,
+          redact: capturedOutput.redact,
+        }) as AnyActionDefinition["output"];
     const detachedAction: AnyActionDefinition = emission.source === "explicit"
-      ? { ...action, jsonSchema: parameters }
-      : { ...action };
+      ? {
+          ...action,
+          jsonSchema: parameters,
+          ...(outputCopy === undefined ? {} : { output: outputCopy }),
+        }
+      : {
+          ...action,
+          ...(outputCopy === undefined ? {} : { output: outputCopy }),
+        };
     const normalized: AnyActionDefinition = redactionMissing
       ? { ...detachedAction, redact: "drop" }
       : detachedAction;
 
-    // The `deepFreeze` skip set. Only object-shaped validators need an entry:
-    // an arktype instance is a `function` and is skipped by the walk's own
-    // `typeof !== "object"` guard. See `hasStandardSchema`.
+    // The `deepFreeze` skip set. Consumer-owned validator internals and live
+    // bridge registries must not be frozen. An arktype validator is a function
+    // and is skipped by the walk's own `typeof !== "object"` guard.
     const validator: unknown = normalized.schema;
     if (typeof validator === "object" && validator !== null) {
-      validators.add(validator);
+      freezeSkips.add(validator);
+    }
+    if (
+      capturedOutput !== undefined &&
+      typeof capturedOutput.schema === "object" &&
+      capturedOutput.schema !== null
+    ) {
+      freezeSkips.add(capturedOutput.schema);
+    }
+    const actionBridge: unknown = normalized.bridge;
+    if (typeof actionBridge === "object" && actionBridge !== null) {
+      freezeSkips.add(actionBridge);
     }
 
     const entry: CatalogEntry = { action: normalized, parameters };
     validatorByEntry.set(entry, captureValidator(normalized));
+    if (capturedOutput !== undefined) {
+      outputValidatorByEntry.set(
+        entry,
+        captureSchemaValidator(capturedOutput.schema),
+      );
+    }
     entries.push(entry);
     names.push(action.name);
   }
@@ -1354,5 +1472,5 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
     diagnostics,
   };
 
-  return deepFreeze(catalog, validators, new WeakSet<object>());
+  return deepFreeze(catalog, freezeSkips, new WeakSet<object>());
 }

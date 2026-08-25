@@ -14,7 +14,7 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-  entry: ["src/index.ts"],
+  entry: ["src/index.ts", "src/openai-realtime/index.ts"],
   // ESM only, not dual. The dual-package hazard is unusually expensive for this
   // design: two core instances null the bridge registry, split the dedup window
   // so a retried call double-fires, and hide consent armed on one instance from

@@ -1630,7 +1630,7 @@ async function withFakeNow(initial, run) {
     });
   });
 
-  it("[R45] accepts every member of the closed twelve-reason vocabulary", async () => {
+  it("[R45] accepts every member of the closed sixteen-reason vocabulary", async () => {
     const reasons = [
       "declined",
       "cancelled",
@@ -1644,6 +1644,10 @@ async function withFakeNow(initial, run) {
       "consent_required",
       "consent_stale",
       "grade_unavailable",
+      "catalog_stale",
+      "invalid_invocation",
+      "identity_conflict",
+      "precondition_failed",
     ];
     const concierge = conciergeFor(
       reasons.map((reason) =>
@@ -1937,6 +1941,9 @@ async function withFakeNow(initial, run) {
         stages: [
           { id: "first", matched: true, bridge: { id: "original", registered: true } },
           { id: "second", matched: false, bridge: null },
+        ],
+        actions: [
+          { name: "safe-stage-action", bridge: { id: "original", registered: true } },
         ],
         catalog: ["safe-stage-action"],
       },

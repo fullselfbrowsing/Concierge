@@ -60,7 +60,7 @@ function runtimeStub(): {
         listeners.delete(listener);
       };
     },
-    explain: () => ({ stage: null, stages: [], catalog: [] }),
+    explain: () => ({ stage: null, stages: [], catalog: [], actions: [] }),
   };
   return {
     concierge,

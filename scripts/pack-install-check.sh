@@ -65,6 +65,10 @@ if printf '%s\n' "$TAR_ENTRIES" | grep -Eq 'stub-transport|(^|/)package/(test|te
   exit 1
 fi
 for required in \
+  package/dist/openai-realtime/index.js \
+  package/dist/openai-realtime/index.d.ts \
+  package/dist/openai-realtime/index.js.map \
+  package/dist/openai-realtime/index.d.ts.map \
   package/dist/telemetry/index.js \
   package/dist/telemetry/index.d.ts \
   package/dist/telemetry/index.js.map \
@@ -147,6 +151,7 @@ echo "==> typechecking the probe against the shipped .d.ts (skipLibCheck: false)
 echo "==> importing the shipped runtime"
 node --input-type=module -e '
   const m = await import("@full-self-browsing/concierge");
+  const realtime = await import("@full-self-browsing/concierge/openai-realtime");
   const telemetry = await import("@full-self-browsing/concierge/telemetry");
   if (m.MESSAGE_MAX_CHARS !== 180) {
     throw new Error("runtime binding erased: MESSAGE_MAX_CHARS is " + String(m.MESSAGE_MAX_CHARS));
@@ -156,6 +161,13 @@ node --input-type=module -e '
   }
   if (typeof m.createConcierge !== "function") {
     throw new Error("runtime binding erased: createConcierge is " + typeof m.createConcierge);
+  }
+  if (
+    m.CONTRACT_VERSION !== 3 ||
+    m.DEFAULT_ACTION_DATA_MAX_BYTES !== 262144 ||
+    typeof realtime.createOpenAIRealtimeCodec !== "function"
+  ) {
+    throw new Error("contract v3 or OpenAI Realtime runtime export drifted");
   }
   const concierge = m.createConcierge({ stages: [] });
   if (typeof concierge.dispatch !== "function") {

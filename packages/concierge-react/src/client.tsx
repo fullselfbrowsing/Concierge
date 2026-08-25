@@ -21,7 +21,7 @@ export type {
   ConciergeProviderProps,
 } from "../overlay/activity.js";
 
-const EXPECTED_CONTRACT_VERSION: number = 2;
+const EXPECTED_CONTRACT_VERSION: number = 3;
 
 export function useConciergeValue<T>(value: T): () => T {
   const valueRef = useRef<T>(value);

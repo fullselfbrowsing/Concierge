@@ -13,8 +13,8 @@ It does not depend on experimental AI SDK callbacks.
 AI SDK 7 and React:
 
 ```sh
-pnpm add @full-self-browsing/concierge@^0.2 \
-  @full-self-browsing/concierge-react@^0.2 \
+pnpm add @full-self-browsing/concierge@^0.3 \
+  @full-self-browsing/concierge-react@^0.3 \
   ai@^7 @ai-sdk/react@^4
 ```
 
@@ -31,7 +31,7 @@ adapter itself is provider-neutral.
 | `@full-self-browsing/concierge/ai-sdk/browser` | Signature verification, replay protection, live-catalog check, and dispatch |
 
 The server subpath has an explicit fail-closed browser condition. All entries
-check core contract v2 before doing work.
+check core contract v3 before doing work.
 
 ## 1. Convert an atomic catalog
 
@@ -158,7 +158,7 @@ interface SignedToolBatchEnvelopeV1 {
 }
 ```
 
-The canonical claims bind contract v2, audience, session, catalog stage and
+The canonical claims bind contract v3, audience, session, catalog stage and
 digest, issued/expiry times, nonce, response, required user turn, and ordered
 calls. The protected header fixes ES256, key ID, media type, and envelope
 version.
@@ -244,7 +244,8 @@ const uiUpdates = adapter.toToolOutputUpdates(prepared, completedReport);
 
 Both methods verify response ID, row count, tool call IDs, names, and output
 indices. A mismatch throws `ConciergeAISDKCorrelationError`; never zip unrelated
-arrays or guess by tool name.
+arrays or guess by tool name. Declared result `data` is preserved as JSON in
+both helpers and is never encoded as a nested JSON string.
 
 ## Testing
 

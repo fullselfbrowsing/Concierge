@@ -332,14 +332,17 @@ export function createBridge<B extends Bridge = Bridge>(id: string): BridgeRegis
  * for exactly this case. Adding a member is a breaking change by design, and
  * this helper needs no private escape hatch.
  */
-export function offPageResult(what: string, where: string): ActionResult {
+export function offPageResult(
+  what: string,
+  where: string,
+): ActionResult & { readonly data?: never } {
   const message: string =
     `${what} is not available because the ${where} is not open. ` +
     `Open the ${where} and try again.`;
 
   return {
-    ok: false,
-    reason: "no_bridge",
+    ok: false as const,
+    reason: "no_bridge" as const,
     message: boundedMessage(message),
   };
 }

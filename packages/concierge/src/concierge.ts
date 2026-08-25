@@ -29,6 +29,7 @@ import {
   isAbortSignalLike,
   isAborted,
   normalizeActionResult,
+  snapshotActionData,
   snapshotInvocationValue,
   validateArguments,
   waitForCommit,
@@ -38,9 +39,13 @@ import {
   readHostScheduler,
   warnHost,
 } from "./host.js";
-import { USER_CANCELLED, USER_DECLINED } from "./types.js";
+import {
+  DEFAULT_ACTION_DATA_MAX_BYTES,
+  USER_CANCELLED,
+  USER_DECLINED,
+} from "./types.js";
 import type { ArgumentValidation, CommitWaitOutcome } from "./dispatch.js";
-import type { InvocationValueSnapshot } from "./dispatch.js";
+import type { ActionDataSnapshot, InvocationValueSnapshot } from "./dispatch.js";
 import type { Catalog, CatalogEntry } from "./catalog.js";
 import type {
   DeliveryEvidenceSnapshot,
@@ -51,10 +56,12 @@ import type {
 } from "./consent-evidence.js";
 import type {
   ActionResult,
+  ActionExplanation,
   AbortSignalLike,
   AnyActionDefinition,
   BatchDispatchOutcome,
   Bridge,
+  BridgeRegistry,
   CatalogRevision,
   ChildActionRequest,
   Concierge,
@@ -75,6 +82,8 @@ import type {
   InvocationIdentity,
   InvocationMeta,
   ObservedInput,
+  ObservedActionResult,
+  ObservedResultData,
   ResolvedCatalog,
   Scheduler,
   StageContext,
@@ -117,6 +126,12 @@ const NEVER_ABORTED_SIGNAL: AbortSignalLike = /* @__PURE__ */ Object.freeze({
 });
 
 const DROPPED_INPUT: ObservedInput = /* @__PURE__ */ Object.freeze({
+  kind: "dropped" as const,
+});
+const ABSENT_RESULT_DATA: ObservedResultData = /* @__PURE__ */ Object.freeze({
+  kind: "absent" as const,
+});
+const DROPPED_RESULT_DATA: ObservedResultData = /* @__PURE__ */ Object.freeze({
   kind: "dropped" as const,
 });
 
@@ -832,7 +847,7 @@ function snapshotDispatchEnvelopeInput(
   };
 }
 
-/** Snapshot the complete v2 request before any asynchronous work begins. */
+/** Snapshot the complete dispatch request before asynchronous work begins. */
 function snapshotDispatchRequest(request: unknown): DispatchRequestSnapshot {
   const envelope: DispatchEnvelopeSnapshot = snapshotDispatchEnvelope(request);
   return envelope.ok
@@ -885,6 +900,15 @@ function snapshotAction(action: AnyActionDefinition): AnyActionDefinition {
       snapshot = {
         ...snapshot,
         consent: snapshotConsentPolicy(snapshot.consent),
+      };
+    }
+    if (snapshot.output !== undefined) {
+      snapshot = {
+        ...snapshot,
+        output: Object.freeze({
+          schema: snapshot.output.schema,
+          redact: snapshot.output.redact,
+        }),
       };
     }
     return snapshot;
@@ -1025,6 +1049,45 @@ function resolveBridge(stage: ConciergeConfig["stages"][number]): Bridge | null 
   }
 }
 
+/** Select an action-local registry before the owning stage fallback. */
+function effectiveBridgeRegistry(
+  action: AnyActionDefinition,
+  stage: ConciergeConfig["stages"][number] | undefined,
+): BridgeRegistry | undefined {
+  return action.bridge ?? stage?.bridge;
+}
+
+/** Read the effective registry exactly once for one dispatch occurrence. */
+function resolveActionBridge(
+  action: AnyActionDefinition,
+  stage: ConciergeConfig["stages"][number] | undefined,
+): Bridge | null {
+  const registry: BridgeRegistry | undefined =
+    effectiveBridgeRegistry(action, stage);
+  if (registry === undefined) return null;
+  try {
+    return registry.read() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function actionBridgeStatus(
+  action: AnyActionDefinition,
+  stage: ConciergeConfig["stages"][number] | undefined,
+): ActionExplanation["bridge"] {
+  const registry: BridgeRegistry | undefined =
+    effectiveBridgeRegistry(action, stage);
+  if (registry === undefined) return null;
+  let registered: boolean = false;
+  try {
+    registered = registry.read() != null;
+  } catch {
+    registered = false;
+  }
+  return { id: registry.id, registered };
+}
+
 /**
  * Everything `explain` can honestly say about one stage's bridge.
  *
@@ -1115,6 +1178,10 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   const dedupeWindowMs: number = validateWindowMs(
     config.dedupeWindowMs ?? 600,
     "dedupeWindowMs",
+  );
+  const maxActionDataBytes: number = validateWorkflowLimit(
+    config.maxActionDataBytes ?? DEFAULT_ACTION_DATA_MAX_BYTES,
+    "maxActionDataBytes",
   );
   const maxWorkflowDepth: number = validateWorkflowLimit(
     config.maxWorkflowDepth ?? 16,
@@ -1300,11 +1367,13 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   /** Detach one already-resolved bridge without reading its registry again. */
   function captureResolvedSnapshot(
     index: number | null,
+    action: AnyActionDefinition,
     bridge: Bridge | null,
   ): Readonly<Record<string, unknown>> {
     const stage: ConciergeConfig["stages"][number] | undefined =
       index === null ? undefined : stages[index];
-    const bridgeId: string = stage?.bridge?.id ?? stage?.id ?? "cross-stage";
+    const bridgeId: string =
+      effectiveBridgeRegistry(action, stage)?.id ?? stage?.id ?? "cross-stage";
     return Object.freeze(
       captureSnapshot(
         bridge as Bridge,
@@ -1312,16 +1381,6 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         capturedConsent.normalizeSnapshot,
       ),
     );
-  }
-
-  /** Capture the active bridge early without replacing its later live resolve. */
-  function captureReviewSnapshot(
-    index: number | null,
-  ): Readonly<Record<string, unknown>> {
-    const stage: ConciergeConfig["stages"][number] | undefined =
-      index === null ? undefined : stages[index];
-    const bridge: Bridge | null = stage === undefined ? null : resolveBridge(stage);
-    return captureResolvedSnapshot(index, bridge);
   }
 
   /** Arm one owned pending generation from snapshotted delivery evidence. */
@@ -1760,6 +1819,52 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         `concierge: [redaction_failed] action ${encodeDiagnosticSubject(entry.action.name)}: its observer projection was not safe invocation data, so observer input was dropped. Fix: return acyclic plain data without accessors or exotic objects.`,
       );
       return DROPPED_INPUT;
+    }
+    return Object.freeze({ kind: "included", value: snapshot.value });
+  }
+
+  function observedResultStatus(result: ActionResult): ObservedActionResult {
+    return Object.freeze(
+      result.reason === undefined
+        ? { ok: result.ok, message: result.message }
+        : { ok: result.ok, reason: result.reason, message: result.message },
+    );
+  }
+
+  function observedResultDataFor(
+    entry: CatalogEntry | null,
+    result: ActionResult,
+  ): ObservedResultData {
+    if (result.data === undefined) return ABSENT_RESULT_DATA;
+    if (entry === null) return DROPPED_RESULT_DATA;
+    const output: AnyActionDefinition["output"] = entry.action.output;
+    if (output === undefined || output.redact === "drop") {
+      return DROPPED_RESULT_DATA;
+    }
+
+    let exposed: unknown = result.data;
+    if (typeof output.redact === "function") {
+      try {
+        exposed = output.redact(result.data);
+      } catch {
+        warnDispatchOnce(
+          `output-redaction-threw:${entry.action.name}`,
+          `concierge: [output_redaction_failed] action ${encodeDiagnosticSubject(entry.action.name)}: its result projection threw, so observer data was dropped. Fix: make the projection total and return JSON-safe data.`,
+        );
+        return DROPPED_RESULT_DATA;
+      }
+    }
+
+    const snapshot: ActionDataSnapshot = snapshotActionData(
+      exposed,
+      maxActionDataBytes,
+    );
+    if (!snapshot.ok) {
+      warnDispatchOnce(
+        `output-redaction-invalid:${entry.action.name}`,
+        `concierge: [output_redaction_failed] action ${encodeDiagnosticSubject(entry.action.name)}: its observer result projection was not safe bounded JSON data, so observer data was dropped. Fix: return acyclic plain JSON data without aliases or accessors.`,
+      );
+      return DROPPED_RESULT_DATA;
     }
     return Object.freeze({ kind: "included", value: snapshot.value });
   }
@@ -2397,6 +2502,10 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       );
     }
 
+    const stage: ConciergeConfig["stages"][number] | undefined =
+      index === null ? undefined : stages[index];
+    const bridge: Bridge | null = resolveActionBridge(entry.action, stage);
+
     let reviewingGeneration:
       | (ConsentGenerationBase & { readonly status: "reviewing" })
       | null = null;
@@ -2410,7 +2519,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         readbackHash: null,
         responseId: meta.responseId ?? "",
         sessionId: consentSessionId,
-        snapshot: captureReviewSnapshot(index),
+        snapshot: captureResolvedSnapshot(index, entry.action, bridge),
         status: "reviewing",
         userTurnId: meta.userTurnId ?? "",
         verifiedReadback: null,
@@ -2514,9 +2623,6 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       );
     }
 
-    const stage: ConciergeConfig["stages"][number] | undefined =
-      index === null ? undefined : stages[index];
-    const bridge: Bridge | null = stage === undefined ? null : resolveBridge(stage);
     if (isAborted(signal)) {
       closeOwnedReview();
       return authoredResult(
@@ -2614,7 +2720,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       let snapshotsMatch: boolean = false;
       try {
         const currentSnapshot: Readonly<Record<string, unknown>> =
-          captureResolvedSnapshot(index, bridge);
+          captureResolvedSnapshot(index, entry.action, bridge);
         const comparator: ConsentPolicy<unknown>["snapshotEquality"] =
           policy.snapshotEquality;
         snapshotsMatch = comparator === undefined
@@ -2752,7 +2858,9 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       }
     }
 
-    const normalizedResult: ActionResult = normalizeActionResult(handlerResult, {
+    const normalizedResult: ActionResult = await normalizeActionResult(handlerResult, {
+      entry,
+      maximumDataBytes: maxActionDataBytes,
       successReason: (): void => {
         warnDispatchOnce(
           `success-reason:${name}`,
@@ -2928,7 +3036,8 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       input: observation.input,
       terminalAction: entry.action.terminal === true,
       phase: eventTerminalPhase(result),
-      result,
+      result: observedResultStatus(result),
+      resultData: observedResultDataFor(entry, result),
       terminalEntered: occurrence.root.terminalRef !== null,
     });
     return result;
@@ -3190,7 +3299,8 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       terminalEntered: inherited?.root.terminalRef !== null &&
         inherited?.root.terminalRef !== undefined,
       phase: eventTerminalPhase(result),
-      result,
+      result: observedResultStatus(result),
+      resultData: observedResultDataFor(null, result),
     });
     return trackDispatchPromise(Promise.resolve(result), executionState);
   }
@@ -3918,11 +4028,26 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     // a documented refusal to early-out on `Object.isFrozen` is not a saving —
     // those are three properties a re-implementation rediscovers as bug
     // reports.
+    const visible: AtomicCatalogResolution = resolveForIndex(activeIndex, ctx);
+    const activeStage: ConciergeConfig["stages"][number] | undefined =
+      activeIndex === null ? undefined : stages[activeIndex];
+    const actionRows: ActionExplanation[] = visible.names.flatMap(
+      (name): ActionExplanation[] => {
+        const entry: CatalogEntry | undefined = catalog.byName[name];
+        return entry === undefined
+          ? []
+          : [{
+              name,
+              bridge: actionBridgeStatus(entry.action, activeStage),
+            }];
+      },
+    );
     return deepFreeze(
       {
         stage: activeIndex === null ? null : (stages[activeIndex]?.id ?? null),
         stages: rows,
-        catalog: resolveForIndex(activeIndex, ctx).names,
+        actions: actionRows,
+        catalog: visible.names,
       },
       NO_SKIP,
       new WeakSet<object>(),

@@ -122,18 +122,18 @@ function selfTest() {
     "canonical peer failed",
   );
   const transition = analyzeSourceCorePeer(
-    "workspace:^0.1.0 || ^0.2.0",
-    "0.1.0",
+    "workspace:^0.2.1 || ^0.3.0",
+    "0.2.1",
     config.releaseLine,
   );
   assert(
-    transition.canonical === false && transition.target === "0.2.0",
+    transition.canonical === false && transition.target === "0.3.0",
     "SELF_TEST",
     "bounded peer transition failed",
   );
   let rejected = false;
   try {
-    analyzeSourceCorePeer("workspace:>=0.0.0", "0.1.0", config.releaseLine);
+    analyzeSourceCorePeer("workspace:>=0.0.0", "0.2.1", config.releaseLine);
   } catch (error) {
     rejected = String(error).includes("[VERSION_PEER]");
   }

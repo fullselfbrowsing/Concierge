@@ -186,7 +186,7 @@ describe("the built @full-self-browsing/concierge-svelte entries", () => {
       "upgrade or reinstall",
       "registry.register(bridge)",
     ]);
-    expect(clientSource).toMatch(/EXPECTED_CONTRACT_VERSION\s*=\s*2\b/u);
+    expect(clientSource).toMatch(/EXPECTED_CONTRACT_VERSION\s*=\s*3\b/u);
 
     expect(adapterSource).toContain("return $state.snapshot(value);");
     expect(adapterSource).not.toMatch(/\b(?:as|any)\b/u);

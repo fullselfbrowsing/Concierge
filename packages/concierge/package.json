@@ -1,6 +1,6 @@
 {
   "name": "@full-self-browsing/concierge",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Typed, consent-gated actions that let an AI agent operate your web app",
   "keywords": [
     "ai",
@@ -43,6 +43,10 @@
     "./ai-sdk/browser": {
       "types": "./dist/ai-sdk/browser.d.ts",
       "default": "./dist/ai-sdk/browser.js"
+    },
+    "./openai-realtime": {
+      "types": "./dist/openai-realtime/index.d.ts",
+      "default": "./dist/openai-realtime/index.js"
     },
     "./telemetry": {
       "types": "./dist/telemetry/index.d.ts",

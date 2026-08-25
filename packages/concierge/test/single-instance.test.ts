@@ -236,7 +236,7 @@ describe(SUITE_TITLE, () => {
     expect(uncalled).not.toContain(RENAMED_KEY_TEXT);
   });
 
-  it("F2 — a legacy v1 record makes v2 throw with both versions and the remediation", async () => {
+  it("F2 — a legacy v1 record makes v3 throw with both versions and the remediation", async () => {
     // Exactly what a v0.1 source, tarball, or Git installation left behind.
     registry[KEY] = { version: 1 };
 
@@ -247,7 +247,7 @@ describe(SUITE_TITLE, () => {
     // versions but not the fix would satisfy the first while leaving the
     // developer with nothing to do.
     expect(() => assertSingleInstance()).toThrow(/two different copies/);
-    expect(() => assertSingleInstance()).toThrow(/contract v1 and v2/);
+    expect(() => assertSingleInstance()).toThrow(/contract v1 and v3/);
     expect(() => assertSingleInstance()).toThrow(/peerDependency/);
   });
 
@@ -379,7 +379,7 @@ describe(SUITE_TITLE, () => {
         tools: Object.freeze([]),
       }),
       onDispatch: () => () => {},
-      explain: () => Object.freeze({ stage: null, stages: [], catalog: [] }),
+      explain: () => Object.freeze({ stage: null, stages: [], catalog: [], actions: [] }),
     };
     const transport = {
       capabilities: Object.freeze({

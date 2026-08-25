@@ -1,0 +1,166 @@
+import { beforeEach, describe, expect, it } from "vitest";
+
+import { createBridge, createConcierge } from "../dist/index.js";
+
+const CONTRACT_KEY = Symbol.for("@fullselfbrowsing/concierge.contract");
+const CONTEXT = Object.freeze({ page: "active" });
+
+beforeEach(() => {
+  delete (globalThis as Record<symbol, unknown>)[CONTRACT_KEY];
+});
+
+function schema() {
+  return {
+    "~standard": {
+      version: 1,
+      vendor: "action-bridges-test",
+      validate: (value: unknown) => ({ value }),
+    },
+  };
+}
+
+function action(
+  name: string,
+  handler: (context: Record<string, unknown>) => unknown,
+  options: Record<string, unknown> = {},
+) {
+  return {
+    name,
+    description: `Run ${name}.`,
+    schema: schema(),
+    jsonSchema: { type: "object" },
+    redact: "drop",
+    effects: { readOnly: true },
+    handler,
+    ...options,
+  };
+}
+
+function bridge(marker: string) {
+  return {
+    marker,
+    actions: {},
+    snapshot: { marker: () => marker },
+  };
+}
+
+function request(catalog: { revision: symbol }, name: string, callId = name) {
+  return {
+    name,
+    input: {},
+    catalogRevision: catalog.revision,
+    identity: {
+      sessionId: "session-1",
+      responseId: "response-1",
+      callId,
+      userTurnId: "turn-1",
+      outputIndex: 0,
+    },
+  };
+}
+
+describe("action-scoped bridge resolution", () => {
+  it("supports heterogeneous action bridges with action precedence and stage fallback", async () => {
+    const stageRegistry = createBridge("stage");
+    const resultsRegistry = createBridge("results");
+    const galleryRegistry = createBridge("gallery");
+    stageRegistry.register(bridge("stage"));
+    resultsRegistry.register(bridge("results"));
+    galleryRegistry.register(bridge("gallery"));
+
+    const actions = [
+      action("results", ({ bridge: live }) => ({ ok: true, message: live?.marker ?? "missing" }), {
+        bridge: resultsRegistry,
+      }),
+      action("gallery", ({ bridge: live }) => ({ ok: true, message: live?.marker ?? "missing" }), {
+        bridge: galleryRegistry,
+      }),
+      action("fallback", ({ bridge: live }) => ({ ok: true, message: live?.marker ?? "missing" })),
+    ];
+    const concierge = createConcierge({
+      stages: [{
+        id: "active",
+        match: (ctx: { page?: string }) => ctx.page === "active",
+        bridge: stageRegistry,
+        actions,
+      }],
+    });
+    const catalog = concierge.resolveCatalog(CONTEXT);
+
+    await expect(concierge.dispatch(CONTEXT, request(catalog, "results"))).resolves.toMatchObject({ message: "results" });
+    await expect(concierge.dispatch(CONTEXT, request(catalog, "gallery"))).resolves.toMatchObject({ message: "gallery" });
+    await expect(concierge.dispatch(CONTEXT, request(catalog, "fallback"))).resolves.toMatchObject({ message: "stage" });
+
+    expect(concierge.explain(CONTEXT).actions).toEqual([
+      { name: "results", bridge: { id: "results", registered: true } },
+      { name: "gallery", bridge: { id: "gallery", registered: true } },
+      { name: "fallback", bridge: { id: "stage", registered: true } },
+    ]);
+  });
+
+  it("uses an action bridge for a cross-stage action and returns null when it is unmounted", async () => {
+    const stageRegistry = createBridge("stage");
+    const crossRegistry = createBridge("cross");
+    stageRegistry.register(bridge("stage"));
+    const unregister = crossRegistry.register(bridge("cross"));
+    const cross = action("navigate", ({ bridge: live }) => ({
+      ok: true,
+      message: live?.marker ?? "missing",
+    }), { bridge: crossRegistry });
+    const concierge = createConcierge({
+      stages: [{
+        id: "active",
+        match: (ctx: { page?: string }) => ctx.page === "active",
+        bridge: stageRegistry,
+        actions: [],
+      }],
+      crossStage: [cross],
+    });
+    const catalog = concierge.resolveCatalog(CONTEXT);
+
+    await expect(concierge.dispatch(CONTEXT, request(catalog, "navigate", "mounted"))).resolves.toMatchObject({ message: "cross" });
+    unregister();
+    await expect(concierge.dispatch(CONTEXT, request(catalog, "navigate", "unmounted"))).resolves.toMatchObject({ message: "missing" });
+    expect(concierge.explain(CONTEXT).actions).toEqual([
+      { name: "navigate", bridge: { id: "cross", registered: false } },
+    ]);
+  });
+
+  it("reads one effective bridge once and reuses it for consent capture and the handler", async () => {
+    const first = bridge("first");
+    const second = bridge("second");
+    let reads = 0;
+    let handlerBridge: unknown;
+    const alternatingRegistry = Object.freeze({
+      id: "alternating",
+      register: () => () => undefined,
+      read: () => {
+        reads += 1;
+        return reads === 1 ? first : second;
+      },
+    });
+    const review = action("review", ({ bridge: live }) => {
+      handlerBridge = live;
+      return { ok: true, message: live?.marker ?? "missing" };
+    }, { bridge: alternatingRegistry });
+    const confirm = action("confirm", () => ({ ok: true, message: "Confirmed." }), {
+      consent: { requires: "review", bindTo: "response" },
+      effects: { readOnly: false, destructive: true, idempotent: false },
+    });
+    const concierge = createConcierge({
+      stages: [{ id: "active", match: () => true, actions: [review, confirm] }],
+      consentProfile: {
+        consentGrade: "delivered",
+        userTurnIdentity: "agent-forgeable",
+      },
+    });
+    const catalog = concierge.resolveCatalog(CONTEXT);
+
+    await expect(concierge.dispatch(CONTEXT, request(catalog, "review"))).resolves.toMatchObject({
+      ok: true,
+      message: "first",
+    });
+    expect(reads).toBe(1);
+    expect(handlerBridge).toBe(first);
+  });
+});

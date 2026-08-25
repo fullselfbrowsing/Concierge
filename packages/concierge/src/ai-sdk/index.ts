@@ -204,11 +204,17 @@ function invalid(
 }
 
 function jsonResult(result: Readonly<ActionResult>): JSONValue {
-  const output: { ok: boolean; message: string; reason?: string } = {
+  const output: {
+    ok: boolean;
+    message: string;
+    reason?: string;
+    data?: JSONValue;
+  } = {
     ok: result.ok,
     message: result.message,
   };
   if (result.reason !== undefined) output.reason = result.reason;
+  if (result.data !== undefined) output.data = result.data as JSONValue;
   return output;
 }
 
@@ -246,7 +252,7 @@ export function createAISDKAdapter(input: Readonly<{
     input.concierge as ConciergeWithResolution;
   if (typeof concierge.resolveCatalog !== "function") {
     throw new ConciergeAISDKConfigurationError(
-      "Core contract v2 must provide resolveCatalog().",
+      "Core contract v3 must provide resolveCatalog().",
     );
   }
   const crypto: Crypto = cryptoFor(input.crypto);

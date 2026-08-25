@@ -79,7 +79,7 @@ if (prepared.kind === "ready") {
 void tools;
 void contextUpdate;
 
-// @ts-expect-error — turn identity is mandatory in contract v2.
+// @ts-expect-error — turn identity is mandatory in contract v3.
 adapter.prepareStep({ catalog, responseId: "r", toolCalls: [] });
 
 adapter.prepareStep({ catalog, responseId: "r", userTurnId: "turn", toolCalls: [{

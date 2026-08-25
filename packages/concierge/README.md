@@ -11,8 +11,9 @@ web application. Concierge owns action admission, validation, consent,
 deduplication, lifecycle, workflows, and terminal execution. It does not own the
 model, chat UI, speech, overlay, or planning loop.
 
-Version 0.2 is a public preview of contract 2. It requires Node 22.12 or newer;
-Edge runtimes are not supported in the 0.2 line.
+Version 0.3 is a public preview of contract 3. It requires Node 22.12 or newer;
+Edge runtimes are not supported in the 0.3 line. Existing actions without
+structured data and existing stage-level bridges remain supported.
 
 ## Install
 
@@ -23,6 +24,8 @@ pnpm add @full-self-browsing/concierge
 React and Svelte lifecycle bindings are published separately. Optional AI SDK
 6/7 tool definitions and the signed browser bridge are available from
 `@full-self-browsing/concierge/ai-sdk`, `/ai-sdk/server`, and `/ai-sdk/browser`.
+The app-owned OpenAI Realtime codec is available from
+`@full-self-browsing/concierge/openai-realtime`.
 Anonymous browser usage reporting is isolated in the optional
 `@full-self-browsing/concierge/telemetry` subpath; importing this package root
 continues to perform no browser storage, timer, DOM, or network work.
@@ -98,6 +101,43 @@ catalog revision returns `identity_conflict`. A superseded local revision
 returns `catalog_stale`. Malformed JSON in a transport batch returns
 `invalid_args`; it is never replaced with an empty object.
 
+## Structured results and action bridges
+
+An action may opt into schema-controlled JSON output. Existing actions need no
+change:
+
+```ts
+import { defineAction } from "@full-self-browsing/concierge";
+import { z } from "zod";
+
+const readResults = defineAction({
+  name: "readResults",
+  description: "Read the visible search results.",
+  schema: z.object({}),
+  redact: "drop",
+  output: {
+    schema: z.object({
+      kind: z.literal("results"),
+      ids: z.array(z.string()),
+    }),
+    redact: "drop",
+  },
+  bridge: resultsRegistry,
+  effects: { readOnly: true, destructive: false, idempotent: true },
+  handler: ({ bridge }) => ({
+    ok: true,
+    message: "Read the visible results.",
+    data: { kind: "results", ids: bridge?.snapshot.visibleIds() ?? [] },
+  }),
+});
+```
+
+Validated data is transformed by the schema, detached, recursively frozen,
+and limited to 256 KiB by default. `output.redact` independently controls
+observer exposure; it does not remove data from the agent result. An action's
+bridge takes precedence over its owning stage bridge, then falls back to
+`null`. This works for stage and cross-stage actions.
+
 ## Lifecycle and workflows
 
 `concierge.onDispatch(listener)` observes immutable `accepted`, `waiting`,
@@ -132,18 +172,18 @@ settles. Defaults are 16 nested levels and 256 steps per root workflow.
 
 `createSession` republishes a `ResolvedCatalog` whenever its effective catalog
 changes, including availability changes within one stage. Publishing a new
-catalog aborts the prior epoch. A contract-2 transport implements
+catalog aborts the prior epoch. A contract-3 transport implements
 `setCatalog(resolved)` and one awaited `onToolBatch` callback returning the
 batch outcome; there is no ambiguous per-call response channel.
 
 ## Compatibility and stability
 
-Documented 0.2 exports, failure reasons, wire fields, peer ranges, and contract
-2 remain compatible throughout `0.2.x`. Breaking changes require a synchronized
-0.3 release and migration notes. See the
+Documented 0.3 exports, failure reasons, wire fields, peer ranges, and contract
+3 remain compatible throughout `0.3.x`. Breaking changes require a synchronized
+minor release and migration notes. See the
 [repository documentation](https://github.com/fullselfbrowsing/Concierge#readme),
 [security policy](https://github.com/fullselfbrowsing/Concierge/blob/main/SECURITY.md),
-and [0.1 to 0.2 migration guide](https://github.com/fullselfbrowsing/Concierge/blob/main/docs/migrations/0.1-to-0.2.md).
+and [0.2 to 0.3 migration guide](https://github.com/fullselfbrowsing/Concierge/blob/main/docs/migrations/0.2-to-0.3.md).
 
 ## License
 

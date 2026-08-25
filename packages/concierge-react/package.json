@@ -1,6 +1,6 @@
 {
   "name": "@full-self-browsing/concierge-react",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": false,
   "description": "React bindings and optional action visuals for @full-self-browsing/concierge",
   "keywords": [

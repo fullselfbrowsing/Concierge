@@ -1,5 +1,5 @@
 /**
- * @full-self-browsing/concierge contract v2.
+ * @full-self-browsing/concierge contract v3.
  *
  * The framework-neutral core declares typed, consent-gated actions; resolves
  * stage, dynamic availability, tools, and a local catalog revision atomically;
@@ -22,6 +22,7 @@ export type {
   JsonSchemaObject,
   AbortSignalLike,
   // Results
+  ActionData,
   ActionResult,
   AbandonReason,
   FailureReason,
@@ -54,7 +55,9 @@ export type {
   SideEffects,
   // Redaction
   RedactionPolicy,
+  OutputRedactionPolicy,
   // Actions
+  ActionOutputDefinition,
   ActionDefinition,
   AnyActionDefinition,
   // Bridges
@@ -77,6 +80,8 @@ export type {
   DispatchRef,
   BatchDispatchOutcome,
   ObservedInput,
+  ObservedResultData,
+  ObservedActionResult,
   DispatchLineage,
   DispatchEvent,
   DispatchListener,
@@ -85,6 +90,7 @@ export type {
   Concierge,
   ConciergeConfig,
   Explanation,
+  ActionExplanation,
   StageExplanation,
   Session,
   SessionConfig,
@@ -115,6 +121,7 @@ export {
   USER_DECLINED,
   CONSENT_GRADE_ORDER,
   MESSAGE_MAX_CHARS,
+  DEFAULT_ACTION_DATA_MAX_BYTES,
 } from "./types.js";
 
 export { CONTRACT_VERSION, assertSingleInstance } from "./contract.js";

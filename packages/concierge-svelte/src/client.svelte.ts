@@ -12,7 +12,7 @@ import type {
 } from "@full-self-browsing/concierge";
 import { mountConciergeTelemetry } from "@full-self-browsing/concierge/telemetry";
 
-const EXPECTED_CONTRACT_VERSION: number = 2;
+const EXPECTED_CONTRACT_VERSION: number = 3;
 const CONCIERGE_CONTEXT: symbol = Symbol(
   "@full-self-browsing/concierge-svelte.context",
 );

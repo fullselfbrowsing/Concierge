@@ -79,7 +79,7 @@ async function flush() {
   for (let index = 0; index < 8; index += 1) await Promise.resolve();
 }
 
-describe("contract v2 catalog and dispatch", () => {
+describe("contract v3 catalog and dispatch", () => {
   it("exports only the v2 Concierge runtime surface and resolves availability atomically", () => {
     let availabilityReads = 0;
     const concierge = conciergeFor([
@@ -732,7 +732,7 @@ describe("contract v2 catalog and dispatch", () => {
   });
 });
 
-describe("contract v2 Session", () => {
+describe("contract v3 Session", () => {
   function transportHarness() {
     let batchHandler;
     const publications = [];

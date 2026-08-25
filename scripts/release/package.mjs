@@ -66,7 +66,7 @@ function enumeratePacked(config, directory, version) {
   assert(
     files.length === config.packages.length,
     "PACK_COUNT",
-    `packing produced ${files.length} archives instead of four`,
+    `packing produced ${files.length} archives instead of ${config.packages.length}`,
   );
   return config.packages.map((spec) => {
     const expected = expectedArchiveFilename(spec.name, version);

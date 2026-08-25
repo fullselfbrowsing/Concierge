@@ -28,7 +28,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Validate v0.2 source and release policy
+      - name: Validate v0.3 source and release policy
         run: |
           node scripts/release/check.mjs source
           node scripts/release/version.mjs self-test
@@ -50,7 +50,7 @@ jobs:
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: v0.2-archives-${{ github.sha }}
+          name: v0.3-archives-${{ github.sha }}
           path: ${{ runner.temp }}/release-archives
           if-no-files-found: error
 
@@ -65,7 +65,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: v0.2-archives-${{ github.sha }}
+          name: v0.3-archives-${{ github.sha }}
           path: archives
 
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
@@ -88,8 +88,8 @@ jobs:
           await import("@full-self-browsing/concierge-react");
           await import("@full-self-browsing/concierge-svelte");
           assertSingleInstance();
-          if (CONTRACT_VERSION !== 2 || adapter.EXPECTED_CORE_CONTRACT_VERSION !== 2) {
-            throw new Error("contract v2 did not survive the packed install");
+          if (CONTRACT_VERSION !== 3 || adapter.EXPECTED_CORE_CONTRACT_VERSION !== 3) {
+            throw new Error("contract v3 did not survive the packed install");
           }
           NODE
 
@@ -111,7 +111,7 @@ jobs:
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: v0.2-archives-${{ github.sha }}
+          name: v0.3-archives-${{ github.sha }}
           path: archives
 
       - run: node scripts/release/compatibility.mjs "$(realpath archives)"
