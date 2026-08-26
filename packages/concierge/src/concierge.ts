@@ -404,6 +404,8 @@ interface ConsentGenerationBase {
   readonly responseId: string;
   readonly sessionId: string | null;
   readonly snapshot: Readonly<Record<string, unknown>>;
+  readonly snapshotBridgeId: string;
+  readonly snapshotBridgeRegistry: BridgeRegistry | undefined;
   readonly userTurnId: string;
   readonly verifiedReadback: VerifiedReadbackEvidence | null;
 }
@@ -1057,13 +1059,10 @@ function effectiveBridgeRegistry(
   return action.bridge ?? stage?.bridge;
 }
 
-/** Read the effective registry exactly once for one dispatch occurrence. */
-function resolveActionBridge(
-  action: AnyActionDefinition,
-  stage: ConciergeConfig["stages"][number] | undefined,
+/** Read one already-selected registry, containing consumer failures as null. */
+function resolveBridgeRegistry(
+  registry: BridgeRegistry | undefined,
 ): Bridge | null {
-  const registry: BridgeRegistry | undefined =
-    effectiveBridgeRegistry(action, stage);
   if (registry === undefined) return null;
   try {
     return registry.read() ?? null;
@@ -1366,14 +1365,9 @@ export function createConcierge(config: ConciergeConfig): Concierge {
 
   /** Detach one already-resolved bridge without reading its registry again. */
   function captureResolvedSnapshot(
-    index: number | null,
-    action: AnyActionDefinition,
+    bridgeId: string,
     bridge: Bridge | null,
   ): Readonly<Record<string, unknown>> {
-    const stage: ConciergeConfig["stages"][number] | undefined =
-      index === null ? undefined : stages[index];
-    const bridgeId: string =
-      effectiveBridgeRegistry(action, stage)?.id ?? stage?.id ?? "cross-stage";
     return Object.freeze(
       captureSnapshot(
         bridge as Bridge,
@@ -2504,12 +2498,16 @@ export function createConcierge(config: ConciergeConfig): Concierge {
 
     const stage: ConciergeConfig["stages"][number] | undefined =
       index === null ? undefined : stages[index];
-    const bridge: Bridge | null = resolveActionBridge(entry.action, stage);
+    const bridgeRegistry: BridgeRegistry | undefined =
+      effectiveBridgeRegistry(entry.action, stage);
+    const bridge: Bridge | null = resolveBridgeRegistry(bridgeRegistry);
 
     let reviewingGeneration:
       | (ConsentGenerationBase & { readonly status: "reviewing" })
       | null = null;
     if (replacesReviewAuthority) {
+      const snapshotBridgeId: string =
+        bridgeRegistry?.id ?? stage?.id ?? "cross-stage";
       nextConsentGeneration += 1n;
       reviewingGeneration = Object.freeze({
         confirmationUserTurnId: null,
@@ -2519,7 +2517,9 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         readbackHash: null,
         responseId: meta.responseId ?? "",
         sessionId: consentSessionId,
-        snapshot: captureResolvedSnapshot(index, entry.action, bridge),
+        snapshot: captureResolvedSnapshot(snapshotBridgeId, bridge),
+        snapshotBridgeId,
+        snapshotBridgeRegistry: bridgeRegistry,
         status: "reviewing",
         userTurnId: meta.userTurnId ?? "",
         verifiedReadback: null,
@@ -2719,8 +2719,12 @@ export function createConcierge(config: ConciergeConfig): Concierge {
 
       let snapshotsMatch: boolean = false;
       try {
+        const snapshotBridge: Bridge | null =
+          owned.snapshotBridgeRegistry === bridgeRegistry
+            ? bridge
+            : resolveBridgeRegistry(owned.snapshotBridgeRegistry);
         const currentSnapshot: Readonly<Record<string, unknown>> =
-          captureResolvedSnapshot(index, entry.action, bridge);
+          captureResolvedSnapshot(owned.snapshotBridgeId, snapshotBridge);
         const comparator: ConsentPolicy<unknown>["snapshotEquality"] =
           policy.snapshotEquality;
         snapshotsMatch = comparator === undefined

@@ -168,6 +168,34 @@ describe("declared structured action results", () => {
     ]);
   });
 
+  it("treats explicit undefined data as absent", async () => {
+    const concierge = conciergeFor([
+      richAction(
+        "successWithoutData",
+        () => ({ ok: true, message: "Nothing to return.", data: undefined }),
+      ),
+      richAction(
+        "failureWithoutData",
+        () => ({
+          ok: false,
+          reason: "precondition_failed",
+          message: "Nothing was available.",
+          data: undefined,
+        }),
+      ),
+    ]);
+
+    await expect(dispatch(concierge, "successWithoutData")).resolves.toEqual({
+      ok: true,
+      message: "Nothing to return.",
+    });
+    await expect(dispatch(concierge, "failureWithoutData")).resolves.toEqual({
+      ok: false,
+      reason: "precondition_failed",
+      message: "Nothing was available.",
+    });
+  });
+
   it("detaches and recursively freezes data while preserving dedupe Promise identity", async () => {
     const original = { nested: { values: ["first"] } };
     let handlerCalls = 0;

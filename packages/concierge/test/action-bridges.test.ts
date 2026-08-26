@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createBridge, createConcierge } from "../dist/index.js";
+import type { DeliveryReport } from "../dist/index.js";
 
 const CONTRACT_KEY = Symbol.for("@fullselfbrowsing/concierge.contract");
 const CONTEXT = Object.freeze({ page: "active" });
@@ -44,14 +45,19 @@ function bridge(marker: string) {
   };
 }
 
-function request(catalog: { revision: symbol }, name: string, callId = name) {
+function request(
+  catalog: { revision: symbol },
+  name: string,
+  callId = name,
+  responseId = "response-1",
+) {
   return {
     name,
     input: {},
     catalogRevision: catalog.revision,
     identity: {
       sessionId: "session-1",
-      responseId: "response-1",
+      responseId,
       callId,
       userTurnId: "turn-1",
       outputIndex: 0,
@@ -162,5 +168,69 @@ describe("action-scoped bridge resolution", () => {
     });
     expect(reads).toBe(1);
     expect(handlerBridge).toBe(first);
+  });
+
+  it("compares consent against the review bridge when the gated action uses the stage bridge", async () => {
+    const stageRegistry = createBridge("stage");
+    const reviewRegistry = createBridge("review");
+    const reviewedState = { selected: "hotel-1" };
+    stageRegistry.register({
+      marker: "stage",
+      actions: {},
+      snapshot: { cart: () => ({ total: 125 }) },
+    });
+    reviewRegistry.register({
+      marker: "review",
+      actions: {},
+      snapshot: { results: () => reviewedState },
+    });
+
+    const review = action("review", ({ bridge: live }) => ({
+      ok: true,
+      message: live?.marker ?? "missing",
+    }), { bridge: reviewRegistry });
+    const confirm = action("confirm", ({ bridge: live }) => ({
+      ok: true,
+      message: live?.marker ?? "missing",
+    }), {
+      consent: { requires: "review", bindTo: "response" },
+      effects: { readOnly: false, destructive: true, idempotent: false },
+    });
+    const concierge = createConcierge({
+      stages: [{
+        id: "active",
+        match: () => true,
+        bridge: stageRegistry,
+        actions: [review, confirm],
+      }],
+      consentProfile: {
+        consentGrade: "relayed",
+        userTurnIdentity: "human-attested",
+      },
+    });
+    const catalog = concierge.resolveCatalog(CONTEXT);
+
+    async function armReview(callId: string, responseId: string) {
+      let observeDelivery: ((report: DeliveryReport) => void) | undefined;
+      await concierge.dispatch(CONTEXT, {
+        ...request(catalog, "review", callId, responseId),
+        deferUntilDelivered(effect) {
+          observeDelivery = effect;
+        },
+      });
+      expect(observeDelivery).toBeTypeOf("function");
+      observeDelivery?.({ responseId, outcome: "completed" });
+    }
+
+    await armReview("review-one", "review-response-one");
+    await expect(concierge.dispatch(CONTEXT, {
+      ...request(catalog, "confirm", "confirm-one", "confirm-response-one"),
+    })).resolves.toEqual({ ok: true, message: "stage" });
+
+    await armReview("review-two", "review-response-two");
+    reviewedState.selected = "hotel-2";
+    await expect(concierge.dispatch(CONTEXT, {
+      ...request(catalog, "confirm", "confirm-two", "confirm-response-two"),
+    })).resolves.toMatchObject({ ok: false, reason: "consent_stale" });
   });
 });

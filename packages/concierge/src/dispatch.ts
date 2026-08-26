@@ -919,7 +919,7 @@ export async function normalizeActionResult(
   }
 
   let data: ActionData | undefined;
-  if (dataProperty.present) {
+  if (dataProperty.present && dataProperty.value !== undefined) {
     const normalizedData: ActionDataSnapshot = await validateResultData(
       options.entry,
       dataProperty.value,

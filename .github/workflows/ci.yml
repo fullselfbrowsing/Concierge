@@ -135,5 +135,6 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - run: pnpm --filter @full-self-browsing/concierge-example-next-ai-sdk exec playwright install --with-deps chromium
       - run: pnpm --filter @full-self-browsing/concierge-example-next-ai-sdk exec playwright test --project=chromium
