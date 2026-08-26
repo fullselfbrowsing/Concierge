@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { createBridge, createConcierge } from "../dist/index.js";
+import { createBridge, createConcierge, offPageResult } from "../dist/index.js";
 import type { DeliveryReport } from "../dist/index.js";
 
 const CONTRACT_KEY = Symbol.for("@fullselfbrowsing/concierge.contract");
@@ -63,6 +63,10 @@ function request(
       outputIndex: 0,
     },
   };
+}
+
+async function flushMicrotasks() {
+  for (let index = 0; index < 8; index += 1) await Promise.resolve();
 }
 
 describe("action-scoped bridge resolution", () => {
@@ -130,6 +134,53 @@ describe("action-scoped bridge resolution", () => {
     expect(concierge.explain(CONTEXT).actions).toEqual([
       { name: "navigate", bridge: { id: "cross", registered: false } },
     ]);
+  });
+
+  it("resolves the effective bridge after the commit window", async () => {
+    const stageRegistry = createBridge("stage");
+    const unregister = stageRegistry.register(bridge("mounted"));
+    const scheduled: Array<() => void> = [];
+    let handlerBridge: unknown = "not-called";
+    const destructive = action("destructive", ({ bridge: live }) => {
+      handlerBridge = live;
+      return live === null
+        ? offPageResult("The selected result", "results page")
+        : { ok: true, message: live.marker };
+    }, {
+      effects: { readOnly: false, destructive: true, idempotent: false },
+    });
+    const concierge = createConcierge({
+      stages: [{
+        id: "active",
+        match: () => true,
+        bridge: stageRegistry,
+        actions: [destructive],
+      }],
+      commitWindowMs: 25,
+      scheduler(callback) {
+        scheduled.push(callback);
+        return () => undefined;
+      },
+    });
+    const catalog = concierge.resolveCatalog(CONTEXT);
+
+    const result = concierge.dispatch(
+      CONTEXT,
+      request(catalog, "destructive"),
+    );
+    await flushMicrotasks();
+    expect(scheduled).toHaveLength(1);
+
+    unregister();
+    expect(concierge.explain(CONTEXT).actions).toEqual([
+      { name: "destructive", bridge: { id: "stage", registered: false } },
+    ]);
+    scheduled.shift()?.();
+
+    await expect(result).resolves.toEqual(
+      offPageResult("The selected result", "results page"),
+    );
+    expect(handlerBridge).toBe(null);
   });
 
   it("reads one effective bridge once and reuses it for consent capture and the handler", async () => {
@@ -232,5 +283,69 @@ describe("action-scoped bridge resolution", () => {
     await expect(concierge.dispatch(CONTEXT, {
       ...request(catalog, "confirm", "confirm-two", "confirm-response-two"),
     })).resolves.toMatchObject({ ok: false, reason: "consent_stale" });
+  });
+
+  it("refreshes the consent snapshot after a gated action's commit window", async () => {
+    const stageRegistry = createBridge("stage");
+    const unregister = stageRegistry.register({
+      marker: "stage",
+      actions: {},
+      snapshot: { selection: () => ({ id: "hotel-1" }) },
+    });
+    const scheduled: Array<() => void> = [];
+    let confirmCalls = 0;
+    const review = action("review", () => ({
+      ok: true,
+      message: "Reviewed.",
+    }));
+    const confirm = action("confirm", () => {
+      confirmCalls += 1;
+      return { ok: true, message: "Confirmed." };
+    }, {
+      consent: { requires: "review", bindTo: "response" },
+      effects: { readOnly: false, destructive: true, idempotent: false },
+    });
+    const concierge = createConcierge({
+      stages: [{
+        id: "active",
+        match: () => true,
+        bridge: stageRegistry,
+        actions: [review, confirm],
+      }],
+      commitWindowMs: 25,
+      scheduler(callback) {
+        scheduled.push(callback);
+        return () => undefined;
+      },
+      consentProfile: {
+        consentGrade: "relayed",
+        userTurnIdentity: "human-attested",
+      },
+    });
+    const catalog = concierge.resolveCatalog(CONTEXT);
+    let observeDelivery: ((report: DeliveryReport) => void) | undefined;
+    await concierge.dispatch(CONTEXT, {
+      ...request(catalog, "review", "review", "review-response"),
+      deferUntilDelivered(effect) {
+        observeDelivery = effect;
+      },
+    });
+    observeDelivery?.({ responseId: "review-response", outcome: "completed" });
+
+    const result = concierge.dispatch(
+      CONTEXT,
+      request(catalog, "confirm", "confirm", "confirm-response"),
+    );
+    await flushMicrotasks();
+    expect(scheduled).toHaveLength(1);
+
+    unregister();
+    scheduled.shift()?.();
+
+    await expect(result).resolves.toMatchObject({
+      ok: false,
+      reason: "consent_stale",
+    });
+    expect(confirmCalls).toBe(0);
   });
 });

@@ -351,6 +351,7 @@ function cloneActionData(
     ) {
       throw new TypeError("Action data objects must use enumerable data properties.");
     }
+    if (descriptor.value === undefined) continue;
     if (entryIndex > 0) addJsonBytes(budget, 1);
     addQuotedJsonString(budget, key);
     addJsonBytes(budget, 1);

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import { createConcierge } from "../dist/index.js";
 
@@ -168,7 +169,7 @@ describe("declared structured action results", () => {
     ]);
   });
 
-  it("treats explicit undefined data as absent", async () => {
+  it("treats explicit undefined data as absent and omits undefined object fields", async () => {
     const concierge = conciergeFor([
       richAction(
         "successWithoutData",
@@ -183,6 +184,23 @@ describe("declared structured action results", () => {
           data: undefined,
         }),
       ),
+      action(
+        "optionalField",
+        () => ({
+          ok: true,
+          message: "Optional field omitted.",
+          data: { id: "x", note: undefined },
+        }),
+        {
+          output: {
+            schema: z.object({
+              id: z.string(),
+              note: z.string().optional(),
+            }),
+            redact: "drop",
+          },
+        },
+      ),
     ]);
 
     await expect(dispatch(concierge, "successWithoutData")).resolves.toEqual({
@@ -193,6 +211,11 @@ describe("declared structured action results", () => {
       ok: false,
       reason: "precondition_failed",
       message: "Nothing was available.",
+    });
+    await expect(dispatch(concierge, "optionalField")).resolves.toEqual({
+      ok: true,
+      message: "Optional field omitted.",
+      data: { id: "x" },
     });
   });
 
@@ -260,7 +283,6 @@ describe("declared structured action results", () => {
       new Map(),
       new Set(),
       sparse,
-      { value: undefined },
       { value: 1n },
       { value: Symbol("secret") },
       { value: () => "secret" },

@@ -1,6 +1,6 @@
 # Next.js + AI SDK signed-browser example
 
-This Next 16 App Router application is the complete contract-v2 migration
+This Next 16 App Router application is the complete contract-v3 integration
 pattern. Concierge remains the action and control layer; AI SDK owns the model
 loop, React owns rendering, the application owns navigation/speech/viewer state,
 and OpenRouter is only an injected server-side model boundary.

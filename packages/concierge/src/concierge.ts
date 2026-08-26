@@ -410,8 +410,15 @@ interface ConsentGenerationBase {
   readonly verifiedReadback: VerifiedReadbackEvidence | null;
 }
 
+interface ConsentReviewClaim {
+  readonly generation: bigint;
+  readonly responseId: string;
+  readonly sessionId: string | null;
+  readonly status: "reviewing";
+}
+
 type ConsentGeneration =
-  | (ConsentGenerationBase & { readonly status: "reviewing" })
+  | ConsentReviewClaim
   | (ConsentGenerationBase & { readonly status: "pendingDelivery" })
   | (ConsentGenerationBase & { readonly status: "verifyingDelivery" })
   | (ConsentGenerationBase & {
@@ -2500,39 +2507,28 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       index === null ? undefined : stages[index];
     const bridgeRegistry: BridgeRegistry | undefined =
       effectiveBridgeRegistry(entry.action, stage);
-    const bridge: Bridge | null = resolveBridgeRegistry(bridgeRegistry);
 
+    let reviewingClaim: ConsentReviewClaim | null = null;
     let reviewingGeneration:
       | (ConsentGenerationBase & { readonly status: "reviewing" })
       | null = null;
     if (replacesReviewAuthority) {
-      const snapshotBridgeId: string =
-        bridgeRegistry?.id ?? stage?.id ?? "cross-stage";
       nextConsentGeneration += 1n;
-      reviewingGeneration = Object.freeze({
-        confirmationUserTurnId: null,
+      reviewingClaim = Object.freeze({
         generation: nextConsentGeneration,
-        payload: validatedSnapshot.value,
-        preparedReadback,
-        readbackHash: null,
         responseId: meta.responseId ?? "",
         sessionId: consentSessionId,
-        snapshot: captureResolvedSnapshot(snapshotBridgeId, bridge),
-        snapshotBridgeId,
-        snapshotBridgeRegistry: bridgeRegistry,
         status: "reviewing",
-        userTurnId: meta.userTurnId ?? "",
-        verifiedReadback: null,
       });
       consentGenerations ??= new Map<string, ConsentGeneration>();
-      consentGenerations.set(actionConsentSlotKey, reviewingGeneration);
+      consentGenerations.set(actionConsentSlotKey, reviewingClaim);
     }
 
     const closeOwnedReview = (): void => {
-      if (reviewingGeneration !== null) {
+      if (reviewingClaim !== null) {
         closeConsentGeneration(
           actionConsentSlotKey,
-          reviewingGeneration.generation,
+          reviewingClaim.generation,
         );
       }
     };
@@ -2621,6 +2617,36 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         "The action was cancelled before it ran.",
         "aborted",
       );
+    }
+
+    const bridge: Bridge | null = resolveBridgeRegistry(bridgeRegistry);
+    if (reviewingClaim !== null) {
+      const currentReview: ConsentGeneration | undefined =
+        consentGenerations?.get(actionConsentSlotKey);
+      if (
+        currentReview?.generation === reviewingClaim.generation &&
+        currentReview.status === "reviewing" &&
+        currentReview.responseId === reviewingClaim.responseId
+      ) {
+        const snapshotBridgeId: string =
+          bridgeRegistry?.id ?? stage?.id ?? "cross-stage";
+        reviewingGeneration = Object.freeze({
+          confirmationUserTurnId: null,
+          generation: reviewingClaim.generation,
+          payload: validatedSnapshot.value,
+          preparedReadback,
+          readbackHash: null,
+          responseId: reviewingClaim.responseId,
+          sessionId: consentSessionId,
+          snapshot: captureResolvedSnapshot(snapshotBridgeId, bridge),
+          snapshotBridgeId,
+          snapshotBridgeRegistry: bridgeRegistry,
+          status: "reviewing",
+          userTurnId: meta.userTurnId ?? "",
+          verifiedReadback: null,
+        });
+        consentGenerations?.set(actionConsentSlotKey, reviewingGeneration);
+      }
     }
 
     if (isAborted(signal)) {
