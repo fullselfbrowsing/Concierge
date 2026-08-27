@@ -224,6 +224,14 @@ function addJsonBytes(budget: JsonSizeBudget, count: number): void {
   }
 }
 
+/** Bound dense output arrays by the JSON bytes still available to encode them. */
+function maximumActionDataArrayLength(budget: JsonSizeBudget): number {
+  const remaining: number = budget.maximum - budget.used;
+  // A non-empty dense array needs one byte per value, one per separator, and
+  // two brackets: `2 * length + 1`. Empty arrays are checked by addJsonBytes.
+  return remaining < 3 ? 0 : Math.floor((remaining - 1) / 2);
+}
+
 /** Count UTF-8 bytes without depending on DOM's TextEncoder. */
 function utf8ByteLength(value: string): number {
   let bytes: number = 0;
@@ -292,7 +300,7 @@ function cloneActionData(
   if (Array.isArray(value)) {
     const lengthSnapshot: ArrayLengthSnapshot = snapshotArrayLength(
       value,
-      MAX_INVOCATION_ARRAY_LENGTH,
+      maximumActionDataArrayLength(budget),
     );
     if (!lengthSnapshot.ok) {
       throw new TypeError("Action data arrays exceed the supported bound.");
@@ -754,6 +762,7 @@ export function waitForCommit(
 
 /** Warn-once callbacks owned by one Concierge instance. */
 export interface ResultWarnings {
+  readonly invalidData: () => void;
   readonly successReason: () => void;
   readonly reasonlessFailure: () => void;
 }
@@ -926,7 +935,10 @@ export async function normalizeActionResult(
       dataProperty.value,
       options.maximumDataBytes,
     );
-    if (!normalizedData.ok) return invalidResult();
+    if (!normalizedData.ok) {
+      notify(options.invalidData);
+      return invalidResult();
+    }
     data = normalizedData.value;
   }
 

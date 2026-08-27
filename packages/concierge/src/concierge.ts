@@ -2890,6 +2890,12 @@ export function createConcierge(config: ConciergeConfig): Concierge {
 
     const normalizedResult: ActionResult = await normalizeActionResult(handlerResult, {
       entry,
+      invalidData: (): void => {
+        warnDispatchOnce(
+          `result-data-invalid:${name}`,
+          `concierge: [invalid_result] action ${encodeDiagnosticSubject(name)}: its handler returned structured data that was undeclared, rejected by its output schema, or not safe bounded JSON data, so the whole result was rejected. Fix: declare a matching \`output.schema\` and return acyclic plain JSON data without aliases or accessors within \`maxActionDataBytes\`.`,
+        );
+      },
       maximumDataBytes: maxActionDataBytes,
       successReason: (): void => {
         warnDispatchOnce(

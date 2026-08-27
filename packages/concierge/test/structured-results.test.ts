@@ -1,3 +1,5 @@
+import { Buffer } from "node:buffer";
+
 import { beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
@@ -251,9 +253,46 @@ describe("declared structured action results", () => {
     expect(handlerCalls).toBe(1);
   });
 
-  it("fails closed for undeclared, rejected, unsafe, aliased, and oversized data", async () => {
-    const shared = { value: "shared" };
-    const cycle: Record<string, unknown> = {};
+  it("governs arrays above 10,000 entries only by their exact JSON byte size", async () => {
+    const data = { ids: Array.from({ length: 10_001 }, (_, index) => index) };
+    const exactBytes = Buffer.byteLength(JSON.stringify(data), "utf8");
+    const accepted = conciergeFor([
+      richAction("acceptedLargeArray", () => ({
+        ok: true,
+        message: "Large array accepted.",
+        data,
+      })),
+    ], { maxActionDataBytes: exactBytes });
+    const rejected = conciergeFor([
+      richAction("rejectedLargeArray", () => ({
+        ok: true,
+        message: "Large array rejected.",
+        data,
+      })),
+    ], { maxActionDataBytes: exactBytes - 1 });
+
+    const acceptedResult = await dispatch(accepted, "acceptedLargeArray");
+    expect(acceptedResult).toMatchObject({
+      ok: true,
+      data: { ids: expect.any(Array) },
+    });
+    const ids = (acceptedResult.data as { ids: number[] }).ids;
+    expect(ids).toHaveLength(10_001);
+    expect([ids[0], ids.at(-1)]).toEqual([0, 10_000]);
+    expect(Object.isFrozen(ids)).toBe(true);
+
+    await expect(dispatch(rejected, "rejectedLargeArray")).resolves.toEqual({
+      ok: false,
+      reason: "invalid_result",
+      message: "The action returned an invalid result.",
+    });
+  });
+
+  it("fails closed and warns once without exposing rejected structured data", async () => {
+    const shared = { value: "RAW-ALIAS-SECRET" };
+    const cycle: Record<string, unknown> = {
+      secret: "RAW-CYCLE-SECRET",
+    };
     cycle.self = cycle;
     const accessor: Record<string, unknown> = {};
     let accessorReads = 0;
@@ -289,46 +328,109 @@ describe("declared structured action results", () => {
       { value: Number.NaN },
       { value: Number.POSITIVE_INFINITY },
     ];
+    const warningActions: string[] = [];
+    const realConsole = globalThis.console;
+    const warnings: string[] = [];
+    globalThis.console = {
+      ...realConsole,
+      warn: (message) => warnings.push(String(message)),
+    };
 
-    for (const [index, data] of invalidValues.entries()) {
-      const concierge = conciergeFor([
-        richAction(`invalid${index}`, () => ({ ok: true, message: "Unsafe.", data })),
-      ]);
-      await expect(dispatch(concierge, `invalid${index}`)).resolves.toEqual({
+    async function expectRejectedTwice(
+      concierge: ReturnType<typeof createConcierge>,
+      name: string,
+    ) {
+      warningActions.push(name);
+      const first = await dispatch(concierge, name, {}, `${name}-first`);
+      const second = await dispatch(concierge, name, {}, `${name}-second`);
+      expect(first).toEqual({
         ok: false,
         reason: "invalid_result",
         message: "The action returned an invalid result.",
       });
+      expect(second).toEqual(first);
     }
+
+    try {
+      for (const [index, invalidData] of invalidValues.entries()) {
+        const name = `invalid${index}`;
+        await expectRejectedTwice(conciergeFor([
+          richAction(name, () => ({
+            ok: true,
+            message: "Unsafe.",
+            data: invalidData,
+          })),
+        ]), name);
+      }
+
+      await expectRejectedTwice(conciergeFor([
+        richAction(
+          "rejected",
+          () => ({
+            ok: true,
+            message: "Rejected.",
+            data: { raw: "RAW-SCHEMA-SECRET" },
+          }),
+          () => ({ issues: [{ message: "RAW-SCHEMA-ISSUE-SECRET" }] }),
+        ),
+      ]), "rejected");
+
+      await expectRejectedTwice(conciergeFor([
+        richAction(
+          "schemaThrows",
+          () => ({
+            ok: true,
+            message: "Rejected.",
+            data: { raw: "RAW-SCHEMA-THROW-DATA-SECRET" },
+          }),
+          () => {
+            throw new Error("RAW-SCHEMA-THROW-SECRET");
+          },
+        ),
+      ]), "schemaThrows");
+
+      await expectRejectedTwice(conciergeFor([
+        action("undeclared", () => ({
+          ok: true,
+          message: "Extra.",
+          data: { hidden: "RAW-UNDECLARED-SECRET" },
+        })),
+      ]), "undeclared");
+
+      await expectRejectedTwice(conciergeFor([
+        richAction("oversized", () => ({
+          ok: true,
+          message: "Large.",
+          data: "RAW-OVERSIZED-SECRET",
+        })),
+      ], { maxActionDataBytes: 5 }), "oversized");
+    } finally {
+      globalThis.console = realConsole;
+    }
+
     expect(accessorReads).toBe(0);
-
-    const rejected = conciergeFor([
-      richAction(
-        "rejected",
-        () => ({ ok: true, message: "Rejected.", data: { raw: "RAW-SCHEMA-SECRET" } }),
-        () => ({ issues: [{ message: "do not expose this" }] }),
-      ),
-    ]);
-    await expect(dispatch(rejected, "rejected")).resolves.toMatchObject({
-      ok: false,
-      reason: "invalid_result",
-    });
-
-    const undeclared = conciergeFor([
-      action("undeclared", () => ({ ok: true, message: "Extra.", data: { hidden: true } })),
-    ]);
-    await expect(dispatch(undeclared, "undeclared")).resolves.toMatchObject({
-      ok: false,
-      reason: "invalid_result",
-    });
-
-    const oversized = conciergeFor([
-      richAction("oversized", () => ({ ok: true, message: "Large.", data: "0123456789" })),
-    ], { maxActionDataBytes: 5 });
-    await expect(dispatch(oversized, "oversized")).resolves.toMatchObject({
-      ok: false,
-      reason: "invalid_result",
-    });
+    expect(warnings).toHaveLength(warningActions.length);
+    for (const name of warningActions) {
+      expect(warnings.some((warning) =>
+        warning.includes(`action "${name}"`) &&
+        warning.includes("[invalid_result]") &&
+        warning.includes("maxActionDataBytes")
+      )).toBe(true);
+    }
+    const warningText = warnings.join("\n");
+    for (const secret of [
+      "RAW-ACCESSOR-SECRET",
+      "RAW-ALIAS-SECRET",
+      "RAW-CYCLE-SECRET",
+      "RAW-SCHEMA-SECRET",
+      "RAW-SCHEMA-ISSUE-SECRET",
+      "RAW-SCHEMA-THROW-DATA-SECRET",
+      "RAW-SCHEMA-THROW-SECRET",
+      "RAW-UNDECLARED-SECRET",
+      "RAW-OVERSIZED-SECRET",
+    ]) {
+      expect(warningText).not.toContain(secret);
+    }
   });
 
   it("keeps legacy result shape and isolates observer output through explicit redaction", async () => {

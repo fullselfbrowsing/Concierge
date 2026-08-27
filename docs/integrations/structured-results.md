@@ -60,8 +60,11 @@ After the handler settles, Concierge:
 6. enforces `ConciergeConfig.maxActionDataBytes`.
 
 The default limit is `DEFAULT_ACTION_DATA_MAX_BYTES`, currently 262,144 UTF-8
-JSON bytes. An output that fails any step becomes a bounded
-`invalid_result`; rejected data is never copied into diagnostics.
+JSON bytes. Output arrays do not inherit the separate tool-argument entry
+limit; their accepted size is governed by this byte budget. An output that
+fails any step becomes a bounded `invalid_result`. Concierge emits one generic
+host warning per affected action, but rejected data, validator issues, and
+caught exceptions are never copied into diagnostics.
 
 `data` may accompany success or failure. Use `precondition_failed` when the
 call is structurally valid but current application state blocks it, and keep
