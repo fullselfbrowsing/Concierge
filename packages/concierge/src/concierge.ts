@@ -128,10 +128,10 @@ const NEVER_ABORTED_SIGNAL: AbortSignalLike = /* @__PURE__ */ Object.freeze({
 const DROPPED_INPUT: ObservedInput = /* @__PURE__ */ Object.freeze({
   kind: "dropped" as const,
 });
-const ABSENT_RESULT_DATA: ObservedResultData = /* @__PURE__ */ Object.freeze({
+const ABSENT_RESULT_DATA: Readonly<{ kind: "absent" }> = /* @__PURE__ */ Object.freeze({
   kind: "absent" as const,
 });
-const DROPPED_RESULT_DATA: ObservedResultData = /* @__PURE__ */ Object.freeze({
+const DROPPED_RESULT_DATA: Readonly<{ kind: "dropped" }> = /* @__PURE__ */ Object.freeze({
   kind: "dropped" as const,
 });
 
@@ -323,13 +323,24 @@ interface V2DedupeRecord {
   settledAt: number | null;
 }
 
+type WorkflowObservedResultData =
+  | Readonly<{ kind: "absent" }>
+  | Readonly<{ kind: "dropped" }>
+  | Readonly<{ kind: "included"; value: unknown; full: boolean }>;
+
+interface WorkflowOutcome {
+  readonly result: ActionResult;
+  readonly observedData: WorkflowObservedResultData;
+  readonly validatedEntry: CatalogEntry | null;
+}
+
 interface WorkflowRootState {
   readonly rootDispatchId: string;
   readonly signal: AbortSignalLike;
   readonly executionState: DispatchExecutionState;
   steps: number;
-  failure: ActionResult | null;
-  terminalResult: ActionResult | null;
+  failure: WorkflowOutcome | null;
+  terminalResult: WorkflowOutcome | null;
   terminalRef: DispatchRef | null;
 }
 
@@ -358,6 +369,8 @@ interface WorkflowRuntime {
 interface PipelineObservation {
   accepted: boolean;
   input: ObservedInput;
+  resultSource: unknown;
+  resultSourcePresent: boolean;
 }
 
 type InvocationMetaSnapshot =
@@ -1832,10 +1845,29 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     );
   }
 
-  function observedResultDataFor(
+  function snapshotObservedResultData(
+    entry: CatalogEntry,
+    exposed: unknown,
+    full: boolean,
+  ): WorkflowObservedResultData {
+    const snapshot: ActionDataSnapshot = snapshotActionData(
+      exposed,
+      maxActionDataBytes,
+    );
+    if (!snapshot.ok) {
+      warnDispatchOnce(
+        `output-redaction-invalid:${entry.action.name}`,
+        `concierge: [output_redaction_failed] action ${encodeDiagnosticSubject(entry.action.name)}: its observer result projection was not safe bounded JSON data, so observer data was dropped. Fix: return acyclic plain JSON data without aliases or accessors.`,
+      );
+      return DROPPED_RESULT_DATA;
+    }
+    return Object.freeze({ kind: "included", value: snapshot.value, full });
+  }
+
+  function captureObservedResultData(
     entry: CatalogEntry | null,
     result: ActionResult,
-  ): ObservedResultData {
+  ): WorkflowObservedResultData {
     if (result.data === undefined) return ABSENT_RESULT_DATA;
     if (entry === null) return DROPPED_RESULT_DATA;
     const output: AnyActionDefinition["output"] = entry.action.output;
@@ -1856,18 +1888,139 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       }
     }
 
-    const snapshot: ActionDataSnapshot = snapshotActionData(
+    return snapshotObservedResultData(
+      entry,
       exposed,
-      maxActionDataBytes,
+      output.redact === "passthrough",
     );
-    if (!snapshot.ok) {
+  }
+
+  function narrowObservedResultData(
+    entry: CatalogEntry,
+    result: ActionResult,
+    inherited: WorkflowObservedResultData,
+  ): WorkflowObservedResultData {
+    if (result.data === undefined) return ABSENT_RESULT_DATA;
+    if (inherited.kind !== "included") return inherited;
+
+    const output: AnyActionDefinition["output"] = entry.action.output;
+    if (output === undefined || output.redact === "drop") {
+      return DROPPED_RESULT_DATA;
+    }
+    if (output.redact === "passthrough") {
+      return inherited.full
+        ? snapshotObservedResultData(entry, result.data, true)
+        : inherited;
+    }
+
+    let exposed: unknown;
+    try {
+      exposed = output.redact(
+        inherited.full ? result.data : inherited.value,
+      );
+    } catch {
       warnDispatchOnce(
-        `output-redaction-invalid:${entry.action.name}`,
-        `concierge: [output_redaction_failed] action ${encodeDiagnosticSubject(entry.action.name)}: its observer result projection was not safe bounded JSON data, so observer data was dropped. Fix: return acyclic plain JSON data without aliases or accessors.`,
+        `output-redaction-threw:${entry.action.name}`,
+        `concierge: [output_redaction_failed] action ${encodeDiagnosticSubject(entry.action.name)}: its result projection threw, so observer data was dropped. Fix: make the projection total and return JSON-safe data.`,
       );
       return DROPPED_RESULT_DATA;
     }
-    return Object.freeze({ kind: "included", value: snapshot.value });
+    return snapshotObservedResultData(entry, exposed, false);
+  }
+
+  function exposeObservedResultData(
+    observed: WorkflowObservedResultData,
+  ): ObservedResultData {
+    return observed.kind === "included"
+      ? Object.freeze({ kind: "included", value: observed.value })
+      : observed;
+  }
+
+  function observedResultDataFor(
+    entry: CatalogEntry | null,
+    result: ActionResult,
+  ): ObservedResultData {
+    return exposeObservedResultData(captureObservedResultData(entry, result));
+  }
+
+  function workflowOutcome(
+    result: ActionResult,
+    entry: CatalogEntry | null,
+  ): WorkflowOutcome {
+    return Object.freeze({
+      result,
+      observedData: captureObservedResultData(entry, result),
+      validatedEntry: entry,
+    });
+  }
+
+  function normalizeResultForEntry(
+    entry: CatalogEntry,
+    name: string,
+    value: unknown,
+  ): Promise<ActionResult> {
+    return normalizeActionResult(value, {
+      entry,
+      invalidData: (): void => {
+        warnDispatchOnce(
+          `result-data-invalid:${name}`,
+          `concierge: [invalid_result] action ${encodeDiagnosticSubject(name)}: its result carried structured data that was undeclared, rejected by its output schema, or not safe bounded JSON data, so the whole result was rejected. Fix: declare a matching \`output.schema\` and return acyclic plain JSON data without aliases or accessors within \`maxActionDataBytes\`.`,
+        );
+      },
+      maximumDataBytes: maxActionDataBytes,
+      successReason: (): void => {
+        warnDispatchOnce(
+          `success-reason:${name}`,
+          `concierge: [invalid_result] action ${encodeDiagnosticSubject(name)}: its handler returned a success carrying a failure reason, so the reason was removed. Fix: omit \`reason\` when \`ok\` is true.`,
+        );
+      },
+      reasonlessFailure: (): void => {
+        warnDispatchOnce(
+          `reasonless-failure:${name}`,
+          `concierge: [invalid_result] action ${encodeDiagnosticSubject(name)}: its handler returned a failure without a reason, so the result carries no machine-readable cause. Fix: return one of the declared \`ReasonCode\` values when \`ok\` is false.`,
+        );
+      },
+    });
+  }
+
+  async function adaptWorkflowOutcome(
+    outcome: WorkflowOutcome,
+    entry: CatalogEntry,
+    name: string,
+    normalizedResult: ActionResult,
+    observation: PipelineObservation,
+  ): Promise<WorkflowOutcome> {
+    let result: ActionResult = outcome.result;
+    if (
+      observation.resultSourcePresent &&
+      observation.resultSource === outcome.result
+    ) {
+      result = normalizedResult;
+    } else if (
+      result.data !== undefined &&
+      outcome.validatedEntry !== entry
+    ) {
+      result = await normalizeResultForEntry(entry, name, result);
+    }
+
+    return Object.freeze({
+      result,
+      observedData: narrowObservedResultData(
+        entry,
+        result,
+        outcome.observedData,
+      ),
+      validatedEntry: entry,
+    });
+  }
+
+  function replaceWorkflowOutcome(
+    root: WorkflowRootState,
+    previous: WorkflowOutcome,
+    next: WorkflowOutcome,
+  ): void {
+    if (root.failure === previous) root.failure = next;
+    if (root.terminalResult === previous) root.terminalResult = next;
   }
 
   function eventTerminalPhase(result: ActionResult): "succeeded" | "failed" | "cancelled" {
@@ -1886,8 +2039,11 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   function latchWorkflowFailure(
     root: WorkflowRootState,
     result: ActionResult,
+    entry: CatalogEntry | null = null,
   ): void {
-    if (root.failure === null && !result.ok) root.failure = result;
+    if (root.failure === null && !result.ok) {
+      root.failure = workflowOutcome(result, entry);
+    }
   }
 
   function workflowRuntimeFor(occurrence: V2Occurrence): WorkflowRuntime {
@@ -2413,10 +2569,13 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         }
         if (cleanupFailed) {
           if (occurrence.root.failure === null) {
-            occurrence.root.failure = authoredResult(
-              false,
-              "Something went wrong during cleanup.",
-              "handler_error",
+            occurrence.root.failure = workflowOutcome(
+              authoredResult(
+                false,
+                "Something went wrong during cleanup.",
+                "handler_error",
+              ),
+              null,
             );
           } else {
             warnDispatchOnce(
@@ -2888,28 +3047,13 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       }
     }
 
-    const normalizedResult: ActionResult = await normalizeActionResult(handlerResult, {
+    observation.resultSource = handlerResult;
+    observation.resultSourcePresent = true;
+    const normalizedResult: ActionResult = await normalizeResultForEntry(
       entry,
-      invalidData: (): void => {
-        warnDispatchOnce(
-          `result-data-invalid:${name}`,
-          `concierge: [invalid_result] action ${encodeDiagnosticSubject(name)}: its handler returned structured data that was undeclared, rejected by its output schema, or not safe bounded JSON data, so the whole result was rejected. Fix: declare a matching \`output.schema\` and return acyclic plain JSON data without aliases or accessors within \`maxActionDataBytes\`.`,
-        );
-      },
-      maximumDataBytes: maxActionDataBytes,
-      successReason: (): void => {
-        warnDispatchOnce(
-          `success-reason:${name}`,
-          `concierge: [invalid_result] action ${encodeDiagnosticSubject(name)}: its handler returned a success carrying a failure reason, so the reason was removed. Fix: omit \`reason\` when \`ok\` is true.`,
-        );
-      },
-      reasonlessFailure: (): void => {
-        warnDispatchOnce(
-          `reasonless-failure:${name}`,
-          `concierge: [invalid_result] action ${encodeDiagnosticSubject(name)}: its handler returned a failure without a reason, so the result carries no machine-readable cause. Fix: return one of the declared \`ReasonCode\` values when \`ok\` is false.`,
-        );
-      },
-    });
+      name,
+      handlerResult,
+    );
 
     if (reviewingGeneration === null) {
       return normalizedResult;
@@ -3025,6 +3169,8 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     const observation: PipelineObservation = {
       accepted: false,
       input: DROPPED_INPUT,
+      resultSource: undefined,
+      resultSourcePresent: false,
     };
     const workflow: WorkflowRuntime = workflowRuntimeFor(occurrence);
     let result: ActionResult;
@@ -3047,20 +3193,37 @@ export function createConcierge(config: ConciergeConfig): Concierge {
 
     workflow.seal();
     await workflow.drain();
-    latchWorkflowFailure(occurrence.root, result);
+    latchWorkflowFailure(occurrence.root, result, entry);
     await workflow.unwind();
 
     if (
       occurrence.root.terminalRef?.dispatchId === occurrence.dispatchId &&
       occurrence.root.terminalResult === null
     ) {
-      occurrence.root.terminalResult = occurrence.root.failure ?? result;
+      occurrence.root.terminalResult = occurrence.root.failure ??
+        workflowOutcome(result, entry);
     }
+    let outcome: WorkflowOutcome;
     if (occurrence.root.terminalResult !== null) {
-      result = occurrence.root.terminalResult;
+      outcome = occurrence.root.terminalResult;
     } else if (occurrence.root.failure !== null) {
-      result = occurrence.root.failure;
+      outcome = occurrence.root.failure;
+    } else {
+      outcome = workflowOutcome(result, entry);
     }
+
+    if (outcome.result !== result) {
+      const adapted: WorkflowOutcome = await adaptWorkflowOutcome(
+        outcome,
+        entry,
+        name,
+        result,
+        observation,
+      );
+      replaceWorkflowOutcome(occurrence.root, outcome, adapted);
+      outcome = adapted;
+    }
+    result = outcome.result;
 
     emitDispatch({
       dispatchId: occurrence.dispatchId,
@@ -3073,7 +3236,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       terminalAction: entry.action.terminal === true,
       phase: eventTerminalPhase(result),
       result: observedResultStatus(result),
-      resultData: observedResultDataFor(entry, result),
+      resultData: exposeObservedResultData(outcome.observedData),
       terminalEntered: occurrence.root.terminalRef !== null,
     });
     return result;

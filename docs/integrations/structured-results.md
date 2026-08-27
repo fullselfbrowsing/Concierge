@@ -101,6 +101,21 @@ separate output decision under `event.resultData`. A throwing, unsafe, or
 oversized projection fails closed to `dropped`. Built-in telemetry and
 `FailureOutcome` never include structured data.
 
+## Compound-action propagation
+
+When a workflow latches a child failure or terminal result, every enclosing
+action remains an output boundary. Child data is validated and transformed by
+each parent's `output.schema`; a parent with no output declaration, or whose
+schema rejects the data, settles as `invalid_result` without data. That rejected
+data cannot reappear through another enclosing action.
+
+Observer exposure only narrows as the result propagates. A child `drop` remains
+dropped, while a parent may further restrict a child passthrough or projection.
+Once a projection has removed fields, later projections receive only that
+observer-safe view, never the original child data. Incompatible, throwing, or
+unsafe projection composition fails closed to `dropped` without changing the
+agent-facing result.
+
 ## Transport behavior
 
 `DispatchRow.result`, ordered batches, workflow child results, AI SDK result

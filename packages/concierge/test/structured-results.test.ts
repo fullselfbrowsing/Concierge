@@ -171,6 +171,310 @@ describe("declared structured action results", () => {
     ]);
   });
 
+  it("keeps propagated observer data within child and parent redaction policies", async () => {
+    const events: Array<Record<string, unknown>> = [];
+    const parentProjectionInputs: unknown[] = [];
+    const concierge = conciergeFor([
+      richAction(
+        "dropChild",
+        () => ({
+          ok: false,
+          reason: "precondition_failed",
+          message: "Child failed.",
+          data: { safe: "visible", secret: "child-only" },
+        }),
+      ),
+      richAction(
+        "dropParentPassthrough",
+        async ({ workflow }: { workflow: { run(input: unknown): Promise<unknown> } }) => {
+          await workflow.run({ stepId: "child", name: "dropChild", input: {} });
+          return { ok: true, message: "Parent complete." };
+        },
+        undefined,
+        "passthrough",
+      ),
+      richAction(
+        "passChild",
+        () => ({
+          ok: false,
+          reason: "precondition_failed",
+          message: "Child failed.",
+          data: { safe: "visible", secret: "child-only" },
+        }),
+        undefined,
+        "passthrough",
+      ),
+      richAction(
+        "passParentDrop",
+        async ({ workflow }: { workflow: { run(input: unknown): Promise<unknown> } }) => {
+          await workflow.run({ stepId: "child", name: "passChild", input: {} });
+          return { ok: true, message: "Parent complete." };
+        },
+      ),
+      richAction(
+        "projectChild",
+        () => ({
+          ok: false,
+          reason: "precondition_failed",
+          message: "Child failed.",
+          data: { safe: "visible", secret: "child-only" },
+        }),
+        undefined,
+        (data: { safe: string }) => ({ safe: data.safe }),
+      ),
+      richAction(
+        "projectParent",
+        async ({ workflow }: { workflow: { run(input: unknown): Promise<unknown> } }) => {
+          await workflow.run({ stepId: "child", name: "projectChild", input: {} });
+          return { ok: true, message: "Parent complete." };
+        },
+        undefined,
+        (data: { safe: string }) => {
+          parentProjectionInputs.push(data);
+          return { safe: data.safe, parent: true };
+        },
+      ),
+      richAction(
+        "throwingParent",
+        async ({ workflow }: { workflow: { run(input: unknown): Promise<unknown> } }) => {
+          await workflow.run({ stepId: "child", name: "projectChild", input: {} });
+          return { ok: true, message: "Parent complete." };
+        },
+        undefined,
+        () => {
+          throw new Error("RAW-PARENT-PROJECTION-THROW");
+        },
+      ),
+    ]);
+    concierge.onDispatch((event) => events.push(event as unknown as Record<string, unknown>));
+
+    const realConsole = globalThis.console;
+    const warnings: string[] = [];
+    globalThis.console = { ...realConsole, warn: (message) => warnings.push(String(message)) };
+    try {
+      for (const name of [
+        "dropParentPassthrough",
+        "passParentDrop",
+        "projectParent",
+        "throwingParent",
+      ]) {
+        await expect(dispatch(concierge, name)).resolves.toMatchObject({
+          ok: false,
+          data: { safe: "visible", secret: "child-only" },
+        });
+      }
+      await flushEvents();
+    } finally {
+      globalThis.console = realConsole;
+    }
+
+    const terminal = new Map(
+      events
+        .filter((event) => ["succeeded", "failed", "cancelled"].includes(String(event.phase)))
+        .map((event) => [event.name, event]),
+    );
+    expect(terminal.get("dropChild")?.resultData).toEqual({ kind: "dropped" });
+    expect(terminal.get("dropParentPassthrough")?.resultData).toEqual({ kind: "dropped" });
+    expect(terminal.get("passChild")?.resultData).toEqual({
+      kind: "included",
+      value: { safe: "visible", secret: "child-only" },
+    });
+    expect(terminal.get("passParentDrop")?.resultData).toEqual({ kind: "dropped" });
+    expect(terminal.get("projectChild")?.resultData).toEqual({
+      kind: "included",
+      value: { safe: "visible" },
+    });
+    expect(terminal.get("projectParent")?.resultData).toEqual({
+      kind: "included",
+      value: { safe: "visible", parent: true },
+    });
+    expect(terminal.get("throwingParent")?.resultData).toEqual({ kind: "dropped" });
+    expect(parentProjectionInputs).toEqual([{ safe: "visible" }]);
+    expect(warnings.join("\n")).toContain('action "throwingParent"');
+    expect(warnings.join("\n")).not.toContain("RAW-PARENT-PROJECTION-THROW");
+  });
+
+  it("enforces every enclosing output contract without resurrecting child data", async () => {
+    const events: Array<Record<string, unknown>> = [];
+    let directValidations = 0;
+    let ignoredValidations = 0;
+    const transform = (value: { count: string }) => ({
+      value: { count: Number(value.count) },
+    });
+    const concierge = conciergeFor([
+      richAction(
+        "contractChild",
+        () => ({
+          ok: false,
+          reason: "precondition_failed",
+          message: "Child failed.",
+          data: { count: "2", secret: "RAW-CHILD-DATA-SECRET" },
+        }),
+        undefined,
+        "passthrough",
+      ),
+      richAction(
+        "directParent",
+        async ({ workflow }: { workflow: { run(input: unknown): Promise<unknown> } }) =>
+          workflow.run({ stepId: "child", name: "contractChild", input: {} }),
+        (value: { count: string }) => {
+          directValidations += 1;
+          return transform(value);
+        },
+        "passthrough",
+      ),
+      richAction(
+        "ignoredParent",
+        async ({ workflow }: { workflow: { run(input: unknown): Promise<unknown> } }) => {
+          await workflow.run({ stepId: "child", name: "contractChild", input: {} });
+          return { ok: true, message: "Parent complete." };
+        },
+        (value: { count: string }) => {
+          ignoredValidations += 1;
+          return transform(value);
+        },
+        "passthrough",
+      ),
+      action(
+        "undeclaredInner",
+        async ({ workflow }: { workflow: { run(input: unknown): Promise<unknown> } }) => {
+          await workflow.run({ stepId: "child", name: "contractChild", input: {} });
+          return { ok: true, message: "Inner complete." };
+        },
+      ),
+      richAction(
+        "outerParent",
+        async ({ workflow }: { workflow: { run(input: unknown): Promise<unknown> } }) => {
+          await workflow.run({ stepId: "inner", name: "undeclaredInner", input: {} });
+          return { ok: true, message: "Outer complete." };
+        },
+        undefined,
+        "passthrough",
+      ),
+      richAction(
+        "rejectingParent",
+        async ({ workflow }: { workflow: { run(input: unknown): Promise<unknown> } }) => {
+          await workflow.run({ stepId: "child", name: "contractChild", input: {} });
+          return { ok: true, message: "Parent complete." };
+        },
+        () => ({ issues: [{ message: "RAW-PARENT-SCHEMA-ISSUE" }] }),
+        "passthrough",
+      ),
+    ]);
+    concierge.onDispatch((event) => events.push(event as unknown as Record<string, unknown>));
+
+    const realConsole = globalThis.console;
+    const warnings: string[] = [];
+    globalThis.console = { ...realConsole, warn: (message) => warnings.push(String(message)) };
+    try {
+      await expect(dispatch(concierge, "directParent")).resolves.toEqual({
+        ok: false,
+        reason: "precondition_failed",
+        message: "Child failed.",
+        data: { count: 2 },
+      });
+      await expect(dispatch(concierge, "ignoredParent")).resolves.toEqual({
+        ok: false,
+        reason: "precondition_failed",
+        message: "Child failed.",
+        data: { count: 2 },
+      });
+      for (const name of ["outerParent", "rejectingParent"]) {
+        await expect(dispatch(concierge, name, {}, `${name}-one`)).resolves.toEqual({
+          ok: false,
+          reason: "invalid_result",
+          message: "The action returned an invalid result.",
+        });
+        await expect(dispatch(concierge, name, {}, `${name}-two`)).resolves.toEqual({
+          ok: false,
+          reason: "invalid_result",
+          message: "The action returned an invalid result.",
+        });
+      }
+      await flushEvents();
+    } finally {
+      globalThis.console = realConsole;
+    }
+
+    expect(directValidations).toBe(1);
+    expect(ignoredValidations).toBe(1);
+    const parentEvents = events.filter((event) =>
+      ["directParent", "ignoredParent", "undeclaredInner", "outerParent", "rejectingParent"]
+        .includes(String(event.name)) &&
+      ["succeeded", "failed", "cancelled"].includes(String(event.phase))
+    );
+    expect(parentEvents.filter((event) => event.name === "directParent")[0]?.resultData)
+      .toEqual({ kind: "included", value: { count: 2 } });
+    expect(parentEvents.filter((event) => event.name === "ignoredParent")[0]?.resultData)
+      .toEqual({ kind: "included", value: { count: 2 } });
+    expect(parentEvents
+      .filter((event) => ["undeclaredInner", "outerParent", "rejectingParent"].includes(String(event.name)))
+      .every((event) => JSON.stringify(event.resultData) === JSON.stringify({ kind: "absent" })))
+      .toBe(true);
+
+    const warningText = warnings.join("\n");
+    expect(warnings.filter((warning) => warning.includes('action "undeclaredInner"'))).toHaveLength(1);
+    expect(warnings.filter((warning) => warning.includes('action "rejectingParent"'))).toHaveLength(1);
+    expect(warningText).not.toContain("RAW-CHILD-DATA-SECRET");
+    expect(warningText).not.toContain("RAW-PARENT-SCHEMA-ISSUE");
+  });
+
+  it("preserves terminal child results without weakening their observer policy", async () => {
+    const events: Array<Record<string, unknown>> = [];
+    const terminalChild = richAction(
+      "terminalChild",
+      () => ({
+        ok: true,
+        message: "Terminal child complete.",
+        data: { secret: "terminal-child-only" },
+      }),
+    );
+    const concierge = conciergeFor([
+      { ...terminalChild, terminal: true },
+      richAction(
+        "terminalParent",
+        async ({ workflow }: { workflow: { run(input: unknown): Promise<unknown> } }) => {
+          await workflow.run({ stepId: "terminal", name: "terminalChild", input: {} });
+          return { ok: true, message: "Parent complete." };
+        },
+        undefined,
+        "passthrough",
+      ),
+    ]);
+    concierge.onDispatch((event) => events.push(event as unknown as Record<string, unknown>));
+
+    const catalog = concierge.resolveCatalog(CONTEXT);
+    const outcome = await concierge.dispatchBatch(CONTEXT, {
+      sessionId: "session-terminal",
+      responseId: "response-terminal",
+      userTurnId: "turn-terminal",
+      catalogRevision: catalog.revision,
+      calls: [{
+        callId: "terminal-parent",
+        name: "terminalParent",
+        arguments: "{}",
+        outputIndex: 0,
+      }],
+    });
+    await flushEvents();
+
+    expect(outcome.kind).toBe("terminal");
+    if (outcome.kind !== "terminal") throw new Error("expected terminal outcome");
+    expect(outcome.enteredBy.name).toBe("terminalChild");
+    expect(outcome.rows[0]?.result).toEqual({
+      ok: true,
+      message: "Terminal child complete.",
+      data: { secret: "terminal-child-only" },
+    });
+    const terminal = new Map(
+      events
+        .filter((event) => ["succeeded", "failed", "cancelled"].includes(String(event.phase)))
+        .map((event) => [event.name, event]),
+    );
+    expect(terminal.get("terminalChild")?.resultData).toEqual({ kind: "dropped" });
+    expect(terminal.get("terminalParent")?.resultData).toEqual({ kind: "dropped" });
+  });
+
   it("treats explicit undefined data as absent and omits undefined object fields", async () => {
     const concierge = conciergeFor([
       richAction(
