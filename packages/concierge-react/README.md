@@ -10,9 +10,9 @@ React lifecycle bindings and optional action-state chrome for an existing
 [`@full-self-browsing/concierge`](https://github.com/fullselfbrowsing/Concierge)
 instance and bridge registry.
 
-Version 0.2 is a public preview of contract 2. It supports React 18 and 19,
+Version 0.3 is a public preview of contract 3. It supports React 18 and 19,
 requires Node 22.12 or newer for server rendering, and does not support Edge
-runtimes in the 0.2 line.
+runtimes in the 0.3 line. The existing provider and bridge hooks are unchanged.
 
 ## Entry points
 

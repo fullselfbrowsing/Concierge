@@ -224,10 +224,11 @@ export function defineAction<
   B = unknown,
   Snap = unknown,
   Ack = unknown,
+  Output extends StandardSchemaV1 | never = never,
 >(
-  def: Omit<ActionDefinition<N, S, B, Snap, Ack>, "description"> & {
+  def: Omit<ActionDefinition<N, S, B, Snap, Ack, Output>, "description"> & {
     description: LiteralDescription<N, D>;
   },
-): ActionDefinition<N, S, B, Snap, Ack> {
-  return def as ActionDefinition<N, S, B, Snap, Ack>;
+): ActionDefinition<N, S, B, Snap, Ack, Output> {
+  return def as ActionDefinition<N, S, B, Snap, Ack, Output>;
 }

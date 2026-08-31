@@ -2,23 +2,26 @@
 
 ## Current state
 
-Concierge 0.2 is a supported-public-preview implementation built around runtime
-contract v2. The repository contains:
+Concierge 0.3 is a supported-public-preview implementation built around runtime
+contract v3. The repository contains:
 
 - a framework-neutral action catalog, atomic catalog revisions, direct and
   batch dispatch, consent, deduplication, cancellation, terminal control,
-  compound workflows, lifecycle observation, bridges, and sessions;
+  compound workflows, lifecycle observation, structured results,
+  action-scoped and stage-scoped bridges, and sessions;
 - React and Svelte lifecycle adapters that inject the same core instance and do
   no server-side registration;
 - an AI SDK 6/7 adapter with provider-neutral tools, strict call preparation,
   result correlation, and an ES256 signed server-to-browser dispatch bridge;
+- an app-owned OpenAI Realtime protocol codec for acknowledged catalogs,
+  completed calls, and correlated function-call output events;
 - a full Next App Router/OpenRouter example and the existing dual-framework SSR
   harness;
 - a version-neutral three-package release path with exact archives, independent
   sealing, OIDC trusted publishing, provenance verification, safe resumption,
   and the `latest` dist-tag.
 
-The public package set is one fixed trio at a shared `0.2.x` version:
+The public package set is one fixed trio at a shared `0.3.x` version:
 
 1. `@full-self-browsing/concierge`
 2. `@full-self-browsing/concierge-react`
@@ -33,7 +36,7 @@ the exact ceremony is in [RELEASING.md](./RELEASING.md).
 
 1. [README.md](./README.md) — public product and security promise.
 2. [COMPATIBILITY.md](./COMPATIBILITY.md) and [SUPPORT.md](./SUPPORT.md) — the
-   0.2 support contract.
+   0.3 support contract.
 3. [`packages/concierge/src/types.ts`](./packages/concierge/src/types.ts) — the
    runtime contract as code.
 4. [`packages/concierge/src/concierge.ts`](./packages/concierge/src/concierge.ts)
@@ -45,9 +48,9 @@ the exact ceremony is in [RELEASING.md](./RELEASING.md).
 7. [CONTRIBUTING.md](./CONTRIBUTING.md) — invariants and test expectations.
 8. [RELEASING.md](./RELEASING.md) — registry setup and protected release flow.
 
-Use `.planning/` when investigating how v0.1 decisions and evidence were
-derived. Its Phase 09 scripts and receipts are historical reproduction inputs,
-not the live 0.2 release authority.
+Use `.planning/` when investigating how earlier decisions and evidence were
+derived. Its phase scripts and receipts are historical reproduction inputs,
+not the live 0.3 release authority.
 
 ## Locked boundaries
 
@@ -68,7 +71,7 @@ not the live 0.2 release authority.
   envelope, replay consumption, and a live-catalog match.
 - Client consent, signed results, and client context are not server
   authorization.
-- All packages remain ESM-only and contract v2 throughout `0.2.x`.
+- All packages remain ESM-only and contract v3 throughout `0.3.x`.
 
 ## Signed bridge invariants
 
@@ -86,7 +89,7 @@ application-supplied stronger store.
 
 ## Live release authority
 
-- `.release/lines/0.2.json` — strict package set, contract, destination,
+- `.release/lines/0.3.json` — strict package set, contract, destination,
   compatibility, Node, and content-addressed npm identity.
 - `scripts/release/config.mjs` — strict parser and shared invariants.
 - `scripts/release/check.mjs` — source/workflow/fixed-trio gate.
@@ -128,9 +131,9 @@ three trusted-publisher records name `release.yml` plus `npm-production`.
 
 ## Known limitations
 
-- 0.2 is public preview, not a commercial-SLA release.
+- 0.3 is public preview, not a commercial-SLA release.
 - The signed bridge authenticates server admission of a browser batch; it does
   not authorize protected server effects or repair XSS.
-- Edge runtime is not in the 0.2 Next matrix.
+- Edge runtime is not in the 0.3 Next matrix.
 - Live model-provider calls are intentionally outside release authorization.
-- Only the latest 0.2 patch is maintained under [SUPPORT.md](./SUPPORT.md).
+- Only the latest 0.3 patch is maintained under [SUPPORT.md](./SUPPORT.md).

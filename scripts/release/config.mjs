@@ -4,7 +4,7 @@ import { dirname, isAbsolute, join, normalize, relative, resolve } from "node:pa
 import { fileURLToPath } from "node:url";
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-export const DEFAULT_RELEASE_LINE_PATH = join(ROOT, ".release/lines/0.2.json");
+export const DEFAULT_RELEASE_LINE_PATH = join(ROOT, ".release/lines/0.3.json");
 
 const PACKAGE_NAMES = Object.freeze([
   "@full-self-browsing/concierge",
@@ -148,10 +148,10 @@ function validateReleaseLine(config, source, path) {
     "compatibility configuration",
   );
   assert(
-    config.schemaVersion === 1 && config.releaseLine === "0.2" &&
-      config.contractVersion === 2 && config.initialVersion === "0.2.0",
+    config.schemaVersion === 1 && config.releaseLine === "0.3" &&
+      config.contractVersion === 3 && config.initialVersion === "0.3.0",
     "CONFIG_IDENTITY",
-    "the live release line must be Concierge 0.2 with contract v2",
+    "the live release line must be Concierge 0.3 with contract v3",
   );
   assert(
     config.distTag === "latest" &&

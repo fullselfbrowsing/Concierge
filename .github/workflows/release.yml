@@ -284,13 +284,13 @@ jobs:
             seal.runAttempt > Number(process.env.GITHUB_RUN_ATTEMPT) ||
             seal.sourceRef !== process.env.GITHUB_REF ||
             seal.outputArtifact !== process.env.RELEASE_OUTPUT_ARTIFACT ||
-            seal.distTag !== "latest" || seal.contractVersion !== 2
+            seal.distTag !== "latest" || seal.contractVersion !== 3
           ) throw new Error("release seal identity or digest drifted");
 
           const pinned = {
-            "config.mjs": "f6ecee16c34c1cf27b6f2eeee3701314c2b4324db152791111cecc6ab51299a7",
+            "config.mjs": "704e722e96934ac6f4534a28953e185aafd369713dd38f2964d3fa62523e10a4",
             "release-publisher.mjs": "a6757a8a8c5f4ef67ab6318e8f492844c6b100bf0f12051a6fd1d5b9bd9f0636",
-            "release-line.json": "06706bfef1b06028d3066a6e4b938df9ecfbaa196ea0bafba5ae39f1a32d3da0",
+            "release-line.json": "2fd76bdd314bfa509ede3a0e8b4a044c50fe556a1fcec015378986a2b6df899c",
           };
           const expected = ["release-seal.json"];
           for (const record of seal.tools) {

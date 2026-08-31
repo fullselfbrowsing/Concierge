@@ -428,7 +428,11 @@ describe("signed server-to-browser dispatch", () => {
             callId: call?.callId,
             name: call?.name,
             outputIndex: call?.outputIndex,
-            result: { ok: true, message: "Theme changed." },
+            result: {
+              ok: true,
+              message: "Theme changed.",
+              data: { theme: "dark", applied: true },
+            },
           }],
         };
       },
@@ -450,6 +454,14 @@ describe("signed server-to-browser dispatch", () => {
 
     const report = await bridge.accept(fixture.envelope);
     expect(report).toMatchObject({ kind: "completed" });
+    expect(report).toMatchObject({
+      rows: [{
+        callId: "call-1",
+        result: {
+          data: { theme: "dark", applied: true },
+        },
+      }],
+    });
     expect(observedBatch?.catalogRevision).toBe(revision);
     expect(observedBatch?.responseId).toBe("response-1");
     expect(await bridge.accept(fixture.envelope)).toEqual({

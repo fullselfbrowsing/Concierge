@@ -12,7 +12,7 @@ application retains control of validation, consent, execution, and results.
 [![npm](https://img.shields.io/npm/v/@full-self-browsing/concierge?style=for-the-badge&logo=npm&logoColor=white&color=CB3837)](https://www.npmjs.com/package/@full-self-browsing/concierge)
 ![Node](https://img.shields.io/badge/Node-%3E%3D22.12-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
 ![ESM](https://img.shields.io/badge/ESM-only-000000?style=for-the-badge)
-![Contract](https://img.shields.io/badge/runtime_contract-v2-1B998B?style=for-the-badge)
+![Contract](https://img.shields.io/badge/runtime_contract-v3-1B998B?style=for-the-badge)
 ![License](https://img.shields.io/badge/license-MIT-3DA639?style=for-the-badge)
 
 [![CI](https://img.shields.io/github/actions/workflow/status/fullselfbrowsing/Concierge/ci.yml?branch=main&style=flat-square&logo=github&label=CI)](https://github.com/fullselfbrowsing/Concierge/actions/workflows/ci.yml)
@@ -42,8 +42,9 @@ deduplication, workflow execution, and structured results. It does not own the
 model, chat interface, planning loop, authentication system, or server
 authorization policy.
 
-Version `0.2.1` is a supported public preview. The current release uses runtime
-contract v2 and ships as one synchronized set of three packages.
+Version `0.3.0` is a supported public preview. The current release uses runtime
+contract v3 and ships as one synchronized set of three packages. Existing
+data-less actions and stage-scoped bridges remain supported.
 
 ### Why Concierge
 
@@ -101,11 +102,11 @@ together so every adapter resolves the same physical core and contract version.
 | React and React DOM | `^18.2.0 || ^19.0.0` |
 | Svelte | `^5.0.0` |
 | AI SDK core | `^6.0.0 || ^7.0.0` |
-| Runtime contract | v2 throughout `0.2.x` |
+| Runtime contract | v3 throughout `0.3.x` |
 
 React and Svelte package roots are server-safe.
 Their runtime bindings live in `/client` and `/client.svelte`. Edge deployment
-is not part of the `0.2` support matrix. See [COMPATIBILITY.md](./COMPATIBILITY.md)
+is not part of the `0.3` support matrix. See [COMPATIBILITY.md](./COMPATIBILITY.md)
 for the full certified matrix and runtime boundaries.
 
 ## Install
@@ -119,14 +120,14 @@ pnpm add @full-self-browsing/concierge zod
 Add the matching framework adapter when needed:
 
 ```sh
-pnpm add @full-self-browsing/concierge@^0.2 \
-  @full-self-browsing/concierge-react@^0.2 \
+pnpm add @full-self-browsing/concierge@^0.3 \
+  @full-self-browsing/concierge-react@^0.3 \
   zod
 ```
 
 ```sh
-pnpm add @full-self-browsing/concierge@^0.2 \
-  @full-self-browsing/concierge-svelte@^0.2 \
+pnpm add @full-self-browsing/concierge@^0.3 \
+  @full-self-browsing/concierge-svelte@^0.3 \
   zod
 ```
 
@@ -208,6 +209,7 @@ For a complete model integration, continue with the
 | Svelte | `@full-self-browsing/concierge-svelte/client.svelte` | Provide the core instance with the Svelte snapshot normalizer and register bridges during initialization |
 | AI SDK | `@full-self-browsing/concierge/ai-sdk` | Convert a resolved catalog into model tools and correlate completed calls |
 | Signed server bridge | `/ai-sdk/server` and `/ai-sdk/browser` | Issue, verify, and dispatch short-lived browser batches |
+| OpenAI Realtime | `@full-self-browsing/concierge/openai-realtime` | Translate acknowledged catalogs, completed calls, and correlated output events without owning WebRTC |
 
 The React adapter includes `ConciergeActivityOverlay` for a configurable edge
 glow and optional “Powered by FSB” badge. Applications with their own activity
@@ -247,8 +249,12 @@ can consume the same `ToolSet`.
   terminal outcomes.
 * Compound actions use core-owned child dispatch, cleanup, delay, and bounded
   lineage.
+* Declared structured results are schema-validated, detached, recursively
+  frozen, bounded, and independently redacted for observers.
+* An action-scoped bridge takes precedence over its stage bridge; existing
+  stage fallback remains unchanged.
 * `onDispatch` receives redacted lifecycle events without controlling them.
-* Mixed `0.1` and `0.2` installations fail before bridge registration or
+* Mixed contract-v2 and contract-v3 installations fail before bridge registration or
   dispatch.
 
 ## Telemetry and privacy
@@ -270,7 +276,7 @@ stop-and-erase process.
 ## Security model
 
 The action catalog is a least-authority boundary, not an authentication system.
-Concierge does not authenticate users, and a client consent record is not
+Concierge does not authenticate a user, and a client consent record is not
 server authorization. A server that performs a protected effect must
 independently authenticate the current principal, authorize the exact action
 and payload under current policy, reject replay, and make the effect idempotent
@@ -288,9 +294,9 @@ public issue.
 
 ## Public preview and support
 
-The documented `0.2` surface is supported as a public preview. Patches do not
-intentionally break documented exports or contract v2 wire shapes. Only the
-latest `0.2.x` patch receives fixes.
+The documented `0.3` surface is supported as a public preview. Patches do not
+intentionally break documented exports or contract v3 wire shapes. Only the
+latest `0.3.x` patch receives fixes.
 
 A contract change, Node.js floor increase, removal of a documented export, or
 removal of AI SDK 6 or 7 support requires a synchronized minor release and a
@@ -305,10 +311,13 @@ and exclusions.
 | [React adapter](./packages/concierge-react/README.md) | Context, bridge registration, live state, and activity visuals |
 | [Svelte adapter](./packages/concierge-svelte/README.md) | Context, bridge registration, rune-aware snapshots, and lifecycle |
 | [AI SDK integration](./docs/integrations/ai-sdk.md) | Tool conversion, signed batches, result delivery, and deployment boundaries |
+| [Structured results](./docs/integrations/structured-results.md) | Output schemas, normalization, limits, and observer redaction |
+| [OpenAI Realtime](./docs/integrations/openai-realtime.md) | App-owned connection flow, catalog acknowledgements, batches, and output events |
 | [Next.js example](./examples/next-ai-sdk) | Complete AI SDK 7 application with the signed browser bridge |
 | [Compatibility](./COMPATIBILITY.md) | Certified versions, runtimes, framework boundaries, and version mixing |
 | [Telemetry privacy](./docs/privacy.md) | Data fields, local coordination, retention, opt-out, and erasure |
 | [Migration from 0.1](./docs/migrations/0.1-to-0.2.md) | Contract v2 and API migration guidance |
+| [Migration from 0.2](./docs/migrations/0.2-to-0.3.md) | Contract v3 upgrade and backward-compatible adoption guidance |
 | [Migration from a custom AI SDK adapter](./docs/migrations/custom-ai-sdk-to-concierge.md) | Adoption guidance for existing model tool integrations |
 | [Support policy](./SUPPORT.md) | Supported surface, maintenance window, and help channels |
 

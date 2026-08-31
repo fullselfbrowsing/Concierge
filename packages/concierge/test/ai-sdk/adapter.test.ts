@@ -291,7 +291,11 @@ describe("AI SDK-neutral tool and step adapter", () => {
         callId: "call-1",
         name: "setTheme",
         outputIndex: 0,
-        result: { ok: true, message: "Theme changed." },
+        result: {
+          ok: true,
+          message: "Theme changed.",
+          data: { theme: "dark", applied: true },
+        },
       }],
     };
 
@@ -301,13 +305,21 @@ describe("AI SDK-neutral tool and step adapter", () => {
       toolName: "setTheme",
       output: {
         type: "json",
-        value: { ok: true, message: "Theme changed." },
+        value: {
+          ok: true,
+          message: "Theme changed.",
+          data: { theme: "dark", applied: true },
+        },
       },
     }]);
     expect(adapter.toToolOutputUpdates(preparedResult.value, report)).toEqual([{
       tool: "setTheme",
       toolCallId: "call-1",
-      output: { ok: true, message: "Theme changed." },
+      output: {
+        ok: true,
+        message: "Theme changed.",
+        data: { theme: "dark", applied: true },
+      },
     }]);
     expect(() => adapter.toToolResultParts(preparedResult.value, {
       ...report,

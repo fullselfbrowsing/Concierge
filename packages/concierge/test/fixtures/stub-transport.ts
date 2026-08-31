@@ -182,9 +182,13 @@ function snapshotActionResult(result: ActionResult): ActionResult {
   if (Object.isFrozen(result)) return result;
 
   const reason: ActionResult["reason"] = result.reason;
-  return reason === undefined
-    ? Object.freeze({ ok: result.ok, message: result.message })
-    : Object.freeze({ ok: result.ok, reason, message: result.message });
+  const data: ActionResult["data"] = result.data;
+  return Object.freeze({
+    ok: result.ok,
+    ...(reason === undefined ? {} : { reason }),
+    message: result.message,
+    ...(data === undefined ? {} : { data }),
+  });
 }
 
 function readOwnDataProperty(value: unknown, key: string): unknown {

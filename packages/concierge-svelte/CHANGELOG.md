@@ -1,5 +1,13 @@
 # @full-self-browsing/concierge-svelte
 
+## 0.3.0
+
+### Minor Changes
+
+- Upgrade the runtime guard to Concierge contract v3. Existing context,
+  bridge registration, telemetry, and snapshot normalization APIs remain
+  unchanged.
+
 ## 0.2.1
 
 ### Patch Changes

@@ -180,16 +180,29 @@ function runAdapterCell(root, inputs, aiVersion) {
   });
   writeFileSync(
     join(directory, "smoke.mjs"),
-    `import { CONTRACT_VERSION } from "@full-self-browsing/concierge";\n` +
+    `import { CONTRACT_VERSION, createConcierge } from "@full-self-browsing/concierge";\n` +
       `import { EXPECTED_CORE_CONTRACT_VERSION, SIGNED_ENVELOPE_VERSION, toAISDKTools } from "@full-self-browsing/concierge/ai-sdk";\n` +
       `const server = await import("@full-self-browsing/concierge/ai-sdk/server");\n` +
       `const browser = await import("@full-self-browsing/concierge/ai-sdk/browser");\n` +
+      `const realtime = await import("@full-self-browsing/concierge/openai-realtime");\n` +
       `const telemetry = await import("@full-self-browsing/concierge/telemetry");\n` +
-      `if (CONTRACT_VERSION !== 2 || EXPECTED_CORE_CONTRACT_VERSION !== 2 || SIGNED_ENVELOPE_VERSION !== 1) throw new Error("contract drift");\n` +
+      `if (CONTRACT_VERSION !== 3 || EXPECTED_CORE_CONTRACT_VERSION !== 3 || SIGNED_ENVELOPE_VERSION !== 1) throw new Error("contract drift");\n` +
       `if (typeof server.createSignedBatchIssuer !== "function" || typeof browser.createSignedBrowserBridge !== "function") throw new Error("subpath export drift");\n` +
+      `if (typeof realtime.createOpenAIRealtimeCodec !== "function") throw new Error("Realtime subpath export drift");\n` +
       `if (JSON.stringify(Object.keys(telemetry).sort()) !== JSON.stringify(["getConciergeTelemetryStatus","mountConciergeTelemetry","onConciergeTelemetryStatusChange","setConciergeTelemetryEnabled"])) throw new Error("telemetry subpath export drift");\n` +
       `const tools = toAISDKTools([{ type: "function", name: "probe", description: "Probe", parameters: { type: "object", properties: { value: { type: "string" } }, required: ["value"], additionalProperties: false } }]);\n` +
       `if (!Object.isFrozen(tools) || typeof tools.probe !== "object" || tools.probe === null || !("inputSchema" in tools.probe) || "execute" in tools.probe) throw new Error("tool conversion drift");\n` +
+      `const standard = { "~standard": { version: 1, vendor: "release-smoke", validate: (value) => ({ value }) } };\n` +
+      `const concierge = createConcierge({ stages: [{ id: "active", match: () => true, actions: [{ name: "richProbe", description: "Return structured data.", schema: standard, jsonSchema: { type: "object", additionalProperties: false }, redact: "drop", effects: { readOnly: true }, output: { schema: standard, redact: "drop" }, handler: () => ({ ok: true, message: "Complete.", data: { value: 7 } }) }] }] });\n` +
+      `const catalog = concierge.resolveCatalog({});\n` +
+      `const codec = realtime.createOpenAIRealtimeCodec();\n` +
+      `const sessionTools = codec.toSessionTools(catalog);\n` +
+      `const batch = codec.extractCompletedBatch({ response: { type: "response.done", response: { id: "response-1", status: "completed", output: [{ type: "function_call", status: "completed", call_id: "call-1", name: "richProbe", arguments: "{}" }] } }, sessionId: "session-1", userTurnId: "turn-1", catalogRevision: catalog.revision });\n` +
+      `if (batch === null || batch.calls[0]?.callId !== "call-1" || sessionTools[0]?.name !== "richProbe") throw new Error("Realtime request translation drift");\n` +
+      `const outcome = await concierge.dispatchBatch({}, batch);\n` +
+      `const resultEvents = codec.toFunctionCallOutputEvents(outcome);\n` +
+      `const result = JSON.parse(resultEvents[0]?.item.output ?? "null");\n` +
+      `if (resultEvents[0]?.item.call_id !== "call-1" || result?.data?.value !== 7 || resultEvents.some((event) => event.type === "response.create")) throw new Error("Realtime structured result drift");\n` +
       `process.stdout.write(JSON.stringify({ ai: ${JSON.stringify(aiVersion)}, contract: CONTRACT_VERSION, tools: Object.keys(tools) }) + "\\n");\n`,
     "utf8",
   );
@@ -238,7 +251,7 @@ function runFrameworkCell(root, inputs, cell) {
       `const svelteRoot = await import("@full-self-browsing/concierge-svelte");\n` +
       `const svelteClient = await import("@full-self-browsing/concierge-svelte/client.svelte");\n` +
       `const html = renderToString(createElement(reactClient.ConciergeProvider, { concierge: {} }, createElement("span", null, "ssr")));\n` +
-      `if (CONTRACT_VERSION !== 2 || html !== "<span>ssr</span>" || typeof reactRoot !== "object" || typeof svelteRoot !== "object" || typeof svelteClient.provideConcierge !== "function") throw new Error("framework ESM SSR import drift");\n` +
+      `if (CONTRACT_VERSION !== 3 || html !== "<span>ssr</span>" || typeof reactRoot !== "object" || typeof svelteRoot !== "object" || typeof svelteClient.provideConcierge !== "function") throw new Error("framework ESM SSR import drift");\n` +
       `process.stdout.write(JSON.stringify({ react: ${JSON.stringify(cell.react)}, svelte: ${JSON.stringify(cell.svelte)}, html }) + "\\n");\n`,
     "utf8",
   );

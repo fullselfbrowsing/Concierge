@@ -1094,17 +1094,19 @@ describe("SEC-03 — the tool list handed to the agent cannot be tampered with",
 });
 
 describe("DX-01 — explain() answers \"why didn't my action fire\"", () => {
-  it("S16 — the returned object has exactly three fields: stage, stages, catalog", () => {
+  it("S16 — the returned object has exactly four bounded diagnostic fields", () => {
     const concierge = canonical();
     const explanation = concierge.explain({ pathname: "/results" });
 
-    // Pinned at exactly three, and the reason is disclosure rather than tidiness.
+    // Pinned at exactly four, and the reason is disclosure rather than tidiness.
     // `explain` is a developer-facing diagnostic that a devtools panel or a log
     // line will render wholesale, so a fourth field carrying the CONTEXT or an
     // action's arguments would ship user data into whatever reads it. A future
     // field cannot be added without this case going red, which is the point.
-    expect(Object.keys(explanation)).toHaveLength(3);
-    expect(Object.keys(explanation)).toEqual(["stage", "stages", "catalog"]);
+    // `actions` contains only names and effective bridge state, never context or
+    // invocation arguments.
+    expect(Object.keys(explanation)).toHaveLength(4);
+    expect(Object.keys(explanation)).toEqual(["stage", "stages", "actions", "catalog"]);
   });
 
   it("S17 — explain().stage agrees with atomic resolution across matcher outcomes", () => {

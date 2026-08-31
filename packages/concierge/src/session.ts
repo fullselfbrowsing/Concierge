@@ -378,7 +378,7 @@ function linkSignals(
   });
 }
 
-/** Build the contract-v2 session runtime. */
+/** Build the contract-v3 session runtime. */
 function createV2Session(
   config: SessionConfig,
   concierge: SessionConfig["concierge"],

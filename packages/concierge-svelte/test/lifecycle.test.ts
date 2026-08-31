@@ -45,7 +45,7 @@ function conciergeStub(): Concierge {
     dispatchBatch: async () => ({ kind: "completed", rows: [] }),
     resolveCatalog: () => ({ stage: null, tools: [], revision }),
     onDispatch: () => () => undefined,
-    explain: () => ({ stage: null, stages: [], catalog: [] }),
+    explain: () => ({ stage: null, stages: [], catalog: [], actions: [] }),
   };
 }
 
@@ -66,7 +66,7 @@ function dispatchConciergeStub(): {
         listeners.delete(listener);
       };
     },
-    explain: () => ({ stage: null, stages: [], catalog: [] }),
+    explain: () => ({ stage: null, stages: [], catalog: [], actions: [] }),
   };
 
   return {

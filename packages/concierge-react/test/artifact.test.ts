@@ -89,7 +89,7 @@ describe("the built @full-self-browsing/concierge-react entries", () => {
       );
       previousIndex = index;
     }
-    expect(clientSource).toMatch(/EXPECTED_CONTRACT_VERSION\s*=\s*2\b/u);
+    expect(clientSource).toMatch(/EXPECTED_CONTRACT_VERSION\s*=\s*3\b/u);
 
     await withoutBrowserGlobals(async () => {
       const [root, client, core] = await Promise.all([
@@ -128,7 +128,7 @@ describe("the built @full-self-browsing/concierge-react entries", () => {
           revision: Symbol("artifact-catalog"),
         }),
         onDispatch: () => () => undefined,
-        explain: () => ({ stage: null, stages: [], catalog: [] }),
+        explain: () => ({ stage: null, stages: [], catalog: [], actions: [] }),
       };
 
       function ServerConsumer() {

@@ -1,5 +1,12 @@
 # @full-self-browsing/concierge-react
 
+## 0.3.0
+
+### Minor Changes
+
+- Upgrade the runtime guard to Concierge contract v3. Existing provider,
+  bridge hook, telemetry, and action-activity APIs remain unchanged.
+
 ## 0.2.1
 
 ### Patch Changes

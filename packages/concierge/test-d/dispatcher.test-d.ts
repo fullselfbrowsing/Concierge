@@ -23,7 +23,7 @@ type _dispatchSignature = Expect<Equals<Concierge["dispatch"], (ctx: StageContex
 type _dispatchBatchSignature = Expect<Equals<Concierge["dispatchBatch"], (ctx: StageContext, batch: ToolBatch) => Promise<BatchDispatchOutcome>>>;
 type _schedulerSignature = Expect<Equals<Scheduler, (fn: () => void, delayMs: number) => () => void>>;
 type _conciergeKeys = Expect<Equals<keyof Concierge, "dispatch" | "dispatchBatch" | "resolveCatalog" | "onDispatch" | "explain">>;
-type _actionResultKeysExcludeTerminalControl = Expect<Equals<keyof ActionResult, "ok" | "reason" | "message">>;
+type _actionResultKeysExcludeTerminalControl = Expect<Equals<keyof ActionResult, "ok" | "reason" | "message" | "data">>;
 type _publicBatchRow = Awaited<ReturnType<Concierge["dispatchBatch"]>>["rows"][number];
 type _publicBatchRowKeysExcludeTerminalControl = Expect<Equals<keyof _publicBatchRow, "dispatchId" | "callId" | "name" | "outputIndex" | "result">>;
 type _toolCallEnvelopeIsReadonly = Expect<Equals<Pick<ToolCall, "callId" | "name" | "arguments" | "outputIndex">, { readonly callId: string; readonly name: string; readonly arguments: string; readonly outputIndex: number }>>;

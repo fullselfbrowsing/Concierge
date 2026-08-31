@@ -63,6 +63,7 @@
 
 import {
   MESSAGE_MAX_CHARS,
+  DEFAULT_ACTION_DATA_MAX_BYTES,
   CONTRACT_VERSION,
   CONSENT_GRADE_ORDER,
   USER_CANCELLED,
@@ -74,6 +75,7 @@ import {
   createSession,
 } from "@full-self-browsing/concierge";
 import type {
+  ActionData,
   ActionResult,
   CatalogRevision,
   Concierge,
@@ -102,6 +104,8 @@ import type {
   TransportStatus,
   TurnIdentityProvenance,
 } from "@full-self-browsing/concierge";
+import { createOpenAIRealtimeCodec } from "@full-self-browsing/concierge/openai-realtime";
+import type { OpenAIRealtimeCodec } from "@full-self-browsing/concierge/openai-realtime";
 import {
   getConciergeTelemetryStatus,
   mountConciergeTelemetry,
@@ -119,6 +123,10 @@ import type {
  * deliberately — its declared `| undefined` is what makes omission legal.
  */
 export const r: ActionResult = { ok: true, message: "ok" };
+export const richData: ActionData = Object.freeze({
+  kind: "probe",
+  values: Object.freeze([1, true, null]),
+});
 
 /**
  * The whole point of the harness, in one line. If the emitted declaration ever
@@ -127,7 +135,9 @@ export const r: ActionResult = { ok: true, message: "ok" };
 export const n: 180 = MESSAGE_MAX_CHARS; // the literal type survived into the shipped .d.ts
 
 /** Same guard for the contract version, which 02-06 left unannotated in source. */
-export const v: 2 = CONTRACT_VERSION;
+export const v: 3 = CONTRACT_VERSION;
+export const maxActionDataBytes: 262144 = DEFAULT_ACTION_DATA_MAX_BYTES;
+export const realtimeCodec: OpenAIRealtimeCodec = createOpenAIRealtimeCodec();
 
 /**
  * A value import of the one function the package actually executes. Annotating
@@ -300,6 +310,7 @@ export const foreignConcierge: Concierge = {
     Object.freeze({
       stage: null,
       stages: Object.freeze([]),
+      actions: Object.freeze([]),
       catalog: Object.freeze([]),
     }),
 };

@@ -52,6 +52,15 @@ export interface AbortSignalLike {
 // Results
 // ---------------------------------------------------------------------------
 
+/** JSON-safe structured data an action may deliberately return to an agent. */
+export type ActionData =
+  | null
+  | boolean
+  | string
+  | number
+  | ReadonlyArray<ActionData>
+  | { readonly [key: string]: ActionData };
+
 /**
  * The universal return type of every action.
  *
@@ -123,6 +132,14 @@ export interface ActionResult {
    * its result boundary.
    */
   readonly message: string;
+  /**
+   * Declared, schema-validated structured output for the calling agent.
+   *
+   * The dispatcher detaches and recursively freezes this value. It is never
+   * copied into telemetry or dispatch observers implicitly; the action's
+   * output redaction policy governs that separate channel.
+   */
+  readonly data?: ActionData | undefined;
 }
 
 /**
@@ -143,7 +160,7 @@ export type AbandonReason =
 
 /**
  * Why an action did not run, when the cause was the machine rather than the
- * human. Twelve codes — with {@link AbandonReason}'s three, that is the fifteen
+ * human. Thirteen codes — with {@link AbandonReason}'s three, that is the sixteen
  * {@link ReasonCode} admits.
  *
  * Adding a member here is a breaking change *by design*, and the breakage is
@@ -198,11 +215,13 @@ export type FailureReason =
   /** Invocation identity was present but incomplete or malformed. */
   | "invalid_invocation"
   /** A retry identity was reused for a different logical invocation. */
-  | "identity_conflict";
+  | "identity_conflict"
+  /** Valid input could not run because current application state forbade it. */
+  | "precondition_failed";
 
 /**
- * Every code {@link ActionResult.reason} admits: **fifteen** — three
- * human-caused ({@link AbandonReason}) and twelve machine-caused
+ * Every code {@link ActionResult.reason} admits: **sixteen** — three
+ * human-caused ({@link AbandonReason}) and thirteen machine-caused
  * ({@link FailureReason}).
  *
  * Deliberately a pure closed union. A `` `app.${string}` `` escape hatch was
@@ -295,6 +314,9 @@ export const USER_DECLINED: Readonly<{
  */
 export const MESSAGE_MAX_CHARS = 180;
 
+/** Default UTF-8 JSON size limit for one validated action result's data. */
+export const DEFAULT_ACTION_DATA_MAX_BYTES = 262_144;
+
 // ---------------------------------------------------------------------------
 // Invocation
 // ---------------------------------------------------------------------------
@@ -303,8 +325,7 @@ export const MESSAGE_MAX_CHARS = 180;
  * The recursive data population the dispatcher can detach and freeze without
  * changing application semantics.
  *
- * This source-module export is intentionally not re-exported by `index.ts`, so
- * the package keeps its established 65-name public surface.
+ * This source-module export is intentionally not re-exported by `index.ts`.
  */
 export type InvocationData =
   | null
@@ -481,21 +502,35 @@ export interface WorkflowControls {
   cleanup(fn: () => void | Promise<void>): () => void;
 }
 
+type ActionHandlerResult<Data> = Omit<ActionResult, "data"> &
+  ([Data] extends [never]
+    ? { readonly data?: never }
+    : { readonly data?: DeepReadonly<Data> | undefined });
+
+/** Keep erased output schemas usable while rejecting non-JSON concrete data. */
+type ActionDataOutputContract<Output, Accepted> =
+  unknown extends Output
+    ? Accepted
+    : [Output] extends [ActionData]
+      ? Accepted
+      : never;
+
 export type ActionHandler<
   Args,
   B,
   Snapshot = unknown,
   AckPayload = unknown,
+  Data = never,
 > = (ctx: {
   args: DeepReadonly<Args>;
-  /** `null` when the owning stage's bridge is not mounted. Always check it. */
+  /** `null` when neither the action nor owning stage bridge is mounted. */
   bridge: B | null;
   meta: Readonly<InvocationMeta>;
   /** Present only for actions declaring `consent.requires`. */
   ack?: ConsentAck<Snapshot, AckPayload> | undefined;
   /** App-owned compound actions use these controls; core does not plan steps. */
   workflow: WorkflowControls;
-}) => ActionResult | Promise<ActionResult>;
+}) => ActionHandlerResult<Data> | Promise<ActionHandlerResult<Data>>;
 
 // ---------------------------------------------------------------------------
 // Consent
@@ -979,6 +1014,18 @@ export type RedactionPolicy<Args> =
   | "passthrough"
   | ((args: Args) => unknown);
 
+/** How validated action data is exposed to dispatch observers. */
+export type OutputRedactionPolicy<Data> =
+  | "drop"
+  | "passthrough"
+  | ((data: DeepReadonly<Data>) => unknown);
+
+/** Declares and protects the structured output contract for one action. */
+export interface ActionOutputDefinition<Schema extends StandardSchemaV1> {
+  readonly schema: Schema;
+  readonly redact: OutputRedactionPolicy<InferOutput<Schema>>;
+}
+
 // ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
@@ -1007,12 +1054,14 @@ export type RedactionPolicy<Args> =
  * rename's clothes. The constrained spelling lives on {@link BridgeRegistry} and
  * {@link StageDefinition}, which is where a bridge is actually registered.
  */
-export interface ActionDefinition<
+interface ActionDefinitionShape<
   Name extends string = string,
   Schema extends StandardSchemaV1 = StandardSchemaV1,
   B = unknown,
   Snapshot = unknown,
   AckPayload = unknown,
+  OutputSchema extends StandardSchemaV1 | never = never,
+  ActionBridge extends BridgeRegistry<any> = BridgeRegistry<any>,
 > {
   name: Name;
   /**
@@ -1035,6 +1084,15 @@ export interface ActionDefinition<
   jsonSchema?: JsonSchemaObject;
   redact: RedactionPolicy<InferOutput<Schema>>;
   /**
+   * Optional structured result declaration. Returning `data` without this
+   * declaration fails closed as `invalid_result`.
+   */
+  output?: [OutputSchema] extends [never]
+    ? never
+    : ActionOutputDefinition<OutputSchema>;
+  /** Action-local bridge. It takes precedence over the owning stage bridge. */
+  bridge?: ActionBridge;
+  /**
    * App-owned catalog minimization evaluated once during atomic resolution.
    * Only a literal `true` makes the action available; errors fail closed.
    */
@@ -1054,7 +1112,16 @@ export interface ActionDefinition<
    */
   handler: InvocationOutputContract<
     InferOutput<Schema>,
-    ActionHandler<InferOutput<Schema>, B, Snapshot, AckPayload>
+    ActionDataOutputContract<
+      InferOutput<OutputSchema>,
+      ActionHandler<
+        InferOutput<Schema>,
+        B,
+        Snapshot,
+        AckPayload,
+        NoInfer<InferOutput<OutputSchema>>
+      >
+    >
   >;
   effects?: SideEffects;
   /**
@@ -1114,6 +1181,27 @@ export interface ActionDefinition<
 }
 
 /**
+ * One concrete action declaration. Existing positional parameters retain their
+ * order; structured output is appended as the sixth parameter.
+ */
+export type ActionDefinition<
+  Name extends string = string,
+  Schema extends StandardSchemaV1 = StandardSchemaV1,
+  B = unknown,
+  Snapshot = unknown,
+  AckPayload = unknown,
+  OutputSchema extends StandardSchemaV1 | never = never,
+> = ActionDefinitionShape<
+  Name,
+  Schema,
+  B,
+  Snapshot,
+  AckPayload,
+  OutputSchema,
+  BridgeRegistry<B & Bridge>
+>;
+
+/**
  * The erased collection view: an action of *some* shape, for the two places that
  * hold many of them at once.
  *
@@ -1138,15 +1226,19 @@ export interface ActionDefinition<
  * typechecked. Only the collection is erased, and a declaration that never enters
  * one keeps full typing throughout.
  *
- * The concrete declaration remains fully typed; only heterogeneous collection
- * storage uses this erasure.
+ * Output validators and action-local bridge registries are erased here for the
+ * same reason: one array may contain unrelated result schemas and unrelated
+ * mounted surfaces. The concrete declaration remains fully typed; only
+ * heterogeneous collection storage uses this erasure.
  */
-export type AnyActionDefinition<B = unknown> = ActionDefinition<
+export type AnyActionDefinition<B = unknown> = ActionDefinitionShape<
   string,
   StandardSchemaV1,
   B,
   any,
-  any
+  any,
+  StandardSchemaV1,
+  BridgeRegistry<any>
 >;
 
 // ---------------------------------------------------------------------------
@@ -1233,7 +1325,7 @@ export interface StageDefinition<B extends Bridge = Bridge> {
    * the erased-to-`unknown` form this used to carry stopped accepting any of them
    * the moment `Snapshot` became real.
    */
-  actions: ReadonlyArray<AnyActionDefinition<B>>;
+  actions: ReadonlyArray<AnyActionDefinition<any>>;
   bridge?: BridgeRegistry<B>;
 }
 
@@ -1329,7 +1421,7 @@ export interface InvocationIdentity {
   readonly outputIndex: number;
 }
 
-/** Object-form v2 request. The catalog revision is always explicit. */
+/** Object-form dispatch request. The catalog revision is always explicit. */
 export interface DispatchRequest {
   readonly name: string;
   readonly input: unknown;
@@ -1375,6 +1467,15 @@ export type ObservedInput =
   | Readonly<{ kind: "dropped" }>
   | Readonly<{ kind: "included"; value: unknown }>;
 
+/** Observer-safe structured output selected independently from agent output. */
+export type ObservedResultData =
+  | Readonly<{ kind: "absent" }>
+  | Readonly<{ kind: "dropped" }>
+  | Readonly<{ kind: "included"; value: unknown }>;
+
+/** The status portion of an action result; it deliberately cannot carry data. */
+export type ObservedActionResult = Readonly<Omit<ActionResult, "data">>;
+
 /** Core-authored compound-action ancestry. */
 export interface DispatchLineage {
   readonly rootDispatchId: string;
@@ -1407,7 +1508,8 @@ export type DispatchEvent =
   | (DispatchEventBase & Readonly<{ phase: "executing" }>)
   | (DispatchEventBase & Readonly<{
       phase: "succeeded" | "failed" | "cancelled";
-      result: Readonly<ActionResult>;
+      result: ObservedActionResult;
+      resultData: ObservedResultData;
     }>);
 
 export type DispatchListener =
@@ -1650,6 +1752,12 @@ export interface StageExplanation {
   readonly bridge: { readonly id: string; readonly registered: boolean } | null;
 }
 
+/** Effective bridge state for one action currently visible to the agent. */
+export interface ActionExplanation {
+  readonly name: string;
+  readonly bridge: { readonly id: string; readonly registered: boolean } | null;
+}
+
 /**
  * The structured answer to DX-01's three questions — which stage is active,
  * which bridges are registered, and what the agent can currently see — as one
@@ -1669,6 +1777,8 @@ export interface Explanation {
   readonly stage: string | null;
   /** Every declared stage, in declaration order, matched or not. */
   readonly stages: ReadonlyArray<StageExplanation>;
+  /** Effective action-local or stage-fallback bridge for each visible action. */
+  readonly actions: ReadonlyArray<ActionExplanation>;
   /**
    * The action **names** the agent can currently call — not the
    * {@link EmittedTool} array.
@@ -1896,6 +2006,8 @@ export interface ConciergeConfig {
    * @default 600
    */
   dedupeWindowMs?: number;
+  /** Maximum UTF-8 JSON bytes accepted in one action result's `data`. */
+  maxActionDataBytes?: number;
   /** Maximum nested child-action depth. @default 16 */
   maxWorkflowDepth?: number;
   /** Maximum unique child steps admitted by one root workflow. @default 256 */

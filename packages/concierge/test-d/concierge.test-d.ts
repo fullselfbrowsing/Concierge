@@ -132,7 +132,7 @@ type _stageExplanationMembersAreReadonly = Expect<Equals<StageExplanation, Reado
 // --------------------------------------------------------------------------
 
 /** Three fields, one per clause of DX-01, and `Equals` on `keyof` is what keeps it three: a fourth field added later goes red here and must therefore be a decision rather than a drive-by. Phase 1's D-04 preference — prefer fewer, better-justified fields — governs, and `src/types.ts` records the five-field shape that was rejected. */
-type _explanationHasExactlyThreeFields = Expect<Equals<keyof Explanation, "stage" | "stages" | "catalog">>;
+type _explanationHasExactlyFourFields = Expect<Equals<keyof Explanation, "stage" | "stages" | "actions" | "catalog">>;
 
 /** One spelling of "no stage" across atomic catalogs and explanations. */
 type _explanationStageIsNullableString = Expect<Equals<Explanation["stage"], string | null>>;

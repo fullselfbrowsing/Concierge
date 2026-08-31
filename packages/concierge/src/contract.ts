@@ -44,7 +44,7 @@
  *
  * Deliberately unannotated, matching {@link MESSAGE_MAX_CHARS} in `./types.ts`
  * rather than an explicit literal annotation. Under `isolatedDeclarations`
- * the literal type `2` survives into the emitted `.d.ts`
+ * the literal type `3` survives into the emitted `.d.ts`
  * either way, so both forms preserve the signal a consumer — and this package's
  * own type tests — read to pin the value; the annotation would buy nothing and
  * would leave this file and `types.ts` disagreeing on house style with no
@@ -54,13 +54,13 @@
  * **Bump policy.** An integer, bumped only when the *shared runtime contract*
  * changes incompatibly — the bridge registry shape, the dedup key, or the
  * consent record. Not on every release, and not on an additive type change.
- * Contract v2 ships `2`.
+ * Contract v3 ships `3`.
  *
  * An integer rather than a string or a semver-ish value: a richer shape buys
  * nothing until there is a compatibility *range* to express, and it is a one-way
  * door once published.
  */
-export const CONTRACT_VERSION = 2;
+export const CONTRACT_VERSION = 3;
 
 /**
  * The cross-realm slot where two independently-resolved copies of core meet.
@@ -86,7 +86,7 @@ const REGISTRY_KEY: symbol = Symbol.for("@fullselfbrowsing/concierge.contract");
 /**
  * What one copy of core leaves behind for the next one to find.
  *
- * `version` is `number`, not the literal `2`: the record this reads may have
+ * `version` is `number`, not the literal `3`: the record this reads may have
  * been written by a *different* version of this file, which is the entire case
  * the guard exists to detect. Typing it as the literal would make the mismatch
  * branch unreachable to the checker and the comparison a compile error.

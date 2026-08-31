@@ -117,6 +117,7 @@ function assertPackageManifest(config, spec, manifest, mode) {
       "./ai-sdk",
       "./ai-sdk/server",
       "./ai-sdk/browser",
+      "./openai-realtime",
       "./telemetry",
       "./package.json",
     ];
@@ -124,7 +125,7 @@ function assertPackageManifest(config, spec, manifest, mode) {
       JSON.stringify(Object.keys(manifest.exports ?? {})) ===
         JSON.stringify(expectedExports),
       "PACKAGE_EXPORTS",
-      "Core, AI SDK, and telemetry subpath exports drifted",
+      "Core, AI SDK, OpenAI Realtime, and telemetry subpath exports drifted",
     );
     assert(
       manifest.exports["./ai-sdk/server"]?.browser ===
@@ -168,12 +169,12 @@ function checkChangesets(config) {
   );
 }
 
-function checkContractV2() {
+function checkContractV3() {
   const core = readFileSync(join(ROOT, "packages/concierge/src/contract.ts"), "utf8");
   assert(
-    /export const CONTRACT_VERSION = 2;/u.test(core),
+    /export const CONTRACT_VERSION = 3;/u.test(core),
     "CONTRACT_VERSION",
-    "core must publish contract v2",
+    "core must publish contract v3",
   );
   for (const relativePath of [
     "packages/concierge-react/src/client.tsx",
@@ -181,9 +182,9 @@ function checkContractV2() {
   ]) {
     const source = readFileSync(join(ROOT, relativePath), "utf8");
     assert(
-      /EXPECTED_CONTRACT_VERSION(?:\s*:\s*number)?\s*=\s*2/u.test(source),
+      /EXPECTED_CONTRACT_VERSION(?:\s*:\s*number)?\s*=\s*3/u.test(source),
       "CONTRACT_VERSION",
-      `${relativePath} must reject non-v2 core before registration`,
+      `${relativePath} must reject non-v3 core before registration`,
     );
   }
 }
@@ -204,7 +205,7 @@ function checkSource(config, mode) {
       .join(", ")}`,
   );
   checkChangesets(config);
-  checkContractV2();
+  checkContractV3();
   return manifests[0].version;
 }
 
@@ -237,7 +238,7 @@ function checkWorkflow(config) {
   for (const [file, sealedName] of [
     ["scripts/release/config.mjs", "config.mjs"],
     ["scripts/release/publisher.mjs", "release-publisher.mjs"],
-    [".release/lines/0.2.json", "release-line.json"],
+    [".release/lines/0.3.json", "release-line.json"],
   ]) {
     const digest = sha256File(join(ROOT, file));
     assert(

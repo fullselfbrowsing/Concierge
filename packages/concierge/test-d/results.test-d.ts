@@ -1,4 +1,4 @@
-// SC-2 — `ActionResult.reason` is a closed twelve-code union — and SC-7d —
+// SC-2 — `ActionResult.reason` is a closed sixteen-code union — and SC-7d —
 // `MESSAGE_MAX_CHARS` keeps its literal type.
 //
 // This file declares nothing to the outside world. The imports below already
@@ -56,10 +56,10 @@ type _reasonAdmitsUndefined = Expect<Assignable<{ ok: true; reason: undefined; m
 const _badReason: ActionResult = { ok: false, reason: "whoops", message: "x" };
 
 // --------------------------------------------------------------------------
-// SC-2 — exhaustiveness: a thirteenth code must break every mapper, loudly
+// SC-2 — exhaustiveness: a seventeenth code must break every mapper, loudly
 // --------------------------------------------------------------------------
 
-// Twelve arms, one per code: three from `AbandonReason`, nine from
+// Sixteen arms, one per code: three from `AbandonReason`, thirteen from
 // `FailureReason`. The `never` default is the point of the whole exercise — a
 // code added in Phase 6 or 8 fails to compile here rather than falling into a
 // silent default that reports a new failure mode as an old one. Removing a code
@@ -83,6 +83,7 @@ function _reasonExhaustive(): string {
     case "catalog_stale":
     case "invalid_invocation":
     case "identity_conflict":
+    case "precondition_failed":
       return r.reason;
     case undefined:
       return "";

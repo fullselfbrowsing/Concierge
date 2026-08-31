@@ -1,14 +1,14 @@
 # Compatibility
 
-Concierge 0.2 is a supported public preview. The three public packages form one
-fixed release set and share runtime contract v2.
+Concierge 0.3 is a supported public preview. The three public packages form one
+fixed release set and share runtime contract v3.
 
 ## Supported ranges
 
 | Component | Supported range | Release certification |
 | --- | --- | --- |
 | Node.js | `>=22.12.0` | 22.12 floor consumer and Node 24 CI/publisher |
-| `@full-self-browsing/concierge` | `^0.2.0` | Same patch as every adapter |
+| `@full-self-browsing/concierge` | `^0.3.0` | Same patch as every adapter |
 | React | `^18.2.0 || ^19.0.0` | 18.2 and 19.2 lines |
 | React DOM | `^18.2.0 || ^19.0.0` | Matches React |
 | Svelte | `^5.0.0` | 5.0 floor and current 5.56.9 |
@@ -21,7 +21,7 @@ the fixed package family has one runtime contract. Node 22.12 is the consumer
 floor; contributing with the pinned pnpm requires Node 22.13 or newer. Trusted
 npm publishing requires Node 22.14 or newer and uses Node 24.
 
-## AI SDK stacks certified for 0.2.0
+## AI SDK stacks certified for 0.3.0
 
 | Cell | `ai` | `@ai-sdk/react` | OpenRouter provider | Purpose |
 | --- | ---: | ---: | ---: | --- |
@@ -42,8 +42,10 @@ contract. Other AI SDK providers can consume the same `ToolSet`.
   to a fail-closed unavailable module under the browser condition.
 - `@full-self-browsing/concierge/ai-sdk/browser` needs WebCrypto. Its IndexedDB
   replay store additionally needs a browser IndexedDB implementation.
+- `@full-self-browsing/concierge/openai-realtime` is runtime-neutral and owns no
+  WebRTC, audio, credential, transcript, or network capability.
 - The full Next example declares the Node runtime. Edge deployment is not part
-  of the 0.2 support matrix.
+  of the 0.3 support matrix.
 - CommonJS output and `require()` are not supported. Use ESM imports.
 
 The release gate installs only the packed trio into foreign temporary
@@ -55,17 +57,19 @@ WebKit before the OIDC publish job can start.
 
 ## Version mixing
 
-Do not mix 0.1 and 0.2 packages. All adapters keep core as a peer dependency,
-and every runtime entry checks contract v2 before registration or dispatch.
+Do not mix contract-v2 and contract-v3 packages. All adapters keep core as a
+peer dependency, and every runtime entry checks contract v3 before registration
+or dispatch.
 Upgrade the trio and regenerate the lockfile together:
 
 ```sh
-pnpm up @full-self-browsing/concierge@^0.2 \
-  @full-self-browsing/concierge-react@^0.2 \
-  @full-self-browsing/concierge-svelte@^0.2
+pnpm up @full-self-browsing/concierge@^0.3 \
+  @full-self-browsing/concierge-react@^0.3 \
+  @full-self-browsing/concierge-svelte@^0.3
 
 pnpm why @full-self-browsing/concierge
 ```
 
 The final command should converge on one physical core version. See the
-[0.1-to-0.2 migration guide](./docs/migrations/0.1-to-0.2.md) for API changes.
+[0.2-to-0.3 migration guide](./docs/migrations/0.2-to-0.3.md) for API changes
+and backward-compatible adoption guidance.

@@ -29,6 +29,7 @@ import {
   isAbortSignalLike,
   isAborted,
   normalizeActionResult,
+  snapshotActionData,
   snapshotInvocationValue,
   validateArguments,
   waitForCommit,
@@ -38,9 +39,13 @@ import {
   readHostScheduler,
   warnHost,
 } from "./host.js";
-import { USER_CANCELLED, USER_DECLINED } from "./types.js";
+import {
+  DEFAULT_ACTION_DATA_MAX_BYTES,
+  USER_CANCELLED,
+  USER_DECLINED,
+} from "./types.js";
 import type { ArgumentValidation, CommitWaitOutcome } from "./dispatch.js";
-import type { InvocationValueSnapshot } from "./dispatch.js";
+import type { ActionDataSnapshot, InvocationValueSnapshot } from "./dispatch.js";
 import type { Catalog, CatalogEntry } from "./catalog.js";
 import type {
   DeliveryEvidenceSnapshot,
@@ -51,10 +56,12 @@ import type {
 } from "./consent-evidence.js";
 import type {
   ActionResult,
+  ActionExplanation,
   AbortSignalLike,
   AnyActionDefinition,
   BatchDispatchOutcome,
   Bridge,
+  BridgeRegistry,
   CatalogRevision,
   ChildActionRequest,
   Concierge,
@@ -75,6 +82,8 @@ import type {
   InvocationIdentity,
   InvocationMeta,
   ObservedInput,
+  ObservedActionResult,
+  ObservedResultData,
   ResolvedCatalog,
   Scheduler,
   StageContext,
@@ -117,6 +126,12 @@ const NEVER_ABORTED_SIGNAL: AbortSignalLike = /* @__PURE__ */ Object.freeze({
 });
 
 const DROPPED_INPUT: ObservedInput = /* @__PURE__ */ Object.freeze({
+  kind: "dropped" as const,
+});
+const ABSENT_RESULT_DATA: Readonly<{ kind: "absent" }> = /* @__PURE__ */ Object.freeze({
+  kind: "absent" as const,
+});
+const DROPPED_RESULT_DATA: Readonly<{ kind: "dropped" }> = /* @__PURE__ */ Object.freeze({
   kind: "dropped" as const,
 });
 
@@ -308,13 +323,24 @@ interface V2DedupeRecord {
   settledAt: number | null;
 }
 
+type WorkflowObservedResultData =
+  | Readonly<{ kind: "absent" }>
+  | Readonly<{ kind: "dropped" }>
+  | Readonly<{ kind: "included"; value: unknown; full: boolean }>;
+
+interface WorkflowOutcome {
+  readonly result: ActionResult;
+  readonly observedData: WorkflowObservedResultData;
+  readonly validatedEntry: CatalogEntry | null;
+}
+
 interface WorkflowRootState {
   readonly rootDispatchId: string;
   readonly signal: AbortSignalLike;
   readonly executionState: DispatchExecutionState;
   steps: number;
-  failure: ActionResult | null;
-  terminalResult: ActionResult | null;
+  failure: WorkflowOutcome | null;
+  terminalResult: WorkflowOutcome | null;
   terminalRef: DispatchRef | null;
 }
 
@@ -343,6 +369,8 @@ interface WorkflowRuntime {
 interface PipelineObservation {
   accepted: boolean;
   input: ObservedInput;
+  resultSource: unknown;
+  resultSourcePresent: boolean;
 }
 
 type InvocationMetaSnapshot =
@@ -389,12 +417,21 @@ interface ConsentGenerationBase {
   readonly responseId: string;
   readonly sessionId: string | null;
   readonly snapshot: Readonly<Record<string, unknown>>;
+  readonly snapshotBridgeId: string;
+  readonly snapshotBridgeRegistry: BridgeRegistry | undefined;
   readonly userTurnId: string;
   readonly verifiedReadback: VerifiedReadbackEvidence | null;
 }
 
+interface ConsentReviewClaim {
+  readonly generation: bigint;
+  readonly responseId: string;
+  readonly sessionId: string | null;
+  readonly status: "reviewing";
+}
+
 type ConsentGeneration =
-  | (ConsentGenerationBase & { readonly status: "reviewing" })
+  | ConsentReviewClaim
   | (ConsentGenerationBase & { readonly status: "pendingDelivery" })
   | (ConsentGenerationBase & { readonly status: "verifyingDelivery" })
   | (ConsentGenerationBase & {
@@ -832,7 +869,7 @@ function snapshotDispatchEnvelopeInput(
   };
 }
 
-/** Snapshot the complete v2 request before any asynchronous work begins. */
+/** Snapshot the complete dispatch request before asynchronous work begins. */
 function snapshotDispatchRequest(request: unknown): DispatchRequestSnapshot {
   const envelope: DispatchEnvelopeSnapshot = snapshotDispatchEnvelope(request);
   return envelope.ok
@@ -885,6 +922,15 @@ function snapshotAction(action: AnyActionDefinition): AnyActionDefinition {
       snapshot = {
         ...snapshot,
         consent: snapshotConsentPolicy(snapshot.consent),
+      };
+    }
+    if (snapshot.output !== undefined) {
+      snapshot = {
+        ...snapshot,
+        output: Object.freeze({
+          schema: snapshot.output.schema,
+          redact: snapshot.output.redact,
+        }),
       };
     }
     return snapshot;
@@ -1025,6 +1071,42 @@ function resolveBridge(stage: ConciergeConfig["stages"][number]): Bridge | null 
   }
 }
 
+/** Select an action-local registry before the owning stage fallback. */
+function effectiveBridgeRegistry(
+  action: AnyActionDefinition,
+  stage: ConciergeConfig["stages"][number] | undefined,
+): BridgeRegistry | undefined {
+  return action.bridge ?? stage?.bridge;
+}
+
+/** Read one already-selected registry, containing consumer failures as null. */
+function resolveBridgeRegistry(
+  registry: BridgeRegistry | undefined,
+): Bridge | null {
+  if (registry === undefined) return null;
+  try {
+    return registry.read() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function actionBridgeStatus(
+  action: AnyActionDefinition,
+  stage: ConciergeConfig["stages"][number] | undefined,
+): ActionExplanation["bridge"] {
+  const registry: BridgeRegistry | undefined =
+    effectiveBridgeRegistry(action, stage);
+  if (registry === undefined) return null;
+  let registered: boolean = false;
+  try {
+    registered = registry.read() != null;
+  } catch {
+    registered = false;
+  }
+  return { id: registry.id, registered };
+}
+
 /**
  * Everything `explain` can honestly say about one stage's bridge.
  *
@@ -1115,6 +1197,10 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   const dedupeWindowMs: number = validateWindowMs(
     config.dedupeWindowMs ?? 600,
     "dedupeWindowMs",
+  );
+  const maxActionDataBytes: number = validateWorkflowLimit(
+    config.maxActionDataBytes ?? DEFAULT_ACTION_DATA_MAX_BYTES,
+    "maxActionDataBytes",
   );
   const maxWorkflowDepth: number = validateWorkflowLimit(
     config.maxWorkflowDepth ?? 16,
@@ -1299,12 +1385,9 @@ export function createConcierge(config: ConciergeConfig): Concierge {
 
   /** Detach one already-resolved bridge without reading its registry again. */
   function captureResolvedSnapshot(
-    index: number | null,
+    bridgeId: string,
     bridge: Bridge | null,
   ): Readonly<Record<string, unknown>> {
-    const stage: ConciergeConfig["stages"][number] | undefined =
-      index === null ? undefined : stages[index];
-    const bridgeId: string = stage?.bridge?.id ?? stage?.id ?? "cross-stage";
     return Object.freeze(
       captureSnapshot(
         bridge as Bridge,
@@ -1312,16 +1395,6 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         capturedConsent.normalizeSnapshot,
       ),
     );
-  }
-
-  /** Capture the active bridge early without replacing its later live resolve. */
-  function captureReviewSnapshot(
-    index: number | null,
-  ): Readonly<Record<string, unknown>> {
-    const stage: ConciergeConfig["stages"][number] | undefined =
-      index === null ? undefined : stages[index];
-    const bridge: Bridge | null = stage === undefined ? null : resolveBridge(stage);
-    return captureResolvedSnapshot(index, bridge);
   }
 
   /** Arm one owned pending generation from snapshotted delivery evidence. */
@@ -1764,6 +1837,192 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     return Object.freeze({ kind: "included", value: snapshot.value });
   }
 
+  function observedResultStatus(result: ActionResult): ObservedActionResult {
+    return Object.freeze(
+      result.reason === undefined
+        ? { ok: result.ok, message: result.message }
+        : { ok: result.ok, reason: result.reason, message: result.message },
+    );
+  }
+
+  function snapshotObservedResultData(
+    entry: CatalogEntry,
+    exposed: unknown,
+    full: boolean,
+  ): WorkflowObservedResultData {
+    const snapshot: ActionDataSnapshot = snapshotActionData(
+      exposed,
+      maxActionDataBytes,
+    );
+    if (!snapshot.ok) {
+      warnDispatchOnce(
+        `output-redaction-invalid:${entry.action.name}`,
+        `concierge: [output_redaction_failed] action ${encodeDiagnosticSubject(entry.action.name)}: its observer result projection was not safe bounded JSON data, so observer data was dropped. Fix: return acyclic plain JSON data without aliases or accessors.`,
+      );
+      return DROPPED_RESULT_DATA;
+    }
+    return Object.freeze({ kind: "included", value: snapshot.value, full });
+  }
+
+  function captureObservedResultData(
+    entry: CatalogEntry | null,
+    result: ActionResult,
+  ): WorkflowObservedResultData {
+    if (result.data === undefined) return ABSENT_RESULT_DATA;
+    if (entry === null) return DROPPED_RESULT_DATA;
+    const output: AnyActionDefinition["output"] = entry.action.output;
+    if (output === undefined || output.redact === "drop") {
+      return DROPPED_RESULT_DATA;
+    }
+
+    let exposed: unknown = result.data;
+    if (typeof output.redact === "function") {
+      try {
+        exposed = output.redact(result.data);
+      } catch {
+        warnDispatchOnce(
+          `output-redaction-threw:${entry.action.name}`,
+          `concierge: [output_redaction_failed] action ${encodeDiagnosticSubject(entry.action.name)}: its result projection threw, so observer data was dropped. Fix: make the projection total and return JSON-safe data.`,
+        );
+        return DROPPED_RESULT_DATA;
+      }
+    }
+
+    return snapshotObservedResultData(
+      entry,
+      exposed,
+      output.redact === "passthrough",
+    );
+  }
+
+  function narrowObservedResultData(
+    entry: CatalogEntry,
+    result: ActionResult,
+    inherited: WorkflowObservedResultData,
+  ): WorkflowObservedResultData {
+    if (result.data === undefined) return ABSENT_RESULT_DATA;
+    if (inherited.kind !== "included") return inherited;
+
+    const output: AnyActionDefinition["output"] = entry.action.output;
+    if (output === undefined || output.redact === "drop") {
+      return DROPPED_RESULT_DATA;
+    }
+    if (output.redact === "passthrough") {
+      return inherited.full
+        ? snapshotObservedResultData(entry, result.data, true)
+        : inherited;
+    }
+
+    let exposed: unknown;
+    try {
+      exposed = output.redact(
+        inherited.full ? result.data : inherited.value,
+      );
+    } catch {
+      warnDispatchOnce(
+        `output-redaction-threw:${entry.action.name}`,
+        `concierge: [output_redaction_failed] action ${encodeDiagnosticSubject(entry.action.name)}: its result projection threw, so observer data was dropped. Fix: make the projection total and return JSON-safe data.`,
+      );
+      return DROPPED_RESULT_DATA;
+    }
+    return snapshotObservedResultData(entry, exposed, false);
+  }
+
+  function exposeObservedResultData(
+    observed: WorkflowObservedResultData,
+  ): ObservedResultData {
+    return observed.kind === "included"
+      ? Object.freeze({ kind: "included", value: observed.value })
+      : observed;
+  }
+
+  function observedResultDataFor(
+    entry: CatalogEntry | null,
+    result: ActionResult,
+  ): ObservedResultData {
+    return exposeObservedResultData(captureObservedResultData(entry, result));
+  }
+
+  function workflowOutcome(
+    result: ActionResult,
+    entry: CatalogEntry | null,
+  ): WorkflowOutcome {
+    return Object.freeze({
+      result,
+      observedData: captureObservedResultData(entry, result),
+      validatedEntry: entry,
+    });
+  }
+
+  function normalizeResultForEntry(
+    entry: CatalogEntry,
+    name: string,
+    value: unknown,
+  ): Promise<ActionResult> {
+    return normalizeActionResult(value, {
+      entry,
+      invalidData: (): void => {
+        warnDispatchOnce(
+          `result-data-invalid:${name}`,
+          `concierge: [invalid_result] action ${encodeDiagnosticSubject(name)}: its result carried structured data that was undeclared, rejected by its output schema, or not safe bounded JSON data, so the whole result was rejected. Fix: declare a matching \`output.schema\` and return acyclic plain JSON data without aliases or accessors within \`maxActionDataBytes\`.`,
+        );
+      },
+      maximumDataBytes: maxActionDataBytes,
+      successReason: (): void => {
+        warnDispatchOnce(
+          `success-reason:${name}`,
+          `concierge: [invalid_result] action ${encodeDiagnosticSubject(name)}: its handler returned a success carrying a failure reason, so the reason was removed. Fix: omit \`reason\` when \`ok\` is true.`,
+        );
+      },
+      reasonlessFailure: (): void => {
+        warnDispatchOnce(
+          `reasonless-failure:${name}`,
+          `concierge: [invalid_result] action ${encodeDiagnosticSubject(name)}: its handler returned a failure without a reason, so the result carries no machine-readable cause. Fix: return one of the declared \`ReasonCode\` values when \`ok\` is false.`,
+        );
+      },
+    });
+  }
+
+  async function adaptWorkflowOutcome(
+    outcome: WorkflowOutcome,
+    entry: CatalogEntry,
+    name: string,
+    normalizedResult: ActionResult,
+    observation: PipelineObservation,
+  ): Promise<WorkflowOutcome> {
+    let result: ActionResult = outcome.result;
+    if (
+      observation.resultSourcePresent &&
+      observation.resultSource === outcome.result
+    ) {
+      result = normalizedResult;
+    } else if (
+      result.data !== undefined &&
+      outcome.validatedEntry !== entry
+    ) {
+      result = await normalizeResultForEntry(entry, name, result);
+    }
+
+    return Object.freeze({
+      result,
+      observedData: narrowObservedResultData(
+        entry,
+        result,
+        outcome.observedData,
+      ),
+      validatedEntry: entry,
+    });
+  }
+
+  function replaceWorkflowOutcome(
+    root: WorkflowRootState,
+    previous: WorkflowOutcome,
+    next: WorkflowOutcome,
+  ): void {
+    if (root.failure === previous) root.failure = next;
+    if (root.terminalResult === previous) root.terminalResult = next;
+  }
+
   function eventTerminalPhase(result: ActionResult): "succeeded" | "failed" | "cancelled" {
     if (result.ok) return "succeeded";
     switch (result.reason) {
@@ -1780,8 +2039,11 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   function latchWorkflowFailure(
     root: WorkflowRootState,
     result: ActionResult,
+    entry: CatalogEntry | null = null,
   ): void {
-    if (root.failure === null && !result.ok) root.failure = result;
+    if (root.failure === null && !result.ok) {
+      root.failure = workflowOutcome(result, entry);
+    }
   }
 
   function workflowRuntimeFor(occurrence: V2Occurrence): WorkflowRuntime {
@@ -2307,10 +2569,13 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         }
         if (cleanupFailed) {
           if (occurrence.root.failure === null) {
-            occurrence.root.failure = authoredResult(
-              false,
-              "Something went wrong during cleanup.",
-              "handler_error",
+            occurrence.root.failure = workflowOutcome(
+              authoredResult(
+                false,
+                "Something went wrong during cleanup.",
+                "handler_error",
+              ),
+              null,
             );
           } else {
             warnDispatchOnce(
@@ -2397,33 +2662,32 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       );
     }
 
+    const stage: ConciergeConfig["stages"][number] | undefined =
+      index === null ? undefined : stages[index];
+    const bridgeRegistry: BridgeRegistry | undefined =
+      effectiveBridgeRegistry(entry.action, stage);
+
+    let reviewingClaim: ConsentReviewClaim | null = null;
     let reviewingGeneration:
       | (ConsentGenerationBase & { readonly status: "reviewing" })
       | null = null;
     if (replacesReviewAuthority) {
       nextConsentGeneration += 1n;
-      reviewingGeneration = Object.freeze({
-        confirmationUserTurnId: null,
+      reviewingClaim = Object.freeze({
         generation: nextConsentGeneration,
-        payload: validatedSnapshot.value,
-        preparedReadback,
-        readbackHash: null,
         responseId: meta.responseId ?? "",
         sessionId: consentSessionId,
-        snapshot: captureReviewSnapshot(index),
         status: "reviewing",
-        userTurnId: meta.userTurnId ?? "",
-        verifiedReadback: null,
       });
       consentGenerations ??= new Map<string, ConsentGeneration>();
-      consentGenerations.set(actionConsentSlotKey, reviewingGeneration);
+      consentGenerations.set(actionConsentSlotKey, reviewingClaim);
     }
 
     const closeOwnedReview = (): void => {
-      if (reviewingGeneration !== null) {
+      if (reviewingClaim !== null) {
         closeConsentGeneration(
           actionConsentSlotKey,
-          reviewingGeneration.generation,
+          reviewingClaim.generation,
         );
       }
     };
@@ -2514,9 +2778,36 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       );
     }
 
-    const stage: ConciergeConfig["stages"][number] | undefined =
-      index === null ? undefined : stages[index];
-    const bridge: Bridge | null = stage === undefined ? null : resolveBridge(stage);
+    const bridge: Bridge | null = resolveBridgeRegistry(bridgeRegistry);
+    if (reviewingClaim !== null) {
+      const currentReview: ConsentGeneration | undefined =
+        consentGenerations?.get(actionConsentSlotKey);
+      if (
+        currentReview?.generation === reviewingClaim.generation &&
+        currentReview.status === "reviewing" &&
+        currentReview.responseId === reviewingClaim.responseId
+      ) {
+        const snapshotBridgeId: string =
+          bridgeRegistry?.id ?? stage?.id ?? "cross-stage";
+        reviewingGeneration = Object.freeze({
+          confirmationUserTurnId: null,
+          generation: reviewingClaim.generation,
+          payload: validatedSnapshot.value,
+          preparedReadback,
+          readbackHash: null,
+          responseId: reviewingClaim.responseId,
+          sessionId: consentSessionId,
+          snapshot: captureResolvedSnapshot(snapshotBridgeId, bridge),
+          snapshotBridgeId,
+          snapshotBridgeRegistry: bridgeRegistry,
+          status: "reviewing",
+          userTurnId: meta.userTurnId ?? "",
+          verifiedReadback: null,
+        });
+        consentGenerations?.set(actionConsentSlotKey, reviewingGeneration);
+      }
+    }
+
     if (isAborted(signal)) {
       closeOwnedReview();
       return authoredResult(
@@ -2613,8 +2904,12 @@ export function createConcierge(config: ConciergeConfig): Concierge {
 
       let snapshotsMatch: boolean = false;
       try {
+        const snapshotBridge: Bridge | null =
+          owned.snapshotBridgeRegistry === bridgeRegistry
+            ? bridge
+            : resolveBridgeRegistry(owned.snapshotBridgeRegistry);
         const currentSnapshot: Readonly<Record<string, unknown>> =
-          captureResolvedSnapshot(index, bridge);
+          captureResolvedSnapshot(owned.snapshotBridgeId, snapshotBridge);
         const comparator: ConsentPolicy<unknown>["snapshotEquality"] =
           policy.snapshotEquality;
         snapshotsMatch = comparator === undefined
@@ -2752,20 +3047,13 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       }
     }
 
-    const normalizedResult: ActionResult = normalizeActionResult(handlerResult, {
-      successReason: (): void => {
-        warnDispatchOnce(
-          `success-reason:${name}`,
-          `concierge: [invalid_result] action ${encodeDiagnosticSubject(name)}: its handler returned a success carrying a failure reason, so the reason was removed. Fix: omit \`reason\` when \`ok\` is true.`,
-        );
-      },
-      reasonlessFailure: (): void => {
-        warnDispatchOnce(
-          `reasonless-failure:${name}`,
-          `concierge: [invalid_result] action ${encodeDiagnosticSubject(name)}: its handler returned a failure without a reason, so the result carries no machine-readable cause. Fix: return one of the declared \`ReasonCode\` values when \`ok\` is false.`,
-        );
-      },
-    });
+    observation.resultSource = handlerResult;
+    observation.resultSourcePresent = true;
+    const normalizedResult: ActionResult = await normalizeResultForEntry(
+      entry,
+      name,
+      handlerResult,
+    );
 
     if (reviewingGeneration === null) {
       return normalizedResult;
@@ -2881,6 +3169,8 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     const observation: PipelineObservation = {
       accepted: false,
       input: DROPPED_INPUT,
+      resultSource: undefined,
+      resultSourcePresent: false,
     };
     const workflow: WorkflowRuntime = workflowRuntimeFor(occurrence);
     let result: ActionResult;
@@ -2903,20 +3193,37 @@ export function createConcierge(config: ConciergeConfig): Concierge {
 
     workflow.seal();
     await workflow.drain();
-    latchWorkflowFailure(occurrence.root, result);
+    latchWorkflowFailure(occurrence.root, result, entry);
     await workflow.unwind();
 
     if (
       occurrence.root.terminalRef?.dispatchId === occurrence.dispatchId &&
       occurrence.root.terminalResult === null
     ) {
-      occurrence.root.terminalResult = occurrence.root.failure ?? result;
+      occurrence.root.terminalResult = occurrence.root.failure ??
+        workflowOutcome(result, entry);
     }
+    let outcome: WorkflowOutcome;
     if (occurrence.root.terminalResult !== null) {
-      result = occurrence.root.terminalResult;
+      outcome = occurrence.root.terminalResult;
     } else if (occurrence.root.failure !== null) {
-      result = occurrence.root.failure;
+      outcome = occurrence.root.failure;
+    } else {
+      outcome = workflowOutcome(result, entry);
     }
+
+    if (outcome.result !== result) {
+      const adapted: WorkflowOutcome = await adaptWorkflowOutcome(
+        outcome,
+        entry,
+        name,
+        result,
+        observation,
+      );
+      replaceWorkflowOutcome(occurrence.root, outcome, adapted);
+      outcome = adapted;
+    }
+    result = outcome.result;
 
     emitDispatch({
       dispatchId: occurrence.dispatchId,
@@ -2928,7 +3235,8 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       input: observation.input,
       terminalAction: entry.action.terminal === true,
       phase: eventTerminalPhase(result),
-      result,
+      result: observedResultStatus(result),
+      resultData: exposeObservedResultData(outcome.observedData),
       terminalEntered: occurrence.root.terminalRef !== null,
     });
     return result;
@@ -3190,7 +3498,8 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       terminalEntered: inherited?.root.terminalRef !== null &&
         inherited?.root.terminalRef !== undefined,
       phase: eventTerminalPhase(result),
-      result,
+      result: observedResultStatus(result),
+      resultData: observedResultDataFor(null, result),
     });
     return trackDispatchPromise(Promise.resolve(result), executionState);
   }
@@ -3918,11 +4227,26 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     // a documented refusal to early-out on `Object.isFrozen` is not a saving —
     // those are three properties a re-implementation rediscovers as bug
     // reports.
+    const visible: AtomicCatalogResolution = resolveForIndex(activeIndex, ctx);
+    const activeStage: ConciergeConfig["stages"][number] | undefined =
+      activeIndex === null ? undefined : stages[activeIndex];
+    const actionRows: ActionExplanation[] = visible.names.flatMap(
+      (name): ActionExplanation[] => {
+        const entry: CatalogEntry | undefined = catalog.byName[name];
+        return entry === undefined
+          ? []
+          : [{
+              name,
+              bridge: actionBridgeStatus(entry.action, activeStage),
+            }];
+      },
+    );
     return deepFreeze(
       {
         stage: activeIndex === null ? null : (stages[activeIndex]?.id ?? null),
         stages: rows,
-        catalog: resolveForIndex(activeIndex, ctx).names,
+        actions: actionRows,
+        catalog: visible.names,
       },
       NO_SKIP,
       new WeakSet<object>(),

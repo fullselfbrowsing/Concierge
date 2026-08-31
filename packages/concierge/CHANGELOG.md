@@ -1,5 +1,21 @@
 # @full-self-browsing/concierge
 
+## 0.3.0
+
+### Minor Changes
+
+- Add declared, Standard Schema-validated structured action results with
+  detached, recursively frozen, size-bounded JSON data and explicit observer
+  redaction.
+- Add action-scoped bridge registries with action-first precedence, stage
+  fallback, cross-stage support, and action-level `explain()` details.
+- Add the framework-neutral `openai-realtime` codec for acknowledged catalog
+  publication, completed function-call extraction, and correlated output events.
+- Preserve structured results through batches, workflows, AI SDK helpers, and
+  signed browser reports; add the closed `precondition_failed` reason.
+- Move the synchronized package family to runtime contract v3. Existing
+  data-less actions and stage-scoped bridges remain supported unchanged.
+
 ## 0.2.1
 
 ### Patch Changes

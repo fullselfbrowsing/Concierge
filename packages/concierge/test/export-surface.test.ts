@@ -108,6 +108,7 @@ const VALUE_EXPORTS = [
   "USER_DECLINED",
   "CONSENT_GRADE_ORDER",
   "MESSAGE_MAX_CHARS",
+  "DEFAULT_ACTION_DATA_MAX_BYTES",
   "CONTRACT_VERSION",
   "assertSingleInstance",
   "JSON_SCHEMA_TARGET",
@@ -144,15 +145,15 @@ beforeAll(() => {
 });
 
 describe("the published export surface of dist/index.d.ts", () => {
-  it("is exactly 88 names — an export added or dropped by a build-config change lands here", () => {
+  it("is exactly 95 names — an export added or dropped by a build-config change lands here", () => {
     const { names } = readSurface();
-    expect(names).toHaveLength(88);
+    expect(names).toHaveLength(95);
   });
 
-  it("splits 73 types to 15 values", () => {
+  it("splits 79 types to 16 values", () => {
     const { types, values } = readSurface();
-    expect(types).toHaveLength(73);
-    expect(values).toHaveLength(15);
+    expect(types).toHaveLength(79);
+    expect(values).toHaveLength(16);
   });
 
   it("carries all six consent evidence and outcome types by name", () => {
@@ -162,7 +163,7 @@ describe("the published export surface of dist/index.d.ts", () => {
     }
   });
 
-  it("carries all fifteen runtime value exports by name", () => {
+  it("carries all sixteen runtime value exports by name", () => {
     const { values } = readSurface();
     for (const name of VALUE_EXPORTS) {
       expect(values).toContain(name);

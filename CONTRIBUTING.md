@@ -69,11 +69,12 @@ Use a compound action and core's `workflow` controls for an application-owned
 sequence. Child calls must use stable step IDs. Do not put loops, delays, child
 dispatch, or cleanup orchestration in a framework or AI adapter.
 
-## Contract v2 changes
+## Contract v3 changes
 
-Contract v2 includes atomic `ResolvedCatalog` revisions, object-form dispatch,
-explicit terminal batch outcomes, dispatch lifecycle events, compound-action
-lineage, and the signed AI bridge's core dependencies.
+Contract v3 includes atomic `ResolvedCatalog` revisions, structured validated
+results, action-scoped bridge precedence, object-form dispatch, explicit
+terminal batch outcomes, lifecycle events, compound-action lineage, and the
+signed AI and OpenAI Realtime adapters' core dependencies.
 
 An additive implementation detail does not require a contract bump. A change
 that lets two versions disagree about bridge shape, revision capability,
@@ -85,7 +86,7 @@ or signed dispatch interpretation does. Contract changes require:
 3. mismatch mutations proving failure occurs before registration or dispatch;
 4. a migration guide and compatibility update.
 
-Contract v2 is fixed throughout `0.2.x`.
+Contract v3 is fixed throughout `0.3.x`.
 
 ## Tests and checks
 
@@ -142,7 +143,7 @@ adapter dependency. Core exposes AI SDK support only through explicit subpaths
 and keeps `ai` as the optional peer `^6.0.0 || ^7.0.0`.
 
 For a pre-1.0 minor transition only, commit a bounded old/new source range such
-as `workspace:^0.2.3 || ^0.3.0`. Never use `>=0.0.0`. The release versioner
+as `workspace:^0.3.3 || ^0.4.0`. Never use `>=0.0.0`. The release versioner
 validates that the second arm is the actual output and normalizes the Version
 Packages PR back to `workspace:^`, which pnpm packs as the new compatible minor.
 
@@ -156,7 +157,7 @@ created the code.
 
 Historical `.planning` evidence and `scripts/phase-09-*` reproduce the v0.1
 milestone and must not be rewritten as current release tooling. The live release
-contract is `.release/lines/0.2.json`, `scripts/release/`, and
+contract is `.release/lines/0.3.json`, `scripts/release/`, and
 `.github/workflows/release.yml`.
 
 ## Pull requests

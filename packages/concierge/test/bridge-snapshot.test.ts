@@ -1462,7 +1462,7 @@ describe("BRG-03 / DX-02 — a handler given bridge: null returns a sentence, no
     expect(result.ok).toBe(false);
 
     // `toBe("no_bridge")`, not `toBeDefined()`. `ReasonCode` is a CLOSED union
-    // of twelve members whose additions are breaking changes by design, and
+    // of sixteen members whose additions are breaking changes by design, and
     // `no_bridge` is the one declared for exactly this case. A handler placing
     // any other member here would be lying to the model about why it stopped.
     expect(result.reason).toBe("no_bridge");

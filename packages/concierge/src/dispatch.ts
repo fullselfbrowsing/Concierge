@@ -10,10 +10,15 @@
  */
 
 import { sanitizeMessage } from "./message.js";
-import { validateCatalogEntry } from "./catalog.js";
+import {
+  hasCatalogEntryOutput,
+  validateCatalogEntry,
+  validateCatalogEntryOutput,
+} from "./catalog.js";
 import type { CatalogEntry } from "./catalog.js";
 import type {
   AbortSignalLike,
+  ActionData,
   ActionResult,
   ReasonCode,
   Scheduler,
@@ -193,6 +198,194 @@ export function snapshotInvocationValue(
     if (freeze) {
       freezeInvocationValue(detached, new WeakSet<object>());
     }
+    return { ok: true, value: detached };
+  } catch {
+    return { ok: false };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Structured action-result data
+// ---------------------------------------------------------------------------
+
+export type ActionDataSnapshot =
+  | { readonly ok: true; readonly value: ActionData }
+  | { readonly ok: false };
+
+interface JsonSizeBudget {
+  readonly maximum: number;
+  used: number;
+}
+
+function addJsonBytes(budget: JsonSizeBudget, count: number): void {
+  budget.used += count;
+  if (!Number.isSafeInteger(budget.used) || budget.used > budget.maximum) {
+    throw new TypeError("Action data exceeds the configured size bound.");
+  }
+}
+
+/** Bound dense output arrays by the JSON bytes still available to encode them. */
+function maximumActionDataArrayLength(budget: JsonSizeBudget): number {
+  const remaining: number = budget.maximum - budget.used;
+  // A non-empty dense array needs one byte per value, one per separator, and
+  // two brackets: `2 * length + 1`. Empty arrays are checked by addJsonBytes.
+  return remaining < 3 ? 0 : Math.floor((remaining - 1) / 2);
+}
+
+/** Count UTF-8 bytes without depending on DOM's TextEncoder. */
+function utf8ByteLength(value: string): number {
+  let bytes: number = 0;
+  for (let index: number = 0; index < value.length; index += 1) {
+    const code: number = value.charCodeAt(index);
+    if (code <= 0x7f) {
+      bytes += 1;
+    } else if (code <= 0x7ff) {
+      bytes += 2;
+    } else if (code >= 0xd800 && code <= 0xdbff) {
+      const next: number = value.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        bytes += 4;
+        index += 1;
+      } else {
+        bytes += 3;
+      }
+    } else {
+      bytes += 3;
+    }
+  }
+  return bytes;
+}
+
+function addQuotedJsonString(budget: JsonSizeBudget, value: string): void {
+  const encoded: string | undefined = JSON.stringify(value);
+  if (encoded === undefined) {
+    throw new TypeError("Action data strings must be JSON encodable.");
+  }
+  addJsonBytes(budget, utf8ByteLength(encoded));
+}
+
+/** Clone only dense, unaliased JSON data while accounting for its wire size. */
+function cloneActionData(
+  value: unknown,
+  seen: WeakSet<object>,
+  budget: JsonSizeBudget,
+): ActionData {
+  if (value === null) {
+    addJsonBytes(budget, 4);
+    return null;
+  }
+  if (typeof value === "boolean") {
+    addJsonBytes(budget, value ? 4 : 5);
+    return value;
+  }
+  if (typeof value === "string") {
+    addQuotedJsonString(budget, value);
+    return value;
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new TypeError("Action data numbers must be finite.");
+    }
+    addJsonBytes(budget, String(Object.is(value, -0) ? 0 : value).length);
+    return value;
+  }
+  if (typeof value !== "object") {
+    throw new TypeError("Action result data must be JSON-safe data.");
+  }
+  if (seen.has(value)) {
+    throw new TypeError("Action result data cannot contain cycles or aliases.");
+  }
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    const lengthSnapshot: ArrayLengthSnapshot = snapshotArrayLength(
+      value,
+      maximumActionDataArrayLength(budget),
+    );
+    if (!lengthSnapshot.ok) {
+      throw new TypeError("Action data arrays exceed the supported bound.");
+    }
+    const keys: readonly PropertyKey[] = Reflect.ownKeys(value);
+    for (const key of keys) {
+      if (key === "length") continue;
+      if (typeof key !== "string" || !/^(?:0|[1-9]\d*)$/u.test(key)) {
+        throw new TypeError("Action data arrays cannot carry extra properties.");
+      }
+      const index: number = Number(key);
+      if (!Number.isSafeInteger(index) || index >= lengthSnapshot.value) {
+        throw new TypeError("Action data arrays contain an invalid index.");
+      }
+    }
+
+    addJsonBytes(budget, 2);
+    const clone: ActionData[] = [];
+    for (let index: number = 0; index < lengthSnapshot.value; index += 1) {
+      if (index > 0) addJsonBytes(budget, 1);
+      const descriptor: PropertyDescriptor | undefined =
+        Object.getOwnPropertyDescriptor(value, String(index));
+      if (
+        descriptor === undefined ||
+        !("value" in descriptor) ||
+        descriptor.enumerable !== true
+      ) {
+        throw new TypeError("Action data arrays must be dense data properties.");
+      }
+      clone.push(cloneActionData(descriptor.value, seen, budget));
+    }
+    return clone;
+  }
+
+  const prototype: object | null = Object.getPrototypeOf(value);
+  if (prototype !== null && prototype !== Object.prototype) {
+    throw new TypeError("Action data objects must be plain objects.");
+  }
+
+  const keys: readonly PropertyKey[] = Reflect.ownKeys(value);
+  addJsonBytes(budget, 2);
+  const clone: Record<string, ActionData> = Object.create(
+    prototype === null ? null : Object.prototype,
+  ) as Record<string, ActionData>;
+  let entryIndex: number = 0;
+  for (const key of keys) {
+    if (typeof key !== "string") {
+      throw new TypeError("Action data cannot contain symbol keys.");
+    }
+    const descriptor: PropertyDescriptor | undefined =
+      Object.getOwnPropertyDescriptor(value, key);
+    if (
+      descriptor === undefined ||
+      !("value" in descriptor) ||
+      descriptor.enumerable !== true
+    ) {
+      throw new TypeError("Action data objects must use enumerable data properties.");
+    }
+    if (descriptor.value === undefined) continue;
+    if (entryIndex > 0) addJsonBytes(budget, 1);
+    addQuotedJsonString(budget, key);
+    addJsonBytes(budget, 1);
+    Object.defineProperty(clone, key, {
+      configurable: true,
+      enumerable: true,
+      value: cloneActionData(descriptor.value, seen, budget),
+      writable: true,
+    });
+    entryIndex += 1;
+  }
+  return clone;
+}
+
+/** Detach, bound, and recursively freeze validated action-result data. */
+export function snapshotActionData(
+  value: unknown,
+  maximumBytes: number,
+): ActionDataSnapshot {
+  try {
+    const detached: ActionData = cloneActionData(
+      value,
+      new WeakSet<object>(),
+      { maximum: maximumBytes, used: 0 },
+    );
+    freezeInvocationValue(detached, new WeakSet<object>());
     return { ok: true, value: detached };
   } catch {
     return { ok: false };
@@ -569,11 +762,17 @@ export function waitForCommit(
 
 /** Warn-once callbacks owned by one Concierge instance. */
 export interface ResultWarnings {
+  readonly invalidData: () => void;
   readonly successReason: () => void;
   readonly reasonlessFailure: () => void;
 }
 
-/** Runtime membership check for the closed fifteen-code vocabulary. */
+export interface ResultNormalizationOptions extends ResultWarnings {
+  readonly entry: CatalogEntry;
+  readonly maximumDataBytes: number;
+}
+
+/** Runtime membership check for the closed sixteen-code vocabulary. */
 export function isReasonCode(value: unknown): value is ReasonCode {
   switch (value) {
     case "declined":
@@ -591,6 +790,7 @@ export function isReasonCode(value: unknown): value is ReasonCode {
     case "catalog_stale":
     case "invalid_invocation":
     case "identity_conflict":
+    case "precondition_failed":
       return true;
     default:
       return false;
@@ -632,31 +832,94 @@ function notify(warn: () => void): void {
 /**
  * Normalize an untrusted handler return into one fresh ActionResult.
  *
- * Only `ok`, `reason`, and `message` are read, each inside the same guarded
- * property boundary. Extra fields never cross into the returned object. A
- * valid reason on a success is stripped because the effect may already have
- * landed; a reasonless failure is preserved because inventing a cause would be
- * dishonest. Both contradictions warn through instance-owned latches.
+ * Only `ok`, `reason`, `message`, and optional declared `data` are read through
+ * guarded own-property boundaries. Other fields never cross into the returned
+ * object. A valid reason on a success is stripped because the effect may
+ * already have landed; a reasonless failure is preserved because inventing a
+ * cause would be dishonest. Both contradictions warn through instance-owned
+ * latches.
  */
-export function normalizeActionResult(
+type OwnResultProperty =
+  | Readonly<{ ok: true; present: false }>
+  | Readonly<{ ok: true; present: true; value: unknown }>
+  | Readonly<{ ok: false }>;
+
+function readOwnResultProperty(
+  result: object,
+  key: "ok" | "reason" | "message" | "data",
+): OwnResultProperty {
+  try {
+    if (!Object.prototype.hasOwnProperty.call(result, key)) {
+      return { ok: true, present: false };
+    }
+    const descriptor: PropertyDescriptor | undefined =
+      Object.getOwnPropertyDescriptor(result, key);
+    if (descriptor === undefined) return { ok: false };
+    if ("value" in descriptor) {
+      return { ok: true, present: true, value: descriptor.value };
+    }
+    return {
+      ok: true,
+      present: true,
+      value: descriptor.get?.call(result),
+    };
+  } catch {
+    return { ok: false };
+  }
+}
+
+async function validateResultData(
+  entry: CatalogEntry,
   value: unknown,
-  warnings: ResultWarnings,
-): ActionResult {
+  maximumBytes: number,
+): Promise<ActionDataSnapshot> {
+  if (!hasCatalogEntryOutput(entry) || value === undefined) {
+    return { ok: false };
+  }
+  try {
+    const validation: unknown = await validateCatalogEntryOutput(entry, value);
+    if (typeof validation !== "object" || validation === null) {
+      return { ok: false };
+    }
+    const issues: unknown = (validation as { readonly issues?: unknown }).issues;
+    if (issues !== undefined || !("value" in validation)) {
+      return { ok: false };
+    }
+    return snapshotActionData(
+      (validation as { readonly value: unknown }).value,
+      maximumBytes,
+    );
+  } catch {
+    return { ok: false };
+  }
+}
+
+export async function normalizeActionResult(
+  value: unknown,
+  options: ResultNormalizationOptions,
+): Promise<ActionResult> {
   if (typeof value !== "object" || value === null) {
     return invalidResult();
   }
 
-  let ok: unknown;
-  let reason: unknown;
-  let message: unknown;
-  try {
-    const result = value as Record<string, unknown>;
-    ok = result["ok"];
-    reason = result["reason"];
-    message = result["message"];
-  } catch {
+  const okProperty: OwnResultProperty = readOwnResultProperty(value, "ok");
+  const reasonProperty: OwnResultProperty = readOwnResultProperty(value, "reason");
+  const messageProperty: OwnResultProperty = readOwnResultProperty(value, "message");
+  const dataProperty: OwnResultProperty = readOwnResultProperty(value, "data");
+  if (
+    !okProperty.ok || !okProperty.present ||
+    !reasonProperty.ok ||
+    !messageProperty.ok || !messageProperty.present ||
+    !dataProperty.ok
+  ) {
     return invalidResult();
   }
+
+  const ok: unknown = okProperty.value;
+  const reason: unknown = reasonProperty.present
+    ? reasonProperty.value
+    : undefined;
+  const message: unknown = messageProperty.value;
 
   if (typeof ok !== "boolean" || typeof message !== "string") {
     return invalidResult();
@@ -665,17 +928,46 @@ export function normalizeActionResult(
     return invalidResult();
   }
 
+  let data: ActionData | undefined;
+  if (dataProperty.present && dataProperty.value !== undefined) {
+    const normalizedData: ActionDataSnapshot = await validateResultData(
+      options.entry,
+      dataProperty.value,
+      options.maximumDataBytes,
+    );
+    if (!normalizedData.ok) {
+      notify(options.invalidData);
+      return invalidResult();
+    }
+    data = normalizedData.value;
+  }
+
+  const finish = (
+    resultOk: boolean,
+    resultMessage: string,
+    resultReason?: ReasonCode | undefined,
+  ): ActionResult => {
+    const status: ActionResult = authoredResult(
+      resultOk,
+      resultMessage,
+      resultReason,
+    );
+    return data === undefined
+      ? status
+      : Object.freeze({ ...status, data });
+  };
+
   if (ok) {
     if (reason !== undefined) {
-      notify(warnings.successReason);
+      notify(options.successReason);
     }
-    return authoredResult(true, message);
+    return finish(true, message);
   }
 
   if (reason === undefined) {
-    notify(warnings.reasonlessFailure);
-    return authoredResult(false, message);
+    notify(options.reasonlessFailure);
+    return finish(false, message);
   }
 
-  return authoredResult(false, message, reason);
+  return finish(false, message, reason);
 }

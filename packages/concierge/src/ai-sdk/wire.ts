@@ -6,7 +6,7 @@ import type {
 } from "@full-self-browsing/concierge";
 
 export const SIGNED_ENVELOPE_VERSION = 1 as const;
-export const EXPECTED_CORE_CONTRACT_VERSION = 2 as const;
+export const EXPECTED_CORE_CONTRACT_VERSION = 3 as const;
 export const DEFAULT_MAX_CALLS = 128 as const;
 export const DEFAULT_MAX_PAYLOAD_BYTES = 524_288 as const;
 export const DEFAULT_MAX_LIFETIME_MS = 300_000 as const;
@@ -27,7 +27,7 @@ export interface ProtectedHeaderV1 {
 }
 
 export interface ToolBatchClaimsV1 {
-  readonly contractVersion: 2;
+  readonly contractVersion: 3;
   readonly audience: string;
   readonly sessionId: string;
   readonly catalogStage: string | null;
