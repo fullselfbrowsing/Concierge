@@ -1,6 +1,7 @@
 import type { DeliveryReport, ReadbackAttestation } from "@full-self-browsing/concierge";
 import {
   asRecord,
+  createBoundedStore,
   createDiagnostic,
   notifyDiagnostic,
   ownData,
@@ -11,6 +12,8 @@ import type {
   RealtimeDeliveryLedger,
   RealtimeDeliveryLedgerConfig,
 } from "./types.js";
+
+const DEFAULT_MAX_TRACKED_ORIGINS: number = 256;
 
 interface DeliveryGroup {
   readonly originResponseId: string;
@@ -73,8 +76,22 @@ export function createRealtimeDeliveryLedger(
   config: RealtimeDeliveryLedgerConfig,
 ): RealtimeDeliveryLedger {
   const scheduler = resolveScheduler(config.scheduler);
-  const hashesByOrigin: Map<string, string> = new Map();
-  const turnsByOrigin: Map<string, string> = new Map();
+  // Per-origin facts outlive the group that consumed them, because a later
+  // `deferFor` for the same origin opens a fresh group that must still see
+  // them. Bounded rather than cleared, so the lookup survives that case
+  // without growing for the length of the session.
+  const hashesByOrigin = createBoundedStore<string>(
+    DEFAULT_MAX_TRACKED_ORIGINS,
+    DEFAULT_MAX_TRACKED_ORIGINS,
+  );
+  const turnsByOrigin = createBoundedStore<string>(
+    DEFAULT_MAX_TRACKED_ORIGINS,
+    DEFAULT_MAX_TRACKED_ORIGINS,
+  );
+  // `groups` holds only OPEN groups. Every reader already skipped settled
+  // ones, so dropping them on settle is behaviour-neutral — and it is what
+  // keeps `findOpenGroup`, `observeAttestation` and `revokeAll` scanning the
+  // live set rather than the whole session's history.
   const groups: DeliveryGroup[] = [];
   const unbound: DeliveryGroup[] = [];
   const byVoicer: Map<string, DeliveryGroup> = new Map();
@@ -134,6 +151,8 @@ export function createRealtimeDeliveryLedger(
     if (group.voicerId !== undefined) byVoicer.delete(group.voicerId);
     const unboundIndex: number = unbound.indexOf(group);
     if (unboundIndex >= 0) unbound.splice(unboundIndex, 1);
+    const openIndex: number = groups.indexOf(group);
+    if (openIndex >= 0) groups.splice(openIndex, 1);
     const report: DeliveryReport = Object.freeze({
       responseId: group.originResponseId,
       outcome,

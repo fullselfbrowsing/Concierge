@@ -144,6 +144,54 @@ export function asRecord(value: unknown): object | null {
   return value;
 }
 
+/**
+ * An insertion-ordered string map that forgets its oldest entry past a cap.
+ *
+ * A realtime session is long-lived by construction — that is the whole point
+ * of the package — so every per-response map inside one has to have a ceiling
+ * or it is a leak measured in session length rather than in a bug. The shape
+ * is the one `createRealtimeTurnLedger` already used for `byResponse`, lifted
+ * here so the ledgers cannot drift onto different eviction rules.
+ */
+export interface BoundedStore<V> {
+  get(key: string): V | undefined;
+  set(key: string, value: V): void;
+  clear(): void;
+  readonly size: number;
+}
+
+export function createBoundedStore<V>(
+  maxEntries: number,
+  fallback: number,
+): BoundedStore<V> {
+  const cap: number =
+    Number.isSafeInteger(maxEntries) && maxEntries > 0 ? maxEntries : fallback;
+  const entries: Map<string, V> = new Map();
+  const order: string[] = [];
+
+  return {
+    get(key: string): V | undefined {
+      return entries.get(key);
+    },
+    set(key: string, value: V): void {
+      if (!entries.has(key)) order.push(key);
+      entries.set(key, value);
+      while (order.length > cap) {
+        const oldest: string | undefined = order.shift();
+        if (oldest === undefined) break;
+        entries.delete(oldest);
+      }
+    },
+    clear(): void {
+      entries.clear();
+      order.length = 0;
+    },
+    get size(): number {
+      return entries.size;
+    },
+  };
+}
+
 export function ownData(record: object, key: string): unknown {
   try {
     const descriptor: PropertyDescriptor | undefined =

@@ -412,8 +412,15 @@ export function awaitRegistration<B extends Bridge>(
   return new Promise<RegistrationWait<B>>((resolve) => {
     let settled: boolean = false;
     let listenerAttached: boolean = false;
+    // **No "cancel once a handle exists" flag, deliberately.** Every path that
+    // can settle before the timer is armed — an already-aborted signal, a
+    // listener that throws, a bridge already in the slot — returns before the
+    // scheduler is reached, so there is never a handle owing cancellation at
+    // that point. An earlier draft carried a flag for the case; it was never
+    // set, and an unreachable guard is not a safety net, it is a claim no test
+    // can check. Anything added below that settles and then falls through to
+    // the scheduler has to cancel its own handle.
     let cancel: (() => void) | null = null;
-    let cancelWhenAvailable: boolean = false;
     let firedDuringRegistration: boolean = false;
     let registrationComplete: boolean = false;
     let unsubscribe: (() => void) | null = null;
@@ -502,13 +509,6 @@ export function awaitRegistration<B extends Bridge>(
       }
       cancel = scheduledCancel as () => void;
       registrationComplete = true;
-      if (cancelWhenAvailable) {
-        try {
-          cancel();
-        } catch {
-          // ignore
-        }
-      }
       if (firedDuringRegistration && !settled) {
         finish({ status: "timed-out" }, false);
       }

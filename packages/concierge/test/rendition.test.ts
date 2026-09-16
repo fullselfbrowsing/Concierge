@@ -100,3 +100,29 @@ describe("createRenditionBinder", () => {
     expect(binder.pendingCauses()).toEqual(["new"]);
   });
 });
+
+describe("settlement bookkeeping", () => {
+  it("distinguishes a second settlement from one that never had a cause", () => {
+    const issues = [];
+    const binder = createRenditionBinder({ onIssue: (issue) => issues.push(issue) });
+    const reports = [];
+    binder.deferralsFor("cause-1")((report) => reports.push(report));
+    binder.bindRendition({ cause: "cause-1", rendition: "voice-1" });
+
+    binder.settle("voice-1", { outcome: "completed" });
+    expect(reports).toHaveLength(1);
+    expect(issues).toEqual([]);
+
+    // The bindings are gone now, so the shape is identical to a rendition
+    // that never had a cause — but the code must say which one it is.
+    binder.settle("voice-1", { outcome: "completed" });
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("duplicate_settlement");
+
+    binder.settle("never-bound", { outcome: "completed" });
+    expect(issues).toHaveLength(2);
+    expect(issues[1].code).toBe("unbound_rendition");
+
+    expect(reports).toHaveLength(1);
+  });
+});

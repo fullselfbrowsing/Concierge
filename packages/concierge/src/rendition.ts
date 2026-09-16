@@ -61,6 +61,44 @@ export interface RenditionBinder {
 type DeliveryEffect = (report: DeliveryReport) => void;
 
 const DEFAULT_MAX_PENDING_CAUSES: number = 32;
+const SETTLED_MEMORY: number = 512;
+
+/**
+ * A membership set that forgets its oldest entry past a cap.
+ *
+ * The two settlement memories below are pure diagnostics: they exist so a
+ * late deferral or a second `settle` reports the code that names what
+ * happened instead of a misleading one. `causes` is already bounded by
+ * `maxPendingCauses`, and leaving these two unbounded would make the binder
+ * the only thing in a voice session that grows with its length.
+ */
+function createSettledMemory(): {
+  has(id: string): boolean;
+  add(id: string): void;
+  clear(): void;
+} {
+  const ids: Set<string> = new Set();
+  const order: string[] = [];
+  return {
+    has(id: string): boolean {
+      return ids.has(id);
+    },
+    add(id: string): void {
+      if (ids.has(id)) return;
+      ids.add(id);
+      order.push(id);
+      while (order.length > SETTLED_MEMORY) {
+        const oldest: string | undefined = order.shift();
+        if (oldest === undefined) break;
+        ids.delete(oldest);
+      }
+    },
+    clear(): void {
+      ids.clear();
+      order.length = 0;
+    },
+  };
+}
 
 function usableId(value: unknown): string | null {
   return typeof value === "string" &&
@@ -103,7 +141,8 @@ export function createRenditionBinder(
   const causeToRendition: Map<string, string> = new Map();
   const renditionToCauses: Map<string, string[]> = new Map();
   const started: Set<string> = new Set();
-  const settledCauses: Set<string> = new Set();
+  const settledCauses = createSettledMemory();
+  const settledRenditions = createSettledMemory();
 
   function reportIssue(issue: RenditionIssue): void {
     if (onIssue !== undefined) {
@@ -282,18 +321,35 @@ export function createRenditionBinder(
       }
       const bound: string[] | undefined = renditionToCauses.get(id);
       if (bound === undefined) {
-        reportIssue({
-          code: "unbound_rendition",
-          causeResponseId: null,
-          renditionResponseId: id,
-          message:
-            `settlement named rendition ${encodeDiagnosticSubject(id)} with no bound cause.`,
-        });
+        // **Two different situations, two different codes.** The first
+        // settlement deletes the rendition's bindings, so a second one looked
+        // identical to a settlement for a rendition that never had a cause —
+        // and reported `unbound_rendition`, sending a reader after a binding
+        // bug that does not exist. `duplicate_settlement` was declared for
+        // exactly this and had no producer.
+        reportIssue(
+          settledRenditions.has(id)
+            ? {
+                code: "duplicate_settlement",
+                causeResponseId: null,
+                renditionResponseId: id,
+                message:
+                  `rendition ${encodeDiagnosticSubject(id)} was already settled; the second settlement was ignored.`,
+              }
+            : {
+                code: "unbound_rendition",
+                causeResponseId: null,
+                renditionResponseId: id,
+                message:
+                  `settlement named rendition ${encodeDiagnosticSubject(id)} with no bound cause.`,
+              },
+        );
         return;
       }
       const causesToSettle: string[] = [...bound];
       renditionToCauses.delete(id);
       started.delete(id);
+      settledRenditions.add(id);
       for (const cause of causesToSettle) {
         causeToRendition.delete(cause);
         const effects: DeliveryEffect[] = causes.get(cause) ?? [];
@@ -342,6 +398,7 @@ export function createRenditionBinder(
       renditionToCauses.clear();
       started.clear();
       settledCauses.clear();
+      settledRenditions.clear();
     },
 
     pendingCauses(): ReadonlyArray<string> {

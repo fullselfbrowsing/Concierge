@@ -1505,7 +1505,35 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   let warnedDispatch: Set<string> | null = null;
   let consentGenerations: Map<string, ConsentGeneration> | null = null;
   let retainedReviews: Map<string, RetainedReviewRecord> | null = null;
+  // **Bounded, and the reason is worth stating because bounding a replay set
+  // normally is not safe.** This one is defence in depth rather than the
+  // replay control itself: a replayed attestation is already refused by the
+  // generation-identity check, by the already-attested status check, and by
+  // `closeConsentGeneration` deleting the generation once the gated action
+  // runs. The set only turns a replay that survives all three into an
+  // `already_attested` rather than a redundant re-arm. Left unbounded it was
+  // the one structure in the kernel that grew with session length, and the
+  // ceiling is far past any session a person actually has.
   let usedAttestationActIds: Set<string> | null = null;
+  const usedAttestationOrder: string[] = [];
+  const USED_ACT_ID_MEMORY: number = 4096;
+
+  function rememberActId(actId: string): void {
+    const seen: Set<string> = usedAttestationActIds ?? new Set<string>();
+    usedAttestationActIds = seen;
+    if (seen.has(actId)) {
+      return;
+    }
+    seen.add(actId);
+    usedAttestationOrder.push(actId);
+    while (usedAttestationOrder.length > USED_ACT_ID_MEMORY) {
+      const oldest: string | undefined = usedAttestationOrder.shift();
+      if (oldest === undefined) {
+        break;
+      }
+      seen.delete(oldest);
+    }
+  }
   let nextConsentGeneration: bigint = 0n;
 
   /** Address review authority by both its session namespace and action name. */
@@ -4777,8 +4805,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     ) {
       return "malformed";
     }
-    usedAttestationActIds ??= new Set<string>();
-    if (usedAttestationActIds.has(actId)) {
+    if (usedAttestationActIds?.has(actId) === true) {
       return "already_attested";
     }
     if (consentGenerations === null) {
@@ -4833,7 +4860,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       return "already_attested";
     }
     if (act === "declined" || act === "dismissed") {
-      usedAttestationActIds.add(actId);
+      rememberActId(actId);
       consentGenerations.set(
         matched.slotKey,
         Object.freeze({ ...matched.generation, status: act }),
@@ -4849,7 +4876,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     if (!("payload" in current)) {
       return "unknown_readback";
     }
-    usedAttestationActIds.add(actId);
+    rememberActId(actId);
     consentGenerations.set(
       matched.slotKey,
       Object.freeze({

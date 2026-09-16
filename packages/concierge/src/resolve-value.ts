@@ -151,40 +151,27 @@ export function resolveValue<T>(
     return refuse("no-match");
   }
 
-  const exactIdentity: Prepared[] = prepared.filter(
+  // Exact label equality first. `exactLabel` is every candidate whose
+  // normalized label IS the query, so a single hit is unambiguous by
+  // construction — an earlier draft re-scanned `prepared` here for a rival
+  // sharing the label, which cannot exist when this filter produced one row.
+  // Rivalry is decided by the length > 1 arm below, where it is real.
+  const exactLabel: Prepared[] = prepared.filter(
     (row) => row.label === query,
   );
-  if (exactIdentity.length === 1) {
-    const only: Prepared = exactIdentity[0]!;
-    const sameLabelDifferentId: boolean = prepared.some(
-      (row) =>
-        row.label === query &&
-        row.identity !== only.identity &&
-        !Object.is(row.item, only.item),
-    );
-    if (sameLabelDifferentId) {
-      const tied: T[] = exactIdentity
-        .filter((row, index, rows) =>
-          rows.findIndex((other) => other.identity === row.identity) === index
-        )
-        .map((row) => row.item)
-        .slice(0, maxAmbiguous);
-      if (tied.length >= 2) {
-        return refuse("ambiguous", Object.freeze(tied));
-      }
-    }
-    return { ok: true, match: only.item };
+  if (exactLabel.length === 1) {
+    return { ok: true, match: exactLabel[0]!.item };
   }
-  if (exactIdentity.length > 1) {
+  if (exactLabel.length > 1) {
     const identities: Set<string> = new Set(
-      exactIdentity.map((row) => row.identity),
+      exactLabel.map((row) => row.identity),
     );
     if (identities.size === 1) {
-      return { ok: true, match: exactIdentity[0]!.item };
+      return { ok: true, match: exactLabel[0]!.item };
     }
     return refuse(
       "ambiguous",
-      Object.freeze(exactIdentity.map((row) => row.item).slice(0, maxAmbiguous)),
+      Object.freeze(exactLabel.map((row) => row.item).slice(0, maxAmbiguous)),
     );
   }
 

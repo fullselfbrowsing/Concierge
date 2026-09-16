@@ -101,3 +101,38 @@ describe("resolveValue", () => {
     expect(result).toEqual({ ok: false, reason: "no-match" });
   });
 });
+
+describe("same-label candidates", () => {
+  const config = {
+    getLabel: (item: { label: string; id: string }) => item.label,
+    getIdentity: (item: { label: string; id: string }) => item.id,
+  };
+
+  it("refuses when two distinct items share the queried label", () => {
+    const a = { label: "Deluxe King", id: "room-a" };
+    const b = { label: "Deluxe King", id: "room-b" };
+    const result = resolveValue("deluxe king", [a, b], config);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe("ambiguous");
+      expect(result.candidates).toEqual([a, b]);
+    }
+  });
+
+  it("matches when both rows carry one identity", () => {
+    const a = { label: "Deluxe King", id: "room-a" };
+    const b = { label: "Deluxe King", id: "room-a" };
+    const result = resolveValue("deluxe king", [a, b], config);
+
+    expect(result).toEqual({ ok: true, match: a });
+  });
+
+  it("matches the only row carrying the queried label", () => {
+    const a = { label: "Deluxe King", id: "room-a" };
+    const b = { label: "Standard Twin", id: "room-b" };
+    const result = resolveValue("deluxe king", [a, b], config);
+
+    expect(result).toEqual({ ok: true, match: a });
+  });
+});

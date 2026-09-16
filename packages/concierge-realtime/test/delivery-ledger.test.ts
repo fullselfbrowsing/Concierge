@@ -248,3 +248,54 @@ describe("attestation snapshotting", () => {
     expect(Object.isFrozen(reports[0].attestation)).toBe(true);
   });
 });
+
+describe("bounded bookkeeping", () => {
+  it("does not rescan settled groups as a session runs on", () => {
+    const ledger = createRealtimeDeliveryLedger({});
+    const reports = [];
+
+    for (let index = 0; index < 200; index += 1) {
+      const origin = `origin-${index}`;
+      const voicer = `voice-${index}`;
+      ledger.deferFor(origin)((report) => reports.push(report));
+      ledger.bindResponse(voicer);
+      ledger.playbackStarted(voicer);
+      ledger.playbackDrained(voicer);
+    }
+    expect(reports).toHaveLength(200);
+    expect(reports.every((report) => report.outcome === "completed")).toBe(true);
+
+    // Every group above settled, so revoking has nothing left to find and
+    // emits no diagnostic for work that already finished.
+    const diagnostics = [];
+    const live = createRealtimeDeliveryLedger({
+      onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+    });
+    for (let index = 0; index < 50; index += 1) {
+      const origin = `o-${index}`;
+      const voicer = `v-${index}`;
+      live.deferFor(origin)(() => undefined);
+      live.bindResponse(voicer);
+      live.playbackStarted(voicer);
+      live.playbackDrained(voicer);
+    }
+    live.revokeAll();
+    expect(diagnostics).toEqual([]);
+  });
+
+  it("still reports an origin's readback hash after many later responses", () => {
+    const ledger = createRealtimeDeliveryLedger({});
+    ledger.attachReadbackHash("origin-keep", "hash-keep");
+    for (let index = 0; index < 100; index += 1) {
+      ledger.attachReadbackHash(`origin-${index}`, `hash-${index}`);
+    }
+    const reports = [];
+    ledger.deferFor("origin-keep")((report) => reports.push(report));
+    ledger.bindResponse("voice-keep");
+    ledger.playbackStarted("voice-keep");
+    ledger.playbackDrained("voice-keep");
+
+    expect(reports).toHaveLength(1);
+    expect(reports[0].readbackHash).toBe("hash-keep");
+  });
+});
