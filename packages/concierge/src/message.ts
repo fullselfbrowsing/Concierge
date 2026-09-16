@@ -61,6 +61,24 @@ export function sanitizeMessage(message: string): string {
   return sanitizeText(message, { maxChars: MESSAGE_MAX_CHARS });
 }
 
+/**
+ * The largest cut at or below `limit` that does not split a surrogate pair.
+ *
+ * Both cuts `boundText` makes go through here. The ellipsis cut needs it just
+ * as much as the bound does: shortening a well-formed slice by one code unit
+ * to make room for `…` strands a high surrogate whenever the slice ended on an
+ * astral character, and a lone surrogate is not a well-formed UTF-16 string.
+ * `consent-evidence.ts`'s `quoteString` rejects one outright, so a readback
+ * assembled from truncated text would refuse with `payload_unsupported`.
+ */
+function surrogateSafeCut(value: string, limit: number): number {
+  if (limit <= 0) {
+    return 0;
+  }
+  const lastRetained: number = value.charCodeAt(limit - 1);
+  return lastRetained >= 0xd800 && lastRetained <= 0xdbff ? limit - 1 : limit;
+}
+
 function boundText(message: string, maxChars: number, ellipsis: boolean): string {
   if (!Number.isSafeInteger(maxChars) || maxChars < 0) {
     return "";
@@ -69,15 +87,12 @@ function boundText(message: string, maxChars: number, ellipsis: boolean): string
     return message;
   }
 
-  const lastRetained: number = message.charCodeAt(maxChars - 1);
-  const cut: number =
-    lastRetained >= 0xd800 && lastRetained <= 0xdbff ? maxChars - 1 : maxChars;
-  const sliced: string = message.slice(0, cut);
+  const sliced: string = message.slice(0, surrogateSafeCut(message, maxChars));
   if (!ellipsis) {
     return sliced;
   }
   if (sliced.length === 0) {
     return "";
   }
-  return `${sliced.slice(0, Math.max(0, sliced.length - 1))}…`;
+  return `${sliced.slice(0, surrogateSafeCut(sliced, sliced.length - 1))}…`;
 }

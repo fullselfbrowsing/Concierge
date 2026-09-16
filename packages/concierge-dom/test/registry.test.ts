@@ -96,6 +96,82 @@ describe("createAnchorRegistry", () => {
     expect(anchors.resolve("notes").status).toBe("not-registered");
   });
 
+  it("holds both nodes when one key is mounted twice through ref", () => {
+    const anchors = registry();
+    const mobile: HTMLElement = mount("article", "mobile");
+    const desktop: HTMLElement = mount("article", "desktop");
+    const attach = anchors.ref("deal-1");
+
+    attach(mobile);
+    attach(desktop);
+
+    expect(anchors.resolve("deal-1").registered).toBe(2);
+    expect(anchors.resolve("deal-1").element).toBe(mobile);
+  });
+
+  it("returns a cleanup that releases only the element it attached", () => {
+    const anchors = registry();
+    const first: HTMLElement = mount("article", "one");
+    const second: HTMLElement = mount("article", "two");
+    const attach = anchors.ref("deal");
+
+    const releaseFirst = attach(first);
+    attach(second);
+    expect(typeof releaseFirst).toBe("function");
+
+    (releaseFirst as () => void)();
+    expect(anchors.resolve("deal").registered).toBe(1);
+    expect(anchors.resolve("deal").element).toBe(second);
+  });
+
+  it("re-attaching the same element does not double-register it", () => {
+    const anchors = registry();
+    const element: HTMLElement = mount();
+    const attach = anchors.ref("deal");
+
+    attach(element);
+    attach(element);
+
+    expect(anchors.resolve("deal").registered).toBe(1);
+  });
+
+  it("a bare null detach drops disconnected nodes before live ones", () => {
+    const anchors = registry();
+    const removed: HTMLElement = mount("article", "gone");
+    const live: HTMLElement = mount("article", "here");
+    const attach = anchors.ref("deal");
+
+    attach(removed);
+    attach(live);
+    removed.remove();
+
+    attach(null);
+    expect(anchors.resolve("deal").registered).toBe(1);
+    expect(anchors.resolve("deal").element).toBe(live);
+
+    // Nothing is disconnected now, so the fallback releases newest-first.
+    attach(null);
+    expect(anchors.resolve("deal").status).toBe("not-registered");
+  });
+
+  it("clear drops the ref bookkeeping, not just the registrations", () => {
+    const anchors = registry();
+    const element: HTMLElement = mount();
+    const before = anchors.ref("deal", { readable: true });
+    before(element);
+
+    anchors.clear();
+
+    const after = anchors.ref("deal");
+    expect(after).not.toBe(before);
+    after(mount());
+    expect(anchors.resolve("deal").registered).toBe(1);
+    // Options were cleared with the callback, so readability is back to false.
+    expect(anchors.readUntrusted("deal", { maxChars: 40 }).status).toBe(
+      "not-readable",
+    );
+  });
+
   it("action registers on the node and destroy unregisters that token", () => {
     const anchors = registry();
     const node: HTMLElement = mount("li", "line");

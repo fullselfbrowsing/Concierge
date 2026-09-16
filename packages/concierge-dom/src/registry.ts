@@ -254,6 +254,12 @@ export function createAnchorRegistry(
   const byKey: Map<string, Registration[]> = new Map();
   const refCallbacks: Map<string, AnchorRef> = new Map();
   const refOptions: Map<string, AnchorOptions> = new Map();
+  // One release per ELEMENT, not one per key. A key holds a set of
+  // registrations, and `ref(key)` returns one shared callback for every JSX
+  // site using that key — so a single release slot made the second node
+  // silently unregister the first. Kept at factory scope rather than in the
+  // callback closure so `clear()` can drop every outstanding release.
+  const refReleases: Map<string, Map<HTMLElement, () => void>> = new Map();
   const pendingFrames: Map<string, () => void> = new Map();
   const pendingMarks: Map<string, PendingMark> = new Map();
 
@@ -348,15 +354,31 @@ export function createAnchorRegistry(
   ): Promise<FrameWait> =>
     new Promise<FrameWait>((settle: (result: FrameWait) => void): void => {
       let settled: boolean = false;
+      // **`let`, not `const`, and called optionally.** `frame` and `scheduler`
+      // are injected, and an injected double may invoke its callback
+      // synchronously — `createTestScheduler` from
+      // `@full-self-browsing/concierge/testing` does exactly that for
+      // `delayMs <= 0`. With `const` declarations below `finish`, that
+      // synchronous call reached them in the temporal dead zone and the whole
+      // `reveal` rejected with a `ReferenceError` instead of returning an
+      // outcome. Each handle is instead cancelled at its own call site when
+      // the wait has already settled.
+      let cancelScheduledFrame: (() => void) | undefined;
+      let cancelFallback: (() => void) | undefined;
+      let abortListenerAttached: boolean = false;
+
       const finish = (result: FrameWait): void => {
         if (settled) {
           return;
         }
         settled = true;
         pendingFrames.delete(key);
-        cancelScheduledFrame();
-        cancelFallback();
-        if (signal !== undefined) {
+        cancelScheduledFrame?.();
+        cancelScheduledFrame = undefined;
+        cancelFallback?.();
+        cancelFallback = undefined;
+        if (abortListenerAttached && signal !== undefined) {
+          abortListenerAttached = false;
           signal.removeEventListener("abort", onAbort);
         }
         settle(result);
@@ -366,13 +388,8 @@ export function createAnchorRegistry(
         finish("aborted");
       };
 
-      const cancelScheduledFrame: () => void = frame((): void => {
-        finish("proceed");
-      });
-      const cancelFallback: () => void = scheduler((): void => {
-        finish("proceed");
-      }, frameFallbackMs);
-
+      // Registered and wired BEFORE anything is scheduled, so an already
+      // aborted signal never arms a timer it would only have to cancel.
       pendingFrames.set(key, (): void => {
         finish("aborted");
       });
@@ -383,7 +400,26 @@ export function createAnchorRegistry(
           return;
         }
         signal.addEventListener("abort", onAbort);
+        abortListenerAttached = true;
       }
+
+      const scheduledFrame: () => void = frame((): void => {
+        finish("proceed");
+      });
+      if (settled) {
+        scheduledFrame();
+        return;
+      }
+      cancelScheduledFrame = scheduledFrame;
+
+      const scheduledFallback: () => void = scheduler((): void => {
+        finish("proceed");
+      }, frameFallbackMs);
+      if (settled) {
+        scheduledFallback();
+        return;
+      }
+      cancelFallback = scheduledFallback;
     });
 
   const finishReveal = (
@@ -536,6 +572,28 @@ export function createAnchorRegistry(
     };
   };
 
+  /**
+   * Release one element's registration and forget it.
+   *
+   * Split out so the cleanup a caller holds and the bare-`null` detach path
+   * below cannot drift onto different bookkeeping.
+   */
+  const releaseRefElement = (
+    key: string,
+    element: HTMLElement,
+    held: Map<HTMLElement, () => void>,
+  ): void => {
+    const release: (() => void) | undefined = held.get(element);
+    if (release === undefined) {
+      return;
+    }
+    held.delete(element);
+    if (held.size === 0) {
+      refReleases.delete(key);
+    }
+    release();
+  };
+
   const ref = (key: string, refOpts?: AnchorOptions): AnchorRef => {
     if (refOpts !== undefined) {
       refOptions.set(key, refOpts);
@@ -545,15 +603,58 @@ export function createAnchorRegistry(
       return existing;
     }
 
-    let release: (() => void) | undefined;
-    const callback: AnchorRef = (element: HTMLElement | null): void => {
-      if (release !== undefined) {
-        release();
-        release = undefined;
+    // **One callback identity per key, many live elements under it.** The
+    // identity is what makes `ref(key)` safe in JSX without memoisation, and
+    // it is also why the callback cannot hold a single release: every JSX
+    // site using this key calls the same function, so a lone slot made the
+    // second mounted node evict the first.
+    const callback: AnchorRef = (
+      element: HTMLElement | null,
+    ): (() => void) | void => {
+      let held: Map<HTMLElement, () => void> | undefined = refReleases.get(key);
+
+      // **Detach with no element is React 18's shape, and it is lossy.** The
+      // caller does not say WHICH node left, so prefer the ones the document
+      // can no longer reach; a disconnected registration never wins `resolve`
+      // anyway, so dropping them is free. Only when none is disconnected does
+      // this fall back to newest-first. React 19 callers never reach here —
+      // they get the cleanup returned below, which names its own element.
+      if (element === null) {
+        if (held === undefined || held.size === 0) {
+          return undefined;
+        }
+        const disconnected: HTMLElement[] = [...held.keys()].filter(
+          (candidate: HTMLElement): boolean => !candidate.isConnected,
+        );
+        if (disconnected.length > 0) {
+          for (const stale of disconnected) {
+            releaseRefElement(key, stale, held);
+          }
+          return undefined;
+        }
+        const newest: HTMLElement | undefined = [...held.keys()].at(-1);
+        if (newest !== undefined) {
+          releaseRefElement(key, newest, held);
+        }
+        return undefined;
       }
-      if (element !== null) {
-        release = register(key, element, refOptions.get(key));
+
+      if (held?.has(element) === true) {
+        const settled: Map<HTMLElement, () => void> = held;
+        return (): void => {
+          releaseRefElement(key, element, settled);
+        };
       }
+
+      if (held === undefined) {
+        held = new Map<HTMLElement, () => void>();
+        refReleases.set(key, held);
+      }
+      const bound: Map<HTMLElement, () => void> = held;
+      bound.set(element, register(key, element, refOptions.get(key)));
+      return (): void => {
+        releaseRefElement(key, element, bound);
+      };
     };
     refCallbacks.set(key, callback);
     return callback;
@@ -577,6 +678,12 @@ export function createAnchorRegistry(
       cancelMark(key);
     }
     byKey.clear();
+    // The ref bookkeeping is dropped with the registrations it describes.
+    // Left behind it would grow for the registry's lifetime and hand out
+    // cleanups closing over releases that can no longer find their bucket.
+    refReleases.clear();
+    refCallbacks.clear();
+    refOptions.clear();
   };
 
   const registry: AnchorRegistry = {

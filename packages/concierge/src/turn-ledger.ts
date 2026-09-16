@@ -213,12 +213,16 @@ export function createTurnLedger(config: TurnLedgerConfig = {}): TurnLedger {
       return responses.get(responseId) ?? null;
     },
 
+    // **The FIRST attested turn after `turnId`, not the last.** An earlier
+    // draft ran the loop to completion and returned whatever it last saw,
+    // which let a confirmation arbitrarily far in the future stand in for
+    // this review's. The turn that attests a review is the one the person
+    // took in answer to it, so the search stops at the first match.
     attestationTurnAfter(turnId: string): RecordedTurn | null {
       const index: number = turnOrder.indexOf(turnId);
       if (index < 0) {
         return null;
       }
-      let found: RecordedTurn | null = null;
       for (let i: number = index + 1; i < turnOrder.length; i += 1) {
         const id: string | undefined = turnOrder[i];
         if (id === undefined) {
@@ -226,10 +230,10 @@ export function createTurnLedger(config: TurnLedgerConfig = {}): TurnLedger {
         }
         const turn: RecordedTurn | undefined = turns.get(id);
         if (turn?.provenance === "human-attested") {
-          found = turn;
+          return turn;
         }
       }
-      return found;
+      return null;
     },
 
     reset(): void {

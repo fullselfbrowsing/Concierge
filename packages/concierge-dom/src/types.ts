@@ -40,10 +40,20 @@ export interface AnchorOptions {
 }
 
 /**
- * A ref callback that returns `void` so React 18 does not warn, and so the
- * `null`-on-unmount call is the unregister protocol both React majors share.
+ * A ref callback that registers an element and hands back the cleanup for
+ * *that* element.
+ *
+ * Returning the cleanup is what makes a key holding several simultaneously
+ * mounted nodes exact: React 19 calls the returned function on unmount and
+ * never calls back with `null`, so each site releases the node it attached.
+ * React 18 ignores the return value and calls `ref(null)` instead, naming no
+ * element — see `createAnchorRegistry` for what that path can and cannot
+ * recover. The union keeps this assignable to React 18's `void`-returning
+ * `Ref<T>` and to React 19's `RefCallback<T>` alike.
  */
-export type AnchorRef = (element: HTMLElement | null) => void;
+export type AnchorRef = (
+  element: HTMLElement | null,
+) => (() => void) | void;
 
 /** A Svelte `use:` action. Same registration, different calling convention. */
 export type AnchorAction = (node: HTMLElement) => { destroy: () => void };

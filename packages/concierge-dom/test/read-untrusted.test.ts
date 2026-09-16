@@ -117,6 +117,18 @@ describe("AnchorRegistry.readUntrusted", () => {
     expect(outcome.truncated).toBe(true);
   });
 
+  it("truncates astral text without stranding a surrogate", () => {
+    const anchors = registry();
+    const root: HTMLElement = mount("section", "\u{1F600}".repeat(6));
+    anchors.register("notes", root, { readable: true });
+
+    const outcome = anchors.readUntrusted("notes", { maxChars: 11 });
+    expect(outcome.status).toBe("read");
+    expect(outcome.text.endsWith("…")).toBe(true);
+    expect(outcome.text.length).toBeLessThanOrEqual(11);
+    expect(outcome.text.isWellFormed()).toBe(true);
+  });
+
   it("stops the live walk at maxNodes", () => {
     const anchors = registry();
     const root: HTMLElement = mount("section");

@@ -260,6 +260,53 @@ describe("AnchorRegistry.reveal", () => {
     expect(intoView).not.toHaveBeenCalled();
   });
 
+  it("returns an outcome when the injected frame fires synchronously", async () => {
+    installScrollSpies();
+    const anchors = registry({
+      frame: (fn) => {
+        fn();
+        return (): void => undefined;
+      },
+      scheduler: (fn, delayMs) => {
+        if (delayMs <= 0) {
+          fn();
+        }
+        return (): void => undefined;
+      },
+    });
+    const element: HTMLElement = mount();
+    anchors.register("deal", element);
+
+    const outcome = await anchors.reveal("deal", {
+      defer: "frame",
+      behavior: "auto",
+    });
+    expect(outcome.status).toBe("revealed");
+    expect(outcome.element).toBe(element);
+  });
+
+  it("returns an outcome when the fallback scheduler fires synchronously", async () => {
+    installScrollSpies();
+    const anchors = registry({
+      frameFallbackMs: 0,
+      frame: () => (): void => undefined,
+      scheduler: (fn, delayMs) => {
+        if (delayMs <= 0) {
+          fn();
+        }
+        return (): void => undefined;
+      },
+    });
+    const element: HTMLElement = mount();
+    anchors.register("deal", element);
+
+    const outcome = await anchors.reveal("deal", {
+      defer: "frame",
+      behavior: "auto",
+    });
+    expect(outcome.status).toBe("revealed");
+  });
+
   it("sets the reserved reveal mark and removes it when the scheduler fires", async () => {
     installScrollSpies();
     let expire: (() => void) | undefined;

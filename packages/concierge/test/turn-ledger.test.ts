@@ -50,6 +50,24 @@ describe("createTurnLedger", () => {
     expect(ledger.attestationTurnAfter("missing")).toBeNull();
   });
 
+  it("returns the first attested turn after the review, not the last", () => {
+    const ledger = createTurnLedger();
+    ledger.recordUserTurn({ turnId: "review", provenance: "agent-forgeable" });
+    ledger.recordUserTurn({ turnId: "confirm", provenance: "human-attested" });
+    ledger.recordUserTurn({ turnId: "much-later", provenance: "human-attested" });
+    // A confirmation arbitrarily far in the future must not stand in for the
+    // turn the person actually took in answer to this review.
+    expect(ledger.attestationTurnAfter("review")?.turnId).toBe("confirm");
+    expect(ledger.attestationTurnAfter("confirm")?.turnId).toBe("much-later");
+  });
+
+  it("reports no attestation when only weaker turns follow", () => {
+    const ledger = createTurnLedger();
+    ledger.recordUserTurn({ turnId: "review", provenance: "human-attested" });
+    ledger.recordUserTurn({ turnId: "after", provenance: "agent-forgeable" });
+    expect(ledger.attestationTurnAfter("review")).toBeNull();
+  });
+
   it("rejects empty or overlong turn ids and hostile accessors", () => {
     const ledger = createTurnLedger();
     expect(ledger.recordUserTurn({ turnId: "", provenance: "none" })).toBeNull();
