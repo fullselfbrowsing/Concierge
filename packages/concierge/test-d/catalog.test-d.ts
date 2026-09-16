@@ -330,13 +330,13 @@ type _entryMembersAreReadonly = Expect<Equals<CatalogEntry, Readonly<CatalogEntr
 // and `_declaredNamesAreNotWidenedToString` are two lines rather than one.
 
 /** The exact membership. `Equals` and NOT `Assignable`, and that choice is the entire value of the line: `Expect<Assignable<"consent_target_missing", CatalogIssueCode>>` stays GREEN when the alias is widened to `string`, because a literal is assignable to `string` — so the one-directional spelling passes on precisely the regression worth guarding. `_entryMembersAreReadonly` above makes the same argument one level down. This also goes red on any member added, removed or renamed, which is deliberate: Phase 8 is scheduled to add a third consent code (`consentRequiresOf`'s residual paragraph), and that addition must move this line rather than slip past it. */
-type _catalogIssueCodeIsExactlyThirteenMembers = Expect<Equals<CatalogIssueCode, "invalid_declaration" | "duplicate_action_name" | "schema_not_emittable" | "schema_root_not_object" | "redaction_missing" | "output_schema_invalid" | "output_redaction_missing" | "consent_target_missing" | "consent_self_reference" | "consent_grade_unavailable" | "user_turn_identity_unavailable" | "readback_presenter_missing" | "digest_missing">>;
+type _catalogIssueCodeIsExactlyThirteenMembers = Expect<Equals<CatalogIssueCode, "invalid_declaration" | "duplicate_action_name" | "schema_not_emittable" | "schema_root_not_object" | "redaction_missing" | "output_schema_invalid" | "output_redaction_missing" | "consent_target_missing" | "consent_self_reference" | "consent_grade_unavailable" | "user_turn_identity_unavailable" | "readback_presenter_missing" | "digest_missing" | "snapshot_slot_not_a_getter" | "vacuous_consent_snapshot" | "message_redaction_invalid">>;
 
 /** The union is CLOSED, not merely containing those six — a plausible near-miss code is rejected. Today this is the widening detector from the opposite direction: under `CatalogIssueCode = string` the literal becomes assignable and this line goes red, independently of the `Equals` above. It is a near-miss rather than an arbitrary string so it doubles as a name pin: if Phase 8 spells its third consent code this way, this is what goes red and sends the author to the line that needs updating. */
 type _catalogIssueCodeIsClosed = Expect<Not<Assignable<"consent_missing", CatalogIssueCode>>>;
 
 /** Phase 8 construction evidence extends the one catalog-options object rather than introducing a second build path. */
-type _buildCatalogOptionKeys = Expect<Equals<keyof BuildCatalogOptions, "jsonSchemaTarget" | "onDiagnostic" | "consentProfile" | "presentReadback" | "digest">>;
+type _buildCatalogOptionKeys = Expect<Equals<keyof BuildCatalogOptions, "jsonSchemaTarget" | "onDiagnostic" | "consentProfile" | "presentReadback" | "digest" | "snapshotSources">>;
 
 /** EOPT-safe options accept values copied from optional ConciergeConfig fields without conditionally rebuilding the options object. */
 type _buildCatalogOptionsAdmitExplicitUndefined = Expect<Assignable<{ consentProfile: undefined; presentReadback: undefined; digest: undefined }, BuildCatalogOptions>>;

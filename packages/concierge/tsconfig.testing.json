@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist/testing",
+    "lib": ["ES2022"],
+    "paths": {
+      "@full-self-browsing/concierge": ["./src/index.ts"]
+    }
+  },
+  "include": ["src/testing/**/*.ts"]
+}

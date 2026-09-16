@@ -1,5 +1,5 @@
 /**
- * @full-self-browsing/concierge contract v3.
+ * @full-self-browsing/concierge contract v4.
  *
  * The framework-neutral core declares typed, consent-gated actions; resolves
  * stage, dynamic availability, tools, and a local catalog revision atomically;
@@ -56,6 +56,11 @@ export type {
   // Redaction
   RedactionPolicy,
   OutputRedactionPolicy,
+  Clock,
+  DispatchTiming,
+  ObservedMessage,
+  MessageRedactionPolicy,
+  MessageRedactionContext,
   // Actions
   ActionOutputDefinition,
   ActionDefinition,
@@ -63,6 +68,11 @@ export type {
   // Bridges
   Bridge,
   BridgeRegistry,
+  BridgeRegistrationEvent,
+  BridgeRegistrationListener,
+  ObservableBridgeRegistry,
+  RegistrationWaitOptions,
+  RegistrationWait,
   // Stages
   StageContext,
   StageDefinition,
@@ -96,6 +106,13 @@ export type {
   SessionConfig,
   SessionDiagnosticCode,
   SessionDiagnostic,
+  CatalogAcknowledgement,
+  ReviewPresentation,
+  ReviewRefusalCode,
+  ReviewOutcome,
+  RetainedReview,
+  ReviewControls,
+  AttestationOutcome,
 } from "./types.js";
 
 export type {
@@ -104,6 +121,10 @@ export type {
   JsonSchemaConverterOptions,
   JsonSchemaConverter,
 } from "./json-schema.js";
+
+export type {
+  SanitizeTextOptions,
+} from "./message.js";
 
 export type {
   // Catalog
@@ -128,6 +149,12 @@ export { CONTRACT_VERSION, assertSingleInstance } from "./contract.js";
 
 export { JSON_SCHEMA_TARGET } from "./json-schema.js";
 
+export { isReasonCode } from "./dispatch.js";
+
+export { sanitizeText } from "./message.js";
+
+export { makeReadbackReceipt } from "./consent-evidence.js";
+
 export { buildCatalog, CatalogValidationError } from "./catalog.js";
 
 export { defineAction } from "./define-action.js";
@@ -136,4 +163,40 @@ export { createConcierge } from "./concierge.js";
 
 export { createSession } from "./session.js";
 
-export { createBridge, captureSnapshot, offPageResult } from "./bridge.js";
+export {
+  createBridge,
+  captureSnapshot,
+  offPageResult,
+  awaitRegistration,
+} from "./bridge.js";
+
+export type {
+  RecordedTurn,
+  TurnLedgerConfig,
+  TurnLedger,
+} from "./turn-ledger.js";
+export { createTurnLedger } from "./turn-ledger.js";
+
+export type {
+  RenditionEvidence,
+  RenditionIssueCode,
+  RenditionIssue,
+  RenditionSettlement,
+  RenditionBinderConfig,
+  RenditionBinder,
+} from "./rendition.js";
+export { createRenditionBinder } from "./rendition.js";
+
+export type {
+  ResolveValueRefusal,
+  ResolveValueResult,
+  ResolveValueConfig,
+} from "./resolve-value.js";
+export { resolveValue } from "./resolve-value.js";
+
+export type {
+  CatalogPromptFormat,
+  RenderCatalogPromptOptions,
+  CatalogDerivedPolicy,
+} from "./catalog-prompt.js";
+export { renderCatalogPrompt, catalogDerivedPolicy } from "./catalog-prompt.js";

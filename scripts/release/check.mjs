@@ -119,6 +119,7 @@ function assertPackageManifest(config, spec, manifest, mode) {
       "./ai-sdk/browser",
       "./openai-realtime",
       "./telemetry",
+      "./testing",
       "./package.json",
     ];
     assert(
@@ -169,22 +170,23 @@ function checkChangesets(config) {
   );
 }
 
-function checkContractV3() {
+function checkContractV4() {
   const core = readFileSync(join(ROOT, "packages/concierge/src/contract.ts"), "utf8");
   assert(
-    /export const CONTRACT_VERSION = 3;/u.test(core),
+    /export const CONTRACT_VERSION = 4;/u.test(core),
     "CONTRACT_VERSION",
-    "core must publish contract v3",
+    "core must publish contract v4",
   );
   for (const relativePath of [
     "packages/concierge-react/src/client.tsx",
     "packages/concierge-svelte/src/client.svelte.ts",
+    "packages/concierge-dom/src/constants.ts",
   ]) {
     const source = readFileSync(join(ROOT, relativePath), "utf8");
     assert(
-      /EXPECTED_CONTRACT_VERSION(?:\s*:\s*number)?\s*=\s*3/u.test(source),
+      /EXPECTED_(?:CORE_)?CONTRACT_VERSION(?:\s*:\s*(?:number|4))?\s*=\s*4/u.test(source),
       "CONTRACT_VERSION",
-      `${relativePath} must reject non-v3 core before registration`,
+      `${relativePath} must reject non-v4 core before registration`,
     );
   }
 }
@@ -205,7 +207,7 @@ function checkSource(config, mode) {
       .join(", ")}`,
   );
   checkChangesets(config);
-  checkContractV3();
+  checkContractV4();
   return manifests[0].version;
 }
 

@@ -137,10 +137,10 @@ type CartBridge = Bridge<{ removeItem: (id: string) => void }, { total: () => nu
 // --------------------------------------------------------------------------
 
 /** The whole signature including its generic head, which is the strongest of the five and the only one that sees the `= Bridge` default: measured this session, `Equals<…>` against a `<B extends Bridge>(id: string) => BridgeRegistry<B>` variant with the default deleted reads FALSE, while the `ReturnType` decomposition two predicates down stays TRUE against that same variant, because an uninferrable type parameter falls back to its CONSTRAINT and the constraint here is also `Bridge`. Also measured red against `id: unknown`, against an added second parameter, and against a non-generic `(id: string) => BridgeRegistry<Bridge>`. */
-type _createBridgeSignature = Expect<Equals<typeof createBridge, <B extends Bridge = Bridge>(id: string) => BridgeRegistry<B>>>;
+type _createBridgeSignature = Expect<Equals<typeof createBridge, <B extends Bridge = Bridge>(id: string) => import("../src/types.js").ObservableBridgeRegistry<B>>>;
 
 /** Instantiated at a concrete bridge, which is the form a consumer actually writes and the form `actions.test-d.ts:400-406` records a whole phase getting wrong: a type parameter never instantiated is a type parameter never tested. `BridgeRegistry<ResultsBridge>` exactly — not a supertype of it, which is what the next predicate exists to make legible. */
-type _createBridgeReturnsRegistryAtItsBridge = Expect<Equals<ReturnType<typeof createBridge<ResultsBridge>>, BridgeRegistry<ResultsBridge>>>;
+type _createBridgeReturnsRegistryAtItsBridge = Expect<Equals<ReturnType<typeof createBridge<ResultsBridge>>, import("../src/types.js").ObservableBridgeRegistry<ResultsBridge>>>;
 
 /** The negative control the predicate above needs to mean anything: the return type must DIFFER at a different bridge. A `createBridge` that ignored `B` and always returned `BridgeRegistry<Bridge>` would make this read false, and `Not<…>` is what turns "these two are distinguishable" into something that can go red. This is also the only line reading `CartBridge`, which keeps the second shape live rather than one refactor from being deleted as dead. */
 type _createBridgeReturnTypeTracksItsBridge = Expect<Not<Equals<ReturnType<typeof createBridge<ResultsBridge>>, BridgeRegistry<CartBridge>>>>;
@@ -149,7 +149,7 @@ type _createBridgeReturnTypeTracksItsBridge = Expect<Not<Equals<ReturnType<typeo
 type _createBridgeTakesOneString = Expect<Equals<Parameters<typeof createBridge>, [id: string]>>;
 
 /** `createBridge("results")` with no explicit type argument yields `BridgeRegistry<Bridge>`, which is what makes the un-parameterised call — the one every quickstart writes — usable rather than merely legal. Stated precisely, because the imprecise version is tempting: this predicate does NOT discriminate the `= Bridge` default's removal (measured; the constraint fallback covers for it), and `_createBridgeSignature` is what does. It discriminates a widened or narrowed CONSTRAINT, which the whole-signature form would also catch and which this one names. */
-type _createBridgeDefaultsToBridge = Expect<Equals<ReturnType<typeof createBridge>, BridgeRegistry<Bridge>>>;
+type _createBridgeDefaultsToBridge = Expect<Equals<ReturnType<typeof createBridge>, import("../src/types.js").ObservableBridgeRegistry<Bridge>>>;
 
 // --------------------------------------------------------------------------
 // BRG-03 — the off-page result helper

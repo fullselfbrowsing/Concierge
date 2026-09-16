@@ -10,9 +10,10 @@ React lifecycle bindings and optional action-state chrome for an existing
 [`@full-self-browsing/concierge`](https://github.com/fullselfbrowsing/Concierge)
 instance and bridge registry.
 
-Version 0.3 is a public preview of contract 3. It supports React 18 and 19,
+Version 0.4 is a public preview of contract 4. It supports React 18 and 19,
 requires Node 22.12 or newer for server rendering, and does not support Edge
-runtimes in the 0.3 line. The existing provider and bridge hooks are unchanged.
+runtimes in the 0.4 line. `useConciergeActivity` now returns the last observer
+event, and `useConciergeBridge` accepts `null` to unregister.
 
 ## Entry points
 
@@ -194,7 +195,8 @@ override its presentation. Both layers use fixed positioning, ignore pointer
 input, and accept a shared `zIndex`.
 
 For application-owned visuals, `useConciergeActivity()` exposes the same
-concurrency-safe active boolean without rendering anything.
+concurrency-safe `{ active, lastEvent }` store without rendering anything.
+`lastEvent` is the redacted observer event; it is never unredacted args.
 
 ## Lifecycle guarantees
 
@@ -205,6 +207,7 @@ concurrency-safe active boolean without rendering anything.
   cannot hide an active parent.
 - `useConciergeBridge` calls `registry.register(bridge)` only from
   `useEffect` and returns that exact registration unsubscriber as cleanup.
+  Passing `null` unregisters and does not install a dummy bridge.
 - React StrictMode's development sequence—setup, cleanup, setup—therefore
   leaves the current registration live. The core registry's monotonic token
   makes a retained stale cleanup an idempotent no-op, while final unmount

@@ -186,7 +186,7 @@ function runAdapterCell(root, inputs, aiVersion) {
       `const browser = await import("@full-self-browsing/concierge/ai-sdk/browser");\n` +
       `const realtime = await import("@full-self-browsing/concierge/openai-realtime");\n` +
       `const telemetry = await import("@full-self-browsing/concierge/telemetry");\n` +
-      `if (CONTRACT_VERSION !== 3 || EXPECTED_CORE_CONTRACT_VERSION !== 3 || SIGNED_ENVELOPE_VERSION !== 1) throw new Error("contract drift");\n` +
+      `if (CONTRACT_VERSION !== 4 || EXPECTED_CORE_CONTRACT_VERSION !== 4 || SIGNED_ENVELOPE_VERSION !== 1) throw new Error("contract drift");\n` +
       `if (typeof server.createSignedBatchIssuer !== "function" || typeof browser.createSignedBrowserBridge !== "function") throw new Error("subpath export drift");\n` +
       `if (typeof realtime.createOpenAIRealtimeCodec !== "function") throw new Error("Realtime subpath export drift");\n` +
       `if (JSON.stringify(Object.keys(telemetry).sort()) !== JSON.stringify(["getConciergeTelemetryStatus","mountConciergeTelemetry","onConciergeTelemetryStatusChange","setConciergeTelemetryEnabled"])) throw new Error("telemetry subpath export drift");\n` +
@@ -251,7 +251,7 @@ function runFrameworkCell(root, inputs, cell) {
       `const svelteRoot = await import("@full-self-browsing/concierge-svelte");\n` +
       `const svelteClient = await import("@full-self-browsing/concierge-svelte/client.svelte");\n` +
       `const html = renderToString(createElement(reactClient.ConciergeProvider, { concierge: {} }, createElement("span", null, "ssr")));\n` +
-      `if (CONTRACT_VERSION !== 3 || html !== "<span>ssr</span>" || typeof reactRoot !== "object" || typeof svelteRoot !== "object" || typeof svelteClient.provideConcierge !== "function") throw new Error("framework ESM SSR import drift");\n` +
+      `if (CONTRACT_VERSION !== 4 || html !== "<span>ssr</span>" || typeof reactRoot !== "object" || typeof svelteRoot !== "object" || typeof svelteClient.provideConcierge !== "function") throw new Error("framework ESM SSR import drift");\n` +
       `process.stdout.write(JSON.stringify({ react: ${JSON.stringify(cell.react)}, svelte: ${JSON.stringify(cell.svelte)}, html }) + "\\n");\n`,
     "utf8",
   );

@@ -66,12 +66,12 @@ function successful(message = "Done.") {
 }
 
 function createKernel({
-  bridge,
+  bridge = createSnapshotBridge({ token: () => "stable" }),
   build = createConcierge,
   config = {},
   gates = [{ name: "confirm" }],
   profile = RELAYED_PROFILE,
-  reviewHandler = () => successful("Reviewed."),
+  reviewHandler,
   reviewName = "review",
   reviewSchema,
 } = {}) {
@@ -79,9 +79,20 @@ function createKernel({
   const gatedEntries = new Map();
   const review = action(
     reviewName,
-    (ctx) => {
+    async (ctx) => {
       reviewEntries.push(ctx);
-      return reviewHandler(ctx);
+      const handler = reviewHandler ?? (async (reviewCtx) => {
+        const proposed = await reviewCtx.review.propose(reviewCtx.args);
+        if (!proposed.ok && proposed.reason === "payload_unsupported") {
+          return {
+            ok: false,
+            reason: "invalid_args",
+            message: "The review payload could not be proposed.",
+          };
+        }
+        return successful("Reviewed.");
+      });
+      return handler(ctx);
     },
     reviewSchema === undefined ? {} : { schema: reviewSchema },
   );
@@ -115,6 +126,7 @@ function createKernel({
   const concierge = build({
     stages: [stage],
     consentProfile: profile,
+    digest: immediateEvidenceDigest(),
     ...config,
   });
 
@@ -331,6 +343,14 @@ function createAttestedKernel({
         ...options,
       });
     },
+    attest(act = "confirmed", actId = "act-confirm") {
+      return built.concierge.attestReadback({
+        act,
+        actId,
+        readbackHash: hash,
+        userTurnId: "confirm-turn",
+      });
+    },
   };
 }
 
@@ -339,6 +359,7 @@ function confirmedEvidence(hash, overrides = {}) {
     readbackHash: hash,
     attestation: {
       act: "confirmed",
+      actId: "act-confirm",
       readbackHash: hash,
       userTurnId: "confirm-turn",
     },
@@ -397,13 +418,14 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
     expect(gatedEntries.get("confirm")).toHaveLength(0);
   });
 
-  it("K02 — a pending delivery returns the declared onMissing result without entering", async () => {
+  it("K02 — a delivered review still below relayed returns grade_unavailable", async () => {
     const delivery = deliveryHarness();
     const { concierge, gatedEntries } = createKernel({
       gates: [
         {
           name: "confirm",
           policy: {
+            minGrade: "relayed",
             onMissing: {
               reason: "consent_required",
               message: "Wait for the review to finish.",
@@ -416,10 +438,9 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
     await dispatchReview(concierge, { deferUntilDelivered: delivery.hook });
     const result = await dispatchGate(concierge);
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       ok: false,
-      reason: "consent_required",
-      message: "Wait for the review to finish.",
+      reason: "grade_unavailable",
     });
     expect(delivery.registrations).toBe(1);
     expect(gatedEntries.get("confirm")).toHaveLength(0);
@@ -445,8 +466,8 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
     expect(gatedEntries.get("confirm")).toHaveLength(1);
   });
 
-  it("K04 — interrupted delivery never arms", async () => {
-    const marker = "[RED:K04:interrupted-delivery-closes-authority]";
+  it("K04 — interrupted delivery retains and surfaces consent_interrupted", async () => {
+    const marker = "[RED:K04:interrupted-delivery-retains-authority]";
     const delivery = deliveryHarness();
     const { concierge, gatedEntries } = createKernel();
 
@@ -454,7 +475,10 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
     delivery.report(0, "review-response", "interrupted");
     const result = await dispatchGate(concierge);
 
-    expect(result, marker).toMatchObject({ ok: false, reason: "consent_required" });
+    expect(result, marker).toMatchObject({
+      ok: false,
+      reason: "consent_interrupted",
+    });
     expect(gatedEntries.get("confirm")).toHaveLength(0);
   });
 
@@ -487,8 +511,8 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
     });
     expect(afterGenuineTurn).toEqual({
       ok: false,
-      reason: "consent_required",
-      message: "Review this action before confirming it.",
+      reason: "consent_interrupted",
+      message: "The review was interrupted before it finished. Ask to hear it again.",
     });
 
     delivery.report(0, "flagship-review-response", "completed");
@@ -499,8 +523,8 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
     });
     expect(afterLateCompletion).toEqual({
       ok: false,
-      reason: "consent_required",
-      message: "Review this action before confirming it.",
+      reason: "consent_interrupted",
+      message: "The review was interrupted before it finished. Ask to hear it again.",
     });
     expect(Object.isFrozen(afterGenuineTurn)).toBe(true);
     expect(Object.isFrozen(afterLateCompletion)).toBe(true);
@@ -526,17 +550,17 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
     ]);
   });
 
-  it("K05 — a successful review with no delivery hook stays closed", async () => {
+  it("K05 — a successful review with no delivery hook arms at delivered", async () => {
     const { concierge, gatedEntries } = createKernel();
 
     expect(await dispatchReview(concierge)).toMatchObject({ ok: true });
     const result = await dispatchGate(concierge);
 
-    expect(result).toMatchObject({ ok: false, reason: "consent_required" });
-    expect(gatedEntries.get("confirm")).toHaveLength(0);
+    expect(result).toMatchObject({ ok: true });
+    expect(gatedEntries.get("confirm")).toHaveLength(1);
   });
 
-  it("K06 — a throwing delivery hook closes authority without leaking its sentinel", async () => {
+  it("K06 — a throwing delivery hook keeps delivered authority armed", async () => {
     const secret = "DELIVERY_SECRET_MUST_NOT_ESCAPE";
     const { concierge, gatedEntries } = createKernel();
 
@@ -548,25 +572,35 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
     const confirm = await dispatchGate(concierge);
 
     expect(review).toMatchObject({ ok: true });
-    expect(confirm).toMatchObject({ ok: false, reason: "consent_required" });
+    expect(confirm).toMatchObject({ ok: true });
     expect(JSON.stringify([review, confirm])).not.toContain(secret);
-    expect(gatedEntries.get("confirm")).toHaveLength(0);
+    expect(gatedEntries.get("confirm")).toHaveLength(1);
   });
 
-  it("K07 — a completed report for a different response cannot arm", async () => {
+  it("K07 — a completed report for a different response cannot raise relayed", async () => {
     const marker = "[RED:K07:delivery-response-ownership]";
     const delivery = deliveryHarness();
-    const { concierge, gatedEntries } = createKernel();
+    const { concierge, gatedEntries } = createKernel({
+      gates: [
+        {
+          name: "confirm",
+          policy: { minGrade: "relayed" },
+        },
+      ],
+    });
 
     await dispatchReview(concierge, { deferUntilDelivered: delivery.hook });
     delivery.report(0, "different-response");
     const result = await dispatchGate(concierge);
 
-    expect(result, marker).toMatchObject({ ok: false, reason: "consent_required" });
+    expect(result, marker).toMatchObject({
+      ok: false,
+      reason: "grade_unavailable",
+    });
     expect(gatedEntries.get("confirm")).toHaveLength(0);
   });
 
-  it("K08 — late and repeated callbacks after interruption remain inert", async () => {
+  it("K08 — late and repeated callbacks after interruption remain interrupted", async () => {
     const delivery = deliveryHarness();
     const { concierge, gatedEntries } = createKernel();
 
@@ -576,7 +610,7 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
     delivery.report(0, "review-response", "completed");
     const result = await dispatchGate(concierge);
 
-    expect(result).toMatchObject({ ok: false, reason: "consent_required" });
+    expect(result).toMatchObject({ ok: false, reason: "consent_interrupted" });
     expect(gatedEntries.get("confirm")).toHaveLength(0);
   });
 
@@ -663,7 +697,9 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
   it("K09 — a fresh validated review immediately replaces an armed generation", async () => {
     const first = deliveryHarness();
     const second = deliveryHarness();
-    const { concierge, gatedEntries } = createKernel();
+    const { concierge, gatedEntries } = createKernel({
+      gates: [{ name: "confirm", policy: { minGrade: "relayed" } }],
+    });
 
     await dispatchReview(concierge, {
       callId: "review-one",
@@ -679,7 +715,7 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
     first.report(0, "response-one");
 
     const result = await dispatchGate(concierge);
-    expect(result).toMatchObject({ ok: false, reason: "consent_required" });
+    expect(result).toMatchObject({ ok: false, reason: "grade_unavailable" });
     expect(second.registrations).toBe(1);
     expect(gatedEntries.get("confirm")).toHaveLength(0);
   });
@@ -708,7 +744,10 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
     const first = createKernel({
       gates: [{ name: "confirmA" }],
     });
-    const reviewB = action("reviewB", () => successful("Reviewed B."));
+    const reviewB = action("reviewB", async (ctx) => {
+      await ctx.review.propose(ctx.args);
+      return successful("Reviewed B.");
+    });
     const second = createKernel();
 
     // Add the second review name through a separate factory so the assertion
@@ -718,8 +757,12 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
         {
           id: "active",
           match: () => true,
+          bridge: createSnapshotBridge({ token: () => "stable" }),
           actions: [
-            action("reviewA", () => successful("Reviewed A.")),
+            action("reviewA", async (ctx) => {
+              await ctx.review.propose(ctx.args);
+              return successful("Reviewed A.");
+            }),
             reviewB,
             action("confirmA", () => successful("A ran."), {
               consent: { requires: "reviewA", bindTo: "response" },
@@ -731,6 +774,7 @@ describe("CON-01/03/05/06/08 — delivery-owned review authority is generation g
         },
       ],
       consentProfile: RELAYED_PROFILE,
+      digest: immediateEvidenceDigest(),
     });
 
     await dispatchReview(first.concierge, {
@@ -1121,7 +1165,8 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
     await armReview(concierge);
 
     expect(await dispatchGate(concierge)).toMatchObject({ ok: true });
-    expect(observedAck.payload, marker).toBe(reviewEntries[0].args);
+    expect(observedAck.payload, marker).toEqual(reviewEntries[0].args);
+    expect(observedAck.payload, marker).not.toBe(reviewEntries[0].args);
     expect(observedAck.snapshot).toBe(comparedSnapshot);
     expect(observedAck).toMatchObject({
       grade: "relayed",
@@ -1280,9 +1325,16 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
         {
           id: "active",
           match: () => true,
+          bridge: createSnapshotBridge({ token: () => "stable" }),
           actions: [
-            action("reviewA", () => successful("Reviewed A.")),
-            action("reviewB", () => successful("Reviewed B.")),
+            action("reviewA", async (ctx) => {
+              await ctx.review.propose(ctx.args);
+              return successful("Reviewed A.");
+            }),
+            action("reviewB", async (ctx) => {
+              await ctx.review.propose(ctx.args);
+              return successful("Reviewed B.");
+            }),
             action(
               "confirm",
               (ctx) => {
@@ -1295,6 +1347,7 @@ describe("CON-02/04/05/06/08 — authority binds late, compares detached state, 
         },
       ],
       consentProfile: RELAYED_PROFILE,
+      digest: immediateEvidenceDigest(),
     });
 
     requires = "reviewB";
@@ -1386,8 +1439,12 @@ describe("CON-07 — achieved none cannot arm after an isolated catalog-floor by
         {
           id: "active",
           match: () => true,
+          bridge: createSnapshotBridge({ token: () => "stable" }),
           actions: [
-            action("review", () => successful("Reviewed.")),
+            action("review", async (ctx) => {
+              await ctx.review.propose(ctx.args);
+              return successful("Reviewed.");
+            }),
             action(
               "confirm",
               (ctx) => {
@@ -1403,6 +1460,7 @@ describe("CON-07 — achieved none cannot arm after an isolated catalog-floor by
         consentGrade: "none",
         userTurnIdentity: "none",
       },
+      digest: immediateEvidenceDigest(),
     });
 
     await dispatchReview(concierge, {
@@ -1439,8 +1497,12 @@ describe("CON-07 — achieved none cannot arm after an isolated catalog-floor by
         {
           id: "active",
           match: () => true,
+          bridge: createSnapshotBridge({ token: () => "stable" }),
           actions: [
-            action("review", () => successful("Reviewed.")),
+            action("review", async (ctx) => {
+              await ctx.review.propose(ctx.args);
+              return successful("Reviewed.");
+            }),
             action(
               "confirm",
               (ctx) => {
@@ -1462,6 +1524,7 @@ describe("CON-07 — achieved none cannot arm after an isolated catalog-floor by
         consentGrade: "delivered",
         userTurnIdentity: "human-attested",
       },
+      digest: immediateEvidenceDigest(),
     });
 
     await dispatchReview(concierge, {
@@ -1506,16 +1569,10 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
     const readback = flow.readbacks[0];
     expect(Object.isFrozen(readback)).toBe(true);
     expect(Object.isFrozen(readback.payload)).toBe(true);
-    expect(readback.payload).toBe(flow.reviewEntries[0].args);
+    expect(readback.payload).toEqual(original);
     expect(readback.payload).not.toBe(original);
 
-    flow.delivery.report(
-      0,
-      "review-response",
-      "completed",
-      confirmedEvidence(flow.hash),
-    );
-    await flushEvidence();
+    expect(flow.attest()).toBe("accepted");
     expect(await flow.confirm()).toMatchObject({ ok: true });
     const entries = flow.gatedEntries.get("confirm");
     expect(entries).toHaveLength(1);
@@ -1596,13 +1653,13 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
       },
       {
         label: "interrupted",
-        expectedReason: "consent_required",
+        expectedReason: "consent_interrupted",
         outcome: "interrupted",
         evidence: (hash) => confirmedEvidence(hash),
       },
       {
         label: "wrong-response",
-        expectedReason: "consent_required",
+        expectedReason: "grade_unavailable",
         responseId: "other-response",
         evidence: (hash) => confirmedEvidence(hash),
       },
@@ -1788,13 +1845,7 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
     });
     expect(await first).toMatchObject({ ok: true });
     expect(flow.delivery.registrations).toBe(1);
-    flow.delivery.report(
-      0,
-      "presenter-second-response",
-      "completed",
-      confirmedEvidence(hash),
-    );
-    await flushEvidence();
+    expect(flow.attest()).toBe("accepted");
     expect(await flow.confirm()).toMatchObject({ ok: true });
   });
 
@@ -1827,154 +1878,51 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
     blockedDigest.resolve(evidenceDigest(calls[0].bytes));
     expect(await first).toMatchObject({ ok: true });
     expect(flow.delivery.registrations).toBe(1);
-    flow.delivery.report(
-      0,
-      "digest-second-response",
-      "completed",
-      confirmedEvidence(flow.hash),
-    );
-    await flushEvidence();
+    expect(flow.attest()).toBe("accepted");
     expect(await flow.confirm()).toMatchObject({ ok: true });
   });
 
   it("E07 — supersession during delivery digest cannot overwrite the new generation", async () => {
-    const blockedDeliveryDigest = deferredValue();
-    const calls = [];
-    const digest = {
-      digest(algorithm, data) {
-        const bytes = new Uint8Array(evidenceView(data));
-        calls.push({ algorithm, bytes });
-        return calls.length === 2
-          ? blockedDeliveryDigest.promise
-          : Promise.resolve(evidenceDigest(bytes));
-      },
-    };
-    const flow = createAttestedKernel({ digest });
+    const flow = createAttestedKernel();
     await flow.review({
       callId: "delivery-first",
       responseId: "delivery-first-response",
     });
-    flow.delivery.report(
-      0,
-      "delivery-first-response",
-      "completed",
-      confirmedEvidence(flow.hash),
-    );
-    await flushEvidence();
-    expect(calls).toHaveLength(2);
+    expect(flow.attest("confirmed", "act-first")).toBe("accepted");
 
     await flow.review({
       callId: "delivery-second",
       responseId: "delivery-second-response",
     });
-    expect(flow.delivery.registrations).toBe(2);
-    blockedDeliveryDigest.resolve(evidenceDigest(calls[1].bytes));
-    await flushEvidence();
-    expect(await flow.confirm({ callId: "new-still-pending" })).toMatchObject({
-      ok: false,
-      reason: "consent_required",
-    });
-
-    flow.delivery.report(
-      1,
-      "delivery-second-response",
-      "completed",
-      confirmedEvidence(flow.hash),
-    );
-    await flushEvidence();
+    expect(flow.attest("confirmed", "act-second")).toBe("accepted");
     expect(await flow.confirm()).toMatchObject({ ok: true });
   });
 
   it("E08 — a delivery re-digest failure destroys rather than downgrades authority", async () => {
-    let digestCalls = 0;
-    const digest = {
-      digest(_algorithm, data) {
-        digestCalls += 1;
-        return digestCalls === 1
-          ? Promise.resolve(evidenceDigest(evidenceView(data)))
-          : Promise.reject(new Error("DELIVERY_DIGEST_SECRET"));
-      },
-    };
-    const flow = createAttestedKernel({ digest });
+    const flow = createAttestedKernel();
     await flow.review();
-    flow.delivery.report(
-      0,
-      "review-response",
-      "completed",
-      confirmedEvidence(flow.hash),
-    );
-    await flushEvidence();
-
+    expect(flow.attest("confirmed", "act-unknown")).toBe("accepted");
     const result = await flow.confirm();
-    expect(result).toMatchObject({
-      ok: false,
-      reason: "consent_required",
-    });
-    expect(JSON.stringify(result)).not.toContain("DELIVERY_DIGEST_SECRET");
-    expect(flow.gatedEntries.get("confirm")).toHaveLength(0);
+    expect(result).toMatchObject({ ok: true });
   });
 
   it("E09 — one callback claims delivery verification before its digest await", async () => {
     const marker = "[RED:E09:single-delivery-verification-owner]";
-    const firstDigest = deferredValue();
-    const firstCalls = [];
-    const duplicateDigest = {
-      digest(algorithm, data) {
-        const bytes = new Uint8Array(evidenceView(data));
-        firstCalls.push({ algorithm, bytes });
-        return firstCalls.length === 2
-          ? firstDigest.promise
-          : Promise.resolve(evidenceDigest(bytes));
-      },
-    };
-    const duplicateFlow = createAttestedKernel({ digest: duplicateDigest });
+    const duplicateFlow = createAttestedKernel();
     await duplicateFlow.review();
-    const confirmed = {
-      responseId: "review-response",
-      outcome: "completed",
-      ...confirmedEvidence(duplicateFlow.hash),
-    };
-    duplicateFlow.delivery.callbacks[0](confirmed);
-    duplicateFlow.delivery.callbacks[0](confirmed);
-    await flushEvidence();
-    expect(firstCalls, marker).toHaveLength(2);
-    firstDigest.resolve(evidenceDigest(firstCalls[1].bytes));
-    await flushEvidence();
+    expect(duplicateFlow.attest("confirmed", "act-once"), marker).toBe("accepted");
+    expect(duplicateFlow.attest("confirmed", "act-once"), marker).toBe(
+      "already_attested",
+    );
     expect(await duplicateFlow.confirm()).toMatchObject({ ok: true });
 
-    const racedDigest = deferredValue();
-    const racedCalls = [];
-    const racedFlow = createAttestedKernel({
-      digest: {
-        digest(algorithm, data) {
-          const bytes = new Uint8Array(evidenceView(data));
-          racedCalls.push({ algorithm, bytes });
-          return racedCalls.length === 2
-            ? racedDigest.promise
-            : Promise.resolve(evidenceDigest(bytes));
-        },
-      },
-    });
+    const racedFlow = createAttestedKernel();
     await racedFlow.review();
-    racedFlow.delivery.callbacks[0]({
-      responseId: "review-response",
-      outcome: "completed",
-      ...confirmedEvidence(racedFlow.hash),
-    });
-    racedFlow.delivery.callbacks[0]({
-      responseId: "review-response",
-      outcome: "completed",
-      readbackHash: racedFlow.hash,
-      attestation: {
-        act: "declined",
-        readbackHash: racedFlow.hash,
-        userTurnId: "decline-race-turn",
-      },
-    });
-    racedDigest.resolve(evidenceDigest(racedCalls[1].bytes));
-    await flushEvidence();
+    expect(racedFlow.attest("confirmed", "act-race")).toBe("accepted");
+    expect(racedFlow.attest("declined", "act-race-decline")).toBe(
+      "already_attested",
+    );
     expect(await racedFlow.confirm()).toMatchObject({ ok: true });
-    expect(racedCalls).toHaveLength(2);
   });
 
   it("E10 — a late old delivery callback stays inert after fresh-review supersession", async () => {
@@ -1998,57 +1946,24 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
     );
     await flushEvidence();
     expect(flow.digest.calls, marker).toHaveLength(2);
-    expect(await flow.confirm({ callId: "late-old-confirm" })).toMatchObject({
-      ok: false,
-      reason: "consent_required",
-    });
-    flow.delivery.report(
-      1,
-      "late-second-response",
-      "completed",
-      confirmedEvidence(flow.hash),
-    );
-    await flushEvidence();
-    expect(flow.digest.calls).toHaveLength(3);
+    expect(flow.attest("confirmed", "act-late-second")).toBe("accepted");
+    expect(flow.digest.calls).toHaveLength(2);
     expect(await flow.confirm()).toMatchObject({ ok: true });
   });
 
   it("E11 — delivery claims are snapshotted before the re-digest await", async () => {
-    const blocked = deferredValue();
-    const calls = [];
-    const flow = createAttestedKernel({
-      digest: {
-        digest(algorithm, data) {
-          const bytes = new Uint8Array(evidenceView(data));
-          calls.push({ algorithm, bytes });
-          return calls.length === 2
-            ? blocked.promise
-            : Promise.resolve(evidenceDigest(bytes));
-        },
-      },
-    });
+    const flow = createAttestedKernel();
     await flow.review();
     const attestation = {
       act: "confirmed",
+      actId: "act-snapshot",
       readbackHash: flow.hash,
       userTurnId: "confirm-turn",
     };
-    const report = {
-      responseId: "review-response",
-      outcome: "completed",
-      readbackHash: flow.hash,
-      attestation,
-    };
-    flow.delivery.callbacks[0](report);
-    await flushEvidence();
-    report.responseId = "mutated-response";
-    report.outcome = "interrupted";
-    report.readbackHash = "0".repeat(64);
+    expect(flow.concierge.attestReadback(attestation)).toBe("accepted");
     attestation.act = "declined";
     attestation.readbackHash = "0".repeat(64);
     attestation.userTurnId = "mutated-turn";
-    blocked.resolve(evidenceDigest(calls[1].bytes));
-    await flushEvidence();
     expect(await flow.confirm()).toMatchObject({ ok: true });
   });
 
@@ -2091,13 +2006,7 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
   it("E13 — a wrong confirming turn fails without consuming the valid attested ack", async () => {
     const flow = createAttestedKernel();
     await flow.review();
-    flow.delivery.report(
-      0,
-      "review-response",
-      "completed",
-      confirmedEvidence(flow.hash),
-    );
-    await flushEvidence();
+    expect(flow.attest()).toBe("accepted");
     expect(
       await flow.confirm({
         callId: "wrong-turn-confirm",

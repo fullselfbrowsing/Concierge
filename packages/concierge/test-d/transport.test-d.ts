@@ -97,6 +97,7 @@ const _agentForgeableCaps: TransportCapabilities = {
   userTurnIdentity: "agent-forgeable",
   parallelCalls: false,
   dynamicCatalog: true,
+  acknowledgesCatalog: false,
 };
 
 /** Turn identity derived from an explicit human act. Distinguishable from the above. */
@@ -105,6 +106,7 @@ const _humanAttestedCaps: TransportCapabilities = {
   userTurnIdentity: "human-attested",
   parallelCalls: false,
   dynamicCatalog: true,
+  acknowledgesCatalog: false,
 };
 
 // --------------------------------------------------------------------------
@@ -143,6 +145,9 @@ type _capsProvenanceIsReadonly = Expect<Equals<Pick<TransportCapabilities, "user
 /** Self-declared and unverifiable by the kernel, so a grade raised after declaration is a capability nothing ever checked — understating costs capability, overstating defeats the gate. */
 type _capsGradeIsReadonly = Expect<Equals<Pick<TransportCapabilities, "consentGrade">, { readonly consentGrade: ConsentGrade }>>;
 
+/** Raising `acknowledgesCatalog` after declaration would convert an unacknowledged revision into an authorized one. */
+type _capsAcknowledgesIsReadonly = Expect<Equals<Pick<TransportCapabilities, "acknowledgesCatalog">, { readonly acknowledgesCatalog: boolean }>>;
+
 // --------------------------------------------------------------------------
 // SC-4 / TRN-01 — two transports sharing no wire vocabulary, one interface
 // --------------------------------------------------------------------------
@@ -161,6 +166,7 @@ const streamingTransport: Transport = {
     userTurnIdentity: "agent-forgeable",
     parallelCalls: true,
     dynamicCatalog: true,
+    acknowledgesCatalog: false,
   },
   status: "connecting",
   setCatalog: () => {},
@@ -184,6 +190,7 @@ const commandPaletteTransport: Transport = {
     userTurnIdentity: "human-attested",
     parallelCalls: false,
     dynamicCatalog: false,
+    acknowledgesCatalog: false,
   },
   status: "closed",
   setCatalog: () => {},
@@ -196,13 +203,13 @@ const commandPaletteTransport: Transport = {
 
 /**
  * The mechanical proof that no vendor event name has leaked into core: the interface
- * is exactly six members, so there is nowhere for one to sit. A vendor-shaped member
+ * is exactly seven members, so there is nowhere for one to sit. A vendor-shaped member
  * added to `Transport` breaks this line. The other half of TRN-01 is the grep, which
  * covers the places a type-level assertion cannot reach.
  */
 type _transportStatus = Expect<Equals<TransportStatus, "idle" | "connecting" | "connected" | "closed">>;
 type _transportStatusCallback = Expect<Equals<Transport["onStatusChange"], (cb: (status: TransportStatus) => void) => () => void>>;
-type _transportKeys = Expect<Equals<keyof Transport, "capabilities" | "status" | "setCatalog" | "onStatusChange" | "onToolBatch">>;
+type _transportKeys = Expect<Equals<keyof Transport, "capabilities" | "status" | "setCatalog" | "onStatusChange" | "onToolBatch" | "onCatalogAcknowledged">>;
 type _transportStatusIsReadonly = Expect<Equals<Pick<Transport, "status">, { readonly status: TransportStatus }>>;
 
 // --------------------------------------------------------------------------
@@ -281,6 +288,7 @@ const _interruptedWithAttestation: DeliveryReport = {
   outcome: "interrupted",
   attestation: {
     act: "confirmed",
+    actId: "act-interrupted",
     userTurnId: "turn-human",
     readbackHash: "hash",
   },

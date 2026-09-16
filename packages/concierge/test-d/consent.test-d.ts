@@ -88,10 +88,10 @@ void _configFromComputedConsentProfile;
 type _attestationActIsClosed = Expect<Equals<ReadbackAttestation["act"], "confirmed" | "declined" | "dismissed">>;
 
 /** Attestation binds one immutable act and human turn to one immutable readback hash. */
-type _attestationIsExactAndReadonly = Expect<Equals<ReadbackAttestation, { readonly act: "confirmed" | "declined" | "dismissed"; readonly userTurnId: string; readonly readbackHash: string }>>;
+type _attestationIsExactAndReadonly = Expect<Equals<ReadbackAttestation, { readonly act: "confirmed" | "declined" | "dismissed"; readonly actId: string; readonly readbackHash: string; readonly userTurnId?: string | undefined }>>;
 
 /** Arbitrary observations cannot be mistaken for a supported human act. */
-type _attestationRejectsArbitraryAct = Expect<Not<Assignable<{ readonly act: "approved"; readonly userTurnId: string; readonly readbackHash: string }, ReadbackAttestation>>>;
+type _attestationRejectsArbitraryAct = Expect<Not<Assignable<{ readonly act: "approved"; readonly actId: string; readonly userTurnId: string; readonly readbackHash: string }, ReadbackAttestation>>>;
 
 /** The rendered payload itself is immutable through the evidence reference. */
 type _readbackPayloadIsReadonly = Expect<Equals<Pick<Readback<Booking>, "payload">, { readonly payload: Booking }>>;
@@ -309,6 +309,7 @@ const _attestedOk: ConsentAck<Booking, { id: string }> = {
   payload: { id: "a" },
   grade: "attested",
   readbackHash: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+  attestationActId: "act-1",
 };
 
 void _attestedOk;
@@ -333,7 +334,7 @@ void _attestedOk;
 type _attestedNeedsHash = Expect<Not<Assignable<{ userTurnId: string; responseId: string; snapshot: Booking; payload: null; grade: "attested" }, ConsentAck<Booking, null>>>>;
 
 /** Control, not a guard: the same object *with* a hash does assign, so the line above is about the hash and not about unrelated drift in the object. */
-type _attestedWithHashAssigns = Expect<Assignable<{ userTurnId: string; responseId: string; snapshot: Booking; payload: null; grade: "attested"; readbackHash: string }, ConsentAck<Booking, null>>>;
+type _attestedWithHashAssigns = Expect<Assignable<{ userTurnId: string; responseId: string; snapshot: Booking; payload: null; grade: "attested"; readbackHash: string; attestationActId: string }, ConsentAck<Booking, null>>>;
 
 // --------------------------------------------------------------------------
 // D-05 — omit the challenge, do not spread an empty one into it

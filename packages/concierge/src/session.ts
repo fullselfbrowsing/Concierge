@@ -25,6 +25,8 @@ import type {
   ActionResult,
   AbortSignalLike,
   BatchDispatchOutcome,
+  CatalogAcknowledgement,
+  CatalogRevision,
   FailureOutcome,
   FailureOutcomeRow,
   OutcomeSink,
@@ -75,9 +77,11 @@ const DIAGNOSTIC_MESSAGES: Readonly<Record<SessionDiagnosticCode, string>> =
       "A batch arrived before session context was set and was ignored.",
     outcome_presentation_failed:
       "The application could not present the failed outcome; no result was released.",
+    catalog_acknowledgement_failed:
+      "The transport rejected a catalog publication; the last acknowledged context still stands.",
   });
 
-function ownDataValue(value: object, key: keyof TransportCapabilities): unknown {
+function ownDataValue(value: object, key: string): unknown {
   const descriptor: PropertyDescriptor | undefined =
     Object.getOwnPropertyDescriptor(value, key);
   if (descriptor === undefined || !("value" in descriptor)) {
@@ -86,7 +90,7 @@ function ownDataValue(value: object, key: keyof TransportCapabilities): unknown 
   return descriptor.value;
 }
 
-/** Snapshot all four required capability fields without invoking accessors. */
+/** Snapshot all five required capability fields without invoking accessors. */
 function snapshotTransportCapabilities(value: unknown): TransportCapabilities {
   if (typeof value !== "object" || value === null) {
     throw new TypeError(START_ERROR);
@@ -100,7 +104,12 @@ function snapshotTransportCapabilities(value: unknown): TransportCapabilities {
   const profile = snapshotConsentProfile(value);
   const parallelCalls: unknown = ownDataValue(value, "parallelCalls");
   const dynamicCatalog: unknown = ownDataValue(value, "dynamicCatalog");
-  if (typeof parallelCalls !== "boolean" || typeof dynamicCatalog !== "boolean") {
+  const acknowledgesCatalog: unknown = ownDataValue(value, "acknowledgesCatalog");
+  if (
+    typeof parallelCalls !== "boolean" ||
+    typeof dynamicCatalog !== "boolean" ||
+    typeof acknowledgesCatalog !== "boolean"
+  ) {
     throw new TypeError(START_ERROR);
   }
 
@@ -109,7 +118,34 @@ function snapshotTransportCapabilities(value: unknown): TransportCapabilities {
     userTurnIdentity: profile.userTurnIdentity,
     parallelCalls,
     dynamicCatalog,
+    acknowledgesCatalog,
   });
+}
+
+/** Accept only an own-data catalog acknowledgement without invoking accessors. */
+function snapshotCatalogAcknowledgement(
+  value: unknown,
+): CatalogAcknowledgement | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  try {
+    const prototype: object | null = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      return null;
+    }
+    const revision: unknown = ownDataValue(value, "revision");
+    const accepted: unknown = ownDataValue(value, "accepted");
+    if (typeof revision !== "symbol" || typeof accepted !== "boolean") {
+      return null;
+    }
+    return Object.freeze({
+      revision: revision as CatalogRevision,
+      accepted,
+    });
+  } catch {
+    return null;
+  }
 }
 
 /** Read only an own data capability value from the transport boundary. */
@@ -378,7 +414,7 @@ function linkSignals(
   });
 }
 
-/** Build the contract-v3 session runtime. */
+/** Build the contract-v4 session runtime. */
 function createV2Session(
   config: SessionConfig,
   concierge: SessionConfig["concierge"],
@@ -395,12 +431,18 @@ function createV2Session(
   let observedStatus: TransportStatus = "idle";
   let unsubscribeStatus: (() => void) | null = null;
   let unsubscribeBatch: (() => void) | null = null;
+  let unsubscribeAck: (() => void) | null = null;
   let workTail: Promise<void> = Promise.resolve();
   let stopPromise: Promise<void> | null = null;
   let nextListenerToken: number = 0;
   let notifyingCatalog: boolean = false;
   const pendingCatalogNotifications: ResolvedCatalog[] = [];
   const listeners: Map<number, (catalog: ResolvedCatalog) => void> = new Map();
+  const pendingPublications: Array<{
+    readonly generation: number;
+    readonly context: StageContext;
+    readonly catalog: ResolvedCatalog;
+  }> = [];
 
   const diagnose = (code: SessionDiagnosticCode): void => {
     const diagnostic: SessionDiagnostic = Object.freeze({
@@ -445,6 +487,19 @@ function createV2Session(
     Reflect.apply(method, transport, [resolved]);
   };
 
+  const promote = (
+    context: StageContext,
+    resolved: ResolvedCatalog,
+  ): void => {
+    const priorEpoch: V2EpochSignal | null = currentEpoch;
+    const epoch: V2EpochSignal = createEpochSignal();
+    currentContext = context;
+    currentCatalog = resolved;
+    currentEpoch = epoch;
+    priorEpoch?.abort();
+    notifyCatalog(resolved);
+  };
+
   const setContext = (context: StageContext): void => {
     if (!active) throw new Error(STOPPED_ERROR);
     const requested: number = ++generation;
@@ -455,20 +510,27 @@ function createV2Session(
       currentContext = context;
       return;
     }
+    const pendingSame: (typeof pendingPublications)[number] | undefined =
+      pendingPublications.find(
+        (pending) => pending.catalog.revision === resolved.revision,
+      );
+    if (pendingSame !== undefined) {
+      const index: number = pendingPublications.indexOf(pendingSame);
+      pendingPublications[index] = {
+        generation: pendingSame.generation,
+        context,
+        catalog: pendingSame.catalog,
+      };
+      return;
+    }
     if (
-      currentCatalog !== null &&
+      (currentCatalog !== null || pendingPublications.length > 0) &&
       capabilities.dynamicCatalog === false
     ) {
       void stop();
       throw new Error(FIXED_CATALOG_ERROR);
     }
 
-    const priorEpoch: V2EpochSignal | null = currentEpoch;
-    const epoch: V2EpochSignal = createEpochSignal();
-    currentContext = context;
-    currentCatalog = resolved;
-    currentEpoch = epoch;
-    priorEpoch?.abort();
     try {
       publish(resolved);
     } catch {
@@ -477,7 +539,46 @@ function createV2Session(
       diagnose("catalog_publish_failed");
       throw new Error(PUBLICATION_ERROR);
     }
-    if (active && requested === generation) notifyCatalog(resolved);
+    if (!active || requested !== generation) return;
+
+    if (capabilities.acknowledgesCatalog === false) {
+      promote(context, resolved);
+      return;
+    }
+    pendingPublications.push(
+      Object.freeze({
+        generation: requested,
+        context,
+        catalog: resolved,
+      }),
+    );
+  };
+
+  const handleAcknowledgement = (value: unknown): void => {
+    if (!active) return;
+    const ack: CatalogAcknowledgement | null =
+      snapshotCatalogAcknowledgement(value);
+    if (ack === null) {
+      diagnose("catalog_acknowledgement_failed");
+      return;
+    }
+    const expected = pendingPublications[0];
+    if (expected === undefined) {
+      if (currentCatalog?.revision !== ack.revision) {
+        diagnose("catalog_acknowledgement_failed");
+      }
+      return;
+    }
+    if (ack.revision !== expected.catalog.revision) {
+      diagnose("catalog_acknowledgement_failed");
+      return;
+    }
+    pendingPublications.shift();
+    if (ack.accepted === false) {
+      diagnose("catalog_acknowledgement_failed");
+      return;
+    }
+    promote(expected.context, expected.catalog);
   };
 
   const dispatchAcceptedBatch = async (
@@ -616,6 +717,7 @@ function createV2Session(
     generation += 1;
     currentEpoch?.abort();
     currentEpoch = null;
+    pendingPublications.length = 0;
     listeners.clear();
     pendingCatalogNotifications.length = 0;
     try {
@@ -628,8 +730,14 @@ function createV2Session(
     } catch {
       diagnose("transport_unsubscribe_failed");
     }
+    try {
+      unsubscribeAck?.();
+    } catch {
+      diagnose("transport_unsubscribe_failed");
+    }
     unsubscribeStatus = null;
     unsubscribeBatch = null;
+    unsubscribeAck = null;
     stopPromise = workTail.catch(() => {});
     return stopPromise;
   }
@@ -642,6 +750,15 @@ function createV2Session(
     const removeBatch: unknown = transport.onToolBatch(acceptBatch);
     if (typeof removeBatch !== "function") throw new Error(START_ERROR);
     unsubscribeBatch = removeBatch as () => void;
+    if (capabilities.acknowledgesCatalog === true) {
+      const subscribeAck: unknown = transport.onCatalogAcknowledged;
+      if (typeof subscribeAck !== "function") throw new Error(START_ERROR);
+      const removeAck: unknown = (subscribeAck as (
+        cb: (ack: CatalogAcknowledgement) => void,
+      ) => unknown)(handleAcknowledgement);
+      if (typeof removeAck !== "function") throw new Error(START_ERROR);
+      unsubscribeAck = removeAck as () => void;
+    }
     if (config.initialContext !== undefined) setContext(config.initialContext);
   } catch {
     void stop();

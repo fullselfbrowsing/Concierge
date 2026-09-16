@@ -28,7 +28,7 @@
   type Props = {
     readonly concierge: Concierge;
     readonly registry: BridgeRegistry;
-    readonly bridge: Bridge;
+    readonly bridge: Bridge | null;
     readonly provide?: boolean;
     readonly telemetry?: boolean;
     readonly onContext?: (concierge: Concierge) => void;
@@ -40,7 +40,7 @@
   let props: Props = $props();
   const getConcierge = (): Concierge => props.concierge;
   const getRegistry = (): BridgeRegistry => props.registry;
-  const getBridge = (): Bridge => props.bridge;
+  const getBridge = (): Bridge | null => props.bridge;
   const getProvide = (): boolean => props.provide ?? true;
   const getTelemetry = (): boolean | undefined => props.telemetry;
   const getOnContext = (): Props["onContext"] => props.onContext;

@@ -80,8 +80,10 @@ import type {
   ReadbackReceipt,
   ReadbackSink,
   ReasonCode,
+  ReviewControls,
   Scheduler,
   Session,
+  StageContext,
   StageDefinition,
   StandardSchemaV1,
 } from "../src/types.js";
@@ -223,7 +225,7 @@ type _snapshotInferred = Expect<Equals<NonNullable<(typeof confirm)["consent"]>,
 // own declaration — had no member-level assertion anywhere in the suite.
 
 /** The selector between the strong gate and the weak one. Widened to `string`, `bindTo: "usreTurn"` typechecks; whether the Phase 8 runtime then falls back to `"response"` or gates nothing at all, the compiler said nothing either way. */
-type _bindToIsClosed = Expect<Equals<ConsentPolicy["bindTo"], "userTurn" | "response">>;
+type _bindToIsClosed = Expect<Equals<ConsentPolicy["bindTo"], "userTurn" | "unverifiedUserTurn" | "response">>;
 
 /** The dial `buildCatalog` enforces at build time (CAT-04), and the reason D-04 cut `impact` rather than shipping a second, weaker severity axis beside it. Widened to `string`, every word is a grade and the throw never fires. */
 type _minGradeIsGrade = Expect<Equals<ConsentPolicy["minGrade"], ConsentGrade | undefined>>;
@@ -243,7 +245,7 @@ type _minGradeIsGrade = Expect<Equals<ConsentPolicy["minGrade"], ConsentGrade | 
 type _onMissingShape = Expect<Equals<ConsentPolicy["onMissing"], { readonly reason?: ReasonCode | undefined; readonly message: string } | undefined>>;
 
 /** Modelled on `_transportKeys` in `transport.test-d.ts`, and for the same reason: the member set is closed, so a second severity dial cannot appear beside `minGrade` unnoticed — which is the failure D-04 spent four entries preventing. */
-type _policyKeys = Expect<Equals<keyof ConsentPolicy, "requires" | "bindTo" | "snapshotEquality" | "minGrade" | "onMissing">>;
+type _policyKeys = Expect<Equals<keyof ConsentPolicy, "requires" | "bindTo" | "snapshotEquality" | "minGrade" | "onMissing" | "onInterrupted">>;
 
 // --------------------------------------------------------------------------
 // Escapee 3 — the handler forward. The assertion nothing else catches.
@@ -314,7 +316,9 @@ declare const maybeAck: ConsentAck<Booking, AckShape> | undefined;
 declare const plainBridge: PlainBridge;
 declare const meta: InvocationMeta;
 declare const workflow: WorkflowControls;
-const _ctxWithMaybeAck: Ctx = { args: { q: "x" }, bridge: plainBridge, meta, ack: maybeAck, workflow };
+declare const stageContext: StageContext;
+declare const reviewControls: ReviewControls<AckShape>;
+const _ctxWithMaybeAck: Ctx = { args: { q: "x" }, bridge: plainBridge, meta, ack: maybeAck, workflow, context: stageContext, review: reviewControls };
 void _ctxWithMaybeAck;
 
 // --------------------------------------------------------------------------

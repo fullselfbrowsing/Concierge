@@ -37,15 +37,18 @@ export function transportHarness(overrides = {}) {
   let status = overrides.status ?? "connected";
   let batchHandler;
   const statusHandlers = new Set();
+  const ackHandlers = new Set();
   const publications = [];
   let batchUnsubscribes = 0;
   let statusUnsubscribes = 0;
+  let ackUnsubscribes = 0;
   const transport = {
     capabilities: Object.freeze({
       consentGrade: "none",
       userTurnIdentity: "none",
       parallelCalls: true,
       dynamicCatalog: true,
+      acknowledgesCatalog: false,
       ...overrides.capabilities,
     }),
     get status() {
@@ -69,6 +72,13 @@ export function transportHarness(overrides = {}) {
         if (batchHandler === handler) batchHandler = undefined;
       };
     },
+    onCatalogAcknowledged(handler) {
+      ackHandlers.add(handler);
+      return () => {
+        ackUnsubscribes += 1;
+        ackHandlers.delete(handler);
+      };
+    },
   };
 
   return {
@@ -80,6 +90,9 @@ export function transportHarness(overrides = {}) {
     get statusUnsubscribes() {
       return statusUnsubscribes;
     },
+    get ackUnsubscribes() {
+      return ackUnsubscribes;
+    },
     dispatch(batch) {
       if (!batchHandler) throw new Error("No batch handler is registered.");
       return batchHandler(batch);
@@ -87,6 +100,9 @@ export function transportHarness(overrides = {}) {
     setStatus(next) {
       status = next;
       for (const handler of [...statusHandlers]) handler(next);
+    },
+    acknowledge(ack) {
+      for (const handler of [...ackHandlers]) handler(ack);
     },
   };
 }

@@ -11,9 +11,10 @@ web application. Concierge owns action admission, validation, consent,
 deduplication, lifecycle, workflows, and terminal execution. It does not own the
 model, chat UI, speech, overlay, or planning loop.
 
-Version 0.3 is a public preview of contract 3. It requires Node 22.12 or newer;
-Edge runtimes are not supported in the 0.3 line. Existing actions without
-structured data and existing stage-level bridges remain supported.
+Version 0.4 is a public preview of contract 4. It requires Node 22.12 or newer;
+Edge runtimes are not supported in the 0.4 line. Existing actions without
+structured data and existing stage-level bridges remain supported. Consent
+binds the payload a review handler proposes.
 
 ## Install
 
@@ -25,7 +26,8 @@ React and Svelte lifecycle bindings are published separately. Optional AI SDK
 6/7 tool definitions and the signed browser bridge are available from
 `@full-self-browsing/concierge/ai-sdk`, `/ai-sdk/server`, and `/ai-sdk/browser`.
 The app-owned OpenAI Realtime codec is available from
-`@full-self-browsing/concierge/openai-realtime`.
+`@full-self-browsing/concierge/openai-realtime`. Test helpers live at
+`@full-self-browsing/concierge/testing`.
 Anonymous browser usage reporting is isolated in the optional
 `@full-self-browsing/concierge/telemetry` subpath; importing this package root
 continues to perform no browser storage, timer, DOM, or network work.

@@ -29,6 +29,11 @@ release archives.
 
 - The catalog is least authority. Do not add generic click, selector,
   coordinate, URL-navigation, DOM-query, or arbitrary-JavaScript actions.
+- `@full-self-browsing/concierge-dom` never finds an element; it only
+  returns one the application registered. `scripts/pkg-dom-catalog-boundary.mjs`
+  enforces that on the built artifact. Adding an identifier to that script's
+  allow-set, or deleting a banned class, requires a threat model in the same
+  pull request.
 - Core remains framework-, DOM-, model-provider-, and transport-neutral.
 - One physical core owns catalog revisions, bridge identity, consent,
   scheduling, deduplication, dispatch, workflow lineage, and terminal control.
@@ -69,24 +74,23 @@ Use a compound action and core's `workflow` controls for an application-owned
 sequence. Child calls must use stable step IDs. Do not put loops, delays, child
 dispatch, or cleanup orchestration in a framework or AI adapter.
 
-## Contract v3 changes
+## Contract v4 changes
 
-Contract v3 includes atomic `ResolvedCatalog` revisions, structured validated
-results, action-scoped bridge precedence, object-form dispatch, explicit
-terminal batch outcomes, lifecycle events, compound-action lineage, and the
-signed AI and OpenAI Realtime adapters' core dependencies.
+Contract v4 includes handler-proposed consent payloads, `attestReadback`,
+catalog acknowledgement with deferred `setContext` promotion, vacuous
+snapshot fail-closed, and the widened catalog diagnostic vocabulary.
 
 An additive implementation detail does not require a contract bump. A change
 that lets two versions disagree about bridge shape, revision capability,
 invocation identity, consent records, batch/terminal semantics, event lineage,
 or signed dispatch interpretation does. Contract changes require:
 
-1. a synchronized minor release of all three packages;
+1. a synchronized minor release of all five packages;
 2. every adapter's expected-contract guard to change together;
 3. mismatch mutations proving failure occurs before registration or dispatch;
 4. a migration guide and compatibility update.
 
-Contract v3 is fixed throughout `0.3.x`.
+Contract v4 is fixed throughout `0.4.x`. Contract v3 remains the 0.3 line.
 
 ## Tests and checks
 
@@ -132,9 +136,11 @@ The public release set is exactly:
 1. `@full-self-browsing/concierge`
 2. `@full-self-browsing/concierge-react`
 3. `@full-self-browsing/concierge-svelte`
+4. `@full-self-browsing/concierge-dom`
+5. `@full-self-browsing/concierge-realtime`
 
 They belong to one fixed Changesets group and must leave a Version Packages PR
-at the same version. A user-visible change adds a changeset naming all three at
+at the same version. A user-visible change adds a changeset naming all five at
 the same bump level. Private examples and fixtures are never versioned.
 
 Adapters keep core as `peerDependencies["@full-self-browsing/concierge"] =
@@ -157,7 +163,7 @@ created the code.
 
 Historical `.planning` evidence and `scripts/phase-09-*` reproduce the v0.1
 milestone and must not be rewritten as current release tooling. The live release
-contract is `.release/lines/0.3.json`, `scripts/release/`, and
+contract is `.release/lines/0.4.json`, `scripts/release/`, and
 `.github/workflows/release.yml`.
 
 ## Pull requests

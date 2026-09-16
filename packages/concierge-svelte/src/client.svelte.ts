@@ -8,11 +8,12 @@ import type {
   Bridge,
   BridgeRegistry,
   Concierge,
+  DispatchEvent,
   SnapshotNormalizer,
 } from "@full-self-browsing/concierge";
 import { mountConciergeTelemetry } from "@full-self-browsing/concierge/telemetry";
 
-const EXPECTED_CONTRACT_VERSION: number = 3;
+const EXPECTED_CONTRACT_VERSION: number = 4;
 const CONCIERGE_CONTEXT: symbol = Symbol(
   "@full-self-browsing/concierge-svelte.context",
 );
@@ -47,13 +48,51 @@ export function useConcierge(): Concierge {
   return concierge;
 }
 
+export function useConciergeActivity(): {
+  readonly active: boolean;
+  readonly lastEvent: DispatchEvent | null;
+} {
+  const concierge: Concierge = useConcierge();
+  let active: boolean = $state(false);
+  let lastEvent: DispatchEvent | null = $state(null);
+  const inflight: Set<string> = new Set();
+
+  $effect((): (() => void) => {
+    return concierge.onDispatch((event: DispatchEvent): void => {
+      lastEvent = event;
+      switch (event.phase) {
+        case "accepted":
+        case "waiting":
+        case "executing":
+          inflight.add(event.dispatchId);
+          break;
+        case "succeeded":
+        case "failed":
+        case "cancelled":
+          inflight.delete(event.dispatchId);
+          break;
+      }
+      active = inflight.size > 0;
+    });
+  });
+
+  return {
+    get active(): boolean {
+      return active;
+    },
+    get lastEvent(): DispatchEvent | null {
+      return lastEvent;
+    },
+  };
+}
+
 export function useConciergeBridge<B extends Bridge>(
   getRegistry: () => BridgeRegistry<B>,
-  getBridge: () => B,
+  getBridge: () => B | null,
 ): void {
-  $effect((): (() => void) => {
+  $effect((): (() => void) | undefined => {
     const registry: BridgeRegistry<B> = getRegistry();
-    const bridge: B = getBridge();
+    const bridge: B | null = getBridge();
 
     assertSingleInstance();
 
@@ -63,6 +102,10 @@ export function useConciergeBridge<B extends Bridge>(
           `but found v${CONTRACT_VERSION}; upgrade or reinstall ` +
           `@full-self-browsing/concierge-svelte and @full-self-browsing/concierge together.`,
       );
+    }
+
+    if (bridge === null) {
+      return undefined;
     }
 
     return registry.register(bridge);

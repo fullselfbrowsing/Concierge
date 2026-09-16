@@ -217,11 +217,16 @@ export type FailureReason =
   /** A retry identity was reused for a different logical invocation. */
   | "identity_conflict"
   /** Valid input could not run because current application state forbade it. */
-  | "precondition_failed";
+  | "precondition_failed"
+  /**
+   * A review was presented but its delivery was interrupted; it can be
+   * re-presented.
+   */
+  | "consent_interrupted";
 
 /**
- * Every code {@link ActionResult.reason} admits: **sixteen** — three
- * human-caused ({@link AbandonReason}) and thirteen machine-caused
+ * Every code {@link ActionResult.reason} admits: **seventeen** — three
+ * human-caused ({@link AbandonReason}) and fourteen machine-caused
  * ({@link FailureReason}).
  *
  * Deliberately a pure closed union. A `` `app.${string}` `` escape hatch was
@@ -394,9 +399,10 @@ export interface InvocationMeta {
   /**
    * Defer a side effect until the agent's response has reached the human.
    *
-   * Absent when the transport cannot promise delivery, in which case consent
-   * never arms and gated actions cannot proceed. That is the intended failure
-   * mode: closed.
+   * Absent when the transport cannot promise delivery. Contract v4 still arms
+   * `delivered` without this hook; `relayed` remains unreachable until a
+   * producer reports, and `attested` is reached through
+   * {@link Concierge.attestReadback}.
    *
    * The function type is parenthesised before the union deliberately. Without the
    * parentheses the `| undefined` binds inside the return position, silently
@@ -409,8 +415,20 @@ export interface InvocationMeta {
 /** A human act observed by the application and bound to one readback hash. */
 export interface ReadbackAttestation {
   readonly act: "confirmed" | "declined" | "dismissed";
-  readonly userTurnId: string;
+  /**
+   * An app-minted identifier for this act, unique per act.
+   *
+   * The act is observed on the app's own surface, so transport turn
+   * identifiers say nothing about it. Reuse of the same `actId` is refused.
+   */
+  readonly actId: string;
   readonly readbackHash: string;
+  /**
+   * The transport turn the act belongs to, when the app can honestly say.
+   * Read only when `consentProfile.userTurnIdentity` is `"human-attested"` and
+   * the policy binds to `"userTurn"`.
+   */
+  readonly userTurnId?: string | undefined;
 }
 
 /**
@@ -530,6 +548,13 @@ export type ActionHandler<
   ack?: ConsentAck<Snapshot, AckPayload> | undefined;
   /** App-owned compound actions use these controls; core does not plan steps. */
   workflow: WorkflowControls;
+  /** The dispatch's live stage context. Child actions see the same object. */
+  readonly context: StageContext;
+  /**
+   * Meaningful only for an action some {@link ConsentPolicy} names in
+   * `requires`; elsewhere every call refuses `"not_reviewable"`.
+   */
+  review: ReviewControls<AckPayload>;
 }) => ActionHandlerResult<Data> | Promise<ActionHandlerResult<Data>>;
 
 // ---------------------------------------------------------------------------
@@ -595,10 +620,22 @@ export interface ConsentPolicy<Snapshot = unknown> {
    */
   requires: string;
   /**
-   * `"userTurn"` requires a genuinely new human turn between review and
-   * confirm. `"response"` only distinguishes agent responses and is weaker.
+   * `"userTurn"` requires a genuinely new human turn whose provenance the
+   * transport declares `"human-attested"`.
+   *
+   * `"unverifiedUserTurn"` requires a non-empty confirm turn id distinct from the
+   * review turn id, and accepts `userTurnIdentity: "agent-forgeable"`. The
+   * name states its own weakness: the boundary is real against a model
+   * auto-following-up on itself, and worthless against a hostile model that
+   * mints turn ids.
+   *
+   * `"response"` only distinguishes agent responses and is weakest. It
+   * compares against the response that delivered the readback when one was
+   * reported, not only the response that carried the tool call.
+   *
+   * Ordered: `userTurn` > `unverifiedUserTurn` > `response`.
    */
-  bindTo: "userTurn" | "response";
+  bindTo: "userTurn" | "unverifiedUserTurn" | "response";
   /**
    * Field-by-field equality over what was reviewed. Any drift between review
    * and confirm destroys the consent.
@@ -633,6 +670,15 @@ export interface ConsentPolicy<Snapshot = unknown> {
    */
   minGrade?: ConsentGrade;
   onMissing?: Pick<ActionResult, "reason" | "message">;
+  /**
+   * The result a confirming action returns when the only evidence in the slot
+   * is a retained, interrupted review.
+   *
+   * Distinct from `onMissing` because the two call for different prose:
+   * "review this first" versus "I did not finish reading that back". Defaults
+   * to core's fixed `consent_interrupted` result.
+   */
+  onInterrupted?: Pick<ActionResult, "reason" | "message">;
 }
 
 /**
@@ -647,6 +693,11 @@ export interface ConsentPolicy<Snapshot = unknown> {
 interface ConsentAckBase<Snapshot, Payload> {
   readonly userTurnId: string;
   readonly responseId: string;
+  /**
+   * The response in which the readback reached the human, when a transport
+   * reported one. Not required to equal {@link ConsentAckBase.responseId}.
+   */
+  readonly readbackResponseId?: string | undefined;
   /**
    * Normalized and structurally frozen at arm time. Never a live reference.
    *
@@ -759,7 +810,90 @@ export type ConsentAck<Snapshot = unknown, Payload = unknown> =
        * collision the receipt exists to prevent.
        */
       readonly readbackHash: string;
+      /**
+       * The `actId` of the observed act that produced this grade. Required on
+       * this branch for the same reason `readbackHash` is: the strongest grade
+       * must not be constructible without the evidence that backs it.
+       */
+      readonly attestationActId: string;
     });
+
+/**
+ * Optional presentation metadata for one proposed review.
+ *
+ * Separate from the payload because the two are hashed together but are not
+ * interchangeable: `payload` is the structured value the confirming handler will
+ * act on, `presented` is the prose the human actually read or heard.
+ */
+export interface ReviewPresentation {
+  /**
+   * The literal text the app is about to show or speak.
+   *
+   * Enters the canonical envelope in contract v4.
+   */
+  readonly presented?: string | undefined;
+}
+
+/**
+ * Why core refused to bind a proposed or re-presented review.
+ *
+ * Every member is a closed gate. A refusal always leaves the consent slot empty,
+ * so a later confirm takes `onMissing`.
+ */
+export type ReviewRefusalCode =
+  | "not_reviewable"
+  | "already_proposed"
+  | "payload_unsupported"
+  | "presenter_unavailable"
+  | "digest_unavailable"
+  | "presentation_failed"
+  | "retained_unknown"
+  | "retained_stale"
+  | "superseded"
+  | "aborted";
+
+/** What one {@link ReviewControls.propose} or {@link ReviewControls.represent} call produced. */
+export type ReviewOutcome<Payload = unknown> =
+  | {
+      readonly ok: true;
+      readonly hash: string;
+      readonly payload: Payload;
+      readonly ceiling: ConsentGrade;
+    }
+  | { readonly ok: false; readonly reason: ReviewRefusalCode };
+
+/**
+ * A review that was presented but never consumed, offered back to the review
+ * handler on a later dispatch.
+ */
+export interface RetainedReview<Payload = unknown> {
+  readonly payload: Payload;
+  readonly hash: string;
+  readonly reason: "interrupted" | "unconfirmed";
+  readonly responseId: string;
+  readonly userTurnId: string;
+}
+
+/**
+ * The review half of the consent kernel, handed to every action handler on
+ * `ctx.review`.
+ */
+export interface ReviewControls<Payload = unknown> {
+  readonly retained: RetainedReview<Payload> | null;
+  propose(
+    payload: Payload,
+    presentation?: ReviewPresentation,
+  ): Promise<ReviewOutcome<Payload>>;
+  represent(retained: RetainedReview<Payload>): Promise<ReviewOutcome<Payload>>;
+}
+
+/** What {@link Concierge.attestReadback} did with an observed human act. */
+export type AttestationOutcome =
+  | "accepted"
+  | "unknown_readback"
+  | "already_attested"
+  | "grade_unavailable"
+  | "malformed";
 
 /**
  * Detaches a snapshot from the app's reactivity system before it is stored.
@@ -1020,6 +1154,54 @@ export type OutputRedactionPolicy<Data> =
   | "passthrough"
   | ((data: DeepReadonly<Data>) => unknown);
 
+/**
+ * Injectable clock: return milliseconds elapsed from ANY fixed epoch of the
+ * implementation's choosing. Only differences between two readings are
+ * meaningful; the absolute value is never interpreted.
+ */
+export type Clock = () => number;
+
+/**
+ * Core-owned timing for one dispatch lifecycle event, read at the instant
+ * core constructed the event — before it was queued for asynchronous delivery.
+ */
+export interface DispatchTiming {
+  readonly clockMs: number;
+  readonly wallClockMs: number;
+  readonly elapsedMs: number;
+  readonly handlerMs?: number | undefined;
+  readonly monotonic: boolean;
+}
+
+/** Observer-safe result sentence selected by the action's message policy. */
+export type ObservedMessage =
+  | Readonly<{ kind: "dropped" }>
+  | Readonly<{ kind: "included"; value: string }>;
+
+/**
+ * What a message projection may read besides the sentence itself.
+ *
+ * Carries the already-redacted observer view of the result data, not the raw
+ * ActionResult.data.
+ */
+export interface MessageRedactionContext {
+  readonly ok: boolean;
+  readonly reason?: ReasonCode | undefined;
+  readonly data: ObservedResultData;
+}
+
+/**
+ * How a result's human-facing sentence is exposed to dispatch observers.
+ *
+ * Observer-only. It never alters the message returned to the caller.
+ *
+ * @default "passthrough"
+ */
+export type MessageRedactionPolicy =
+  | "drop"
+  | "passthrough"
+  | ((message: string, context: MessageRedactionContext) => string);
+
 /** Declares and protects the structured output contract for one action. */
 export interface ActionOutputDefinition<Schema extends StandardSchemaV1> {
   readonly schema: Schema;
@@ -1083,6 +1265,11 @@ interface ActionDefinitionShape<
    */
   jsonSchema?: JsonSchemaObject;
   redact: RedactionPolicy<InferOutput<Schema>>;
+  /**
+   * Observer-tier policy for {@link ActionResult.message}. Omitted means
+   * `"passthrough"`, which is today's behaviour.
+   */
+  redactMessage?: MessageRedactionPolicy | undefined;
   /**
    * Optional structured result declaration. Returning `data` without this
    * declaration fails closed as `invalid_result`.
@@ -1290,6 +1477,15 @@ export interface Bridge<
   Snapshot extends Record<string, () => unknown> = Record<string, () => unknown>,
 > {
   actions: Actions;
+  /**
+   * Snapshot values must be zero-argument getters. Core calls them at most
+   * once per capture and then detaches. A function of arity > 0 is a catalog
+   * error (`snapshot_slot_not_a_getter`).
+   *
+   * An empty snapshot (`{}`) makes drift detection a no-op. If any action
+   * bound to this bridge is named in a ConsentPolicy.requires list, that is a
+   * catalog error (`vacuous_consent_snapshot`) under a non-`none` profile.
+   */
   snapshot: Snapshot;
 }
 
@@ -1304,6 +1500,69 @@ export interface BridgeRegistry<B extends Bridge = Bridge> {
    */
   register: (bridge: B) => () => void;
 }
+
+/**
+ * What happened to a registry's single slot.
+ *
+ * `bridge` is carried by reference and is never normalized, cloned or frozen.
+ * The event object itself is shallow-frozen. `read()` remains authoritative
+ * for "what is live now"; this type says "what just happened".
+ */
+export type BridgeRegistrationEvent<B extends Bridge = Bridge> =
+  | {
+      readonly type: "registered";
+      readonly registryId: string;
+      readonly bridge: B;
+    }
+  | {
+      readonly type: "unregistered";
+      readonly registryId: string;
+    }
+  | {
+      readonly type: "drained";
+      readonly registryId: string;
+    };
+
+/**
+ * Registration observer. Never awaited: a returned promise is ignored.
+ */
+export type BridgeRegistrationListener<B extends Bridge = Bridge> = (
+  event: BridgeRegistrationEvent<B>,
+) => void;
+
+/**
+ * The registry `createBridge` returns: a {@link BridgeRegistry} plus the
+ * registration-arrival edge. {@link BridgeRegistry} itself is unchanged.
+ */
+export interface ObservableBridgeRegistry<B extends Bridge = Bridge>
+  extends BridgeRegistry<B> {
+  subscribe: (listener: BridgeRegistrationListener<B>) => () => void;
+  /**
+   * Declare that nothing is going to register for the foreseeable future.
+   * Emits one `"drained"` event and changes nothing else.
+   */
+  drain: () => void;
+}
+
+/**
+ * At least one of `timeoutMs` or `signal` is required. Supplying neither
+ * resolves `"unavailable"` deterministically.
+ */
+export interface RegistrationWaitOptions {
+  readonly timeoutMs?: number | undefined;
+  readonly signal?: AbortSignalLike | undefined;
+  readonly scheduler?: Scheduler | undefined;
+}
+
+/**
+ * Five outcomes, because a caller writes five different sentences.
+ */
+export type RegistrationWait<B extends Bridge = Bridge> =
+  | { readonly status: "ready"; readonly bridge: B }
+  | {
+      readonly status: "aborted" | "timed-out" | "drained" | "unavailable";
+      readonly bridge?: undefined;
+    };
 
 // ---------------------------------------------------------------------------
 // Stages
@@ -1473,8 +1732,17 @@ export type ObservedResultData =
   | Readonly<{ kind: "dropped" }>
   | Readonly<{ kind: "included"; value: unknown }>;
 
-/** The status portion of an action result; it deliberately cannot carry data. */
-export type ObservedActionResult = Readonly<Omit<ActionResult, "data">>;
+/**
+ * The status portion of an action result; it deliberately cannot carry data.
+ *
+ * `message` is policy-governed. The discriminated form is how the other two
+ * observer channels already say "withheld" without overloading a legal value.
+ */
+export interface ObservedActionResult {
+  readonly ok: boolean;
+  readonly reason?: ReasonCode | undefined;
+  readonly message: ObservedMessage;
+}
 
 /** Core-authored compound-action ancestry. */
 export interface DispatchLineage {
@@ -1496,6 +1764,8 @@ interface DispatchEventBase {
   readonly terminalAction: boolean;
   /** True only once this occurrence or its workflow has entered terminal execution. */
   readonly terminalEntered: boolean;
+  /** Core-owned marks. Present on every phase. See {@link DispatchTiming}. */
+  readonly timing: DispatchTiming;
 }
 
 /** Non-blocking lifecycle emitted once per logical invocation occurrence. */
@@ -1595,6 +1865,15 @@ export interface TransportCapabilities {
   readonly parallelCalls: boolean;
   /** Whether the catalog can be swapped mid-session on stage change. */
   readonly dynamicCatalog: boolean;
+  /**
+   * Whether publication is a round trip. When `true`,
+   * {@link Transport.onCatalogAcknowledged} is required and {@link Session}
+   * defers promotion of a new context until the transport confirms the agent
+   * has been given the new catalog.
+   *
+   * Fixed at declaration, like every other member here.
+   */
+  readonly acknowledgesCatalog: boolean;
 }
 
 /** Neutral connection lifecycle reported by every transport. */
@@ -1628,6 +1907,24 @@ export interface Transport {
   onToolBatch: (
     cb: (batch: ToolBatch) => Promise<BatchDispatchOutcome>,
   ) => () => void;
+  /**
+   * Required when `capabilities.acknowledgesCatalog` is `true`, ignored
+   * otherwise. Exactly one acknowledgement per `setCatalog` call, in order.
+   */
+  onCatalogAcknowledged?:
+    | ((cb: (ack: CatalogAcknowledgement) => void) => () => void)
+    | undefined;
+}
+
+/** One transport verdict on one published catalog revision. */
+export interface CatalogAcknowledgement {
+  /** The exact revision the transport was handed by `setCatalog`. */
+  readonly revision: CatalogRevision;
+  /**
+   * `false` means the agent never saw this revision. The session keeps the last
+   * acknowledged context authoritative and does not stop.
+   */
+  readonly accepted: boolean;
 }
 
 /**
@@ -1992,6 +2289,23 @@ export interface ConciergeConfig {
    */
   scheduler?: Scheduler;
   /**
+   * Monotonic clock for dispatch timing. When omitted, core reads a host
+   * `performance.now` structurally through the host seam; if the host has
+   * none, core falls back to `Date.now()` and reports
+   * `timing.monotonic === false`.
+   *
+   * Deduplication and the commit window do not read this clock.
+   */
+  clock?: Clock;
+  /**
+   * Namespace that makes `dispatchId` unique beyond this instance.
+   *
+   * Composed as `` `${instanceId}-${n}` ``. When omitted, core mints 32
+   * lowercase hex characters of host entropy per instance. Must match
+   * `/^[A-Za-z0-9._-]{1,64}$/`.
+   */
+  instanceId?: string;
+  /**
    * Grace period before any side effect lands, so a human can interrupt.
    * Must be finite and non-negative; invalid values throw during construction.
    * @default 600
@@ -2027,6 +2341,12 @@ export interface ConciergeConfig {
  */
 export interface Concierge {
   /**
+   * The namespace every `dispatchId` from this instance is prefixed with —
+   * the configured {@link ConciergeConfig.instanceId} or the host-minted
+   * default.
+   */
+  readonly instanceId: string;
+  /**
    * NOT `async`. An async wrapper allocates a fresh Promise per invocation,
    * which breaks deduplication by reference identity.
    */
@@ -2060,6 +2380,16 @@ export interface Concierge {
    * server.
    */
   explain: (ctx: StageContext) => Explanation;
+  /**
+   * Record a human act the app observed on its own surface, bound to one
+   * readback hash.
+   *
+   * Synchronous, and that is load-bearing: it is called from a click or
+   * keypress handler that must decide what to render next. It cannot create a
+   * generation, choose a payload, or raise the profile ceiling. It must not
+   * be exposed through the signed AI-SDK browser envelope.
+   */
+  attestReadback: (attestation: ReadbackAttestation) => AttestationOutcome;
 }
 
 /** Closed operational diagnostic vocabulary for the Session runtime. */
@@ -2074,7 +2404,9 @@ export type SessionDiagnosticCode =
   | "catalog_clear_failed"
   | "abort_signal_failed"
   | "batch_without_context"
-  | "outcome_presentation_failed";
+  | "outcome_presentation_failed"
+  /** A published revision was rejected; the acknowledged context still stands. */
+  | "catalog_acknowledgement_failed";
 
 /** Fixed safe diagnostic shape exposed by Session. */
 export interface SessionDiagnostic {
