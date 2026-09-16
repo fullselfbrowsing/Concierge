@@ -1,13 +1,15 @@
-# Releasing Concierge 0.3
+# Releasing Concierge 0.4
 
-Concierge publishes one fixed trio at one stable `0.3.x` version under the
-npm `latest` dist-tag. Release artifacts are built without publish credentials,
-independently sealed from a clean checkout, and published byte-for-byte from a
-protected GitHub environment using npm trusted publishing.
+Concierge publishes one fixed set of five packages at one stable `0.4.x`
+version under the npm `latest` dist-tag. Release artifacts are built without
+publish credentials, independently sealed from a clean checkout, and published
+byte-for-byte from a protected GitHub environment using npm trusted publishing.
 
-The live release identity is `.release/lines/0.3.json`. Historical Phase 09
+The live release identity is `.release/lines/0.4.json`. Historical Phase 09
 scripts and `.planning` evidence reproduce the unpublished v0.1 milestone; they
-do not authorize a 0.3 release and must not be edited into the current flow.
+do not authorize a 0.4 release and must not be edited into the current flow.
+`.release/lines/0.3.json` is the retired 0.3 line and authorizes nothing on
+this one.
 
 ## Fixed release set
 
@@ -16,10 +18,16 @@ Publish order is load-bearing:
 1. `@full-self-browsing/concierge`
 2. `@full-self-browsing/concierge-react`
 3. `@full-self-browsing/concierge-svelte`
+4. `@full-self-browsing/concierge-dom`
+5. `@full-self-browsing/concierge-realtime`
 
-Core is first because each adapter has a core peer. All three manifests, packed
-archives, Changesets output, release seal, registry versions, and `latest` tags
-must agree. Contract v3 is fixed throughout the 0.3 line.
+Core is first because every other package has a core peer. All five manifests,
+packed archives, Changesets output, release seal, registry versions, and
+`latest` tags must agree. Contract v4 is fixed throughout the 0.4 line.
+
+The set is enforced in three places and they must not drift apart:
+`.release/lines/0.4.json`'s `packages[]`, the `fixed` group in
+`.changeset/config.json`, and `node scripts/release/check.mjs all`.
 
 ## One-time registry bootstrap
 
@@ -30,12 +38,14 @@ release run.
 ### 1. Confirm ownership and names
 
 Confirm that the npm `@full-self-browsing` organization or user scope exists and
-the maintainer has package/settings write permission. Recheck all three names:
+the maintainer has package/settings write permission. Recheck all five names:
 
 ```sh
 npm view @full-self-browsing/concierge version
 npm view @full-self-browsing/concierge-react version
 npm view @full-self-browsing/concierge-svelte version
+npm view @full-self-browsing/concierge-dom version
+npm view @full-self-browsing/concierge-realtime version
 ```
 
 An `E404` means no public package record exists; it does not prove scope write
@@ -71,7 +81,7 @@ npm pkg set publishConfig.access='public'
 npm pkg set publishConfig.tag='bootstrap'
 
 # Replace the generated entry with a module that fails loudly if installed.
-printf '%s\n' 'throw new Error("This is an inert Concierge registry bootstrap; install 0.3 or newer.");' > index.js
+printf '%s\n' 'throw new Error("This is an inert Concierge registry bootstrap; install 0.4 or newer.");' > index.js
 npm pkg set main='./index.js'
 npm pkg set exports='./index.js'
 
@@ -89,7 +99,7 @@ Do not publish any repository-built `0.1.0`, assign `latest`, or use an
 automation token for bootstrap. Do not unpublish the inert version after
 launch; registry history is immutable evidence.
 
-### 3. Configure three trusted publishers
+### 3. Configure five trusted publishers
 
 Use npm 11.19.0 or newer in the npm 11 line and authenticate interactively:
 
@@ -100,7 +110,9 @@ npm login
 for package in \
   @full-self-browsing/concierge \
   @full-self-browsing/concierge-react \
-  @full-self-browsing/concierge-svelte
+  @full-self-browsing/concierge-svelte \
+  @full-self-browsing/concierge-dom \
+  @full-self-browsing/concierge-realtime
 do
   npm trust github "$package" \
     --repo fullselfbrowsing/Concierge \
@@ -142,14 +154,14 @@ job must run on a GitHub-hosted runner and receive only `id-token: write`.
 
 ### 1. Add a Changeset
 
-A release Changeset names all three public packages at the same bump level.
+A release Changeset names all five public packages at the same bump level.
 They are one exact fixed group in `.changeset/config.json`.
 
-For a 0.3 patch, keep every adapter's source core peer at `workspace:^`. For a
-future pre-1.0 minor, first use a bounded old/new transition such as
-`workspace:^0.3.3 || ^0.4.0`; the version wrapper verifies the target and
-normalizes the Version Packages PR back to `workspace:^`. Never publish a broad
-`>=0.0.0` core peer.
+For a 0.4 patch, keep every dependent package's source core peer at
+`workspace:^`. For a future pre-1.0 minor, first use a bounded old/new
+transition such as `workspace:^0.4.3 || ^0.5.0`; the version wrapper verifies
+the target and normalizes the Version Packages PR back to `workspace:^`. Never
+publish a broad `>=0.0.0` core peer.
 
 ### 2. Run candidate checks
 
@@ -187,6 +199,12 @@ against current AI 6 and 7 stacks. It also installs the exact React and Svelte
 archives into minimum/current framework cells, checks ESM SSR imports, strict
 declarations, and one physical core. It never uses a live model credential.
 
+`scripts/release/compatibility.mjs` covers core, React, and Svelte only.
+`concierge-dom` and `concierge-realtime` are in the fixed release set but not
+yet in this matrix, so their archives are certified by `package.mjs`, `attw`,
+`publint`, and the seal — not by an installed-consumer cell. Treat that as a
+known gap in the gate, not as a pass.
+
 To prepare the exact AI 7 example in a new path for a local browser run:
 
 ```sh
@@ -198,7 +216,7 @@ CONCIERGE_RELEASE_BROWSERS=1 npm run test:e2e
 ```
 
 Install Chromium, Firefox, and WebKit with Playwright first if they are not
-already present. The prepared manifest points at all three exact archives; it
+already present. The prepared manifest points at all five exact archives; it
 contains no workspace dependency.
 
 ### 3. Review the Version Packages PR
@@ -207,10 +225,10 @@ Pushing a Changeset to `main` causes `changesets/action` to open or update a
 Version Packages PR through `scripts/release/version.mjs`. Review that the PR:
 
 - consumes at least one intended Changeset;
-- gives all three packages one stable `0.3.x` version;
-- updates all three changelogs;
-- retains contract v3 for a patch;
-- leaves adapter core peers as canonical `workspace:^`;
+- gives all five packages one stable `0.4.x` version;
+- updates all five changelogs;
+- retains contract v4 for a patch;
+- leaves every dependent package's core peer as canonical `workspace:^`;
 - contains only expected manifest, changelog, and lockfile changes.
 
 Merge only after the source, example, compatibility, security, and migration
@@ -227,7 +245,7 @@ Merging the Version Packages PR leaves no pending Changeset. The next
 | `version` | Repository and PR write | Validate policy; open a Version Packages PR when Changesets remain |
 | `verify` | Contents read | Install, build, typecheck, test, pack each package once, run publint/ATTW, test AI 6/7 plus React/Svelte minimum/current cells, fetch pinned npm |
 | `seal` | Contents read | Clean checkout; independently validate policy, archive manifests/digests, and npm integrity; copy exact tools/archives and create `release-seal.json` |
-| `browser_e2e` | Contents read | Revalidate the seal, install its exact trio into an isolated example, and test the signed bridge in Chromium, Firefox, and WebKit |
+| `browser_e2e` | Contents read | Revalidate the seal, install its exact five-package set into an isolated example, and test the signed bridge in Chromium, Firefox, and WebKit |
 | `publish` | OIDC only, protected environment | No checkout/install/build/repack; verify sealed launcher, publish exact archives, verify registry integrity/provenance/tag |
 
 Every artifact name binds workflow run, attempt, and source SHA. The seal binds
@@ -265,16 +283,18 @@ After publication, independently check:
 for package in \
   @full-self-browsing/concierge \
   @full-self-browsing/concierge-react \
-  @full-self-browsing/concierge-svelte
+  @full-self-browsing/concierge-svelte \
+  @full-self-browsing/concierge-dom \
+  @full-self-browsing/concierge-realtime
 do
   npm view "$package" version dist-tags dist.integrity dist.attestations --json
 done
 ```
 
-Install the trio in a new Node 22.12 consumer, confirm one physical core with
+Install the set in a new Node 22.12 consumer, confirm one physical core with
 `pnpm why`, import every public subpath, and run the documented quick start.
 
-Only after all three registry records pass should a maintainer create GitHub tag
+Only after all five registry records pass should a maintainer create GitHub tag
 and release `v<shared-version>` at the exact sealed commit. Attach checksums or
 link the workflow; do not attach repacked npm archives.
 
@@ -306,11 +326,11 @@ Published npm versions cannot be overwritten. For a code or security defect:
 
 1. stop or reject pending environment approvals;
 2. privately assess impact under [SECURITY.md](./SECURITY.md);
-3. prepare and certify a synchronized patch trio;
+3. prepare and certify a synchronized patch across all five packages;
 4. publish it through the same workflow;
 5. deprecate the affected version with a safe generic message if needed.
 
 Changing `latest` outside the publisher is an exceptional registry mutation. It
 requires an explicitly reviewed maintainer operation with 2FA, a recorded exact
-target, and follow-up verification across all three packages. Never silently
-retag only part of the trio.
+target, and follow-up verification across all five packages. Never silently
+retag only part of the set.

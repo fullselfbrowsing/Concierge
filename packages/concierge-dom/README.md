@@ -53,6 +53,16 @@ options used for subsequent registrations. A key holds a *set* of
 registrations: two simultaneously mounted nodes for one record is the
 responsive case this package exists to solve.
 
+The callback returns the cleanup for the element it just attached. React 19
+calls that cleanup on unmount and never calls back with `null`, so each JSX
+site releases exactly the node it registered — which is what makes several
+live nodes under one key exact. React 18 ignores the return value and calls
+`ref(null)` instead, naming no element; there the callback drops any
+registration whose node has left the document, and failing that the most
+recent one. If you need multi-node precision under React 18, call
+`register()` (or `action()` in Svelte) directly — both hand back a release
+bound to their own node.
+
 Do not place an `AnchorRegistry` on a bridge snapshot. It is a capability
 object, not a value; `captureSnapshot` would report it as exotic.
 

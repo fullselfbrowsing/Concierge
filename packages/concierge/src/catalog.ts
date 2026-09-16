@@ -423,6 +423,18 @@ export interface BuildCatalogOptions {
    * Live bridge registries to inspect for snapshot-slot arity and vacuous
    * consent snapshots. Callers must not invoke snapshot getters; this walk
    * reads descriptors only.
+   *
+   * **This reports only on registries that already hold a bridge.** The walk
+   * calls `registry.read()`, which is `null` until a component registers — so
+   * a catalog built at module scope, before anything has mounted, inspects
+   * nothing and reports nothing. Passing `snapshotSources` there is not a
+   * check that passed; it is a check that did not run. To get the build-time
+   * report, rebuild the catalog once the bridges are registered.
+   *
+   * Nothing depends on that rebuild for safety. The load-bearing vacuous
+   * snapshot gate is the runtime one: a consent generation whose captured
+   * snapshot has zero own keys refuses at confirm with `consent_stale`,
+   * whether or not this walk ever ran.
    */
   readonly snapshotSources?:
     | ReadonlyArray<{
