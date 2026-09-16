@@ -173,3 +173,47 @@ it("ignores acknowledgements after stop and a second ack for one publication", a
   expect(diagnostics).toEqual([]);
   expect(harness.ackUnsubscribes).toBe(1);
 });
+
+it("subscribes through a method that reads its receiver", async () => {
+  const concierge = conciergeFor(createConcierge, [
+    action("run", () => ({ ok: true, message: "Done." })),
+  ]);
+  const harness = transportHarness({
+    capabilities: { acknowledgesCatalog: true },
+  });
+
+  // Core reads `onCatalogAcknowledged` off the transport before calling it,
+  // so the call has to put the receiver back. A transport whose subscriber is
+  // a method touching `this` — the shape `test/fixtures/v2-session.js` and
+  // `concierge-realtime` both use — must work exactly as `onStatusChange` and
+  // `onToolBatch` do.
+  let receiver;
+  Object.defineProperty(harness.transport, "onCatalogAcknowledged", {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value: function onCatalogAcknowledged(handler) {
+      receiver = this;
+      if (this === undefined) throw new TypeError("called without a receiver");
+      return this.__subscribeAck(handler);
+    },
+  });
+  Object.defineProperty(harness.transport, "__subscribeAck", {
+    configurable: true,
+    enumerable: false,
+    value: (handler) => harness.subscribeAck(handler),
+  });
+
+  const session = createSession({
+    concierge,
+    transport: harness.transport,
+    initialContext: ACTIVE,
+    presentOutcome: async () => ({ outcome: "completed" }),
+  });
+
+  expect(receiver).toBe(harness.transport);
+  const published = harness.publications[0];
+  harness.acknowledge({ revision: published.revision, accepted: true });
+  expect(session.catalog()).toBe(published);
+  await session.stop();
+});

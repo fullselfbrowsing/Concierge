@@ -751,11 +751,22 @@ function createV2Session(
     if (typeof removeBatch !== "function") throw new Error(START_ERROR);
     unsubscribeBatch = removeBatch as () => void;
     if (capabilities.acknowledgesCatalog === true) {
+      // The subscriber has to be READ before it is called, because it is
+      // optional and the `typeof` guard is what turns a transport that
+      // claims `acknowledgesCatalog` without implementing it into
+      // START_ERROR. Reading it detaches it from its receiver, so the call
+      // goes back through `Reflect.apply` — a method-shorthand
+      // `onCatalogAcknowledged` that touches `this` must work here exactly
+      // as it does for `onStatusChange` and `onToolBatch` above, which are
+      // ordinary method calls. `publish` makes the same move for the same
+      // reason.
       const subscribeAck: unknown = transport.onCatalogAcknowledged;
       if (typeof subscribeAck !== "function") throw new Error(START_ERROR);
-      const removeAck: unknown = (subscribeAck as (
-        cb: (ack: CatalogAcknowledgement) => void,
-      ) => unknown)(handleAcknowledgement);
+      const removeAck: unknown = Reflect.apply(
+        subscribeAck as (cb: (ack: CatalogAcknowledgement) => void) => unknown,
+        transport,
+        [handleAcknowledgement],
+      );
       if (typeof removeAck !== "function") throw new Error(START_ERROR);
       unsubscribeAck = removeAck as () => void;
     }

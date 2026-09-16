@@ -1967,6 +1967,24 @@ describe("CON-07/09 — attested authority requires one complete owned evidence 
     expect(await flow.confirm()).toMatchObject({ ok: true });
   });
 
+  it("E11b — an attestation matching two pending reviews arms neither", async () => {
+    const flow = createAttestedKernel();
+    // Two sessions, one review name, identical args. The readback hash covers
+    // {payload, presented} and not the action, so both generations hold the
+    // same hash and the attestation names no single review.
+    await flow.review({ sessionId: "session-a", responseId: "review-a" });
+    await flow.review({ sessionId: "session-b", responseId: "review-b" });
+
+    expect(flow.attest("confirmed", "act-ambiguous")).toBe("unknown_readback");
+
+    // Refusing must not consume the actId either, so the same act still works
+    // once the ambiguity is gone.
+    expect(await flow.confirm({ sessionId: "session-b" })).toMatchObject({
+      ok: false,
+    });
+    expect(flow.attest("confirmed", "act-ambiguous")).toBe("accepted");
+  });
+
   it("[T-08-04] E12 — an attested ceiling alone produces only relayed evidence", async () => {
     let presenterCalls = 0;
     const digest = immediateEvidenceDigest();

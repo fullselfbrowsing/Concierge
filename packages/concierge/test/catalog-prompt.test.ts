@@ -4,6 +4,7 @@ import { z } from "zod";
 import { catalogDerivedPolicy, renderCatalogPrompt } from "../src/catalog-prompt.js";
 import { createConcierge } from "../src/concierge.js";
 import { defineAction } from "../src/define-action.js";
+import type { ResolvedCatalog } from "../src/types.js";
 
 const emptySchema = z.object({});
 
@@ -104,5 +105,28 @@ describe("renderCatalogPrompt and catalogDerivedPolicy", () => {
     expect(renderCatalogPrompt(catalog, { includeUnavailable: true })).toContain(
       "hiddenTask",
     );
+  });
+
+  it("treats every action as sensitive when no projection is remembered", () => {
+    // A catalog nothing remembered — built by another core instance, or one
+    // whose revision never passed through rememberCatalogProjection. The
+    // policy cannot know which actions are consequential, so it must not
+    // report that none of them are.
+    const foreign = Object.freeze({
+      stage: "tasks",
+      revision: Symbol("foreign.catalog") as ResolvedCatalog["revision"],
+      tools: Object.freeze([
+        { name: "listTasks", description: "List.", parameters: { type: "object" as const, properties: {} } },
+        { name: "deleteTask", description: "Delete.", parameters: { type: "object" as const, properties: {} } },
+      ]),
+    }) as unknown as ResolvedCatalog;
+
+    const policy = catalogDerivedPolicy(foreign);
+    expect([...policy.continuationSensitiveNames].sort()).toEqual([
+      "deleteTask",
+      "listTasks",
+    ]);
+    expect(policy.observerRedaction["deleteTask"]).toBe("drop");
+    expect(policy.sideEffects["deleteTask"]).toEqual({});
   });
 });

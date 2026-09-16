@@ -4784,16 +4784,34 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     if (consentGenerations === null) {
       return "unknown_readback";
     }
+    // **Every match is collected, and two matches refuse.** The hash covers
+    // `{payload, presented}` and nothing else — not the review action's name
+    // — so two review actions whose readbacks are byte-identical are
+    // indistinguishable here. An earlier draft took the first in Map
+    // insertion order, which arms a generation the person may not be the one
+    // who heard. When the evidence cannot say which review was confirmed,
+    // the honest answer is that none was.
     let matched: { slotKey: string; generation: ConsentGenerationBase } | null =
       null;
+    let ambiguous: boolean = false;
     for (const [slotKey, generation] of consentGenerations) {
       if (
         "payload" in generation &&
         generation.readbackHash === readbackHash
       ) {
+        if (matched !== null) {
+          ambiguous = true;
+          break;
+        }
         matched = { slotKey, generation };
-        break;
       }
+    }
+    if (ambiguous) {
+      warnDispatchOnce(
+        `ambiguous-attestation:${readbackHash}`,
+        `concierge: [ambiguous_attestation] two pending reviews share one readback hash, so the attestation named no single review and was refused. Fix: make each review's payload distinguish the action it gates.`,
+      );
+      return "unknown_readback";
     }
     if (matched === null) {
       return "unknown_readback";

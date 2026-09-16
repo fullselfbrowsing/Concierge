@@ -182,3 +182,69 @@ describe("createRealtimeDeliveryLedger", () => {
     expect(reports[1]?.outcome).toBe("completed");
   });
 });
+
+describe("attestation snapshotting", () => {
+  it("rejects an accessor-backed attestation and never invokes its getters", () => {
+    const ledger = createRealtimeDeliveryLedger({ attestationWindowMs: 50 });
+    let reads = 0;
+    const hostile = {
+      get act() {
+        reads += 1;
+        return "confirmed";
+      },
+      get actId() {
+        reads += 1;
+        return reads > 2 ? "swapped" : "act-1";
+      },
+      get readbackHash() {
+        reads += 1;
+        return "hash-1";
+      },
+      get userTurnId() {
+        reads += 1;
+        return "turn-2";
+      },
+    };
+
+    const reports = [];
+    ledger.deferFor("origin-1")((report) => reports.push(report));
+    ledger.attachReadbackHash("origin-1", "hash-1");
+    ledger.bindResponse("voice-1");
+    ledger.playbackStarted("voice-1");
+    ledger.playbackDrained("voice-1");
+
+    ledger.observeAttestation(hostile);
+
+    // Every field is read through its own-data descriptor, so no getter runs
+    // and the attestation cannot settle the held group.
+    expect(reads).toBe(0);
+    expect(reports).toEqual([]);
+  });
+
+  it("carries a plain-data attestation through to the report", () => {
+    const ledger = createRealtimeDeliveryLedger({ attestationWindowMs: 50 });
+    const reports = [];
+    ledger.deferFor("origin-1")((report) => reports.push(report));
+    ledger.attachReadbackHash("origin-1", "hash-1");
+    ledger.rememberOriginTurn("origin-1", "turn-1");
+    ledger.bindResponse("voice-1");
+    ledger.playbackStarted("voice-1");
+    ledger.playbackDrained("voice-1");
+
+    ledger.observeAttestation({
+      act: "confirmed",
+      actId: "act-1",
+      readbackHash: "hash-1",
+      userTurnId: "turn-2",
+    });
+
+    expect(reports).toHaveLength(1);
+    expect(reports[0].attestation).toMatchObject({
+      act: "confirmed",
+      actId: "act-1",
+      readbackHash: "hash-1",
+      userTurnId: "turn-2",
+    });
+    expect(Object.isFrozen(reports[0].attestation)).toBe(true);
+  });
+});

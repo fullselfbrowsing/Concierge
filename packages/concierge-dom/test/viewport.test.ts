@@ -71,6 +71,30 @@ describe("viewport helpers", () => {
     expect(preferredScrollBehavior()).toBe("smooth");
   });
 
+  it("prefers auto when the preference cannot be read at all", () => {
+    // `vi.restoreAllMocks` does not undo a `defineProperty`, so this test
+    // removes `matchMedia` itself rather than trusting the shared afterEach.
+    const original = Reflect.getOwnPropertyDescriptor(window, "matchMedia");
+    try {
+      Reflect.deleteProperty(window, "matchMedia");
+      expect(preferredScrollBehavior()).toBe("auto");
+
+      Object.defineProperty(window, "matchMedia", {
+        configurable: true,
+        writable: true,
+        value: (): never => {
+          throw new Error("no media support");
+        },
+      });
+      expect(preferredScrollBehavior()).toBe("auto");
+    } finally {
+      Reflect.deleteProperty(window, "matchMedia");
+      if (original !== undefined) {
+        Object.defineProperty(window, "matchMedia", original);
+      }
+    }
+  });
+
   it("reads the current position and reports the clamped target, not the settled one", () => {
     const scrollTo = stubViewport({
       scrollY: 100,

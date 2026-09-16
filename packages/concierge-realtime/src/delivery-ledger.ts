@@ -1,7 +1,9 @@
 import type { DeliveryReport, ReadbackAttestation } from "@full-self-browsing/concierge";
 import {
+  asRecord,
   createDiagnostic,
   notifyDiagnostic,
+  ownData,
   resolveScheduler,
   validIdentifier,
 } from "./host.js";
@@ -22,32 +24,40 @@ interface DeliveryGroup {
   cancelHold: (() => void) | undefined;
 }
 
+/**
+ * Detach an attestation into frozen own data before anything is validated.
+ *
+ * **Every field is read exactly once, through `ownData`.** An earlier draft
+ * read `act`, `actId` and `readbackHash` once to validate and again to build
+ * the copy, so an accessor-backed attestation could pass `validIdentifier`
+ * and then hand a different `actId` to the frozen record. Reading each key's
+ * own data descriptor — never the property — is the same discipline core
+ * applies in `turn-ledger.ts` and `consent-evidence.ts`, and it also means a
+ * getter never runs at all.
+ */
 function snapshotAttestation(
   attestation: ReadbackAttestation,
 ): ReadbackAttestation | null {
+  const record: object | null = asRecord(attestation);
+  if (record === null) {
+    return null;
+  }
+  const act: unknown = ownData(record, "act");
+  const actId: unknown = ownData(record, "actId");
+  const readbackHash: unknown = ownData(record, "readbackHash");
+  const userTurnId: unknown = ownData(record, "userTurnId");
   if (
-    (attestation.act !== "confirmed" &&
-      attestation.act !== "declined" &&
-      attestation.act !== "dismissed") ||
-    !validIdentifier(attestation.actId) ||
-    typeof attestation.readbackHash !== "string"
+    (act !== "confirmed" && act !== "declined" && act !== "dismissed") ||
+    !validIdentifier(actId) ||
+    typeof readbackHash !== "string" ||
+    (userTurnId !== undefined && typeof userTurnId !== "string")
   ) {
     return null;
   }
-  const userTurnId: string | undefined = attestation.userTurnId;
   return Object.freeze(
     userTurnId === undefined
-      ? {
-          act: attestation.act,
-          actId: attestation.actId,
-          readbackHash: attestation.readbackHash,
-        }
-      : {
-          act: attestation.act,
-          actId: attestation.actId,
-          readbackHash: attestation.readbackHash,
-          userTurnId,
-        },
+      ? { act, actId, readbackHash }
+      : { act, actId, readbackHash, userTurnId },
   );
 }
 

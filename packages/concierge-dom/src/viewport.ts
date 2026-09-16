@@ -17,14 +17,26 @@ import type {
 const DEFAULT_STEP: number = 0.85;
 const REDUCE_MOTION_QUERY: string = "(prefers-reduced-motion: reduce)";
 
-/** Re-read per call: the preference can change mid-session. */
+/**
+ * Re-read per call: the preference can change mid-session.
+ *
+ * **Unknown resolves to `"auto"`, not `"smooth"`.** This is the default for
+ * every `reveal()` and `scrollViewport()` that omits `behavior`, so a host
+ * that cannot report the reduced-motion preference — no `matchMedia`, or one
+ * that throws — must not be animated on the assumption that it is fine. The
+ * preference is only honoured in the affirmative.
+ */
 export function preferredScrollBehavior(): "auto" | "smooth" {
   const matchMedia: typeof globalThis.matchMedia | undefined =
     globalThis.matchMedia;
   if (typeof matchMedia !== "function") {
-    return "smooth";
+    return "auto";
   }
-  return matchMedia(REDUCE_MOTION_QUERY).matches ? "auto" : "smooth";
+  try {
+    return matchMedia(REDUCE_MOTION_QUERY).matches ? "auto" : "smooth";
+  } catch {
+    return "auto";
+  }
 }
 
 export function readViewportPosition(): ViewportPosition {

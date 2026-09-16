@@ -182,15 +182,28 @@ export function catalogDerivedPolicy(
   if (projection !== undefined) {
     return projection.policy;
   }
+
+  // **Every arm of this fallback fails CLOSED, including the first.** A
+  // catalog reaches here when nothing remembered its revision — one built by
+  // a different core instance, or one whose revision symbol never passed
+  // through `rememberCatalogProjection`. An earlier draft reported
+  // `continuationSensitiveNames: []` here, which reads as restraint and is
+  // the opposite: a consumer using this field to decide whether to keep
+  // going after an action would have treated every destructive and
+  // consent-gated action as safe to continue past. With no projection the
+  // honest answer is that sensitivity is unknown, and unknown is treated as
+  // sensitive — matching `"drop"` for redaction directly below.
+  const continuationSensitiveNames: string[] = [];
   const observerRedaction: Record<string, OutputRedactionPolicy<unknown>> =
     Object.create(null);
   const sideEffects: Record<string, SideEffects> = Object.create(null);
   for (const tool of catalog.tools) {
+    continuationSensitiveNames.push(tool.name);
     observerRedaction[tool.name] = "drop";
     sideEffects[tool.name] = Object.freeze({});
   }
   return Object.freeze({
-    continuationSensitiveNames: Object.freeze([]),
+    continuationSensitiveNames: Object.freeze(continuationSensitiveNames),
     observerRedaction: Object.freeze(observerRedaction),
     sideEffects: Object.freeze(sideEffects),
   });

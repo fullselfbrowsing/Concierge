@@ -104,6 +104,16 @@ export function transportHarness(overrides = {}) {
     acknowledge(ack) {
       for (const handler of [...ackHandlers]) handler(ack);
     },
+    // The same registration `transport.onCatalogAcknowledged` performs,
+    // reachable without going through the transport. Lets a test replace the
+    // subscriber with a `this`-reading method and still wire up the harness.
+    subscribeAck(handler) {
+      ackHandlers.add(handler);
+      return () => {
+        ackUnsubscribes += 1;
+        ackHandlers.delete(handler);
+      };
+    },
   };
 }
 
