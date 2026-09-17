@@ -129,7 +129,13 @@ describe("createRealtimeDeliveryLedger", () => {
     ]);
   });
 
-  it("emits a completed report without attestation when the window elapses", () => {
+  it("emits a completed report with neither attestation nor hash when the hold elapses", () => {
+    // The hash is what core reads to substantiate a claim to `attested`, so a
+    // report carrying one with no attestation is a claim that failed — and
+    // the kernel answers a failed claim by closing the consent generation.
+    // An elapsed hold is not a failed claim; it is a delivery nobody has
+    // answered yet. Emitting the bare hash made the timeout revoke consent,
+    // so a person confirming a moment later got `unknown_readback`.
     const reports = [];
     const armed = [];
     const ledger = createRealtimeDeliveryLedger({
@@ -152,10 +158,10 @@ describe("createRealtimeDeliveryLedger", () => {
       expect.objectContaining({
         responseId: "origin",
         outcome: "completed",
-        readbackHash: "hash-1",
       }),
     ]);
     expect(reports[0]?.attestation).toBeUndefined();
+    expect(reports[0]).not.toHaveProperty("readbackHash");
   });
 
   it("settles interruption immediately and keeps playing groups when asked", () => {
@@ -284,8 +290,18 @@ describe("bounded bookkeeping", () => {
   });
 
   it("still reports an origin's readback hash after many later responses", () => {
-    const ledger = createRealtimeDeliveryLedger({});
+    // The hash only reaches a report alongside an attestation, so the
+    // attestation is how this asserts that `hashesByOrigin` kept the entry.
+    const armed = [];
+    const ledger = createRealtimeDeliveryLedger({
+      attestationWindowMs: 40,
+      scheduler: (fn) => {
+        armed.push(fn);
+        return () => {};
+      },
+    });
     ledger.attachReadbackHash("origin-keep", "hash-keep");
+    ledger.rememberOriginTurn("origin-keep", "turn-review");
     for (let index = 0; index < 100; index += 1) {
       ledger.attachReadbackHash(`origin-${index}`, `hash-${index}`);
     }
@@ -294,6 +310,12 @@ describe("bounded bookkeeping", () => {
     ledger.bindResponse("voice-keep");
     ledger.playbackStarted("voice-keep");
     ledger.playbackDrained("voice-keep");
+    ledger.observeAttestation({
+      act: "confirmed",
+      actId: "act-keep",
+      readbackHash: "hash-keep",
+      userTurnId: "turn-confirm",
+    });
 
     expect(reports).toHaveLength(1);
     expect(reports[0].readbackHash).toBe("hash-keep");

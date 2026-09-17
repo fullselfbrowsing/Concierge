@@ -771,6 +771,18 @@ function snapshotAttestation(
     return null;
   }
   const act: PropertyDescriptor | null = dataDescriptor(shape, "act");
+  // **`userTurnId` is optional on the type, so it is optional here too.**
+  // Requiring it made a `ReadbackAttestation` that typechecks — the field is
+  // declared `userTurnId?: string | undefined` because `attestReadback` reads
+  // it only when the policy binds to `"userTurn"` — fail the whole snapshot,
+  // which `observeReviewDelivery` cannot tell apart from a hostile report and
+  // answers by closing the generation. That refusal belongs one layer up,
+  // where `validConfirm` already demands a non-empty confirming turn distinct
+  // from the review's, and where a `declined` act is recorded as a human
+  // decision instead of being erased. The `hasX && x === null` idiom is the
+  // one `snapshotDeliveryEvidence` below already uses for its own optional
+  // field: absent is fine, present-but-not-own-data is not.
+  const hasUserTurnId: boolean = shape.keys.includes("userTurnId");
   const userTurnId: PropertyDescriptor | null = dataDescriptor(
     shape,
     "userTurnId",
@@ -781,7 +793,7 @@ function snapshotAttestation(
   );
   if (
     act === null ||
-    userTurnId === null ||
+    (hasUserTurnId && userTurnId === null) ||
     readbackHash === null ||
     !shapeStillMatches(value, shape)
   ) {
@@ -790,7 +802,7 @@ function snapshotAttestation(
   return Object.freeze({
     act: act.value,
     readbackHash: readbackHash.value,
-    userTurnId: userTurnId.value,
+    userTurnId: userTurnId?.value,
   });
 }
 

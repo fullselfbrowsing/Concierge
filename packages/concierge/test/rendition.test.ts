@@ -126,3 +126,46 @@ describe("settlement bookkeeping", () => {
     expect(reports).toHaveLength(1);
   });
 });
+
+describe("bounded started bookkeeping", () => {
+  it("forgets the oldest started rendition past the cap", () => {
+    // `settle` only dropped a rendition from `started` once it had a bound
+    // cause, so every playback with nothing deferred against it left its id
+    // behind for the life of the binder. The cap is what stops that; this
+    // asserts the cap exists by reaching past it.
+    const reports: DeliveryReport[] = [];
+    const binder = createRenditionBinder({ onIssue: () => {} });
+    binder.deferralsFor("cause-0")((report) => {
+      reports.push(report);
+    });
+    binder.bindRendition({ cause: "cause-0", rendition: "rendition-0" });
+    binder.renditionStarted("rendition-0");
+
+    for (let index = 1; index <= 512; index += 1) {
+      binder.renditionStarted(`filler-${index}`);
+    }
+
+    // Evicted from `started`, so it now reads as never started.
+    binder.abandonUnstarted();
+    expect(reports).toEqual([
+      expect.objectContaining({ responseId: "cause-0", outcome: "interrupted" }),
+    ]);
+  });
+
+  it("keeps a started rendition live well inside the cap", () => {
+    const reports: DeliveryReport[] = [];
+    const binder = createRenditionBinder({ onIssue: () => {} });
+    binder.deferralsFor("cause-0")((report) => {
+      reports.push(report);
+    });
+    binder.bindRendition({ cause: "cause-0", rendition: "rendition-0" });
+    binder.renditionStarted("rendition-0");
+
+    for (let index = 1; index <= 100; index += 1) {
+      binder.renditionStarted(`filler-${index}`);
+    }
+
+    binder.abandonUnstarted();
+    expect(reports).toEqual([]);
+  });
+});

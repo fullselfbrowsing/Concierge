@@ -427,6 +427,12 @@ export interface ReadbackAttestation {
    * The transport turn the act belongs to, when the app can honestly say.
    * Read only when `consentProfile.userTurnIdentity` is `"human-attested"` and
    * the policy binds to `"userTurn"`.
+   *
+   * Optional on {@link Concierge.attestReadback}; **required in practice on
+   * {@link DeliveryReport.attestation}**, where reaching `attested` needs a
+   * confirming turn that is non-empty and distinct from the review's. An
+   * attestation delivered without one is a claim the kernel cannot
+   * substantiate, and it closes the consent generation rather than arming.
    */
   readonly userTurnId?: string | undefined;
 }

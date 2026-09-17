@@ -153,10 +153,27 @@ export function createRealtimeDeliveryLedger(
     if (unboundIndex >= 0) unbound.splice(unboundIndex, 1);
     const openIndex: number = groups.indexOf(group);
     if (openIndex >= 0) groups.splice(openIndex, 1);
+    // **The hash rides with the attestation or it does not ride at all.**
+    // Core reads `DeliveryReport.readbackHash` in exactly one place: to
+    // substantiate a claim to `attested`. A hash arriving with no confirming
+    // attestation is therefore read as a claim that failed to substantiate,
+    // and the kernel closes the consent generation outright — the
+    // `missing-attestation` variant of E02 pins that.
+    //
+    // An attestation hold that expires unanswered has not failed a claim. It
+    // has delivered a readback the person has not responded to yet, which is
+    // `relayed` and nothing more. Sending the bare hash turned that silence
+    // into a revocation: the generation closed, and a person who confirmed a
+    // moment after the hold elapsed got `unknown_readback` from
+    // `attestReadback` and `consent_required` from the gate. Since `attested`
+    // is unreachable without `attestationWindowMs`, that was the whole
+    // attested realtime path.
     const report: DeliveryReport = Object.freeze({
       responseId: group.originResponseId,
       outcome,
-      ...(group.readbackHash === undefined ? {} : { readbackHash: group.readbackHash }),
+      ...(attestation === undefined || group.readbackHash === undefined
+        ? {}
+        : { readbackHash: group.readbackHash }),
       ...(attestation === undefined ? {} : { attestation }),
     });
     runEffects(group, report);

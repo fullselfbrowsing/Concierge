@@ -686,13 +686,29 @@ function createV2Session(
     if (!active) return;
     const prior: TransportStatus = observedStatus;
     observedStatus = status;
-    if (status === "connected" && prior !== "connected" && currentCatalog !== null) {
-      try {
-        publish(currentCatalog);
-      } catch {
-        diagnose("catalog_publish_failed");
-        void stop();
-      }
+    if (status !== "connected" || prior === "connected") {
+      return;
+    }
+    // **Re-send what the transport still owes an acknowledgement for, not what
+    // it already acknowledged.** A gap that opens while a publication is in
+    // flight loses that publication, and `currentCatalog` is the wrong answer
+    // on both sides of the first acknowledgement. Before it, `currentCatalog`
+    // is `null`, so nothing was re-sent at all and the session stayed wedged:
+    // no catalog, no promotion, and a queue head that could never be answered.
+    // After it, re-sending the promoted revision invited an acknowledgement
+    // that `handleAcknowledgement` measures against the pending head, fails,
+    // and reports as `catalog_acknowledgement_failed` — a spurious failure for
+    // a revision the transport already had.
+    const outstanding: ResolvedCatalog | null =
+      pendingPublications[0]?.catalog ?? currentCatalog;
+    if (outstanding === null) {
+      return;
+    }
+    try {
+      publish(outstanding);
+    } catch {
+      diagnose("catalog_publish_failed");
+      void stop();
     }
   };
 

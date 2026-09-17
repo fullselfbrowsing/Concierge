@@ -217,3 +217,72 @@ it("subscribes through a method that reads its receiver", async () => {
   expect(session.catalog()).toBe(published);
   await session.stop();
 });
+
+it("republishes the unacknowledged revision when the transport reconnects", async () => {
+  // `currentCatalog` is null until the first acknowledgement lands, so a gap
+  // that swallows the first publication used to leave nothing to re-send —
+  // and the session stayed catalogless for the rest of its life.
+  const concierge = conciergeFor(createConcierge, [
+    action("run", () => ({ ok: true, message: "Done." })),
+  ]);
+  const harness = transportHarness({
+    capabilities: { acknowledgesCatalog: true },
+  });
+  const session = createSession({
+    concierge,
+    transport: harness.transport,
+    initialContext: ACTIVE,
+    presentOutcome: async () => ({ outcome: "completed" }),
+  });
+  expect(harness.publications).toHaveLength(1);
+  expect(session.catalog()).toBeNull();
+
+  harness.setStatus("disconnected");
+  harness.setStatus("connected");
+
+  expect(harness.publications).toHaveLength(2);
+  const republished = harness.publications[1];
+  expect(republished).toBe(harness.publications[0]);
+  harness.acknowledge({ revision: republished.revision, accepted: true });
+  expect(session.catalog()).toBe(republished);
+  await session.stop();
+});
+
+it("reconnects onto the pending revision rather than the promoted one", async () => {
+  // Re-sending the already-acknowledged revision invited an acknowledgement
+  // for it, which `handleAcknowledgement` measures against the pending head,
+  // fails, and reports — a spurious failure for a revision the transport had.
+  const diagnostics = [];
+  let enabled = true;
+  const concierge = conciergeFor(createConcierge, [
+    action("conditional", () => ({ ok: true, message: "Done." }), {
+      availableWhen: () => enabled,
+    }),
+  ]);
+  const harness = transportHarness({
+    capabilities: { acknowledgesCatalog: true },
+  });
+  const session = createSession({
+    concierge,
+    transport: harness.transport,
+    initialContext: ACTIVE,
+    presentOutcome: async () => ({ outcome: "completed" }),
+    onDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
+  });
+  const first = harness.publications[0];
+  harness.acknowledge({ revision: first.revision, accepted: true });
+
+  enabled = false;
+  session.setContext(ACTIVE);
+  const second = harness.publications[1];
+  expect(second).not.toBe(first);
+
+  harness.setStatus("disconnected");
+  harness.setStatus("connected");
+
+  expect(harness.publications[2]).toBe(second);
+  harness.acknowledge({ revision: second.revision, accepted: true });
+  expect(session.catalog()).toBe(second);
+  expect(diagnostics).toEqual([]);
+  await session.stop();
+});

@@ -66,15 +66,26 @@ const SETTLED_MEMORY: number = 512;
 /**
  * A membership set that forgets its oldest entry past a cap.
  *
- * The two settlement memories below are pure diagnostics: they exist so a
- * late deferral or a second `settle` reports the code that names what
- * happened instead of a misleading one. `causes` is already bounded by
- * `maxPendingCauses`, and leaving these two unbounded would make the binder
- * the only thing in a voice session that grows with its length.
+ * The two settlement memories are pure diagnostics: they exist so a late
+ * deferral or a second `settle` reports the code that names what happened
+ * instead of a misleading one. `causes` is already bounded by
+ * `maxPendingCauses`, and leaving them unbounded would make the binder the
+ * only thing in a voice session that grows with its length.
+ *
+ * `started` uses the same set for the same reason, and it is the one whose
+ * eviction is worth stating. Membership there is load-bearing — it is how
+ * `generationEnded` tells a rendition that never began from one that did, and
+ * how `abandonUnstarted` picks its targets. Eviction can only misread a
+ * rendition still waiting to settle after {@link SETTLED_MEMORY} later ones
+ * have started, which is not a state a session reaches; renditions settle.
+ * What it does stop is the growth: `settle` only removed an id once it had a
+ * bound cause, so every playback with nothing deferred against it left its
+ * string behind for the life of the binder.
  */
-function createSettledMemory(): {
+function createBoundedIdSet(): {
   has(id: string): boolean;
   add(id: string): void;
+  delete(id: string): void;
   clear(): void;
 } {
   const ids: Set<string> = new Set();
@@ -92,6 +103,11 @@ function createSettledMemory(): {
         if (oldest === undefined) break;
         ids.delete(oldest);
       }
+    },
+    delete(id: string): void {
+      if (!ids.delete(id)) return;
+      const index: number = order.indexOf(id);
+      if (index >= 0) order.splice(index, 1);
     },
     clear(): void {
       ids.clear();
@@ -140,9 +156,9 @@ export function createRenditionBinder(
   const causes: Map<string, DeliveryEffect[]> = new Map();
   const causeToRendition: Map<string, string> = new Map();
   const renditionToCauses: Map<string, string[]> = new Map();
-  const started: Set<string> = new Set();
-  const settledCauses = createSettledMemory();
-  const settledRenditions = createSettledMemory();
+  const started = createBoundedIdSet();
+  const settledCauses = createBoundedIdSet();
+  const settledRenditions = createBoundedIdSet();
 
   function reportIssue(issue: RenditionIssue): void {
     if (onIssue !== undefined) {
