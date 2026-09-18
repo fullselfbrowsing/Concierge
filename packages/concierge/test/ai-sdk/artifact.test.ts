@@ -2,6 +2,9 @@ import { readFile } from "node:fs/promises";
 
 import { describe, expect, it } from "vitest";
 
+// @ts-expect-error -- plain ESM release tooling, deliberately untyped.
+import { loadReleaseLine } from "../../../../scripts/release/config.mjs";
+
 const packageRoot = new URL("../../", import.meta.url);
 
 describe("published artifact boundaries", () => {
@@ -11,7 +14,13 @@ describe("published artifact boundaries", () => {
       "utf8",
     ));
 
-    expect(manifest.version).toMatch(/^0\.3\.\d+$/u);
+    // Read from the live release line rather than a literal. A hardcoded
+    // `^0\.3\.\d+$` turned the first correct 0.4 manifest into a test failure,
+    // which is the assertion reporting its own staleness as a defect.
+    const { releaseLine } = loadReleaseLine();
+    expect(manifest.version).toMatch(
+      new RegExp(`^${releaseLine.replace(".", "\\.")}\\.\\d+$`, "u"),
+    );
     expect(manifest.peerDependencies.ai).toBe("^6.0.0 || ^7.0.0");
     expect(manifest.peerDependenciesMeta.ai).toEqual({ optional: true });
     expect(manifest.publishConfig).toEqual({ access: "public", tag: "latest" });

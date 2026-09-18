@@ -230,6 +230,16 @@ function runFrameworkCell(root, inputs, cell) {
         archives["@full-self-browsing/concierge-react"],
       "@full-self-browsing/concierge-svelte":
         archives["@full-self-browsing/concierge-svelte"],
+      // dom and realtime ride this cell rather than getting one of their own.
+      // It already performs every check they need — installed-consumer
+      // resolution, one physical core, exact archive provenance, an ESM import
+      // with no DOM present, and a strict `skipLibCheck: false` declaration
+      // pass — and the matrix has a minimum and a current row, so both are
+      // certified against both framework generations.
+      "@full-self-browsing/concierge-dom":
+        archives["@full-self-browsing/concierge-dom"],
+      "@full-self-browsing/concierge-realtime":
+        archives["@full-self-browsing/concierge-realtime"],
       react: cell.react,
       "react-dom": cell.reactDom,
       svelte: cell.svelte,
@@ -250,8 +260,20 @@ function runFrameworkCell(root, inputs, cell) {
       `const reactClient = await import("@full-self-browsing/concierge-react/client");\n` +
       `const svelteRoot = await import("@full-self-browsing/concierge-svelte");\n` +
       `const svelteClient = await import("@full-self-browsing/concierge-svelte/client.svelte");\n` +
+      // No DOM exists here. Both packages must still import: the dom contract
+      // guard fires on first registration rather than at module scope, and
+      // every realtime subpath reaches its transport lazily. A top-level
+      // `document` or `RTCPeerConnection` in either would fail right here,
+      // which is the server-render case core's no-DOM rule exists to protect.
+      `const dom = await import("@full-self-browsing/concierge-dom");\n` +
+      `const realtime = await import("@full-self-browsing/concierge-realtime");\n` +
+      `const realtimeOpenai = await import("@full-self-browsing/concierge-realtime/openai");\n` +
+      `const realtimeWebrtc = await import("@full-self-browsing/concierge-realtime/webrtc");\n` +
+      `const realtimeWebsocket = await import("@full-self-browsing/concierge-realtime/websocket");\n` +
+      `const anchors = dom.createAnchorRegistry({ id: "compatibility" });\n` +
       `const html = renderToString(createElement(reactClient.ConciergeProvider, { concierge: {} }, createElement("span", null, "ssr")));\n` +
       `if (CONTRACT_VERSION !== 4 || html !== "<span>ssr</span>" || typeof reactRoot !== "object" || typeof svelteRoot !== "object" || typeof svelteClient.provideConcierge !== "function") throw new Error("framework ESM SSR import drift");\n` +
+      `if (dom.EXPECTED_CORE_CONTRACT_VERSION !== CONTRACT_VERSION || typeof anchors.ref !== "function" || typeof realtime.createRealtimeSession !== "function" || typeof realtime.createRealtimeDeliveryLedger !== "function" || typeof realtimeOpenai !== "object" || typeof realtimeWebrtc !== "object" || typeof realtimeWebsocket !== "object") throw new Error("dom or realtime ESM import drift");\n` +
       `process.stdout.write(JSON.stringify({ react: ${JSON.stringify(cell.react)}, svelte: ${JSON.stringify(cell.svelte)}, html }) + "\\n");\n`,
     "utf8",
   );
@@ -264,6 +286,10 @@ function runFrameworkCell(root, inputs, cell) {
       `import { ConciergeProvider, useConcierge as useReactConcierge, useConciergeBridge as useReactBridge } from "@full-self-browsing/concierge-react/client";\n` +
       `import type { Concierge as SvelteConcierge } from "@full-self-browsing/concierge-svelte";\n` +
       `import { provideConcierge, useConcierge as useSvelteConcierge, useConciergeBridge as useSvelteBridge } from "@full-self-browsing/concierge-svelte/client.svelte";\n` +
+      `import type { AnchorRegistry, AnchorResolution, RevealOutcome, VisibilityReport } from "@full-self-browsing/concierge-dom";\n` +
+      `import { createAnchorRegistry, isRendered, preferredScrollBehavior } from "@full-self-browsing/concierge-dom";\n` +
+      `import type { RealtimeDeliveryLedger, RealtimeSessionHandle } from "@full-self-browsing/concierge-realtime";\n` +
+      `import { createRealtimeDeliveryLedger, createRealtimeSession } from "@full-self-browsing/concierge-realtime";\n` +
       `import { createElement } from "react";\n` +
       `import { renderToString } from "react-dom/server";\n` +
       `declare const concierge: Concierge & ReactConcierge & SvelteConcierge;\n` +
@@ -274,7 +300,13 @@ function runFrameworkCell(root, inputs, cell) {
       `const element = createElement(ConciergeProvider, { concierge }, "typed");\n` +
       `const html: string = renderToString(element);\n` +
       `if (false) { const release: () => void = mountConciergeTelemetry(concierge); const pending: Promise<ConciergeTelemetryStatus> = getConciergeTelemetryStatus(); const unlisten: () => void = onConciergeTelemetryStatusChange(() => {}); const enabled: Promise<ConciergeTelemetryStatus> = setConciergeTelemetryEnabled(true); release(); unlisten(); void pending; void enabled; provideConcierge(concierge); useReactBridge(registry, bridge); useSvelteBridge(() => registry, () => bridge); }\n` +
-      `void reactGetter; void svelteGetter; void html;\n`,
+      `declare const report: VisibilityReport;\n` +
+      `const anchors: AnchorRegistry = createAnchorRegistry({ id: "compatibility" });\n` +
+      `const resolution: AnchorResolution = anchors.resolve("row");\n` +
+      `const behaviour: "auto" | "smooth" = preferredScrollBehavior();\n` +
+      `const ledger: RealtimeDeliveryLedger = createRealtimeDeliveryLedger({ deliveryEvidence: "buffer-drain" });\n` +
+      `if (false) { const revealed: Promise<RevealOutcome> = anchors.reveal("row"); const opened: Promise<RealtimeSessionHandle> = createRealtimeSession({} as never); const rendered: boolean = isRendered(report); void revealed; void opened; void rendered; ledger.revokeAll({}); }\n` +
+      `void reactGetter; void svelteGetter; void html; void resolution; void behaviour;\n`,
     "utf8",
   );
   writeJson(join(directory, "tsconfig.json"), {
@@ -294,7 +326,7 @@ function runFrameworkCell(root, inputs, cell) {
   install(directory, `framework ${cell.label}`);
   runTopologyProbe(
     directory,
-    [CORE, "@full-self-browsing/concierge-react", "@full-self-browsing/concierge-svelte"],
+    inputs.archives.map((archive) => archive.name),
     inputs.version,
     `framework ${cell.label}`,
   );
@@ -317,6 +349,15 @@ function copyExample(source, destination) {
   });
 }
 
+/** The Concierge packages `configureNextExample` injects, in publish order. */
+function nextExamplePackages() {
+  return [
+    CORE,
+    "@full-self-browsing/concierge-react",
+    "@full-self-browsing/concierge-svelte",
+  ];
+}
+
 function configureNextExample(directory, inputs, cell, buildOnly) {
   const manifestPath = join(directory, "package.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
@@ -326,11 +367,12 @@ function configureNextExample(directory, inputs, cell, buildOnly) {
   manifest.dependencies = {
     ...manifest.dependencies,
     "@ai-sdk/react": cell.react,
-    [CORE]: archives[CORE],
-    "@full-self-browsing/concierge-react":
-      archives["@full-self-browsing/concierge-react"],
-    "@full-self-browsing/concierge-svelte":
-      archives["@full-self-browsing/concierge-svelte"],
+    // Derived from the same list the topology probe reads, so injecting a
+    // package here without probing it — or probing one that was never
+    // injected — is not expressible.
+    ...Object.fromEntries(
+      nextExamplePackages().map((name) => [name, archives[name]]),
+    ),
     "@openrouter/ai-sdk-provider": cell.openrouter,
     ai: cell.ai,
     svelte: FRAMEWORK_MATRIX.at(-1).svelte,
@@ -341,9 +383,14 @@ function configureNextExample(directory, inputs, cell, buildOnly) {
 function installNextExample(directory, inputs, cell, buildOnly) {
   configureNextExample(directory, inputs, cell, buildOnly);
   install(directory, `Next ${cell.label}`);
+  // **The probe names what this example installs, not the whole release set.**
+  // Passing every archive name asked it to resolve `concierge-dom` and
+  // `concierge-realtime` out of a consumer that was never given them, so it
+  // threw "Cannot find module" before reaching a single real assertion. Those
+  // two are certified by the framework cell, which does install them.
   runTopologyProbe(
     directory,
-    inputs.archives.map((archive) => archive.name),
+    nextExamplePackages(),
     inputs.version,
     `Next ${cell.label}`,
   );

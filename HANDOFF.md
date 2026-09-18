@@ -52,7 +52,7 @@ the exact ceremony is in [RELEASING.md](./RELEASING.md).
 
 Use `.planning/` when investigating how earlier decisions and evidence were
 derived. Its phase scripts and receipts are historical reproduction inputs,
-not the live 0.3 release authority.
+not the live 0.4 release authority.
 
 ## Locked boundaries
 

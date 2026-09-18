@@ -199,11 +199,13 @@ against current AI 6 and 7 stacks. It also installs the exact React and Svelte
 archives into minimum/current framework cells, checks ESM SSR imports, strict
 declarations, and one physical core. It never uses a live model credential.
 
-`scripts/release/compatibility.mjs` covers core, React, and Svelte only.
-`concierge-dom` and `concierge-realtime` are in the fixed release set but not
-yet in this matrix, so their archives are certified by `package.mjs`, `attw`,
-`publint`, and the seal — not by an installed-consumer cell. Treat that as a
-known gap in the gate, not as a pass.
+`concierge-dom` and `concierge-realtime` ride the framework cells rather than
+having cells of their own. Both are installed from their exact archives, and
+the cell imports the dom root plus the realtime root and its `openai`,
+`webrtc`, and `websocket` subpaths with no DOM present — the server-render case
+that would expose a module-scope `document` or `RTCPeerConnection`. Both also
+pass the `skipLibCheck: false` declaration gate and the physical-core topology
+probe. The Next cell probes only the packages that example installs.
 
 To prepare the exact AI 7 example in a new path for a local browser run:
 

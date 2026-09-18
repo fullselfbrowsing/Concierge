@@ -134,6 +134,25 @@ pnpm add @full-self-browsing/concierge@^0.4 \
   zod
 ```
 
+Add the visible-element registry when an action needs to reveal or read an
+element the application has registered. It never searches the document:
+
+```sh
+pnpm add @full-self-browsing/concierge@^0.4 \
+  @full-self-browsing/concierge-dom@^0.4
+```
+
+Add the realtime package for a voice session, its delivery ledger, and the
+optional WebRTC or WebSocket channels:
+
+```sh
+pnpm add @full-self-browsing/concierge@^0.4 \
+  @full-self-browsing/concierge-realtime@^0.4
+```
+
+Every Concierge package in an installation must be on the same `0.4.x`
+version — they are one fixed release set sharing runtime contract v4.
+
 AI SDK integrations also install a supported AI SDK version and the relevant
 provider packages. The maintained example uses AI SDK 7 and OpenRouter, but the
 Concierge adapter is provider-neutral.

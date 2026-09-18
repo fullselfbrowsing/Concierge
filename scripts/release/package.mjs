@@ -176,9 +176,8 @@ function selfTest() {
   const config = loadReleaseLine();
   const names = config.packages.map((entry) =>
     expectedArchiveFilename(entry.name, config.initialVersion));
-  // **Counted against the release line, not against a literal.** The cap was
-  // `=== 3` for the 0.3 trio, so adding the fourth and fifth packages made a
-  // uniqueness check fail for a set that is in fact unique.
+  // Counted against the release line rather than a literal, so the set can
+  // grow without this reporting a collision that does not exist.
   assert(
     new Set(names).size === names.length,
     "SELF_TEST",

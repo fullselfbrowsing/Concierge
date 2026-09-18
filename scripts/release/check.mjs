@@ -177,10 +177,14 @@ function checkContractV4() {
     "CONTRACT_VERSION",
     "core must publish contract v4",
   );
+  // Every package that peers on core, so a guard cannot be dropped from one of
+  // them without this failing. Realtime was absent while declaring the same
+  // guard, which left the only unchecked one in the set.
   for (const relativePath of [
     "packages/concierge-react/src/client.tsx",
     "packages/concierge-svelte/src/client.svelte.ts",
     "packages/concierge-dom/src/constants.ts",
+    "packages/concierge-realtime/src/session.ts",
   ]) {
     const source = readFileSync(join(ROOT, relativePath), "utf8");
     assert(
@@ -237,12 +241,20 @@ function checkWorkflow(config) {
     "WORKFLOW_SURFACE",
     "live release workflow must not use historical tooling, npm tokens, or digest placeholders",
   );
+  // **The release line digested here is the one `seal.mjs` actually ships.**
+  // `seal.mjs` copies `config.path` into the sealed bundle as
+  // `release-line.json`, and `config.path` is the live line. Digesting the
+  // retired 0.3 file instead made this gate and the publish launcher disagree
+  // about the same sealed name: the gate could pass while `publish` was
+  // guaranteed to throw `tracked tool digest drifted: release-line.json`.
+  // Entries are absolute, because `config.path` already is and `join` would
+  // concatenate rather than resolve it.
   for (const [file, sealedName] of [
-    ["scripts/release/config.mjs", "config.mjs"],
-    ["scripts/release/publisher.mjs", "release-publisher.mjs"],
-    [".release/lines/0.3.json", "release-line.json"],
+    [join(ROOT, "scripts/release/config.mjs"), "config.mjs"],
+    [join(ROOT, "scripts/release/publisher.mjs"), "release-publisher.mjs"],
+    [config.path, "release-line.json"],
   ]) {
-    const digest = sha256File(join(ROOT, file));
+    const digest = sha256File(file);
     assert(
       workflow.includes(`${JSON.stringify(sealedName)}: ${JSON.stringify(digest)}`),
       "WORKFLOW_DIGEST",

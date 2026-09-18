@@ -9,6 +9,8 @@ fixed release set and share runtime contract v4.
 | --- | --- | --- |
 | Node.js | `>=22.12.0` | 22.12 floor consumer and Node 24 CI/publisher |
 | `@full-self-browsing/concierge` | `^0.4.0` | Same patch as every adapter |
+| `@full-self-browsing/concierge-dom` | `^0.4.0` | Installed consumer cell; imports with no DOM present |
+| `@full-self-browsing/concierge-realtime` | `^0.4.0` | Installed consumer cell; root and `openai`/`webrtc`/`websocket` subpaths |
 | React | `^18.2.0 || ^19.0.0` | 18.2 and 19.2 lines |
 | React DOM | `^18.2.0 || ^19.0.0` | Matches React |
 | Svelte | `^5.0.0` | 5.0 floor and current 5.56.9 |
@@ -55,9 +57,12 @@ contract. Other AI SDK providers can consume the same `ToolSet`.
 - CommonJS output and `require()` are not supported. Use ESM imports.
 
 The release gate installs the packed public set into foreign temporary
-consumers. Both framework cells verify that React and Svelte public entries can
-be imported during ESM server rendering, typecheck with `skipLibCheck: false`,
-and resolve the same physical core from the consumer and each adapter. The
+consumers. Both framework cells carry all five archives and verify that every
+public entry can be imported during ESM server rendering, typechecks with
+`skipLibCheck: false`, and resolves the same physical core from the consumer
+and each adapter. `concierge-dom` and `concierge-realtime` are imported there
+with no DOM present, which is what proves neither reaches `document` or a
+transport at module scope. The
 sealed AI 7 example then exercises the signed bridge in Chromium, Firefox, and
 WebKit before the OIDC publish job can start.
 

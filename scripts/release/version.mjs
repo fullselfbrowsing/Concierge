@@ -79,7 +79,7 @@ function applyVersion() {
     isReleaseLineVersion(version, config.releaseLine) &&
       manifests.every((entry) => entry.manifest.version === version),
     "VERSION_SET",
-    `Changesets did not produce one stable ${config.releaseLine} trio: ${manifests
+    `Changesets did not produce one stable ${config.releaseLine} package set: ${manifests
       .map((entry) => `${entry.manifest.name}@${entry.manifest.version}`)
       .join(", ")}`,
   );
@@ -110,7 +110,7 @@ function applyVersion() {
   run(
     process.execPath,
     ["scripts/release/check.mjs", "release"],
-    "validate versioned trio",
+    "validate versioned package set",
   );
 }
 
