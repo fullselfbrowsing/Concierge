@@ -6,7 +6,9 @@
     [
       "@full-self-browsing/concierge",
       "@full-self-browsing/concierge-react",
-      "@full-self-browsing/concierge-svelte"
+      "@full-self-browsing/concierge-svelte",
+      "@full-self-browsing/concierge-dom",
+      "@full-self-browsing/concierge-realtime"
     ]
   ],
   "linked": [],

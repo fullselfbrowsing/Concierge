@@ -4,14 +4,16 @@ import { dirname, isAbsolute, join, normalize, relative, resolve } from "node:pa
 import { fileURLToPath } from "node:url";
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-export const DEFAULT_RELEASE_LINE_PATH = join(ROOT, ".release/lines/0.3.json");
+export const DEFAULT_RELEASE_LINE_PATH = join(ROOT, ".release/lines/0.4.json");
 
 const PACKAGE_NAMES = Object.freeze([
   "@full-self-browsing/concierge",
   "@full-self-browsing/concierge-react",
   "@full-self-browsing/concierge-svelte",
+  "@full-self-browsing/concierge-dom",
+  "@full-self-browsing/concierge-realtime",
 ]);
-const PACKAGE_ROLES = Object.freeze(["core", "react", "svelte"]);
+const PACKAGE_ROLES = Object.freeze(["core", "react", "svelte", "dom", "realtime"]);
 const SHA512_INTEGRITY = /^sha512-[A-Za-z0-9+/]+={0,2}$/u;
 
 export function fail(code, message) {
@@ -148,10 +150,10 @@ function validateReleaseLine(config, source, path) {
     "compatibility configuration",
   );
   assert(
-    config.schemaVersion === 1 && config.releaseLine === "0.3" &&
-      config.contractVersion === 3 && config.initialVersion === "0.3.0",
+    config.schemaVersion === 1 && config.releaseLine === "0.4" &&
+      config.contractVersion === 4 && config.initialVersion === "0.4.0",
     "CONFIG_IDENTITY",
-    "the live release line must be Concierge 0.3 with contract v3",
+    "the live release line must be Concierge 0.4 with contract v4",
   );
   assert(
     config.distTag === "latest" &&
@@ -190,7 +192,7 @@ function validateReleaseLine(config, source, path) {
   assert(
     Array.isArray(config.packages) && config.packages.length === PACKAGE_NAMES.length,
     "CONFIG_PACKAGES",
-    "release package set must contain exactly three packages",
+    "release package set must contain exactly five packages",
   );
   for (const [index, entry] of config.packages.entries()) {
     exactKeys(

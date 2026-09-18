@@ -153,6 +153,54 @@ export default defineConfig({
           include: ["packages/concierge-svelte/test/lifecycle.test.ts"],
         },
       },
+      {
+        test: {
+          name: "dom",
+          environment: "jsdom",
+          include: ["packages/concierge-dom/test/**/*.test.ts"],
+          exclude: [
+            "**/node_modules/**",
+            "**/.git/**",
+            "packages/concierge-dom/test/export-surface.test.ts",
+            "packages/concierge-dom/test/catalog-boundary.test.ts",
+            "packages/concierge-dom/test/ssr.test.ts",
+          ],
+        },
+      },
+      {
+        test: {
+          name: "dom-artifact",
+          environment: "node",
+          include: [
+            "packages/concierge-dom/test/export-surface.test.ts",
+            "packages/concierge-dom/test/catalog-boundary.test.ts",
+            "packages/concierge-dom/test/ssr.test.ts",
+          ],
+        },
+      },
+      {
+        test: {
+          name: "realtime",
+          environment: "node",
+          include: ["packages/concierge-realtime/test/**/*.test.ts"],
+          exclude: [
+            "**/node_modules/**",
+            "**/.git/**",
+            "packages/concierge-realtime/test/webrtc.test.ts",
+            "packages/concierge-realtime/test/websocket.test.ts",
+          ],
+        },
+      },
+      {
+        test: {
+          name: "realtime-dom",
+          environment: "jsdom",
+          include: [
+            "packages/concierge-realtime/test/webrtc.test.ts",
+            "packages/concierge-realtime/test/websocket.test.ts",
+          ],
+        },
+      },
     ],
   },
 });

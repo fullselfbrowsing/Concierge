@@ -7,12 +7,17 @@
  * stronger dispatcher-boundary policy: replace C0/C1 controls, normalize
  * whitespace, trim, and then apply that same bound.
  *
- * Neither helper is part of the public barrel. They share
- * {@link MESSAGE_MAX_CHARS} so the bridge and dispatcher cannot silently drift
- * onto different limits.
+ * `sanitizeMessage` stays the dispatcher-bound wrapper so existing tests pin
+ * byte-identical output. `sanitizeText` is the public generalization.
  */
 
 import { MESSAGE_MAX_CHARS } from "./types.js";
+
+/** Options for {@link sanitizeText}. */
+export interface SanitizeTextOptions {
+  readonly maxChars?: number | undefined;
+  readonly ellipsis?: boolean | undefined;
+}
 
 /**
  * Cut a message to {@link MESSAGE_MAX_CHARS} without splitting a surrogate
@@ -25,15 +30,24 @@ import { MESSAGE_MAX_CHARS } from "./types.js";
  * retained with it.
  */
 export function boundedMessage(message: string): string {
-  if (message.length <= MESSAGE_MAX_CHARS) {
-    return message;
-  }
+  return boundText(message, MESSAGE_MAX_CHARS, false);
+}
 
-  const lastRetained: number = message.charCodeAt(MESSAGE_MAX_CHARS - 1);
-  const cut: number =
-    lastRetained >= 0xd800 && lastRetained <= 0xdbff ? MESSAGE_MAX_CHARS - 1 : MESSAGE_MAX_CHARS;
-
-  return message.slice(0, cut);
+/**
+ * Sanitize untrusted text: C0/C1 runs become one ASCII space, remaining
+ * whitespace collapses, then a surrogate-safe bound is applied.
+ */
+export function sanitizeText(
+  input: string,
+  options?: SanitizeTextOptions,
+): string {
+  const maxChars: number = options?.maxChars ?? MESSAGE_MAX_CHARS;
+  const ellipsis: boolean = options?.ellipsis === true;
+  const sanitized: string = input
+    .replace(/[\u0000-\u001f\u007f-\u009f]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+  return boundText(sanitized, maxChars, ellipsis);
 }
 
 /**
@@ -44,10 +58,41 @@ export function boundedMessage(message: string): string {
  * only then is the surrogate-safe shared bound applied.
  */
 export function sanitizeMessage(message: string): string {
-  const sanitized: string = message
-    .replace(/[\u0000-\u001f\u007f-\u009f]+/gu, " ")
-    .replace(/\s+/gu, " ")
-    .trim();
+  return sanitizeText(message, { maxChars: MESSAGE_MAX_CHARS });
+}
 
-  return boundedMessage(sanitized);
+/**
+ * The largest cut at or below `limit` that does not split a surrogate pair.
+ *
+ * Both cuts `boundText` makes go through here. The ellipsis cut needs it just
+ * as much as the bound does: shortening a well-formed slice by one code unit
+ * to make room for `…` strands a high surrogate whenever the slice ended on an
+ * astral character, and a lone surrogate is not a well-formed UTF-16 string.
+ * `consent-evidence.ts`'s `quoteString` rejects one outright, so a readback
+ * assembled from truncated text would refuse with `payload_unsupported`.
+ */
+function surrogateSafeCut(value: string, limit: number): number {
+  if (limit <= 0) {
+    return 0;
+  }
+  const lastRetained: number = value.charCodeAt(limit - 1);
+  return lastRetained >= 0xd800 && lastRetained <= 0xdbff ? limit - 1 : limit;
+}
+
+function boundText(message: string, maxChars: number, ellipsis: boolean): string {
+  if (!Number.isSafeInteger(maxChars) || maxChars < 0) {
+    return "";
+  }
+  if (message.length <= maxChars) {
+    return message;
+  }
+
+  const sliced: string = message.slice(0, surrogateSafeCut(message, maxChars));
+  if (!ellipsis) {
+    return sliced;
+  }
+  if (sliced.length === 0) {
+    return "";
+  }
+  return `${sliced.slice(0, surrogateSafeCut(sliced, sliced.length - 1))}…`;
 }

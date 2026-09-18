@@ -1,14 +1,16 @@
 # Compatibility
 
-Concierge 0.3 is a supported public preview. The three public packages form one
-fixed release set and share runtime contract v3.
+Concierge 0.4 is a supported public preview. The five public packages form one
+fixed release set and share runtime contract v4.
 
 ## Supported ranges
 
 | Component | Supported range | Release certification |
 | --- | --- | --- |
 | Node.js | `>=22.12.0` | 22.12 floor consumer and Node 24 CI/publisher |
-| `@full-self-browsing/concierge` | `^0.3.0` | Same patch as every adapter |
+| `@full-self-browsing/concierge` | `^0.4.0` | Same patch as every adapter |
+| `@full-self-browsing/concierge-dom` | `^0.4.0` | Installed consumer cell; imports with no DOM present |
+| `@full-self-browsing/concierge-realtime` | `^0.4.0` | Installed consumer cell; root and `openai`/`webrtc`/`websocket` subpaths |
 | React | `^18.2.0 || ^19.0.0` | 18.2 and 19.2 lines |
 | React DOM | `^18.2.0 || ^19.0.0` | Matches React |
 | Svelte | `^5.0.0` | 5.0 floor and current 5.56.9 |
@@ -21,7 +23,7 @@ the fixed package family has one runtime contract. Node 22.12 is the consumer
 floor; contributing with the pinned pnpm requires Node 22.13 or newer. Trusted
 npm publishing requires Node 22.14 or newer and uses Node 24.
 
-## AI SDK stacks certified for 0.3.0
+## AI SDK stacks certified for 0.4.0
 
 | Cell | `ai` | `@ai-sdk/react` | OpenRouter provider | Purpose |
 | --- | ---: | ---: | ---: | --- |
@@ -44,32 +46,43 @@ contract. Other AI SDK providers can consume the same `ToolSet`.
   replay store additionally needs a browser IndexedDB implementation.
 - `@full-self-browsing/concierge/openai-realtime` is runtime-neutral and owns no
   WebRTC, audio, credential, transcript, or network capability.
+- `@full-self-browsing/concierge-dom` is the framework-neutral visible-element
+  registry. It never searches the document; it only returns elements the
+  application registered.
+- `@full-self-browsing/concierge-realtime` owns the voice session, delivery
+  ledger, and optional WebRTC/WebSocket channels. Core's
+  `/openai-realtime` entry remains a codec only.
 - The full Next example declares the Node runtime. Edge deployment is not part
-  of the 0.3 support matrix.
+  of the 0.4 support matrix.
 - CommonJS output and `require()` are not supported. Use ESM imports.
 
-The release gate installs only the packed trio into foreign temporary
-consumers. Both framework cells verify that React and Svelte public entries can
-be imported during ESM server rendering, typecheck with `skipLibCheck: false`,
-and resolve the same physical core from the consumer and each adapter. The
+The release gate installs the packed public set into foreign temporary
+consumers. Both framework cells carry all five archives and verify that every
+public entry can be imported during ESM server rendering, typechecks with
+`skipLibCheck: false`, and resolves the same physical core from the consumer
+and each adapter. `concierge-dom` and `concierge-realtime` are imported there
+with no DOM present, which is what proves neither reaches `document` or a
+transport at module scope. The
 sealed AI 7 example then exercises the signed bridge in Chromium, Firefox, and
 WebKit before the OIDC publish job can start.
 
 ## Version mixing
 
-Do not mix contract-v2 and contract-v3 packages. All adapters keep core as a
-peer dependency, and every runtime entry checks contract v3 before registration
+Do not mix contract-v3 and contract-v4 packages. All adapters keep core as a
+peer dependency, and every runtime entry checks contract v4 before registration
 or dispatch.
-Upgrade the trio and regenerate the lockfile together:
+Upgrade the set and regenerate the lockfile together:
 
 ```sh
-pnpm up @full-self-browsing/concierge@^0.3 \
-  @full-self-browsing/concierge-react@^0.3 \
-  @full-self-browsing/concierge-svelte@^0.3
+pnpm up @full-self-browsing/concierge@^0.4 \
+  @full-self-browsing/concierge-react@^0.4 \
+  @full-self-browsing/concierge-svelte@^0.4 \
+  @full-self-browsing/concierge-dom@^0.4 \
+  @full-self-browsing/concierge-realtime@^0.4
 
 pnpm why @full-self-browsing/concierge
 ```
 
 The final command should converge on one physical core version. See the
-[0.2-to-0.3 migration guide](./docs/migrations/0.2-to-0.3.md) for API changes
+[0.3-to-0.4 migration guide](./docs/migrations/0.3-to-0.4.md) for API changes
 and backward-compatible adoption guidance.

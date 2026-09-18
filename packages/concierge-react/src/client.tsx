@@ -14,6 +14,7 @@ export {
   useConciergeActivity,
 } from "../overlay/activity.js";
 export type {
+  ConciergeActivity,
   ConciergeActivityOverlayProps,
   ConciergeBadgePosition,
   ConciergeGlowOptions,
@@ -21,7 +22,7 @@ export type {
   ConciergeProviderProps,
 } from "../overlay/activity.js";
 
-const EXPECTED_CONTRACT_VERSION: number = 3;
+const EXPECTED_CONTRACT_VERSION: number = 4;
 
 export function useConciergeValue<T>(value: T): () => T {
   const valueRef = useRef<T>(value);
@@ -35,9 +36,9 @@ export function useConciergeValue<T>(value: T): () => T {
 
 export function useConciergeBridge<B extends Bridge>(
   registry: BridgeRegistry<B>,
-  bridge: B,
+  bridge: B | null,
 ): void {
-  useEffect((): (() => void) => {
+  useEffect((): (() => void) | undefined => {
     assertSingleInstance();
 
     if (CONTRACT_VERSION !== EXPECTED_CONTRACT_VERSION) {
@@ -48,7 +49,10 @@ export function useConciergeBridge<B extends Bridge>(
       );
     }
 
-    const unregister: () => void = registry.register(bridge);
-    return unregister;
+    if (bridge === null) {
+      return undefined;
+    }
+
+    return registry.register(bridge);
   }, [registry, bridge]);
 }

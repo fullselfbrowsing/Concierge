@@ -139,7 +139,7 @@ function validateSealShape(seal, config, expected) {
       seal.workflowPath === config.workflowPath && seal.environment === config.environment &&
       seal.packageSetSha256 === config.sha256,
     "SEAL_IDENTITY",
-    `release seal is not authorization for the configured ${config.releaseLine} ${config.distTag} trio`,
+    `release seal is not authorization for the configured ${config.releaseLine} ${config.distTag} package set`,
   );
   assert(
     seal.repository === expected.repository && seal.commit === expected.commit &&

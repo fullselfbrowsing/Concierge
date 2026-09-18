@@ -216,6 +216,111 @@ export function readHostScheduler():
  * redirectable one is its `onDiagnostic` hook. A consumer who needs to observe
  * these reliably uses the hook and depends on no host global whatsoever.
  */
+interface PerformanceHost {
+  performance?: {
+    now?: () => number;
+  } | null;
+}
+
+interface CryptoHost {
+  crypto?: {
+    randomUUID?: () => string;
+    getRandomValues?: (bytes: Uint8Array) => Uint8Array;
+  } | null;
+}
+
+/**
+ * Read a monotonic clock from the host, or report that none is available.
+ *
+ * Reaches `globalThis.performance.now` structurally and invokes it with
+ * `performance` as receiver. Returns `undefined` when absent or not callable.
+ */
+export function readHostClock(): (() => number) | undefined {
+  const host: PerformanceHost = globalThis as PerformanceHost;
+  let performanceLike: PerformanceHost["performance"];
+  try {
+    performanceLike = host.performance;
+  } catch {
+    return undefined;
+  }
+  if (performanceLike === undefined || performanceLike === null) {
+    return undefined;
+  }
+  let now: unknown;
+  try {
+    now = performanceLike.now;
+  } catch {
+    return undefined;
+  }
+  if (typeof now !== "function") {
+    return undefined;
+  }
+  return (): number => (now as () => number).call(performanceLike);
+}
+
+/**
+ * Mint 32 lowercase hex characters of host entropy, or report failure.
+ *
+ * Prefers `crypto.randomUUID()` with dashes stripped, then
+ * `crypto.getRandomValues`. Returns `undefined` rather than a sentinel.
+ */
+export function readHostRandomId(): string | undefined {
+  const host: CryptoHost = globalThis as CryptoHost;
+  let cryptoLike: CryptoHost["crypto"];
+  try {
+    cryptoLike = host.crypto;
+  } catch {
+    return undefined;
+  }
+  if (cryptoLike === undefined || cryptoLike === null) {
+    return undefined;
+  }
+
+  let randomUUID: unknown;
+  try {
+    randomUUID = cryptoLike.randomUUID;
+  } catch {
+    randomUUID = undefined;
+  }
+  if (typeof randomUUID === "function") {
+    try {
+      const uuid: unknown = (randomUUID as () => string).call(cryptoLike);
+      if (typeof uuid === "string") {
+        const hex: string = uuid.replace(/-/g, "").toLowerCase();
+        if (/^[0-9a-f]{32}$/u.test(hex)) {
+          return hex;
+        }
+      }
+    } catch {
+      // Fall through to getRandomValues.
+    }
+  }
+
+  let getRandomValues: unknown;
+  try {
+    getRandomValues = cryptoLike.getRandomValues;
+  } catch {
+    return undefined;
+  }
+  if (typeof getRandomValues !== "function") {
+    return undefined;
+  }
+  try {
+    const bytes: Uint8Array = new Uint8Array(16);
+    (getRandomValues as (bytes: Uint8Array) => Uint8Array).call(
+      cryptoLike,
+      bytes,
+    );
+    let hex: string = "";
+    for (const byte of bytes) {
+      hex += byte.toString(16).padStart(2, "0");
+    }
+    return hex;
+  } catch {
+    return undefined;
+  }
+}
+
 export function warnHost(message: string): void {
   const host: { console?: ConsoleLike | null } = globalThis as {
     console?: ConsoleLike | null;

@@ -34,11 +34,15 @@ import {
   validateArguments,
   waitForCommit,
 } from "./dispatch.js";
+import { rememberCatalogProjection } from "./catalog-prompt.js";
 import {
   encodeDiagnosticSubject,
+  readHostClock,
+  readHostRandomId,
   readHostScheduler,
   warnHost,
 } from "./host.js";
+import { sanitizeMessage } from "./message.js";
 import {
   DEFAULT_ACTION_DATA_MAX_BYTES,
   USER_CANCELLED,
@@ -82,7 +86,11 @@ import type {
   InvocationIdentity,
   InvocationMeta,
   ObservedInput,
+  Clock,
+  DispatchTiming,
+  MessageRedactionContext,
   ObservedActionResult,
+  ObservedMessage,
   ObservedResultData,
   ResolvedCatalog,
   Scheduler,
@@ -90,6 +98,13 @@ import type {
   StageExplanation,
   ToolBatch,
   WorkflowControls,
+  AttestationOutcome,
+  ReadbackAttestation,
+  RetainedReview,
+  ReviewControls,
+  ReviewOutcome,
+  ReviewPresentation,
+  ReviewRefusalCode,
 } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -118,6 +133,8 @@ const MAX_V2_BATCH_CALLS = 10_000;
  * bundler about a call with no observable effect, not a claim about behaviour.
  */
 const NO_SKIP: ReadonlySet<object> = /* @__PURE__ */ new Set<object>();
+
+const INSTANCE_ID_PATTERN: RegExp = /^[A-Za-z0-9._-]{1,64}$/u;
 
 const NEVER_ABORTED_SIGNAL: AbortSignalLike = /* @__PURE__ */ Object.freeze({
   aborted: false,
@@ -352,6 +369,8 @@ interface V2Occurrence {
   readonly meta: InvocationMeta;
   readonly resolution: AtomicCatalogResolution;
   readonly root: WorkflowRootState;
+  readonly startedAt: number;
+  enteredHandlerAt: number | null;
 }
 
 interface QueuedDispatchEvent {
@@ -409,11 +428,13 @@ interface CapturedConsentConfiguration {
 }
 
 interface ConsentGenerationBase {
+  readonly attestationActId: string | null;
   readonly confirmationUserTurnId: string | null;
   readonly generation: bigint;
   readonly payload: unknown;
   readonly preparedReadback: PreparedReadback | null;
   readonly readbackHash: string | null;
+  readonly readbackResponseId: string | null;
   readonly responseId: string;
   readonly sessionId: string | null;
   readonly snapshot: Readonly<Record<string, unknown>>;
@@ -430,19 +451,44 @@ interface ConsentReviewClaim {
   readonly status: "reviewing";
 }
 
+interface RetainedReviewRecord {
+  readonly publicView: RetainedReview<unknown>;
+  readonly preparedReadback: PreparedReadback;
+  readonly snapshot: Readonly<Record<string, unknown>>;
+  readonly snapshotBridgeId: string;
+  readonly snapshotBridgeRegistry: BridgeRegistry | undefined;
+  readonly verifiedReadback: VerifiedReadbackEvidence | null;
+}
+
 type ConsentGeneration =
   | ConsentReviewClaim
+  | (ConsentGenerationBase & { readonly status: "reviewing" })
+  | (ConsentGenerationBase & { readonly status: "proposed" })
   | (ConsentGenerationBase & { readonly status: "pendingDelivery" })
   | (ConsentGenerationBase & { readonly status: "verifyingDelivery" })
   | (ConsentGenerationBase & {
       readonly achievedGrade: Exclude<ConsentGrade, "none">;
       readonly status: "armed";
     })
+  | (ConsentGenerationBase & { readonly status: "interrupted" })
   | (ConsentGenerationBase & {
       readonly status: "declined" | "dismissed" | "gradeUnavailable";
     });
 
-/** A consent grade represents measured evidence only when it is not `none`. */
+function bytesEqual(
+  left: Readonly<Uint8Array>,
+  right: Readonly<Uint8Array>,
+): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+  return true;
+}
 function isMeasuredConsentGrade(
   achievedGrade: ConsentGrade,
 ): achievedGrade is Exclude<ConsentGrade, "none"> {
@@ -474,8 +520,8 @@ function hasFreshConsentBoundary(
   const confirmTurnId: string = confirm.userTurnId ?? "";
   if (
     review.confirmationUserTurnId !== null &&
-    (profile.userTurnIdentity !== "human-attested" ||
-      confirmTurnId !== review.confirmationUserTurnId)
+    profile.userTurnIdentity === "human-attested" &&
+    confirmTurnId !== review.confirmationUserTurnId
   ) {
     return false;
   }
@@ -487,14 +533,33 @@ function hasFreshConsentBoundary(
       review.userTurnId !== confirmTurnId;
   }
 
+  if (policy.bindTo === "unverifiedUserTurn") {
+    return profile.userTurnIdentity !== "none" &&
+      review.userTurnId.length > 0 &&
+      confirmTurnId.length > 0 &&
+      review.userTurnId !== confirmTurnId;
+  }
+
   if (policy.bindTo !== "response") {
     return false;
   }
 
   const confirmResponseId: string = confirm.responseId ?? "";
-  return review.responseId.length > 0 &&
-    confirmResponseId.length > 0 &&
-    review.responseId !== confirmResponseId;
+  if (
+    review.responseId.length === 0 ||
+    confirmResponseId.length === 0 ||
+    review.responseId === confirmResponseId
+  ) {
+    return false;
+  }
+  if (
+    review.readbackResponseId !== null &&
+    review.readbackResponseId.length > 0 &&
+    confirmResponseId === review.readbackResponseId
+  ) {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -894,6 +959,17 @@ function snapshotConsentPolicy(
               reason: declaredMissing.reason,
             },
       );
+  const declaredInterrupted = policy.onInterrupted;
+  const onInterrupted = declaredInterrupted === undefined
+    ? undefined
+    : Object.freeze(
+        declaredInterrupted.reason === undefined
+          ? { message: declaredInterrupted.message }
+          : {
+              message: declaredInterrupted.message,
+              reason: declaredInterrupted.reason,
+            },
+      );
 
   return Object.freeze({
     requires: policy.requires,
@@ -901,6 +977,7 @@ function snapshotConsentPolicy(
     ...(snapshotEquality === undefined ? {} : { snapshotEquality }),
     ...(minGrade === undefined ? {} : { minGrade }),
     ...(onMissing === undefined ? {} : { onMissing }),
+    ...(onInterrupted === undefined ? {} : { onInterrupted }),
   });
 }
 
@@ -1210,6 +1287,60 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     config.maxWorkflowSteps ?? 256,
     "maxWorkflowSteps",
   );
+  const configuredInstanceId: unknown = config.instanceId;
+  if (
+    configuredInstanceId !== undefined &&
+    (typeof configuredInstanceId !== "string" ||
+      !INSTANCE_ID_PATTERN.test(configuredInstanceId))
+  ) {
+    throw new TypeError(
+      "ConciergeConfig.instanceId must match /^[A-Za-z0-9._-]{1,64}$/.",
+    );
+  }
+  const instanceId: string = typeof configuredInstanceId === "string"
+    ? configuredInstanceId
+    : readHostRandomId() ??
+      (warnHost(
+        "concierge: [instance_id_unavailable] no host entropy was available, so dispatch ids use the \"local\" namespace. Fix: provide `ConciergeConfig.instanceId`.",
+      ),
+      "local");
+  let clockMonotonic: boolean = true;
+  let clockDegraded: boolean = false;
+  let lastClockReading: number = 0;
+  const rawClock: Clock = (() => {
+    if (typeof config.clock === "function") {
+      return config.clock;
+    }
+    const hostClock: Clock | undefined = readHostClock();
+    if (hostClock !== undefined) {
+      return hostClock;
+    }
+    clockMonotonic = false;
+    warnHost(
+      "concierge: [clock_unavailable] no monotonic host clock was available, so dispatch timing fell back to Date.now(). Fix: provide `ConciergeConfig.clock`.",
+    );
+    return (): number => Date.now();
+  })();
+  function readClock(): number {
+    if (clockDegraded) {
+      return lastClockReading;
+    }
+    try {
+      const reading: number = rawClock();
+      if (!Number.isFinite(reading)) {
+        throw new TypeError("clock returned a non-finite value");
+      }
+      lastClockReading = reading;
+      return reading;
+    } catch {
+      clockDegraded = true;
+      clockMonotonic = false;
+      warnHost(
+        "concierge: [clock_unusable] the dispatch clock threw or returned a non-finite value; later timings reuse the last good reading. Fix: provide a total `ConciergeConfig.clock`.",
+      );
+      return lastClockReading;
+    }
+  }
 
   // ONE flat build over every stage's actions followed by the cross-stage
   // actions — not one build per stage, and the choice is a requirement rather
@@ -1239,6 +1370,27 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       consentProfile: capturedConsent.profile,
       presentReadback: capturedConsent.presentReadback,
       digest: capturedConsent.digest,
+      snapshotSources: stages.flatMap((stage) => {
+        const sources: Array<{
+          readonly actionNames: readonly string[];
+          readonly registry: (typeof stage)["bridge"] & object;
+        }> = [];
+        if (stage.bridge !== undefined) {
+          sources.push({
+            actionNames: stage.actions.map((action) => action.name),
+            registry: stage.bridge,
+          });
+        }
+        for (const action of stage.actions) {
+          if (action.bridge !== undefined) {
+            sources.push({
+              actionNames: [action.name],
+              registry: action.bridge,
+            });
+          }
+        }
+        return sources;
+      }),
     },
   );
   const reviewNames: ReadonlySet<string> = new Set(
@@ -1352,6 +1504,36 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     | null = null;
   let warnedDispatch: Set<string> | null = null;
   let consentGenerations: Map<string, ConsentGeneration> | null = null;
+  let retainedReviews: Map<string, RetainedReviewRecord> | null = null;
+  // **Bounded, and the reason is worth stating because bounding a replay set
+  // normally is not safe.** This one is defence in depth rather than the
+  // replay control itself: a replayed attestation is already refused by the
+  // generation-identity check, by the already-attested status check, and by
+  // `closeConsentGeneration` deleting the generation once the gated action
+  // runs. The set only turns a replay that survives all three into an
+  // `already_attested` rather than a redundant re-arm. Left unbounded it was
+  // the one structure in the kernel that grew with session length, and the
+  // ceiling is far past any session a person actually has.
+  let usedAttestationActIds: Set<string> | null = null;
+  const usedAttestationOrder: string[] = [];
+  const USED_ACT_ID_MEMORY: number = 4096;
+
+  function rememberActId(actId: string): void {
+    const seen: Set<string> = usedAttestationActIds ?? new Set<string>();
+    usedAttestationActIds = seen;
+    if (seen.has(actId)) {
+      return;
+    }
+    seen.add(actId);
+    usedAttestationOrder.push(actId);
+    while (usedAttestationOrder.length > USED_ACT_ID_MEMORY) {
+      const oldest: string | undefined = usedAttestationOrder.shift();
+      if (oldest === undefined) {
+        break;
+      }
+      seen.delete(oldest);
+    }
+  }
   let nextConsentGeneration: bigint = 0n;
 
   /** Address review authority by both its session namespace and action name. */
@@ -1383,6 +1565,55 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       : authoredResult(false, declared.message, declared.reason);
   }
 
+  function interruptedConsentResult(
+    policy: ConsentPolicy<unknown>,
+  ): ActionResult {
+    const declared: ConsentPolicy<unknown>["onInterrupted"] =
+      policy.onInterrupted;
+    return declared === undefined
+      ? authoredResult(
+          false,
+          "The review was interrupted before it finished. Ask to hear it again.",
+          "consent_interrupted",
+        )
+      : authoredResult(false, declared.message, declared.reason);
+  }
+
+  function retainGeneration(
+    slotKey: string,
+    generation: ConsentGeneration,
+    reason: "interrupted" | "unconfirmed",
+  ): void {
+    if (!("payload" in generation) || generation.preparedReadback === null) {
+      return;
+    }
+    const hash: string | null = generation.readbackHash ??
+      generation.verifiedReadback?.hash ??
+      null;
+    if (hash === null || hash.length === 0) {
+      return;
+    }
+    const publicView: RetainedReview<unknown> = Object.freeze({
+      payload: generation.payload,
+      hash,
+      reason,
+      responseId: generation.responseId,
+      userTurnId: generation.userTurnId,
+    });
+    retainedReviews ??= new Map<string, RetainedReviewRecord>();
+    retainedReviews.set(
+      slotKey,
+      Object.freeze({
+        publicView,
+        preparedReadback: generation.preparedReadback,
+        snapshot: generation.snapshot,
+        snapshotBridgeId: generation.snapshotBridgeId,
+        snapshotBridgeRegistry: generation.snapshotBridgeRegistry,
+        verifiedReadback: generation.verifiedReadback,
+      }),
+    );
+  }
+
   /** Detach one already-resolved bridge without reading its registry again. */
   function captureResolvedSnapshot(
     bridgeId: string,
@@ -1397,27 +1628,33 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     );
   }
 
-  /** Arm one owned pending generation from snapshotted delivery evidence. */
+  /** Upgrade or retain one owned generation from snapshotted delivery evidence. */
   async function observeReviewDelivery(
     slotKey: string,
-    pending: ConsentGenerationBase & { readonly status: "pendingDelivery" },
+    pending: ConsentGenerationBase,
     report: DeliveryReport,
   ): Promise<void> {
     const current: ConsentGeneration | undefined =
       consentGenerations?.get(slotKey);
     if (
-      current?.generation !== pending.generation ||
-      current.status !== "pendingDelivery" ||
-      current.responseId !== pending.responseId
+      current === undefined ||
+      current.generation !== pending.generation ||
+      current.responseId !== pending.responseId ||
+      !("payload" in current)
     ) {
       return;
     }
-
-    const claimed = Object.freeze({
-      ...pending,
-      status: "verifyingDelivery" as const,
-    });
-    consentGenerations?.set(slotKey, claimed);
+    if (
+      current.status === "declined" ||
+      current.status === "dismissed" ||
+      current.status === "gradeUnavailable" ||
+      current.status === "interrupted"
+    ) {
+      return;
+    }
+    if (current.status === "armed" && current.achievedGrade === "attested") {
+      return;
+    }
 
     const deliverySnapshot = snapshotDeliveryEvidence(report);
     if (!deliverySnapshot.ok) {
@@ -1426,11 +1663,8 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     }
     const delivery: DeliveryEvidenceSnapshot = deliverySnapshot.value;
 
-    if (
-      delivery.responseId !== pending.responseId ||
-      delivery.outcome !== "completed"
-    ) {
-      closeConsentGeneration(slotKey, pending.generation);
+    // Sequence document: keep the kernel responseId equality gate.
+    if (delivery.responseId !== pending.responseId) {
       return;
     }
 
@@ -1438,84 +1672,75 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     if (observedAct === "declined" || observedAct === "dismissed") {
       consentGenerations?.set(
         slotKey,
-        Object.freeze({ ...claimed, status: observedAct }),
+        Object.freeze({ ...current, status: observedAct }),
       );
       return;
     }
 
-    let achievedGrade: ConsentGrade = relayedGradeWithin(
+    if (delivery.outcome === "interrupted") {
+      consentGenerations?.set(
+        slotKey,
+        Object.freeze({ ...current, status: "interrupted" as const }),
+      );
+      retainGeneration(slotKey, current, "interrupted");
+      return;
+    }
+
+    const claimedAttested: boolean = delivery.attestation !== undefined ||
+      (typeof delivery.readbackHash === "string" &&
+        delivery.readbackHash.length > 0);
+    if (claimedAttested) {
+      const reportHash: unknown = delivery.readbackHash;
+      const attestationHash: unknown = delivery.attestation?.readbackHash;
+      const confirmTurn: unknown = delivery.attestation?.userTurnId;
+      const validConfirm: boolean = observedAct === "confirmed" &&
+        typeof reportHash === "string" &&
+        reportHash === current.readbackHash &&
+        typeof attestationHash === "string" &&
+        attestationHash === current.readbackHash &&
+        typeof confirmTurn === "string" &&
+        confirmTurn.length > 0 &&
+        confirmTurn !== current.userTurnId;
+      if (!validConfirm) {
+        closeConsentGeneration(slotKey, current.generation);
+        return;
+      }
+    }
+
+    if (delivery.outcome !== "completed") {
+      return;
+    }
+
+    const achievedGrade: ConsentGrade = relayedGradeWithin(
       capturedConsent.profile.consentGrade,
     );
-    let confirmationUserTurnId: string | null = null;
-    let readbackHash: string | null = null;
-    const attestation = delivery.attestation;
-    const verified: VerifiedReadbackEvidence | null = claimed.verifiedReadback;
-    const hasAttestedClaim: boolean =
-      delivery.readbackHash !== undefined || attestation !== undefined;
-    const completeAttestedClaim: boolean =
-      verified !== null &&
-      consentGradeRank(capturedConsent.profile.consentGrade) >=
-        consentGradeRank("attested") &&
-      capturedConsent.profile.userTurnIdentity === "human-attested" &&
-      observedAct === "confirmed" &&
-      typeof delivery.readbackHash === "string" &&
-      delivery.readbackHash === verified.hash &&
-      attestation !== undefined &&
-      attestation.readbackHash === verified.hash &&
-      typeof attestation.userTurnId === "string" &&
-      attestation.userTurnId.length > 0 &&
-      attestation.userTurnId !== claimed.userTurnId;
-    if (hasAttestedClaim && !completeAttestedClaim) {
-      closeConsentGeneration(slotKey, claimed.generation);
-      return;
-    }
-    if (completeAttestedClaim) {
-      if (
-        verified === null ||
-        attestation === undefined ||
-        typeof attestation.userTurnId !== "string"
-      ) {
-        closeConsentGeneration(slotKey, claimed.generation);
-        return;
-      }
-      const freshHash: string | null = await digestReadback(
-        capturedConsent.digest,
-        verified.canonical,
-      );
-      const stillOwned: ConsentGeneration | undefined =
-        consentGenerations?.get(slotKey);
-      if (
-        stillOwned?.generation !== claimed.generation ||
-        stillOwned.status !== "verifyingDelivery" ||
-        stillOwned.responseId !== claimed.responseId
-      ) {
-        return;
-      }
-      if (freshHash !== verified.hash) {
-        closeConsentGeneration(slotKey, claimed.generation);
-        return;
-      }
-      achievedGrade = "attested";
-      confirmationUserTurnId = attestation.userTurnId;
-      readbackHash = verified.hash;
-    }
-
     if (!isMeasuredConsentGrade(achievedGrade)) {
       consentGenerations?.set(
         slotKey,
-        Object.freeze({ ...claimed, status: "gradeUnavailable" }),
+        Object.freeze({ ...current, status: "gradeUnavailable" as const }),
       );
       return;
     }
+
+    const previousGrade: ConsentGrade = current.status === "armed"
+      ? current.achievedGrade
+      : "delivered";
+    const nextGrade: Exclude<ConsentGrade, "none"> =
+      consentGradeRank(achievedGrade) >= consentGradeRank(previousGrade) &&
+      isMeasuredConsentGrade(achievedGrade)
+        ? achievedGrade
+        : isMeasuredConsentGrade(previousGrade)
+          ? previousGrade
+          : achievedGrade;
 
     consentGenerations?.set(
       slotKey,
       Object.freeze({
-        ...claimed,
-        achievedGrade,
-        confirmationUserTurnId,
-        readbackHash,
-        status: "armed",
+        ...current,
+        achievedGrade: nextGrade,
+        readbackResponseId:
+          typeof delivery.responseId === "string" ? delivery.responseId : current.readbackResponseId,
+        status: "armed" as const,
       }),
     );
   }
@@ -1715,6 +1940,11 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         revision: Symbol("concierge.catalog") as CatalogRevision,
         tools,
       });
+      rememberCatalogProjection(
+        resolved.revision,
+        catalog.entries.map((entry) => entry.action),
+        names,
+      );
       resolvedMemo.set(key, resolved);
     }
 
@@ -1743,7 +1973,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
 
   function allocateDispatchId(): string {
     nextDispatchId += 1n;
-    return `dispatch-${nextDispatchId}`;
+    return `${instanceId}-${nextDispatchId}`;
   }
 
   function drainDispatchEvents(): void {
@@ -1772,9 +2002,28 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     }
   }
 
-  function emitDispatch(event: DispatchEvent): void {
+  function emitDispatch(
+    occurrence: V2Occurrence,
+    event: DispatchEvent extends infer Event
+      ? Event extends DispatchEvent
+        ? Omit<Event, "timing">
+        : never
+      : never,
+  ): void {
+    const at: number = readClock();
+    const elapsedMs: number = Math.max(0, at - occurrence.startedAt);
+    const handlerMs: number | undefined = occurrence.enteredHandlerAt === null
+      ? undefined
+      : Math.max(0, at - occurrence.enteredHandlerAt);
+    const timing: DispatchTiming = Object.freeze({
+      clockMs: at,
+      wallClockMs: Date.now(),
+      elapsedMs,
+      ...(handlerMs === undefined ? {} : { handlerMs }),
+      monotonic: clockMonotonic,
+    });
     const frozen: DispatchEvent = deepFreeze(
-      event,
+      { ...event, timing } as DispatchEvent,
       NO_SKIP,
       new WeakSet<object>(),
     );
@@ -1837,11 +2086,70 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     return Object.freeze({ kind: "included", value: snapshot.value });
   }
 
-  function observedResultStatus(result: ActionResult): ObservedActionResult {
+  function observedMessageFor(
+    entry: CatalogEntry | null,
+    result: ActionResult,
+    resultData: ObservedResultData,
+  ): ObservedMessage {
+    if (entry === null) {
+      return Object.freeze({ kind: "included", value: result.message });
+    }
+    const policy: unknown = entry.action.redactMessage;
+    if (policy === "drop") {
+      return Object.freeze({ kind: "dropped" });
+    }
+    if (policy === undefined || policy === "passthrough") {
+      return Object.freeze({ kind: "included", value: result.message });
+    }
+    if (typeof policy !== "function") {
+      return Object.freeze({ kind: "included", value: result.message });
+    }
+    const context: MessageRedactionContext = Object.freeze(
+      result.reason === undefined
+        ? { ok: result.ok, data: resultData }
+        : { ok: result.ok, reason: result.reason, data: resultData },
+    );
+    try {
+      const projected: unknown = (
+        policy as (
+          message: string,
+          context: MessageRedactionContext,
+        ) => unknown
+      )(result.message, context);
+      if (typeof projected !== "string") {
+        warnDispatchOnce(
+          `message-redaction-threw:${entry.action.name}`,
+          `concierge: [message_redaction_failed] action ${encodeDiagnosticSubject(entry.action.name)}: its message projection returned a non-string, so observer message was dropped.`,
+        );
+        return Object.freeze({ kind: "dropped" });
+      }
+      return Object.freeze({
+        kind: "included",
+        value: sanitizeMessage(projected),
+      });
+    } catch {
+      warnDispatchOnce(
+        `message-redaction-threw:${entry.action.name}`,
+        `concierge: [message_redaction_failed] action ${encodeDiagnosticSubject(entry.action.name)}: its message projection threw, so observer message was dropped.`,
+      );
+      return Object.freeze({ kind: "dropped" });
+    }
+  }
+
+  function observedResultStatus(
+    entry: CatalogEntry | null,
+    result: ActionResult,
+    resultData: ObservedResultData,
+  ): ObservedActionResult {
+    const message: ObservedMessage = observedMessageFor(
+      entry,
+      result,
+      resultData,
+    );
     return Object.freeze(
       result.reason === undefined
-        ? { ok: result.ok, message: result.message }
-        : { ok: result.ok, reason: result.reason, message: result.message },
+        ? { ok: result.ok, message }
+        : { ok: result.ok, reason: result.reason, message },
     );
   }
 
@@ -2626,30 +2934,37 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       occurrence?.identity?.sessionId ?? null;
     const actionConsentSlotKey: string = consentSlotKey(consentSessionId, name);
     const replacesReviewAuthority: boolean = reviewNames.has(name);
+    const retainedForDispatch: RetainedReviewRecord | null =
+      retainedReviews?.get(actionConsentSlotKey) ?? null;
     if (replacesReviewAuthority) {
-      // Validation is the freshness boundary. Every later failure stays closed.
+      const incumbent: ConsentGeneration | undefined =
+        consentGenerations?.get(actionConsentSlotKey);
+      if (
+        incumbent !== undefined &&
+        (incumbent.status === "armed" || incumbent.status === "interrupted") &&
+        "payload" in incumbent
+      ) {
+        retainGeneration(
+          actionConsentSlotKey,
+          incumbent,
+          incumbent.status === "interrupted" ? "interrupted" : "unconfirmed",
+        );
+      }
       consentGenerations?.delete(actionConsentSlotKey);
     }
 
-    let preparedReadback: PreparedReadback | null = null;
-    let validatedSnapshot: InvocationValueSnapshot;
-    if (attestedReviewNames.has(name)) {
-      const prepared: PreparedReadbackResult = prepareReadback(validation.value);
-      if (!prepared.ok) {
-        return authoredResult(
-          false,
-          "The action arguments are invalid.",
-          "invalid_args",
-        );
-      }
-      preparedReadback = prepared.value;
-      validatedSnapshot = {
-        ok: true,
-        value: preparedReadback.readback.payload,
-      };
-    } else {
-      validatedSnapshot = snapshotInvocationValue(validation.value, true);
+    if (replacesReviewAuthority && !prepareReadback(validation.value).ok) {
+      return authoredResult(
+        false,
+        "The action arguments are invalid.",
+        "invalid_args",
+      );
     }
+
+    const validatedSnapshot: InvocationValueSnapshot = snapshotInvocationValue(
+      validation.value,
+      true,
+    );
     if (
       !validatedSnapshot.ok ||
       (occurrence !== null &&
@@ -2668,9 +2983,6 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       effectiveBridgeRegistry(entry.action, stage);
 
     let reviewingClaim: ConsentReviewClaim | null = null;
-    let reviewingGeneration:
-      | (ConsentGenerationBase & { readonly status: "reviewing" })
-      | null = null;
     if (replacesReviewAuthority) {
       nextConsentGeneration += 1n;
       reviewingClaim = Object.freeze({
@@ -2706,7 +3018,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     if (occurrence !== null) {
       observation.input = observedInputFor(entry, validatedSnapshot.value);
       observation.accepted = true;
-      emitDispatch({
+      emitDispatch(occurrence, {
         dispatchId: occurrence.dispatchId,
         name,
         stage: occurrence.resolution.resolved.stage,
@@ -2731,7 +3043,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       }
 
       if (occurrence !== null && commitWindowMs > 0) {
-        emitDispatch({
+        emitDispatch(occurrence, {
           dispatchId: occurrence.dispatchId,
           name,
           stage: occurrence.resolution.resolved.stage,
@@ -2779,34 +3091,220 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     }
 
     const bridge: Bridge | null = resolveBridgeRegistry(bridgeRegistry);
-    if (reviewingClaim !== null) {
+    const snapshotBridgeId: string =
+      bridgeRegistry?.id ?? stage?.id ?? "cross-stage";
+    let proposedThisDispatch: boolean = false;
+
+    const stillOwnsReview = (): boolean => {
+      if (reviewingClaim === null) {
+        return false;
+      }
       const currentReview: ConsentGeneration | undefined =
         consentGenerations?.get(actionConsentSlotKey);
+      return currentReview?.generation === reviewingClaim.generation &&
+        currentReview.responseId === reviewingClaim.responseId;
+    };
+
+    const refuseReview = (
+      reason: ReviewRefusalCode,
+    ): ReviewOutcome<unknown> => Object.freeze({ ok: false, reason });
+
+    const bindProposal = async (
+      payload: unknown,
+      presented: string | undefined,
+      retainedCanonical: PreparedReadback | null,
+    ): Promise<ReviewOutcome<unknown>> => {
+      if (reviewingClaim === null || !stillOwnsReview()) {
+        return refuseReview("superseded");
+      }
+      if (isAborted(signal)) {
+        closeOwnedReview();
+        return refuseReview("aborted");
+      }
       if (
-        currentReview?.generation === reviewingClaim.generation &&
-        currentReview.status === "reviewing" &&
-        currentReview.responseId === reviewingClaim.responseId
+        occurrence !== null && occurrence.lineage.depth > 0 ||
+        !replacesReviewAuthority
       ) {
-        const snapshotBridgeId: string =
-          bridgeRegistry?.id ?? stage?.id ?? "cross-stage";
-        reviewingGeneration = Object.freeze({
+        return refuseReview("not_reviewable");
+      }
+      if (proposedThisDispatch) {
+        return refuseReview("already_proposed");
+      }
+      const prepared: PreparedReadbackResult = prepareReadback(
+        payload,
+        presented,
+      );
+      if (!prepared.ok) {
+        return refuseReview("payload_unsupported");
+      }
+      if (
+        retainedCanonical !== null &&
+        !bytesEqual(
+          retainedCanonical.canonical,
+          prepared.value.canonical,
+        )
+      ) {
+        retainedReviews?.delete(actionConsentSlotKey);
+        return refuseReview("retained_stale");
+      }
+      const snapshot: Readonly<Record<string, unknown>> =
+        captureResolvedSnapshot(snapshotBridgeId, bridge);
+      const needsAttested: boolean = attestedReviewNames.has(name);
+      if (needsAttested && typeof capturedConsent.presentReadback !== "function") {
+        return refuseReview("presenter_unavailable");
+      }
+      if (needsAttested && capturedConsent.digest === undefined) {
+        return refuseReview("digest_unavailable");
+      }
+      if (
+        Object.keys(snapshot).length === 0
+      ) {
+        warnDispatchOnce(
+          `vacuous-snapshot:${name}`,
+          `concierge: [vacuous_consent_snapshot] action ${encodeDiagnosticSubject(name)}: the propose-time snapshot has zero own keys, so drift checking is inert. Fix: put freshness-determining values on the review bridge snapshot.`,
+        );
+      }
+      let verifiedReadback: VerifiedReadbackEvidence | null = null;
+      if (
+        needsAttested &&
+        typeof capturedConsent.presentReadback === "function"
+      ) {
+        let receipt: unknown;
+        try {
+          receipt = await capturedConsent.presentReadback(
+            prepared.value.readback,
+          );
+        } catch {
+          return refuseReview("presentation_failed");
+        }
+        if (!stillOwnsReview()) {
+          return refuseReview("superseded");
+        }
+        if (isAborted(signal)) {
+          closeOwnedReview();
+          return refuseReview("aborted");
+        }
+        const receiptSnapshot: ReadbackReceiptSnapshotResult =
+          snapshotReadbackReceipt(receipt);
+        if (!receiptSnapshot.ok) {
+          return refuseReview("presentation_failed");
+        }
+        const freshHash: string | null = await digestReadback(
+          capturedConsent.digest,
+          prepared.value.canonical,
+        );
+        if (!stillOwnsReview()) {
+          return refuseReview("superseded");
+        }
+        if (isAborted(signal)) {
+          closeOwnedReview();
+          return refuseReview("aborted");
+        }
+        verifiedReadback = verifyReadbackReceipt(
+          prepared.value,
+          receiptSnapshot.value,
+          freshHash,
+        );
+        if (verifiedReadback === null) {
+          return refuseReview("presentation_failed");
+        }
+      }
+      proposedThisDispatch = true;
+      let hash: string | null = verifiedReadback?.hash ?? null;
+      if (hash === null && needsAttested) {
+        hash = await digestReadback(
+          capturedConsent.digest,
+          prepared.value.canonical,
+        );
+      }
+      if (hash === null) {
+        if (needsAttested) {
+          return refuseReview("digest_unavailable");
+        }
+        hash = "";
+      }
+      if (!stillOwnsReview()) {
+        return refuseReview("superseded");
+      }
+      const ceiling: ConsentGrade = capturedConsent.profile.consentGrade;
+      consentGenerations?.set(
+        actionConsentSlotKey,
+        Object.freeze({
+          attestationActId: null,
           confirmationUserTurnId: null,
           generation: reviewingClaim.generation,
-          payload: validatedSnapshot.value,
-          preparedReadback,
-          readbackHash: null,
+          payload: prepared.value.readback.payload,
+          preparedReadback: prepared.value,
+          readbackHash: hash,
+          readbackResponseId: null,
           responseId: reviewingClaim.responseId,
           sessionId: consentSessionId,
-          snapshot: captureResolvedSnapshot(snapshotBridgeId, bridge),
+          snapshot,
           snapshotBridgeId,
           snapshotBridgeRegistry: bridgeRegistry,
-          status: "reviewing",
+          status: "proposed" as const,
           userTurnId: meta.userTurnId ?? "",
-          verifiedReadback: null,
-        });
-        consentGenerations?.set(actionConsentSlotKey, reviewingGeneration);
-      }
-    }
+          verifiedReadback,
+        }),
+      );
+      retainedReviews?.delete(actionConsentSlotKey);
+      return Object.freeze({
+        ok: true as const,
+        hash,
+        payload: prepared.value.readback.payload,
+        ceiling,
+      });
+    };
+
+    const reviewControls: ReviewControls<unknown> = {
+      retained: retainedForDispatch?.publicView ?? null,
+      propose(
+        payload: unknown,
+        presentation?: ReviewPresentation,
+      ): Promise<ReviewOutcome<unknown>> {
+        return bindProposal(payload, presentation?.presented, null);
+      },
+      represent(
+        retained: RetainedReview<unknown>,
+      ): Promise<ReviewOutcome<unknown>> {
+        if (
+          retainedForDispatch === null ||
+          retained !== retainedForDispatch.publicView
+        ) {
+          return Promise.resolve(refuseReview("retained_unknown"));
+        }
+        try {
+          const snapshotBridge: Bridge | null =
+            retainedForDispatch.snapshotBridgeRegistry === bridgeRegistry
+              ? bridge
+              : resolveBridgeRegistry(
+                  retainedForDispatch.snapshotBridgeRegistry,
+                );
+          const currentSnapshot: Readonly<Record<string, unknown>> =
+            captureResolvedSnapshot(
+              retainedForDispatch.snapshotBridgeId,
+              snapshotBridge,
+            );
+          if (
+            !strictSnapshotEquality(
+              retainedForDispatch.snapshot,
+              currentSnapshot,
+            )
+          ) {
+            retainedReviews?.delete(actionConsentSlotKey);
+            return Promise.resolve(refuseReview("retained_stale"));
+          }
+        } catch {
+          retainedReviews?.delete(actionConsentSlotKey);
+          return Promise.resolve(refuseReview("retained_stale"));
+        }
+        return bindProposal(
+          retained.payload,
+          retainedForDispatch.preparedReadback.readback.presented,
+          retainedForDispatch.preparedReadback,
+        );
+      },
+    };
 
     if (isAborted(signal)) {
       closeOwnedReview();
@@ -2845,6 +3343,10 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         closeOwnedReview();
         return owned.status === "declined" ? USER_DECLINED : USER_CANCELLED;
       }
+      if (owned?.status === "interrupted") {
+        closeOwnedReview();
+        return interruptedConsentResult(policy);
+      }
       if (
         owned?.status !== "armed" ||
         owned.sessionId !== consentSessionId
@@ -2876,8 +3378,7 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       }
       if (
         owned.achievedGrade === "attested" &&
-        (owned.readbackHash === null ||
-          owned.confirmationUserTurnId === null)
+        (owned.readbackHash === null || owned.attestationActId === null)
       ) {
         closeConsentGeneration(reviewConsentSlotKey, owned.generation);
         closeOwnedReview();
@@ -2899,6 +3400,19 @@ export function createConcierge(config: ConciergeConfig): Concierge {
           false,
           "The available consent evidence is not strong enough for this action.",
           "grade_unavailable",
+        );
+      }
+
+      if (
+        Object.keys(owned.snapshot).length === 0 &&
+        capturedConsent.profile.consentGrade !== "none"
+      ) {
+        closeConsentGeneration(reviewConsentSlotKey, owned.generation);
+        closeOwnedReview();
+        return authoredResult(
+          false,
+          "The reviewed state changed before this action could run (vacuous snapshot).",
+          "consent_stale",
         );
       }
 
@@ -2957,7 +3471,11 @@ export function createConcierge(config: ConciergeConfig): Concierge {
               grade: owned.achievedGrade,
               payload: owned.payload,
               readbackHash: owned.readbackHash as string,
+              attestationActId: owned.attestationActId as string,
               responseId: owned.responseId,
+              ...(owned.readbackResponseId === null
+                ? {}
+                : { readbackResponseId: owned.readbackResponseId }),
               snapshot: owned.snapshot,
               userTurnId: owned.userTurnId,
             }
@@ -2965,6 +3483,9 @@ export function createConcierge(config: ConciergeConfig): Concierge {
               grade: owned.achievedGrade,
               payload: owned.payload,
               responseId: owned.responseId,
+              ...(owned.readbackResponseId === null
+                ? {}
+                : { readbackResponseId: owned.readbackResponseId }),
               snapshot: owned.snapshot,
               userTurnId: owned.userTurnId,
             },
@@ -2988,7 +3509,8 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         }
       }
       if (occurrence !== null) {
-        emitDispatch({
+        occurrence.enteredHandlerAt = readClock();
+        emitDispatch(occurrence, {
           dispatchId: occurrence.dispatchId,
           name,
           stage: occurrence.resolution.resolved.stage,
@@ -3007,6 +3529,8 @@ export function createConcierge(config: ConciergeConfig): Concierge {
         meta,
         ack: consentAck,
         workflow,
+        context: occurrence?.context ?? {},
+        review: reviewControls,
       });
     } catch {
       closeOwnedReview();
@@ -3055,9 +3579,6 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       handlerResult,
     );
 
-    if (reviewingGeneration === null) {
-      return normalizedResult;
-    }
     if (!normalizedResult.ok) {
       closeOwnedReview();
       return normalizedResult;
@@ -3066,91 +3587,55 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     const currentReview: ConsentGeneration | undefined =
       consentGenerations?.get(actionConsentSlotKey);
     if (
-      currentReview?.generation !== reviewingGeneration.generation ||
-      currentReview.status !== "reviewing" ||
-      currentReview.responseId !== reviewingGeneration.responseId
+      reviewingClaim === null ||
+      currentReview?.generation !== reviewingClaim.generation ||
+      currentReview.status !== "proposed" ||
+      currentReview.responseId !== reviewingClaim.responseId ||
+      !("payload" in currentReview)
     ) {
+      if (reviewingClaim !== null && currentReview?.status === "reviewing") {
+        warnDispatchOnce(
+          `review-without-propose:${name}`,
+          `concierge: [review_unproposed] action ${encodeDiagnosticSubject(name)}: the review handler returned ok without proposing a payload, so consent did not arm. Fix: call ctx.review.propose(payload) after the payload is authoritative.`,
+        );
+        closeOwnedReview();
+      }
       return normalizedResult;
     }
 
-    let verifiedReadback: VerifiedReadbackEvidence | null = null;
-    if (reviewingGeneration.preparedReadback !== null) {
-      const presenter = capturedConsent.presentReadback;
-      if (presenter === undefined) {
-        closeOwnedReview();
-        return normalizedResult;
-      }
-      let receipt: unknown;
-      try {
-        receipt = await presenter(reviewingGeneration.preparedReadback.readback);
-      } catch {
-        closeOwnedReview();
-        return normalizedResult;
-      }
-      const afterPresentation: ConsentGeneration | undefined =
-        consentGenerations?.get(actionConsentSlotKey);
-      if (
-        afterPresentation?.generation !== reviewingGeneration.generation ||
-        afterPresentation.status !== "reviewing" ||
-        afterPresentation.responseId !== reviewingGeneration.responseId
-      ) {
-        return normalizedResult;
-      }
-      const receiptSnapshot: ReadbackReceiptSnapshotResult =
-        snapshotReadbackReceipt(receipt);
-      if (!receiptSnapshot.ok) {
-        closeOwnedReview();
-        return normalizedResult;
-      }
-      const freshHash: string | null = await digestReadback(
-        capturedConsent.digest,
-        reviewingGeneration.preparedReadback.canonical,
+    const deliveredCeiling: ConsentGrade = consentGradeRank(
+      capturedConsent.profile.consentGrade,
+    ) >= consentGradeRank("delivered")
+      ? "delivered"
+      : capturedConsent.profile.consentGrade;
+    if (!isMeasuredConsentGrade(deliveredCeiling)) {
+      consentGenerations?.set(
+        actionConsentSlotKey,
+        Object.freeze({ ...currentReview, status: "gradeUnavailable" as const }),
       );
-      const afterDigest: ConsentGeneration | undefined =
-        consentGenerations?.get(actionConsentSlotKey);
-      if (
-        afterDigest?.generation !== reviewingGeneration.generation ||
-        afterDigest.status !== "reviewing" ||
-        afterDigest.responseId !== reviewingGeneration.responseId
-      ) {
-        return normalizedResult;
-      }
-      verifiedReadback = verifyReadbackReceipt(
-        reviewingGeneration.preparedReadback,
-        receiptSnapshot.value,
-        freshHash,
-      );
-      if (verifiedReadback === null) {
-        closeOwnedReview();
-        return normalizedResult;
-      }
+      return normalizedResult;
     }
+
+    const armed = Object.freeze({
+      ...currentReview,
+      achievedGrade: deliveredCeiling,
+      status: "armed" as const,
+    });
+    consentGenerations?.set(actionConsentSlotKey, armed);
 
     const deliveryHook: InvocationMeta["deferUntilDelivered"] =
       meta.deferUntilDelivered;
     if (
-      typeof deliveryHook !== "function" ||
-      reviewingGeneration.responseId.length === 0
+      typeof deliveryHook === "function" &&
+      currentReview.responseId.length > 0
     ) {
-      closeOwnedReview();
-      return normalizedResult;
-    }
-
-    const pendingDelivery = Object.freeze({
-      ...reviewingGeneration,
-      status: "pendingDelivery" as const,
-      verifiedReadback,
-    });
-    consentGenerations?.set(actionConsentSlotKey, pendingDelivery);
-    try {
-      deliveryHook((report: DeliveryReport): void => {
-        void observeReviewDelivery(actionConsentSlotKey, pendingDelivery, report);
-      });
-    } catch {
-      closeConsentGeneration(
-        actionConsentSlotKey,
-        reviewingGeneration.generation,
-      );
+      try {
+        deliveryHook((report: DeliveryReport): void => {
+          void observeReviewDelivery(actionConsentSlotKey, armed, report);
+        });
+      } catch {
+        // A throwing hook must not disarm an already-delivered generation.
+      }
     }
 
     return normalizedResult;
@@ -3225,7 +3710,10 @@ export function createConcierge(config: ConciergeConfig): Concierge {
     }
     result = outcome.result;
 
-    emitDispatch({
+    const resultData: ObservedResultData = exposeObservedResultData(
+      outcome.observedData,
+    );
+    emitDispatch(occurrence, {
       dispatchId: occurrence.dispatchId,
       name,
       stage: occurrence.resolution.resolved.stage,
@@ -3235,8 +3723,8 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       input: observation.input,
       terminalAction: entry.action.terminal === true,
       phase: eventTerminalPhase(result),
-      result: observedResultStatus(result),
-      resultData: exposeObservedResultData(outcome.observedData),
+      result: observedResultStatus(entry, result, resultData),
+      resultData,
       terminalEntered: occurrence.root.terminalRef !== null,
     });
     return result;
@@ -3272,6 +3760,8 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       meta,
       resolution,
       root,
+      startedAt: readClock(),
+      enteredHandlerAt: null,
     };
   }
 
@@ -3485,8 +3975,11 @@ export function createConcierge(config: ConciergeConfig): Concierge {
           meta,
           resolution,
           root: inherited.root,
+          startedAt: readClock(),
+          enteredHandlerAt: null,
         };
-    emitDispatch({
+    const rejectedData: ObservedResultData = observedResultDataFor(null, result);
+    emitDispatch(occurrence, {
       dispatchId: occurrence.dispatchId,
       name,
       stage: resolution.resolved.stage,
@@ -3498,8 +3991,8 @@ export function createConcierge(config: ConciergeConfig): Concierge {
       terminalEntered: inherited?.root.terminalRef !== null &&
         inherited?.root.terminalRef !== undefined,
       phase: eventTerminalPhase(result),
-      result: observedResultStatus(result),
-      resultData: observedResultDataFor(null, result),
+      result: observedResultStatus(null, result, rejectedData),
+      resultData: rejectedData,
     });
     return trackDispatchPromise(Promise.resolve(result), executionState);
   }
@@ -3717,6 +4210,8 @@ export function createConcierge(config: ConciergeConfig): Concierge {
           meta: request.meta,
           resolution,
           root: inherited.root,
+          startedAt: readClock(),
+          enteredHandlerAt: null,
         };
     const promise: Promise<ActionResult> = Promise.resolve().then(() =>
       runDispatchPipeline(
@@ -4269,12 +4764,143 @@ export function createConcierge(config: ConciergeConfig): Concierge {
   // number of seals in this file; that argument was arithmetically wrong, and
   // a wrong reason attached to a right decision is how a right decision gets
   // reversed by the first reader who checks it.
+  function isSha256Hex(value: unknown): value is string {
+    if (typeof value !== "string" || value.length !== 64) {
+      return false;
+    }
+    for (let index = 0; index < value.length; index += 1) {
+      const code: number = value.charCodeAt(index);
+      if (!((code >= 0x30 && code <= 0x39) || (code >= 0x61 && code <= 0x66))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function attestReadback(attestation: ReadbackAttestation): AttestationOutcome {
+    if (typeof attestation !== "object" || attestation === null) {
+      return "malformed";
+    }
+    let act: unknown;
+    let actId: unknown;
+    let readbackHash: unknown;
+    let userTurnId: unknown;
+    try {
+      const prototype: object | null = Object.getPrototypeOf(attestation);
+      if (prototype !== Object.prototype && prototype !== null) {
+        return "malformed";
+      }
+      act = attestation.act;
+      actId = attestation.actId;
+      readbackHash = attestation.readbackHash;
+      userTurnId = attestation.userTurnId;
+    } catch {
+      return "malformed";
+    }
+    if (
+      (act !== "confirmed" && act !== "declined" && act !== "dismissed") ||
+      !isSafeIdentifier(actId) ||
+      !isSha256Hex(readbackHash) ||
+      (userTurnId !== undefined && typeof userTurnId !== "string")
+    ) {
+      return "malformed";
+    }
+    if (usedAttestationActIds?.has(actId) === true) {
+      return "already_attested";
+    }
+    if (consentGenerations === null) {
+      return "unknown_readback";
+    }
+    // **Every match is collected, and two matches refuse.** The hash covers
+    // `{payload, presented}` and nothing else — not the review action's name
+    // — so two review actions whose readbacks are byte-identical are
+    // indistinguishable here. An earlier draft took the first in Map
+    // insertion order, which arms a generation the person may not be the one
+    // who heard. When the evidence cannot say which review was confirmed,
+    // the honest answer is that none was.
+    let matched: { slotKey: string; generation: ConsentGenerationBase } | null =
+      null;
+    let ambiguous: boolean = false;
+    for (const [slotKey, generation] of consentGenerations) {
+      if (
+        "payload" in generation &&
+        generation.readbackHash === readbackHash
+      ) {
+        if (matched !== null) {
+          ambiguous = true;
+          break;
+        }
+        matched = { slotKey, generation };
+      }
+    }
+    if (ambiguous) {
+      warnDispatchOnce(
+        `ambiguous-attestation:${readbackHash}`,
+        `concierge: [ambiguous_attestation] two pending reviews share one readback hash, so the attestation named no single review and was refused. Fix: make each review's payload distinguish the action it gates.`,
+      );
+      return "unknown_readback";
+    }
+    if (matched === null) {
+      return "unknown_readback";
+    }
+    const current = consentGenerations.get(matched.slotKey);
+    if (
+      current === undefined ||
+      current.generation !== matched.generation.generation
+    ) {
+      return "unknown_readback";
+    }
+    if (
+      current.status === "declined" ||
+      current.status === "dismissed" ||
+      (current.status === "armed" &&
+        "achievedGrade" in current &&
+        current.achievedGrade === "attested")
+    ) {
+      return "already_attested";
+    }
+    if (act === "declined" || act === "dismissed") {
+      rememberActId(actId);
+      consentGenerations.set(
+        matched.slotKey,
+        Object.freeze({ ...matched.generation, status: act }),
+      );
+      return "accepted";
+    }
+    if (
+      consentGradeRank(capturedConsent.profile.consentGrade) <
+      consentGradeRank("attested")
+    ) {
+      return "grade_unavailable";
+    }
+    if (!("payload" in current)) {
+      return "unknown_readback";
+    }
+    rememberActId(actId);
+    consentGenerations.set(
+      matched.slotKey,
+      Object.freeze({
+        ...current,
+        achievedGrade: "attested" as const,
+        attestationActId: actId,
+        confirmationUserTurnId:
+          typeof userTurnId === "string" && userTurnId.length > 0
+            ? userTurnId
+            : current.confirmationUserTurnId,
+        status: "armed" as const,
+      }),
+    );
+    return "accepted";
+  }
+
   const concierge: Concierge = {
+    instanceId,
     dispatch: dispatchV2,
     dispatchBatch: dispatchBatchV2,
     resolveCatalog,
     onDispatch,
     explain,
+    attestReadback,
   };
   const configuredConcierge: Concierge =
     attachConsentProfile(concierge, capturedConsent.profile);

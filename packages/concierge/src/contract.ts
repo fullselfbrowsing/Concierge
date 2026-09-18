@@ -54,13 +54,13 @@
  * **Bump policy.** An integer, bumped only when the *shared runtime contract*
  * changes incompatibly — the bridge registry shape, the dedup key, or the
  * consent record. Not on every release, and not on an additive type change.
- * Contract v3 ships `3`.
+ * Contract v4 ships `4`.
  *
  * An integer rather than a string or a semver-ish value: a richer shape buys
  * nothing until there is a compatibility *range* to express, and it is a one-way
  * door once published.
  */
-export const CONTRACT_VERSION = 3;
+export const CONTRACT_VERSION = 4;
 
 /**
  * The cross-realm slot where two independently-resolved copies of core meet.

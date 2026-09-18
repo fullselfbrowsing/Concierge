@@ -2,8 +2,8 @@
 
 ## Current state
 
-Concierge 0.3 is a supported-public-preview implementation built around runtime
-contract v3. The repository contains:
+Concierge 0.4 is a supported-public-preview implementation built around runtime
+contract v4. The repository contains:
 
 - a framework-neutral action catalog, atomic catalog revisions, direct and
   batch dispatch, consent, deduplication, cancellation, terminal control,
@@ -17,26 +17,28 @@ contract v3. The repository contains:
   completed calls, and correlated function-call output events;
 - a full Next App Router/OpenRouter example and the existing dual-framework SSR
   harness;
-- a version-neutral three-package release path with exact archives, independent
+- a version-neutral five-package release path with exact archives, independent
   sealing, OIDC trusted publishing, provenance verification, safe resumption,
   and the `latest` dist-tag.
 
-The public package set is one fixed trio at a shared `0.3.x` version:
+The public package set is one fixed group at a shared `0.4.x` version:
 
 1. `@full-self-browsing/concierge`
 2. `@full-self-browsing/concierge-react`
 3. `@full-self-browsing/concierge-svelte`
+4. `@full-self-browsing/concierge-dom`
+5. `@full-self-browsing/concierge-realtime`
 
 Do not infer registry publication from the repository version. Check npm and
 the release workflow. First publication remains externally blocked until the
-npm scope/package bootstrap and three trusted-publisher records are complete;
+npm scope/package bootstrap and five trusted-publisher records are complete;
 the exact ceremony is in [RELEASING.md](./RELEASING.md).
 
 ## Read in this order
 
 1. [README.md](./README.md) — public product and security promise.
 2. [COMPATIBILITY.md](./COMPATIBILITY.md) and [SUPPORT.md](./SUPPORT.md) — the
-   0.3 support contract.
+   0.4 support contract.
 3. [`packages/concierge/src/types.ts`](./packages/concierge/src/types.ts) — the
    runtime contract as code.
 4. [`packages/concierge/src/concierge.ts`](./packages/concierge/src/concierge.ts)
@@ -50,7 +52,7 @@ the exact ceremony is in [RELEASING.md](./RELEASING.md).
 
 Use `.planning/` when investigating how earlier decisions and evidence were
 derived. Its phase scripts and receipts are historical reproduction inputs,
-not the live 0.3 release authority.
+not the live 0.4 release authority.
 
 ## Locked boundaries
 
@@ -71,7 +73,7 @@ not the live 0.3 release authority.
   envelope, replay consumption, and a live-catalog match.
 - Client consent, signed results, and client context are not server
   authorization.
-- All packages remain ESM-only and contract v3 throughout `0.3.x`.
+- All packages remain ESM-only and contract v4 throughout `0.4.x`.
 
 ## Signed bridge invariants
 
@@ -89,10 +91,10 @@ application-supplied stronger store.
 
 ## Live release authority
 
-- `.release/lines/0.3.json` — strict package set, contract, destination,
+- `.release/lines/0.4.json` — strict package set, contract, destination,
   compatibility, Node, and content-addressed npm identity.
 - `scripts/release/config.mjs` — strict parser and shared invariants.
-- `scripts/release/check.mjs` — source/workflow/fixed-trio gate.
+- `scripts/release/check.mjs` — source/workflow/five-package gate.
 - `scripts/release/version.mjs` — Changesets wrapper and peer normalization.
 - `scripts/release/package.mjs` — build-once exact archive export.
 - `scripts/release/compatibility.mjs` — AI 6/7, React 18/19, Svelte 5
@@ -125,15 +127,15 @@ node scripts/release/publisher.mjs self-test
 node scripts/release/check.mjs all
 ```
 
-Then confirm the Changesets fixed group is the exact trio, the worktree is
-clean, repository URLs preserve `fullselfbrowsing/Concierge` case, and npm's
-three trusted-publisher records name `release.yml` plus `npm-production`.
+Then confirm the Changesets fixed group is the exact five-package set, the
+worktree is clean, repository URLs preserve `fullselfbrowsing/Concierge` case,
+and npm's trusted-publisher records name `release.yml` plus `npm-production`.
 
 ## Known limitations
 
-- 0.3 is public preview, not a commercial-SLA release.
+- 0.4 is public preview, not a commercial-SLA release.
 - The signed bridge authenticates server admission of a browser batch; it does
   not authorize protected server effects or repair XSS.
-- Edge runtime is not in the 0.3 Next matrix.
+- Edge runtime is not in the 0.4 Next matrix.
 - Live model-provider calls are intentionally outside release authorization.
-- Only the latest 0.3 patch is maintained under [SUPPORT.md](./SUPPORT.md).
+- Only the latest 0.4 patch is maintained under [SUPPORT.md](./SUPPORT.md).

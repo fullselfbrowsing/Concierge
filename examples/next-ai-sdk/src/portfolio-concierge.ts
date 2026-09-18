@@ -147,13 +147,24 @@ export function createPortfolioConcierge(): PortfolioConcierge {
     schema: projectInputSchema,
     jsonSchema: PROJECT_SCHEMA,
     redact: ({ projectId }) => ({ projectId }),
+    redactMessage: "drop",
     effects: { readOnly: true, destructive: false, idempotent: true },
     availableWhen: (ctx) =>
       ctx.pathname === "/portfolio" && ctx.browserOpen === false,
-    handler: ({ args }) => ({
-      ok: true,
-      message: `Reviewed project ${args.projectId}; opening it still requires consent.`,
-    }),
+    handler: async ({ args, review }) => {
+      const proposed = await review.propose(args);
+      if (!proposed.ok) {
+        return {
+          ok: false,
+          reason: "precondition_failed",
+          message: "The review payload could not be proposed.",
+        };
+      }
+      return {
+        ok: true,
+        message: `Reviewed project ${args.projectId}; opening it still requires consent.`,
+      };
+    },
   });
 
   const launchReviewedProject = defineAction<
@@ -169,13 +180,14 @@ export function createPortfolioConcierge(): PortfolioConcierge {
     schema: projectInputSchema,
     jsonSchema: PROJECT_SCHEMA,
     redact: ({ projectId }) => ({ projectId }),
+    redactMessage: "drop",
     effects: { readOnly: false, destructive: false, idempotent: true },
     availableWhen: (ctx) =>
       ctx.pathname === "/portfolio" && ctx.browserOpen === false,
     consent: {
       requires: "reviewProjectLaunch",
       bindTo: "response",
-      minGrade: "delivered",
+      minGrade: "relayed",
     },
     handler: ({ ack, bridge: mounted }) => {
       if (ack === undefined) {
@@ -324,7 +336,7 @@ export function createPortfolioConcierge(): PortfolioConcierge {
     crossStage: [navigate, startTour, switchToText, endCall],
     scheduler: schedule,
     consentProfile: {
-      consentGrade: "delivered",
+      consentGrade: "relayed",
       userTurnIdentity: "agent-forgeable",
     },
     maxWorkflowDepth: 16,

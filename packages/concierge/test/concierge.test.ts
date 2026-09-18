@@ -782,7 +782,7 @@ describe("CAT-04 — createConcierge captures one private factory-local consent 
     expect(privateConsentProfile(first)).toBe(firstProfile);
   });
 
-  it("S29 — absence becomes frozen none/none while the public handle stays five-key and unfrozen", () => {
+  it("S29 — absence becomes frozen none/none while the public handle stays seven-key and unfrozen", () => {
     const concierge = createConcierge({
       stages: [stage("active", () => true, [declare("ungated", zodObject)])],
     });
@@ -792,11 +792,13 @@ describe("CAT-04 — createConcierge captures one private factory-local consent 
       userTurnIdentity: "none",
     });
     expect(Object.keys(concierge)).toEqual([
+      "instanceId",
       "dispatch",
       "dispatchBatch",
       "resolveCatalog",
       "onDispatch",
       "explain",
+      "attestReadback",
     ]);
     expect("consentProfile" in concierge).toBe(false);
     expect(Object.isFrozen(concierge)).toBe(false);

@@ -164,6 +164,7 @@ describe("the built @full-self-browsing/concierge-svelte entries", () => {
     expect(clientTypes).toContain("ProvideConciergeOptions");
     expect(clientTypes).toContain("telemetry?: boolean");
     expect(clientTypes).toContain("useConcierge");
+    expect(clientTypes).toContain("useConciergeActivity");
     expect(clientTypes).toContain("useConciergeBridge");
     expect(clientTypes).toContain("getRegistry");
     expect(clientTypes).toContain("getBridge");
@@ -186,7 +187,7 @@ describe("the built @full-self-browsing/concierge-svelte entries", () => {
       "upgrade or reinstall",
       "registry.register(bridge)",
     ]);
-    expect(clientSource).toMatch(/EXPECTED_CONTRACT_VERSION\s*=\s*3\b/u);
+    expect(clientSource).toMatch(/EXPECTED_CONTRACT_VERSION\s*=\s*4\b/u);
 
     expect(adapterSource).toContain("return $state.snapshot(value);");
     expect(adapterSource).not.toMatch(/\b(?:as|any)\b/u);
@@ -226,6 +227,7 @@ describe("the built @full-self-browsing/concierge-svelte entries", () => {
         "provideConcierge",
         "svelteSnapshotNormalizer",
         "useConcierge",
+        "useConciergeActivity",
         "useConciergeBridge",
       ]);
       expect(spyRegistry.read()).toBeNull();

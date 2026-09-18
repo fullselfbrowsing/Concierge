@@ -79,7 +79,7 @@ function applyVersion() {
     isReleaseLineVersion(version, config.releaseLine) &&
       manifests.every((entry) => entry.manifest.version === version),
     "VERSION_SET",
-    `Changesets did not produce one stable ${config.releaseLine} trio: ${manifests
+    `Changesets did not produce one stable ${config.releaseLine} package set: ${manifests
       .map((entry) => `${entry.manifest.name}@${entry.manifest.version}`)
       .join(", ")}`,
   );
@@ -110,7 +110,7 @@ function applyVersion() {
   run(
     process.execPath,
     ["scripts/release/check.mjs", "release"],
-    "validate versioned trio",
+    "validate versioned package set",
   );
 }
 
@@ -121,15 +121,37 @@ function selfTest() {
     "SELF_TEST",
     "canonical peer failed",
   );
+  // The fixture is DERIVED from the live release line, not spelled out. A
+  // literal `^0.2.1 || ^0.3.0` pinned the self-test to the line that happened
+  // to be current when it was written, so moving to 0.4 made the assertion
+  // demand a 0.3 target from a 0.4 config and fail on every commit — the check
+  // reporting its own staleness as a policy violation.
+  const priorVersion = "0.2.1";
   const transition = analyzeSourceCorePeer(
-    "workspace:^0.2.1 || ^0.3.0",
-    "0.2.1",
+    `workspace:^${priorVersion} || ^${config.initialVersion}`,
+    priorVersion,
     config.releaseLine,
   );
   assert(
-    transition.canonical === false && transition.target === "0.3.0",
+    transition.canonical === false &&
+      transition.target === config.initialVersion,
     "SELF_TEST",
     "bounded peer transition failed",
+  );
+  let offLineRejected = false;
+  try {
+    analyzeSourceCorePeer(
+      `workspace:^${priorVersion} || ^0.1.0`,
+      priorVersion,
+      config.releaseLine,
+    );
+  } catch (error) {
+    offLineRejected = String(error).includes("[VERSION_PEER]");
+  }
+  assert(
+    offLineRejected,
+    "SELF_TEST",
+    "a transition targeting another release line was accepted",
   );
   let rejected = false;
   try {

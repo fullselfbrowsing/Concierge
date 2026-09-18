@@ -70,7 +70,7 @@
 // with export placement.
 
 import type { Assignable, Equals, Expect } from "./_assert.js";
-import { MESSAGE_MAX_CHARS, JSON_SCHEMA_TARGET, defineAction, buildCatalog, CatalogValidationError, createConcierge, createBridge, captureSnapshot, offPageResult, createSession } from "../src/index.js";   // ← index.js. NOT types.js. This is the whole point.
+import { MESSAGE_MAX_CHARS, JSON_SCHEMA_TARGET, defineAction, buildCatalog, CatalogValidationError, createConcierge, createBridge, captureSnapshot, offPageResult, createSession, isReasonCode, sanitizeText, makeReadbackReceipt, awaitRegistration, createTurnLedger, createRenditionBinder, resolveValue, renderCatalogPrompt, catalogDerivedPolicy } from "../src/index.js";   // ← index.js. NOT types.js. This is the whole point.
 import type { ConsentProfile, FailureOutcome, FailureOutcomeRow, OutcomePresentationReport, OutcomeSink, ReadbackAttestation } from "../src/index.js";
 import type { ConsentProfile as SourceConsentProfile, FailureOutcome as SourceFailureOutcome, FailureOutcomeRow as SourceFailureOutcomeRow, OutcomePresentationReport as SourceOutcomePresentationReport, OutcomeSink as SourceOutcomeSink, ReadbackAttestation as SourceReadbackAttestation } from "../src/types.js";
 
@@ -123,6 +123,33 @@ type _offPageResultExportedAsValue = Expect<Assignable<typeof offPageResult, (..
 
 /** createSession reaches the public entrypoint as a callable VALUE, not only as a type. */
 type _createSessionExportedAsValue = Expect<Assignable<typeof createSession, (...args: never[]) => unknown>>;
+
+/** isReasonCode reaches the public entrypoint as a callable VALUE, not only as a type. */
+type _isReasonCodeExportedAsValue = Expect<Assignable<typeof isReasonCode, (...args: never[]) => unknown>>;
+
+/** sanitizeText reaches the public entrypoint as a callable VALUE, not only as a type. */
+type _sanitizeTextExportedAsValue = Expect<Assignable<typeof sanitizeText, (...args: never[]) => unknown>>;
+
+/** makeReadbackReceipt reaches the public entrypoint as a callable VALUE, not only as a type. */
+type _makeReadbackReceiptExportedAsValue = Expect<Assignable<typeof makeReadbackReceipt, (...args: never[]) => unknown>>;
+
+/** awaitRegistration reaches the public entrypoint as a callable VALUE, not only as a type. */
+type _awaitRegistrationExportedAsValue = Expect<Assignable<typeof awaitRegistration, (...args: never[]) => unknown>>;
+
+/** createTurnLedger reaches the public entrypoint as a callable VALUE, not only as a type. */
+type _createTurnLedgerExportedAsValue = Expect<Assignable<typeof createTurnLedger, (...args: never[]) => unknown>>;
+
+/** createRenditionBinder reaches the public entrypoint as a callable VALUE, not only as a type. */
+type _createRenditionBinderExportedAsValue = Expect<Assignable<typeof createRenditionBinder, (...args: never[]) => unknown>>;
+
+/** resolveValue reaches the public entrypoint as a callable VALUE, not only as a type. */
+type _resolveValueExportedAsValue = Expect<Assignable<typeof resolveValue, (...args: never[]) => unknown>>;
+
+/** renderCatalogPrompt reaches the public entrypoint as a callable VALUE, not only as a type. */
+type _renderCatalogPromptExportedAsValue = Expect<Assignable<typeof renderCatalogPrompt, (...args: never[]) => unknown>>;
+
+/** catalogDerivedPolicy reaches the public entrypoint as a callable VALUE, not only as a type. */
+type _catalogDerivedPolicyExportedAsValue = Expect<Assignable<typeof catalogDerivedPolicy, (...args: never[]) => unknown>>;
 
 // --------------------------------------------------------------------------
 // Consent evidence and app-outcome contracts are public types only

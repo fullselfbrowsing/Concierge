@@ -252,7 +252,7 @@ export function createAISDKAdapter(input: Readonly<{
     input.concierge as ConciergeWithResolution;
   if (typeof concierge.resolveCatalog !== "function") {
     throw new ConciergeAISDKConfigurationError(
-      "Core contract v3 must provide resolveCatalog().",
+      "Core contract v4 must provide resolveCatalog().",
     );
   }
   const crypto: Crypto = cryptoFor(input.crypto);

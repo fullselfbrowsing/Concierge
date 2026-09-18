@@ -15,11 +15,13 @@ import {
   useConciergeValue,
 } from "@full-self-browsing/concierge-react/client";
 import type {
+  ConciergeActivity,
   ConciergeActivityOverlayProps,
   ConciergeBadgePosition,
   ConciergeGlowOptions,
   ConciergePoweredByFSBOptions,
 } from "@full-self-browsing/concierge-react/client";
+import type { DispatchEvent } from "@full-self-browsing/concierge";
 
 type Equal<Left, Right> =
   (<T>() => T extends Left ? 1 : 2) extends
@@ -37,12 +39,15 @@ type _activityPropsRemainPublic = Expect<
 >;
 
 const _consumerSignature: () => Concierge = useConcierge;
-const _activitySignature: () => boolean = useConciergeActivity;
+const _activitySignature: () => ConciergeActivity = useConciergeActivity;
 const _valueSignature: <T>(value: T) => () => T = useConciergeValue;
 const _bridgeSignature: <B extends Bridge>(
   registry: BridgeRegistry<B>,
-  bridge: B,
+  bridge: B | null,
 ) => void = useConciergeBridge;
+type _activityLastEvent = Expect<
+  Equal<ConciergeActivity["lastEvent"], DispatchEvent | null>
+>;
 
 declare const concierge: Concierge;
 const _providerElement: ReactElement = createElement(ConciergeProvider, {
@@ -90,6 +95,7 @@ const _bridgeReturn: void = useConciergeBridge(
   bookingRegistry,
   bookingBridge,
 );
+const _nullBridgeReturn: void = useConciergeBridge(bookingRegistry, null);
 
 // @ts-expect-error -- the provider requires a constructed Concierge.
 createElement(ConciergeProvider, {});

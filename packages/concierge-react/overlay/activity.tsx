@@ -22,8 +22,13 @@ const ConciergeActivityContext: Context<ConciergeActivityStore | null> =
 const useBrowserLayoutEffect: typeof useLayoutEffect =
   "window" in globalThis ? useLayoutEffect : useEffect;
 
+export interface ConciergeActivity {
+  readonly active: boolean;
+  readonly lastEvent: DispatchEvent | null;
+}
+
 interface ConciergeActivityStore {
-  readonly getSnapshot: () => boolean;
+  readonly getSnapshot: () => ConciergeActivity;
   readonly observe: (event: DispatchEvent) => void;
   readonly subscribe: (listener: () => void) => () => void;
 }
@@ -79,27 +84,25 @@ function isTerminalDispatchPhase(phase: DispatchEvent["phase"]): boolean {
 function createConciergeActivityStore(): ConciergeActivityStore {
   const activeDispatches: Set<string> = new Set<string>();
   const listeners: Set<() => void> = new Set<() => void>();
+  let snapshot: ConciergeActivity = Object.freeze({
+    active: false,
+    lastEvent: null,
+  });
 
   return {
-    getSnapshot: (): boolean => activeDispatches.size > 0,
+    getSnapshot: (): ConciergeActivity => snapshot,
     observe: (event): void => {
       const terminal: boolean = isTerminalDispatchPhase(event.phase);
-      if (
-        terminal
-          ? !activeDispatches.has(event.dispatchId)
-          : activeDispatches.has(event.dispatchId)
-      ) {
-        return;
-      }
-
-      const wasActive: boolean = activeDispatches.size > 0;
       if (terminal) {
         activeDispatches.delete(event.dispatchId);
-      } else {
+      } else if (!activeDispatches.has(event.dispatchId)) {
         activeDispatches.add(event.dispatchId);
       }
 
-      if (wasActive === (activeDispatches.size > 0)) return;
+      snapshot = Object.freeze({
+        active: activeDispatches.size > 0,
+        lastEvent: event,
+      });
       listeners.forEach((listener) => {
         listener();
       });
@@ -181,7 +184,7 @@ export function useConcierge(): Concierge {
   return concierge;
 }
 
-export function useConciergeActivity(): boolean {
+export function useConciergeActivity(): ConciergeActivity {
   const activityStore: ConciergeActivityStore | null = useContext(
     ConciergeActivityContext,
   );
@@ -205,7 +208,7 @@ export function ConciergeActivityOverlay({
   poweredByFSB = false,
   zIndex = 2_147_483_000,
 }: ConciergeActivityOverlayProps): ReactElement | null {
-  const active: boolean = useConciergeActivity();
+  const { active }: ConciergeActivity = useConciergeActivity();
 
   if (!active) return null;
 

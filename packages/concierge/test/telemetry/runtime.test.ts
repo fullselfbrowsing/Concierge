@@ -51,6 +51,7 @@ function runtimeStub(): {
   const listeners = new Set<DispatchListener>();
   const revision = Symbol("telemetry-test") as CatalogRevision;
   const concierge: Concierge = {
+    instanceId: "telemetry-test",
     dispatch: async () => ({ ok: true, message: "Done." }),
     dispatchBatch: async () => ({ kind: "completed", rows: [] }),
     resolveCatalog: () => ({ stage: null, tools: [], revision }),
@@ -61,6 +62,7 @@ function runtimeStub(): {
       };
     },
     explain: () => ({ stage: null, stages: [], catalog: [], actions: [] }),
+    attestReadback: () => "unknown_readback",
   };
   return {
     concierge,
@@ -77,6 +79,12 @@ function runtimeStub(): {
         input: { kind: "included", value: { secret: "must-not-leak" } },
         terminalAction: false,
         terminalEntered: false,
+        timing: {
+          clockMs: 0,
+          wallClockMs: 0,
+          elapsedMs: 0,
+          monotonic: false,
+        },
       };
       for (const listener of listeners) void listener(event);
     },

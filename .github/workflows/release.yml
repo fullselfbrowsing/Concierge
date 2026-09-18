@@ -43,7 +43,7 @@ jobs:
           node scripts/release/seal.mjs self-test
           node scripts/release/publisher.mjs self-test
 
-      - name: Open or update the fixed-trio Version Packages PR
+      - name: Open or update the fixed-set Version Packages PR
         id: changesets
         uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
         with:
@@ -203,7 +203,7 @@ jobs:
           name: ${{ needs.seal.outputs.sealedArtifact }}
           path: ${{ runner.temp }}/release-sealed
 
-      - name: Install the exact trio into an isolated example
+      - name: Install the exact package set into an isolated example
         run: |
           npm install --global npm@11.19.0
           test "$(npm --version)" = "11.19.0"
@@ -284,13 +284,13 @@ jobs:
             seal.runAttempt > Number(process.env.GITHUB_RUN_ATTEMPT) ||
             seal.sourceRef !== process.env.GITHUB_REF ||
             seal.outputArtifact !== process.env.RELEASE_OUTPUT_ARTIFACT ||
-            seal.distTag !== "latest" || seal.contractVersion !== 3
+            seal.distTag !== "latest" || seal.contractVersion !== 4
           ) throw new Error("release seal identity or digest drifted");
 
           const pinned = {
-            "config.mjs": "704e722e96934ac6f4534a28953e185aafd369713dd38f2964d3fa62523e10a4",
-            "release-publisher.mjs": "a6757a8a8c5f4ef67ab6318e8f492844c6b100bf0f12051a6fd1d5b9bd9f0636",
-            "release-line.json": "2fd76bdd314bfa509ede3a0e8b4a044c50fe556a1fcec015378986a2b6df899c",
+            "config.mjs": "17f2f25fd40aea7d99024c0da5c7fc8b137dc272646fa1b8d47947bfb3735866",
+            "release-publisher.mjs": "3ddab82fbf3ef5479f823618b8d1a79a73a1862b297459120d3596a2534a3f3b",
+            "release-line.json": "d650e2ac9707867db77b5f7b8fd2dd97f8fd0399f578a991091c73ee791dca73",
           };
           const expected = ["release-seal.json"];
           for (const record of seal.tools) {
@@ -334,7 +334,7 @@ jobs:
           appendFileSync(process.env.GITHUB_ENV, `RELEASE_NPM_CLI=${cli}\n`);
           NODE
 
-      - name: Publish or safely resume the exact trio through OIDC
+      - name: Publish or safely resume the exact package set through OIDC
         env:
           RELEASE_OUTPUT_ARTIFACT: ${{ needs.seal.outputs.sealedArtifact }}
         run: >-
