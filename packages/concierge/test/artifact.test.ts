@@ -96,9 +96,9 @@ describe("the built artifact still carries every value export", () => {
     expect(Object.isFrozen(m.CONSENT_GRADE_ORDER)).toBe(true);
   });
 
-  it("CONTRACT_VERSION reaches dist/index.js as the integer 3", async () => {
+  it("CONTRACT_VERSION reaches dist/index.js as the integer 4", async () => {
     const m = await import(DIST_URL.href);
-    expect(m.CONTRACT_VERSION).toBe(3);
+    expect(m.CONTRACT_VERSION).toBe(4);
   });
 
   it("assertSingleInstance reaches dist/index.js as a callable function", async () => {
@@ -220,5 +220,12 @@ describe("the built artifact still carries every value export", () => {
     // call site and reaches the vendor's converter as an undefined target, where
     // zod silently emits without `$schema` and arktype throws `ParseError`.
     expect(m.JSON_SCHEMA_TARGET).toBe("draft-2020-12");
+  });
+
+  it("isReasonCode, sanitizeText, and makeReadbackReceipt reach dist/index.js as functions", async () => {
+    const m = await import(DIST_URL.href);
+    expect(typeof m.isReasonCode).toBe("function");
+    expect(typeof m.sanitizeText).toBe("function");
+    expect(typeof m.makeReadbackReceipt).toBe("function");
   });
 });

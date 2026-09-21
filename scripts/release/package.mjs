@@ -176,12 +176,20 @@ function selfTest() {
   const config = loadReleaseLine();
   const names = config.packages.map((entry) =>
     expectedArchiveFilename(entry.name, config.initialVersion));
-  assert(new Set(names).size === 3, "SELF_TEST", "archive names are not unique");
+  // Counted against the release line rather than a literal, so the set can
+  // grow without this reporting a collision that does not exist.
   assert(
-    names[2] === expectedArchiveFilename(
-      "@full-self-browsing/concierge-svelte",
-      config.initialVersion,
-    ),
+    new Set(names).size === names.length,
+    "SELF_TEST",
+    "archive names are not unique",
+  );
+  // The identity assertion names the last package in the published order and
+  // spells its archive filename out in full, which is what makes it a check on
+  // the naming convention rather than a restatement of the helper.
+  const last = config.packages.at(-1);
+  assert(
+    names.at(-1) === `full-self-browsing-concierge-realtime-${config.initialVersion}.tgz` &&
+      last?.name === "@full-self-browsing/concierge-realtime",
     "SELF_TEST",
     "release archive identity drifted",
   );

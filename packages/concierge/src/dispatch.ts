@@ -163,10 +163,15 @@ function cloneInvocationValue(
   ) as Record<string, unknown>;
   seen.set(value, clone);
   for (const key of Object.keys(value)) {
+    const descriptor: PropertyDescriptor | undefined =
+      Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor === undefined || !("value" in descriptor)) {
+      throw new TypeError("Invocation values must be data.");
+    }
     Object.defineProperty(clone, key, {
       configurable: true,
       enumerable: true,
-      value: cloneInvocationValue((value as Record<string, unknown>)[key], seen),
+      value: cloneInvocationValue(descriptor.value, seen),
       writable: true,
     });
   }
@@ -772,7 +777,7 @@ export interface ResultNormalizationOptions extends ResultWarnings {
   readonly maximumDataBytes: number;
 }
 
-/** Runtime membership check for the closed sixteen-code vocabulary. */
+/** Runtime membership check for the closed seventeen-code vocabulary. */
 export function isReasonCode(value: unknown): value is ReasonCode {
   switch (value) {
     case "declined":
@@ -791,6 +796,7 @@ export function isReasonCode(value: unknown): value is ReasonCode {
     case "invalid_invocation":
     case "identity_conflict":
     case "precondition_failed":
+    case "consent_interrupted":
       return true;
     default:
       return false;

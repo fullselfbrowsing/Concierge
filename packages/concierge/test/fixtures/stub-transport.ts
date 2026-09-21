@@ -107,6 +107,7 @@ export const CONVERSATIONAL_CAPABILITIES: TransportCapabilities = Object.freeze(
   userTurnIdentity: "agent-forgeable",
   parallelCalls: true,
   dynamicCatalog: true,
+  acknowledgesCatalog: false,
 });
 
 export const COMMAND_PALETTE_CAPABILITIES: TransportCapabilities = Object.freeze({
@@ -114,6 +115,7 @@ export const COMMAND_PALETTE_CAPABILITIES: TransportCapabilities = Object.freeze
   userTurnIdentity: "human-attested",
   parallelCalls: false,
   dynamicCatalog: false,
+  acknowledgesCatalog: false,
 });
 
 type StatusSubscriber = (status: TransportStatus) => void;
@@ -224,6 +226,7 @@ function snapshotDeliveryReport(report: DeliveryReport): DeliveryReport {
   const readbackHash: string | undefined =
     typeof rawReadbackHash === "string" ? rawReadbackHash : undefined;
   const rawAct: unknown = readOwnDataProperty(rawAttestation, "act");
+  const rawActId: unknown = readOwnDataProperty(rawAttestation, "actId");
   const rawUserTurnId: unknown = readOwnDataProperty(
     rawAttestation,
     "userTurnId",
@@ -236,12 +239,15 @@ function snapshotDeliveryReport(report: DeliveryReport): DeliveryReport {
     (rawAct !== "confirmed" &&
       rawAct !== "declined" &&
       rawAct !== "dismissed") ||
-    typeof rawUserTurnId !== "string" ||
+    typeof rawActId !== "string" ||
     typeof rawAttestationHash !== "string"
       ? undefined
       : Object.freeze({
           act: rawAct,
-          userTurnId: rawUserTurnId,
+          actId: rawActId,
+          ...(typeof rawUserTurnId === "string"
+            ? { userTurnId: rawUserTurnId }
+            : {}),
           readbackHash: rawAttestationHash,
         });
 

@@ -69,6 +69,7 @@ import type { JsonSchemaTarget, SchemaEmission } from "./json-schema.js";
 import { CONSENT_GRADE_ORDER } from "./types.js";
 import type {
   AnyActionDefinition,
+  BridgeRegistry,
   ConsentGrade,
   ConsentProfile,
   DigestLike,
@@ -124,7 +125,10 @@ export type CatalogIssueCode =
   | "consent_grade_unavailable"
   | "user_turn_identity_unavailable"
   | "readback_presenter_missing"
-  | "digest_missing";
+  | "digest_missing"
+  | "snapshot_slot_not_a_getter"
+  | "vacuous_consent_snapshot"
+  | "message_redaction_invalid";
 
 /**
  * One build-failing problem, as structured fields.
@@ -177,7 +181,11 @@ export interface CatalogIssue {
  */
 export type CatalogDiagnosticCode =
   | "destructive_without_consent"
-  | "reads_untrusted_without_consent";
+  | "reads_untrusted_without_consent"
+  | "destructive_without_grade"
+  | "vacuous_consent_snapshot"
+  | "snapshot_slot_not_a_getter"
+  | "message_redaction_unset";
 
 /**
  * One non-blocking report, in {@link CatalogIssue}'s shape minus `vendor`.
@@ -411,6 +419,29 @@ export interface BuildCatalogOptions {
   readonly consentProfile?: ConsentProfile | undefined;
   readonly presentReadback?: ReadbackSink | undefined;
   readonly digest?: DigestLike | undefined;
+  /**
+   * Live bridge registries to inspect for snapshot-slot arity and vacuous
+   * consent snapshots. Callers must not invoke snapshot getters; this walk
+   * reads descriptors only.
+   *
+   * **This reports only on registries that already hold a bridge.** The walk
+   * calls `registry.read()`, which is `null` until a component registers — so
+   * a catalog built at module scope, before anything has mounted, inspects
+   * nothing and reports nothing. Passing `snapshotSources` there is not a
+   * check that passed; it is a check that did not run. To get the build-time
+   * report, rebuild the catalog once the bridges are registered.
+   *
+   * Nothing depends on that rebuild for safety. The load-bearing vacuous
+   * snapshot gate is the runtime one: a consent generation whose captured
+   * snapshot has zero own keys refuses at confirm with `consent_stale`,
+   * whether or not this walk ever ran.
+   */
+  readonly snapshotSources?:
+    | ReadonlyArray<{
+        readonly actionNames: ReadonlyArray<string>;
+        readonly registry: BridgeRegistry;
+      }>
+    | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -650,6 +681,94 @@ function consentCapabilityRequirementsOf(
       effectiveMinGrade: "delivered",
       bindTo: undefined,
     };
+  }
+}
+
+function inspectSnapshotHolder(snapshot: object): {
+  readonly ownKeyCount: number;
+  readonly parameterizedSlots: readonly string[];
+} {
+  const keys: string[] = Object.keys(snapshot);
+  const parameterizedSlots: string[] = [];
+  for (const key of keys) {
+    let descriptor: PropertyDescriptor | undefined;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(snapshot, key);
+    } catch {
+      continue;
+    }
+    if (
+      descriptor !== undefined &&
+      "value" in descriptor &&
+      typeof descriptor.value === "function" &&
+      descriptor.value.length > 0
+    ) {
+      parameterizedSlots.push(key);
+    }
+  }
+  return { ownKeyCount: keys.length, parameterizedSlots };
+}
+
+function inspectCatalogSnapshots(
+  sources: BuildCatalogOptions["snapshotSources"],
+  consentInvolved: ReadonlySet<string>,
+  consentGrade: ConsentGrade,
+  issues: CatalogIssue[],
+  diagnostics: CatalogDiagnostic[],
+): void {
+  if (sources === undefined) {
+    return;
+  }
+  const reportedVacuous: Set<string> = new Set<string>();
+  const reportedParameterized: Set<string> = new Set<string>();
+  for (const source of sources) {
+    let snapshot: unknown;
+    try {
+      const bridge = source.registry.read();
+      snapshot = bridge === null || bridge === undefined
+        ? undefined
+        : bridge.snapshot;
+    } catch {
+      continue;
+    }
+    if (typeof snapshot !== "object" || snapshot === null) {
+      continue;
+    }
+    const inspection = inspectSnapshotHolder(snapshot);
+    for (const name of source.actionNames) {
+      if (
+        inspection.parameterizedSlots.length > 0 &&
+        !reportedParameterized.has(name)
+      ) {
+        reportedParameterized.add(name);
+        issues.push({
+          code: "snapshot_slot_not_a_getter",
+          action: name,
+          problem:
+            "its snapshot includes a function that takes arguments. Snapshots are zero-argument getters.",
+          fix: "move parameterized queries off the snapshot into actions, and keep snapshot slots as `() => T`.",
+        });
+      }
+      if (
+        consentInvolved.has(name) &&
+        inspection.ownKeyCount === 0 &&
+        !reportedVacuous.has(name)
+      ) {
+        reportedVacuous.add(name);
+        const record = {
+          code: "vacuous_consent_snapshot" as const,
+          action: name,
+          problem:
+            "its consent-gated snapshot has zero own keys, so drift detection would compare `{}` to `{}` and pass.",
+          fix: "put the freshness-determining values on the bridge snapshot as zero-argument getters.",
+        };
+        if (consentGrade === "none") {
+          diagnostics.push(record);
+        } else {
+          issues.push(record);
+        }
+      }
+    }
   }
 }
 
@@ -1207,6 +1326,33 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
     const parameters: JsonSchemaObject = emission.parameters;
 
     // SEC-01 — see the two-branch reading above.
+    const messageRedaction: unknown = Object.hasOwn(action, "redactMessage")
+      ? (action as { readonly redactMessage?: unknown }).redactMessage
+      : undefined;
+    if (
+      messageRedaction !== undefined &&
+      messageRedaction !== "drop" &&
+      messageRedaction !== "passthrough" &&
+      typeof messageRedaction !== "function"
+    ) {
+      issues.push({
+        code: "message_redaction_invalid",
+        action: action.name,
+        problem:
+          "its `redactMessage` is not `\"drop\"`, `\"passthrough\"`, or a function.",
+        fix: 'set `redactMessage` to `"drop"`, `"passthrough"`, or a projection that returns a string.',
+      });
+    }
+    if (action.consent !== undefined && messageRedaction === undefined) {
+      diagnostics.push({
+        code: "message_redaction_unset",
+        action: action.name,
+        problem:
+          "it is consent-gated but declares no `redactMessage`, so the sentence a person is asked to approve reaches every observer verbatim.",
+        fix: 'add `redactMessage: "drop"` or a projection that withholds payload-quoting copy from observers.',
+      });
+    }
+
     const redaction: unknown = declaredRedaction(action);
     const redactionMissing: boolean = redaction === undefined;
     if (redactionMissing && hasDeclaredParameters(parameters)) {
@@ -1256,6 +1402,22 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
         });
       }
 
+      if (
+        bindTo === "unverifiedUserTurn" &&
+        consentEvidence.userTurnIdentity === "none"
+      ) {
+        issues.push({
+          code: "user_turn_identity_unavailable",
+          action: action.name,
+          required: "agent-forgeable",
+          declared: consentEvidence.userTurnIdentity,
+          problem:
+            "it binds consent to an unverified user turn, but the declared application profile provides no turn identity at all.",
+          fix:
+            "set `consentProfile.userTurnIdentity` to \"agent-forgeable\" or \"human-attested\", or use response binding.",
+        });
+      }
+
       if (effectiveMinGrade === "attested") {
         if (!consentEvidence.hasPresenter) {
           issues.push({
@@ -1293,6 +1455,20 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
         problem: "it declares `effects.destructive` but carries no `consent` policy, so an agent can take an irreversible action with no human having confirmed this specific payload.",
         fix: "add a `consent` policy, or set `effects.destructive` to false if the action is reversible.",
       });
+    }
+
+    if (action.effects?.destructive === true && action.consent !== undefined) {
+      const declaredMinGrade: unknown = action.consent.minGrade;
+      if (declaredMinGrade === undefined || declaredMinGrade === "delivered") {
+        diagnostics.push({
+          code: "destructive_without_grade",
+          action: action.name,
+          problem:
+            "it declares `effects.destructive` with a `consent.minGrade` of `\"delivered\"` or absent, so a consequential action can arm without a delivery producer.",
+          fix:
+            "raise `consent.minGrade` to `\"relayed\"` or `\"attested\"` for irreversible actions.",
+        });
+      }
     }
 
     // SEC-05 — same shape, distinct code, so a consumer can filter one alone.
@@ -1448,6 +1624,22 @@ export function buildCatalog<const A extends readonly AnyActionDefinition[]>(
       issues.push(issue);
     }
   }
+
+  const consentInvolved: Set<string> = new Set<string>();
+  for (const action of declared) {
+    const requires: unknown = consentRequiresOf(action);
+    if (typeof requires === "string") {
+      consentInvolved.add(action.name);
+      consentInvolved.add(requires);
+    }
+  }
+  inspectCatalogSnapshots(
+    options?.snapshotSources,
+    consentInvolved,
+    consentEvidence.consentGrade,
+    issues,
+    diagnostics,
+  );
 
   if (issues.length > 0) {
     throw new CatalogValidationError(issues);

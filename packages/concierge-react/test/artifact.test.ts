@@ -89,7 +89,7 @@ describe("the built @full-self-browsing/concierge-react entries", () => {
       );
       previousIndex = index;
     }
-    expect(clientSource).toMatch(/EXPECTED_CONTRACT_VERSION\s*=\s*3\b/u);
+    expect(clientSource).toMatch(/EXPECTED_CONTRACT_VERSION\s*=\s*4\b/u);
 
     await withoutBrowserGlobals(async () => {
       const [root, client, core] = await Promise.all([
@@ -120,6 +120,7 @@ describe("the built @full-self-browsing/concierge-react entries", () => {
         snapshot: { server: () => true },
       };
       const concierge = {
+        instanceId: "react-artifact",
         dispatch: async () => ({ ok: true, message: "Done." }),
         dispatchBatch: async () => ({ kind: "completed", rows: [] }),
         resolveCatalog: () => ({
@@ -129,6 +130,7 @@ describe("the built @full-self-browsing/concierge-react entries", () => {
         }),
         onDispatch: () => () => undefined,
         explain: () => ({ stage: null, stages: [], catalog: [], actions: [] }),
+        attestReadback: () => "unknown_readback",
       };
 
       function ServerConsumer() {

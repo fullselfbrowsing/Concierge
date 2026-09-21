@@ -22,7 +22,7 @@ import type {
 type _dispatchSignature = Expect<Equals<Concierge["dispatch"], (ctx: StageContext, request: DispatchRequest) => Promise<ActionResult>>>;
 type _dispatchBatchSignature = Expect<Equals<Concierge["dispatchBatch"], (ctx: StageContext, batch: ToolBatch) => Promise<BatchDispatchOutcome>>>;
 type _schedulerSignature = Expect<Equals<Scheduler, (fn: () => void, delayMs: number) => () => void>>;
-type _conciergeKeys = Expect<Equals<keyof Concierge, "dispatch" | "dispatchBatch" | "resolveCatalog" | "onDispatch" | "explain">>;
+type _conciergeKeys = Expect<Equals<keyof Concierge, "instanceId" | "dispatch" | "dispatchBatch" | "resolveCatalog" | "onDispatch" | "explain" | "attestReadback">>;
 type _actionResultKeysExcludeTerminalControl = Expect<Equals<keyof ActionResult, "ok" | "reason" | "message" | "data">>;
 type _publicBatchRow = Awaited<ReturnType<Concierge["dispatchBatch"]>>["rows"][number];
 type _publicBatchRowKeysExcludeTerminalControl = Expect<Equals<keyof _publicBatchRow, "dispatchId" | "callId" | "name" | "outputIndex" | "result">>;

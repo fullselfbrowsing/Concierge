@@ -104,6 +104,7 @@ import type {
   TransportStatus,
   TurnIdentityProvenance,
 } from "@full-self-browsing/concierge";
+import { createTestClock } from "@full-self-browsing/concierge/testing";
 import { createOpenAIRealtimeCodec } from "@full-self-browsing/concierge/openai-realtime";
 import type { OpenAIRealtimeCodec } from "@full-self-browsing/concierge/openai-realtime";
 import {
@@ -135,9 +136,10 @@ export const richData: ActionData = Object.freeze({
 export const n: 180 = MESSAGE_MAX_CHARS; // the literal type survived into the shipped .d.ts
 
 /** Same guard for the contract version, which 02-06 left unannotated in source. */
-export const v: 3 = CONTRACT_VERSION;
+export const v: 4 = CONTRACT_VERSION;
 export const maxActionDataBytes: 262144 = DEFAULT_ACTION_DATA_MAX_BYTES;
 export const realtimeCodec: OpenAIRealtimeCodec = createOpenAIRealtimeCodec();
+export const testClock: () => number = createTestClock(0).now;
 
 /**
  * A value import of the one function the package actually executes. Annotating
@@ -202,6 +204,7 @@ export const foreignDigest: DigestLike = {
 };
 export const foreignReadbackAttestation: ReadbackAttestation = Object.freeze({
   act: "confirmed",
+  actId: "act-probe",
   userTurnId: "turn-human",
   readbackHash: "hash",
 });
@@ -285,6 +288,7 @@ export const foreignTransport: Transport = {
     userTurnIdentity: "none",
     parallelCalls: false,
     dynamicCatalog: true,
+    acknowledgesCatalog: false,
   }),
   status: foreignStatus,
   setCatalog: (_catalog) => {},
@@ -294,6 +298,7 @@ export const foreignTransport: Transport = {
 
 /** A fully structural Concierge, again checked only through shipped types. */
 export const foreignConcierge: Concierge = {
+  instanceId: "probe",
   dispatch: (_context, _request) =>
     Promise.resolve({ ok: true, message: "ok" }),
   dispatchBatch: (_context, _batch) => Promise.resolve(Object.freeze({
@@ -313,6 +318,7 @@ export const foreignConcierge: Concierge = {
       actions: Object.freeze([]),
       catalog: Object.freeze([]),
     }),
+  attestReadback: () => "unknown_readback",
 };
 
 /** The browser-only telemetry subpath is present and fully typed in the pack. */

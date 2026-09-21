@@ -196,8 +196,16 @@ describe("action-scoped bridge resolution", () => {
         return reads === 1 ? first : second;
       },
     });
-    const review = action("review", ({ bridge: live }) => {
+    const review = action("review", async ({ args, bridge: live, review: controls }) => {
       handlerBridge = live;
+      const proposed = await controls.propose(args ?? {});
+      if (!proposed.ok) {
+        return {
+          ok: false,
+          reason: "precondition_failed",
+          message: "The review payload could not be proposed.",
+        };
+      }
       return { ok: true, message: live?.marker ?? "missing" };
     }, { bridge: alternatingRegistry });
     const confirm = action("confirm", () => ({ ok: true, message: "Confirmed." }), {
@@ -215,10 +223,10 @@ describe("action-scoped bridge resolution", () => {
 
     await expect(concierge.dispatch(CONTEXT, request(catalog, "review"))).resolves.toMatchObject({
       ok: true,
-      message: "first",
+      message: "second",
     });
-    expect(reads).toBe(1);
-    expect(handlerBridge).toBe(first);
+    expect(reads).toBe(2);
+    expect(handlerBridge).toBe(second);
   });
 
   it("compares consent against the review bridge when the gated action uses the stage bridge", async () => {
@@ -236,10 +244,17 @@ describe("action-scoped bridge resolution", () => {
       snapshot: { results: () => reviewedState },
     });
 
-    const review = action("review", ({ bridge: live }) => ({
-      ok: true,
-      message: live?.marker ?? "missing",
-    }), { bridge: reviewRegistry });
+    const review = action("review", async ({ args, bridge: live, review: controls }) => {
+      const proposed = await controls.propose(args ?? {});
+      if (!proposed.ok) {
+        return {
+          ok: false,
+          reason: "precondition_failed",
+          message: "The review payload could not be proposed.",
+        };
+      }
+      return { ok: true, message: live?.marker ?? "missing" };
+    }, { bridge: reviewRegistry });
     const confirm = action("confirm", ({ bridge: live }) => ({
       ok: true,
       message: live?.marker ?? "missing",
@@ -294,10 +309,17 @@ describe("action-scoped bridge resolution", () => {
     });
     const scheduled: Array<() => void> = [];
     let confirmCalls = 0;
-    const review = action("review", () => ({
-      ok: true,
-      message: "Reviewed.",
-    }));
+    const review = action("review", async ({ args, review: controls }) => {
+      const proposed = await controls.propose(args ?? {});
+      if (!proposed.ok) {
+        return {
+          ok: false,
+          reason: "precondition_failed",
+          message: "The review payload could not be proposed.",
+        };
+      }
+      return { ok: true, message: "Reviewed." };
+    });
     const confirm = action("confirm", () => {
       confirmCalls += 1;
       return { ok: true, message: "Confirmed." };

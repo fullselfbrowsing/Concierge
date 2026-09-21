@@ -13,8 +13,8 @@ It does not depend on experimental AI SDK callbacks.
 AI SDK 7 and React:
 
 ```sh
-pnpm add @full-self-browsing/concierge@^0.3 \
-  @full-self-browsing/concierge-react@^0.3 \
+pnpm add @full-self-browsing/concierge@^0.4 \
+  @full-self-browsing/concierge-react@^0.4 \
   ai@^7 @ai-sdk/react@^4
 ```
 
@@ -31,7 +31,7 @@ adapter itself is provider-neutral.
 | `@full-self-browsing/concierge/ai-sdk/browser` | Signature verification, replay protection, live-catalog check, and dispatch |
 
 The server subpath has an explicit fail-closed browser condition. All entries
-check core contract v3 before doing work.
+check core contract v4 before doing work.
 
 ## 1. Convert an atomic catalog
 
@@ -158,7 +158,7 @@ interface SignedToolBatchEnvelopeV1 {
 }
 ```
 
-The canonical claims bind contract v3, audience, session, catalog stage and
+The canonical claims bind contract v4, audience, session, catalog stage and
 digest, issued/expiry times, nonce, response, required user turn, and ordered
 calls. The protected header fixes ES256, key ID, media type, and envelope
 version.

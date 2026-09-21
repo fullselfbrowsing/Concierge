@@ -72,7 +72,11 @@ for required in \
   package/dist/telemetry/index.js \
   package/dist/telemetry/index.d.ts \
   package/dist/telemetry/index.js.map \
-  package/dist/telemetry/index.d.ts.map
+  package/dist/telemetry/index.d.ts.map \
+  package/dist/testing/index.js \
+  package/dist/testing/index.d.ts \
+  package/dist/testing/index.js.map \
+  package/dist/testing/index.d.ts.map
 do
   if ! printf '%s\n' "$TAR_ENTRIES" | grep -Fxq "$required"; then
     echo "FAIL: packed browser telemetry subpath is missing $required" >&2
@@ -163,11 +167,15 @@ node --input-type=module -e '
     throw new Error("runtime binding erased: createConcierge is " + typeof m.createConcierge);
   }
   if (
-    m.CONTRACT_VERSION !== 3 ||
+    m.CONTRACT_VERSION !== 4 ||
     m.DEFAULT_ACTION_DATA_MAX_BYTES !== 262144 ||
     typeof realtime.createOpenAIRealtimeCodec !== "function"
   ) {
-    throw new Error("contract v3 or OpenAI Realtime runtime export drifted");
+    throw new Error("contract v4 or OpenAI Realtime runtime export drifted");
+  }
+  const testing = await import("@full-self-browsing/concierge/testing");
+  if (typeof testing.createTestConcierge !== "function") {
+    throw new Error("testing subpath runtime export drifted");
   }
   const concierge = m.createConcierge({ stages: [] });
   if (typeof concierge.dispatch !== "function") {

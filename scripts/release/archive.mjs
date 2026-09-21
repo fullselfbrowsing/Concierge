@@ -254,7 +254,7 @@ export function validateArchiveDirectory(config, configuredDirectory) {
       index.distTag === config.distTag && index.packageSetSha256 === config.sha256 &&
       Array.isArray(index.archives) && index.archives.length === config.packages.length,
     "ARCHIVE_INDEX",
-    `archive digest manifest is not for the configured ${config.releaseLine} trio`,
+    `archive digest manifest is not for the configured ${config.releaseLine} package set`,
   );
   const expectedFiles = [ARCHIVE_MANIFEST_FILENAME];
   const archives = config.packages.map((spec, index_) => {

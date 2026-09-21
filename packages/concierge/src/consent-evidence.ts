@@ -1,6 +1,7 @@
 import type {
   DigestLike,
   Readback,
+  ReadbackReceipt,
 } from "./types.js";
 
 interface OwnShape {
@@ -397,25 +398,37 @@ function encodeUtf8(value: string): Uint8Array | null {
   return new Uint8Array(bytes);
 }
 
-/** Detach, freeze, and canonicalize the exact payload handed to a presenter. */
-export function prepareReadback(payload: unknown): PreparedReadbackResult {
+/** Detach, freeze, and canonicalize `{payload, presented?}` as one envelope. */
+export function prepareReadback(
+  payload: unknown,
+  presented?: string | undefined,
+): PreparedReadbackResult {
   try {
+    if (presented !== undefined && typeof presented !== "string") {
+      return { ok: false };
+    }
+    const envelope: { readonly payload: unknown; readonly presented?: string } =
+      presented === undefined ? { payload } : { payload, presented };
     const strict: StrictValue | null = snapshotStrictValue(
-      payload,
+      envelope,
       new WeakSet<object>(),
     );
     if (strict === null) {
       return { ok: false };
     }
-    const canonical: Uint8Array | null = encodeUtf8(
-      `{"payload":${strict.canonical}}`,
-    );
+    const canonical: Uint8Array | null = encodeUtf8(strict.canonical);
     if (canonical === null) {
       return { ok: false };
     }
-    const readback: Readback<unknown> = Object.freeze({
-      payload: strict.value,
-    });
+    const detached = strict.value as {
+      readonly payload: unknown;
+      readonly presented?: string;
+    };
+    const readback: Readback<unknown> = Object.freeze(
+      presented === undefined
+        ? { payload: detached.payload }
+        : { payload: detached.payload, presented: detached.presented },
+    );
     return {
       ok: true,
       value: Object.freeze({ canonical, readback }),
@@ -423,6 +436,55 @@ export function prepareReadback(payload: unknown): PreparedReadbackResult {
   } catch {
     return { ok: false };
   }
+}
+
+/**
+ * Produce the receipt a {@link ReadbackSink} must return.
+ *
+ * Canonicalizes `{payload, presented?}` exactly as core does, digests it
+ * through the injected capability, and freezes the result. Rejects with a
+ * `TypeError` when the payload is not canonicalizable or the digest does not
+ * return 32 bytes.
+ */
+export async function makeReadbackReceipt(
+  readback: Readback<unknown>,
+  digest: DigestLike,
+): Promise<ReadbackReceipt> {
+  if (typeof readback !== "object" || readback === null) {
+    throw new TypeError("The readback could not be canonicalized.");
+  }
+  let payload: unknown;
+  let presented: unknown;
+  try {
+    payload = readback.payload;
+    presented = readback.presented;
+  } catch {
+    throw new TypeError("The readback could not be canonicalized.");
+  }
+  if (presented !== undefined && typeof presented !== "string") {
+    throw new TypeError("The readback could not be canonicalized.");
+  }
+  const prepared: PreparedReadbackResult = prepareReadback(
+    payload,
+    presented === undefined ? undefined : presented,
+  );
+  if (!prepared.ok) {
+    throw new TypeError("The readback could not be canonicalized.");
+  }
+  const captured: DigestLike | undefined = captureDigestCapability(digest);
+  const hash: string | null = await digestReadback(
+    captured,
+    prepared.value.canonical,
+  );
+  if (hash === null) {
+    throw new TypeError("The readback digest did not return 32 bytes.");
+  }
+  return Object.freeze({
+    hash,
+    alg: "SHA-256" as const,
+    canonicalization: "JCS" as const,
+    canonical: new Uint8Array(prepared.value.canonical),
+  });
 }
 
 function copyTypedArrayShape(
@@ -709,6 +771,18 @@ function snapshotAttestation(
     return null;
   }
   const act: PropertyDescriptor | null = dataDescriptor(shape, "act");
+  // **`userTurnId` is optional on the type, so it is optional here too.**
+  // Requiring it made a `ReadbackAttestation` that typechecks — the field is
+  // declared `userTurnId?: string | undefined` because `attestReadback` reads
+  // it only when the policy binds to `"userTurn"` — fail the whole snapshot,
+  // which `observeReviewDelivery` cannot tell apart from a hostile report and
+  // answers by closing the generation. That refusal belongs one layer up,
+  // where `validConfirm` already demands a non-empty confirming turn distinct
+  // from the review's, and where a `declined` act is recorded as a human
+  // decision instead of being erased. The `hasX && x === null` idiom is the
+  // one `snapshotDeliveryEvidence` below already uses for its own optional
+  // field: absent is fine, present-but-not-own-data is not.
+  const hasUserTurnId: boolean = shape.keys.includes("userTurnId");
   const userTurnId: PropertyDescriptor | null = dataDescriptor(
     shape,
     "userTurnId",
@@ -719,7 +793,7 @@ function snapshotAttestation(
   );
   if (
     act === null ||
-    userTurnId === null ||
+    (hasUserTurnId && userTurnId === null) ||
     readbackHash === null ||
     !shapeStillMatches(value, shape)
   ) {
@@ -728,7 +802,7 @@ function snapshotAttestation(
   return Object.freeze({
     act: act.value,
     readbackHash: readbackHash.value,
-    userTurnId: userTurnId.value,
+    userTurnId: userTurnId?.value,
   });
 }
 

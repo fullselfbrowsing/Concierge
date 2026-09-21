@@ -242,7 +242,17 @@ it("does not let pre-parent consent authority flow into a gated child", async ()
   let gatedCalls = 0;
   const delivery = [];
   const concierge = create([
-    action("review", () => ({ ok: true, message: "Review." })),
+    action("review", async ({ args, review: controls }) => {
+      const proposed = await controls.propose(args ?? {});
+      if (!proposed.ok) {
+        return {
+          ok: false,
+          reason: "precondition_failed",
+          message: "The review payload could not be proposed.",
+        };
+      }
+      return { ok: true, message: "Review." };
+    }),
     action("gated", () => {
       gatedCalls += 1;
       return { ok: true, message: "Gated." };
@@ -287,7 +297,17 @@ it("does not let a concurrent root review arm consent for a paused child", async
   let gatedCalls = 0;
   const delivery = [];
   const concierge = create([
-    action("review", () => ({ ok: true, message: "Review." })),
+    action("review", async ({ args, review: controls }) => {
+      const proposed = await controls.propose(args ?? {});
+      if (!proposed.ok) {
+        return {
+          ok: false,
+          reason: "precondition_failed",
+          message: "The review payload could not be proposed.",
+        };
+      }
+      return { ok: true, message: "Review." };
+    }),
     action("gated", () => {
       gatedCalls += 1;
       return { ok: true, message: "Gated." };

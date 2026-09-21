@@ -29,21 +29,12 @@
 // parsed export list and nothing else.
 //
 // ---------------------------------------------------------------------------
-// Trap 2 — `ReadbackAttestation` is recorded here and deliberately NOT
-// asserted
+// Trap 2 — `ReadbackAttestation` is a real exported type
 // ---------------------------------------------------------------------------
 //
-// `ReadbackAttestation` has ZERO occurrences in `types.ts`. The identifier does
-// not exist anywhere in this package. A guard asserting that it is not exported
-// therefore passes vacuously, forever, no matter what the artifact contains —
-// and it reads in a diff and in a test report exactly like coverage.
-// `02-VALIDATION.md` names this explicitly: it must not be counted as a passing
-// check.
-//
-// So it is written down here instead of being written as an assertion. The two
-// real names above are asserted; this third one is not, because there is
-// nothing for it to prove. If a future phase introduces a type by that name,
-// this comment is the place that says why the guard was missing.
+// Contract v4 exports `ReadbackAttestation`. The v3 comment that claimed it
+// had zero occurrences in `types.ts` is no longer true; do not revive a
+// "must not be exported" assertion for it.
 
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -124,6 +115,15 @@ const VALUE_EXPORTS = [
   "createBridge",
   "captureSnapshot",
   "offPageResult",
+  "awaitRegistration",
+  "isReasonCode",
+  "sanitizeText",
+  "makeReadbackReceipt",
+  "createTurnLedger",
+  "createRenditionBinder",
+  "resolveValue",
+  "renderCatalogPrompt",
+  "catalogDerivedPolicy",
 ];
 
 const CONSENT_TYPE_EXPORTS = [
@@ -145,15 +145,15 @@ beforeAll(() => {
 });
 
 describe("the published export surface of dist/index.d.ts", () => {
-  it("is exactly 95 names — an export added or dropped by a build-config change lands here", () => {
+  it("is exactly 137 names — an export added or dropped by a build-config change lands here", () => {
     const { names } = readSurface();
-    expect(names).toHaveLength(95);
+    expect(names).toHaveLength(137);
   });
 
-  it("splits 79 types to 16 values", () => {
+  it("splits 112 types to 25 values", () => {
     const { types, values } = readSurface();
-    expect(types).toHaveLength(79);
-    expect(values).toHaveLength(16);
+    expect(types).toHaveLength(112);
+    expect(values).toHaveLength(25);
   });
 
   it("carries all six consent evidence and outcome types by name", () => {
@@ -163,7 +163,7 @@ describe("the published export surface of dist/index.d.ts", () => {
     }
   });
 
-  it("carries all sixteen runtime value exports by name", () => {
+  it("carries all twenty-five runtime value exports by name", () => {
     const { values } = readSurface();
     for (const name of VALUE_EXPORTS) {
       expect(values).toContain(name);

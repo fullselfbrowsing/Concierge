@@ -1,6 +1,6 @@
 # Structured action results
 
-Concierge 0.3 lets an action return schema-controlled JSON data to the calling
+Concierge 0.4 lets an action return schema-controlled JSON data to the calling
 agent while keeping observer exposure independent and explicit.
 
 ## Declare the output

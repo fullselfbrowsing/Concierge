@@ -11,6 +11,7 @@ import type {
   Concierge,
   DispatchEvent,
   DispatchListener,
+  DispatchTiming,
 } from "@full-self-browsing/concierge";
 
 const telemetryMount = vi.hoisted(() => vi.fn());
@@ -47,14 +48,25 @@ type TestBridge = Bridge<
   { current: () => Sentinel }
 >;
 
+function emptyTiming(): DispatchTiming {
+  return {
+    clockMs: 0,
+    wallClockMs: 0,
+    elapsedMs: 0,
+    monotonic: false,
+  };
+}
+
 function conciergeStub(): Concierge {
   const revision = Symbol("react-test-catalog") as ReturnType<Concierge["resolveCatalog"]>["revision"];
   return {
+    instanceId: "react-test",
     dispatch: async () => ({ ok: true, message: "Done." }),
     dispatchBatch: async () => ({ kind: "completed", rows: [] }),
     resolveCatalog: () => ({ stage: null, tools: [], revision }),
     onDispatch: () => () => undefined,
     explain: () => ({ stage: null, stages: [], catalog: [], actions: [] }),
+    attestReadback: () => "unknown_readback",
   };
 }
 
@@ -66,6 +78,7 @@ function activityConciergeStub(): {
   const listeners: Set<DispatchListener> = new Set();
   const revision = Symbol("react-activity-catalog") as CatalogRevision;
   const concierge: Concierge = {
+    instanceId: "react-activity",
     dispatch: async () => ({ ok: true, message: "Done." }),
     dispatchBatch: async () => ({ kind: "completed", rows: [] }),
     resolveCatalog: () => ({ stage: null, tools: [], revision }),
@@ -76,6 +89,7 @@ function activityConciergeStub(): {
       };
     },
     explain: () => ({ stage: null, stages: [], catalog: [], actions: [] }),
+    attestReadback: () => "unknown_readback",
   };
 
   return {
@@ -104,6 +118,7 @@ function dispatchEvent(
     input: { kind: "dropped" as const },
     terminalAction: false,
     terminalEntered: false,
+    timing: emptyTiming(),
   };
 
   return phase === "accepted"
@@ -111,7 +126,11 @@ function dispatchEvent(
     : {
         ...base,
         phase,
-        result: { ok: true, message: "Opened project." },
+        result: {
+          ok: true,
+          message: { kind: "included", value: "Opened project." },
+        },
+        resultData: { kind: "absent" },
       };
 }
 
@@ -177,8 +196,21 @@ function LayoutDispatch({ emit }: { readonly emit: () => void }) {
 }
 
 function ActivityState() {
-  const active: boolean = useConciergeActivity();
-  return <output data-concierge-activity-state="">{String(active)}</output>;
+  const activity = useConciergeActivity();
+  return (
+    <output data-concierge-activity-state="">
+      {`${String(activity.active)}:${activity.lastEvent?.phase ?? "none"}`}
+    </output>
+  );
+}
+
+function NullBridgeHarness({
+  registry,
+}: {
+  readonly registry: BridgeRegistry<TestBridge>;
+}) {
+  useConciergeBridge(registry, null);
+  return null;
 }
 
 describe("@full-self-browsing/concierge-react lifecycle", () => {
@@ -411,7 +443,7 @@ describe("@full-self-browsing/concierge-react lifecycle", () => {
     expect(
       mounted.container.querySelector("[data-concierge-activity-state]")
         ?.textContent,
-    ).toBe("true");
+    ).toBe("true:accepted");
 
     act(() => activity.emit(dispatchEvent("initial", "succeeded")));
 
@@ -419,7 +451,7 @@ describe("@full-self-browsing/concierge-react lifecycle", () => {
     expect(
       mounted.container.querySelector("[data-concierge-activity-state]")
         ?.textContent,
-    ).toBe("false");
+    ).toBe("false:succeeded");
 
     mounted.unmount();
     expect(activity.listenerCount()).toBe(0);
@@ -442,5 +474,15 @@ describe("@full-self-browsing/concierge-react lifecycle", () => {
     expect(badge.style.bottom).toBe("1rem");
     expect(badge.style.left).toBe("1rem");
     expect(badge.style.right).toBe("");
+  });
+
+  it("leaves the registry empty when the bridge is null", () => {
+    const coreRegistry = createBridge<TestBridge>("react-null-bridge");
+    const mounted = render(
+      <NullBridgeHarness registry={coreRegistry} />,
+    );
+    expect(coreRegistry.read()).toBeNull();
+    mounted.unmount();
+    expect(coreRegistry.read()).toBeNull();
   });
 });

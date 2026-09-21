@@ -9,6 +9,7 @@ import type {
   Concierge,
   DispatchEvent,
   DispatchListener,
+  DispatchTiming,
 } from "@full-self-browsing/concierge";
 
 const telemetryMount = vi.hoisted(() => vi.fn());
@@ -38,14 +39,25 @@ type TestBridge = Bridge<
   { readonly current: () => Readonly<{ label: string }> }
 >;
 
+function emptyTiming(): DispatchTiming {
+  return {
+    clockMs: 0,
+    wallClockMs: 0,
+    elapsedMs: 0,
+    monotonic: false,
+  };
+}
+
 function conciergeStub(): Concierge {
   const revision = Symbol("svelte-test-catalog") as ReturnType<Concierge["resolveCatalog"]>["revision"];
   return {
+    instanceId: "svelte-test",
     dispatch: async () => ({ ok: true, message: "Done." }),
     dispatchBatch: async () => ({ kind: "completed", rows: [] }),
     resolveCatalog: () => ({ stage: null, tools: [], revision }),
     onDispatch: () => () => undefined,
     explain: () => ({ stage: null, stages: [], catalog: [], actions: [] }),
+    attestReadback: () => "unknown_readback",
   };
 }
 
@@ -57,6 +69,7 @@ function dispatchConciergeStub(): {
   const listeners: Set<DispatchListener> = new Set<DispatchListener>();
   const revision = Symbol("svelte-telemetry-order") as CatalogRevision;
   const concierge: Concierge = {
+    instanceId: "svelte-activity",
     dispatch: async () => ({ ok: true, message: "Done." }),
     dispatchBatch: async () => ({ kind: "completed", rows: [] }),
     resolveCatalog: () => ({ stage: null, tools: [], revision }),
@@ -67,6 +80,7 @@ function dispatchConciergeStub(): {
       };
     },
     explain: () => ({ stage: null, stages: [], catalog: [], actions: [] }),
+    attestReadback: () => "unknown_readback",
   };
 
   return {
@@ -83,6 +97,7 @@ function dispatchConciergeStub(): {
         input: { kind: "dropped" },
         terminalAction: false,
         terminalEntered: false,
+        timing: emptyTiming(),
       };
       for (const listener of listeners) void listener(event);
     },
@@ -334,5 +349,18 @@ describe("@full-self-browsing/concierge-svelte svelte-lifecycle", () => {
     mounted.unmount();
     expect(secondTracked.cleanupCalls).toEqual([secondTracked.cleanups[0]]);
     expect(secondCoreRegistry.read()).toBeNull();
+  });
+
+  it("leaves the registry empty when the bridge getter returns null", () => {
+    const concierge: Concierge = conciergeStub();
+    const registry: BridgeRegistry = createBridge("svelte-null-bridge");
+    const mounted = render(Harness, {
+      concierge,
+      registry,
+      bridge: null,
+    });
+    expect(registry.read()).toBeNull();
+    mounted.unmount();
+    expect(registry.read()).toBeNull();
   });
 });

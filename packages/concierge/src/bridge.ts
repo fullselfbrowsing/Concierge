@@ -95,9 +95,21 @@
  */
 
 import { assertSingleInstance } from "./contract.js";
-import { encodeDiagnosticSubject, warnHost } from "./host.js";
+import { isAborted } from "./dispatch.js";
+import { encodeDiagnosticSubject, readHostScheduler, warnHost } from "./host.js";
 import { boundedMessage } from "./message.js";
-import type { ActionResult, Bridge, BridgeRegistry, SnapshotNormalizer } from "./types.js";
+import type {
+  AbortSignalLike,
+  ActionResult,
+  Bridge,
+  BridgeRegistrationEvent,
+  BridgeRegistrationListener,
+  ObservableBridgeRegistry,
+  RegistrationWait,
+  RegistrationWaitOptions,
+  Scheduler,
+  SnapshotNormalizer,
+} from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Module scope — immutable declarations only
@@ -197,7 +209,9 @@ function bridgeOverwriteMessage(id: string): string {
  * registration is occurring on the server. There is no runtime
  * guard in this function and no change to `./host.ts`; do not add either here.
  */
-export function createBridge<B extends Bridge = Bridge>(id: string): BridgeRegistry<B> {
+export function createBridge<B extends Bridge = Bridge>(
+  id: string,
+): ObservableBridgeRegistry<B> {
   assertSingleInstance();
 
   // This instance's only mutable state, and header constraint 1 is why all
@@ -220,8 +234,42 @@ export function createBridge<B extends Bridge = Bridge>(id: string): BridgeRegis
   let slot: { token: number; bridge: B } | null = null;
   let next: number = 0;
   let warnedOverwrite: boolean = false;
+  let warnedListenerLeak: boolean = false;
+  let nextListenerId: number = 0;
+  const listeners: Map<number, BridgeRegistrationListener<B>> = new Map();
 
-  const registry: BridgeRegistry<B> = {
+  function emitRegistration(
+    event: BridgeRegistrationEvent<B>,
+  ): void {
+    // Shallow freeze only. Deep-freezing would freeze the consumer's live
+    // bridge and everything reachable from it.
+    const frozen: BridgeRegistrationEvent<B> = Object.freeze(event);
+    const snapshot: ReadonlyArray<BridgeRegistrationListener<B>> = [
+      ...listeners.values(),
+    ];
+    for (const listener of snapshot) {
+      try {
+        const returned: unknown = listener(frozen);
+        if (
+          returned !== null &&
+          typeof returned === "object" &&
+          "then" in returned &&
+          typeof (returned as { then?: unknown }).then === "function"
+        ) {
+          void Promise.resolve(returned as Promise<unknown>).then(
+            () => undefined,
+            () => undefined,
+          );
+        }
+      } catch {
+        warnHost(
+          `concierge: [bridge_listener_failed] bridge ${encodeDiagnosticSubject(id)}: a registration listener threw; remaining listeners still ran.`,
+        );
+      }
+    }
+  }
+
+  const registry: ObservableBridgeRegistry<B> = {
     id,
 
     read: (): B | null => slot?.bridge ?? null,
@@ -245,6 +293,7 @@ export function createBridge<B extends Bridge = Bridge>(id: string): BridgeRegis
       // stay live. Detachment belongs at capture time and nowhere else.
       const token: number = ++next;
       slot = { token, bridge };
+      emitRegistration({ type: "registered", registryId: id, bridge });
 
       return (): void => {
         // **The guard is on the TOKEN, not on the bridge object.** Guarding on
@@ -265,8 +314,38 @@ export function createBridge<B extends Bridge = Bridge>(id: string): BridgeRegis
         // swallowed error.
         if (slot?.token === token) {
           slot = null;
+          emitRegistration({ type: "unregistered", registryId: id });
         }
       };
+    },
+
+    subscribe: (listener: BridgeRegistrationListener<B>): (() => void) => {
+      if (typeof listener !== "function") {
+        throw new TypeError("A bridge registration listener must be callable.");
+      }
+      nextListenerId += 1;
+      const listenerId: number = nextListenerId;
+      listeners.set(listenerId, listener);
+      if (listeners.size > 64 && !warnedListenerLeak) {
+        warnedListenerLeak = true;
+        warnHost(
+          `concierge: [bridge_listener_leak] bridge ${encodeDiagnosticSubject(id)}: more than 64 registration listeners are attached to one registry.`,
+        );
+      }
+      let active: boolean = true;
+      return (): void => {
+        if (!active) {
+          return;
+        }
+        active = false;
+        if (listeners.get(listenerId) === listener) {
+          listeners.delete(listenerId);
+        }
+      };
+    },
+
+    drain: (): void => {
+      emitRegistration({ type: "drained", registryId: id });
     },
   };
 
@@ -290,6 +369,153 @@ export function createBridge<B extends Bridge = Bridge>(id: string): BridgeRegis
   // `slot`, `next` and the latch normally afterwards, which is required: a
   // registry that could not register would be a very safe brick.
   return Object.freeze(registry);
+}
+
+/**
+ * Resolve when a bridge registers into `registry`, or when the wait ends
+ * another way. Never rejects. Always settles.
+ *
+ * Skipping a timeout is an unbounded hang, so a requested timeout with no
+ * reachable scheduler resolves `"unavailable"` immediately.
+ */
+export function awaitRegistration<B extends Bridge>(
+  registry: ObservableBridgeRegistry<B>,
+  options: RegistrationWaitOptions,
+): Promise<RegistrationWait<B>> {
+  const timeoutMs: number | undefined = options.timeoutMs;
+  const signal: AbortSignalLike | undefined = options.signal;
+  const timeoutRequested: boolean =
+    timeoutMs !== undefined && Number.isFinite(timeoutMs);
+  if (!timeoutRequested && signal === undefined) {
+    return Promise.resolve({ status: "unavailable" });
+  }
+
+  let scheduler: Scheduler | undefined = options.scheduler;
+  if (scheduler === undefined && timeoutRequested) {
+    try {
+      scheduler = readHostScheduler();
+    } catch {
+      scheduler = undefined;
+    }
+  }
+  if (timeoutRequested && scheduler === undefined) {
+    return Promise.resolve({ status: "unavailable" });
+  }
+  if (isAborted(signal)) {
+    return Promise.resolve({ status: "aborted" });
+  }
+  const already: B | null = registry.read();
+  if (already !== null) {
+    return Promise.resolve({ status: "ready", bridge: already });
+  }
+
+  return new Promise<RegistrationWait<B>>((resolve) => {
+    let settled: boolean = false;
+    let listenerAttached: boolean = false;
+    // **No "cancel once a handle exists" flag, deliberately.** Every path that
+    // can settle before the timer is armed — an already-aborted signal, a
+    // listener that throws, a bridge already in the slot — returns before the
+    // scheduler is reached, so there is never a handle owing cancellation at
+    // that point. An earlier draft carried a flag for the case; it was never
+    // set, and an unreachable guard is not a safety net, it is a claim no test
+    // can check. Anything added below that settles and then falls through to
+    // the scheduler has to cancel its own handle.
+    let cancel: (() => void) | null = null;
+    let firedDuringRegistration: boolean = false;
+    let registrationComplete: boolean = false;
+    let unsubscribe: (() => void) | null = null;
+
+    function finish(wait: RegistrationWait<B>, cancelTimer: boolean): void {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (unsubscribe !== null) {
+        try {
+          unsubscribe();
+        } catch {
+          // Settlement stays final.
+        }
+      }
+      if (listenerAttached && signal !== undefined) {
+        listenerAttached = false;
+        try {
+          signal.removeEventListener("abort", onAbort);
+        } catch {
+          // Settlement stays final.
+        }
+      }
+      if (cancelTimer && cancel !== null) {
+        const current: () => void = cancel;
+        cancel = null;
+        try {
+          current();
+        } catch {
+          // Cancellation remains final even when the host canceller throws.
+        }
+      }
+      resolve(wait);
+    }
+
+    function onAbort(): void {
+      finish({ status: "aborted" }, true);
+    }
+
+    unsubscribe = registry.subscribe((event) => {
+      if (event.type === "registered") {
+        finish({ status: "ready", bridge: event.bridge }, true);
+        return;
+      }
+      if (event.type === "drained") {
+        finish({ status: "drained" }, true);
+      }
+    });
+
+    if (signal !== undefined) {
+      try {
+        signal.addEventListener("abort", onAbort);
+        listenerAttached = true;
+      } catch {
+        finish({ status: "aborted" }, true);
+        return;
+      }
+      if (isAborted(signal)) {
+        finish({ status: "aborted" }, true);
+        return;
+      }
+    }
+
+    const mounted: B | null = registry.read();
+    if (mounted !== null) {
+      finish({ status: "ready", bridge: mounted }, true);
+      return;
+    }
+
+    if (!timeoutRequested || scheduler === undefined) {
+      return;
+    }
+
+    try {
+      const scheduledCancel: unknown = scheduler((): void => {
+        if (!registrationComplete) {
+          firedDuringRegistration = true;
+          return;
+        }
+        finish({ status: "timed-out" }, false);
+      }, timeoutMs as number);
+      if (typeof scheduledCancel !== "function") {
+        finish({ status: "unavailable" }, false);
+        return;
+      }
+      cancel = scheduledCancel as () => void;
+      registrationComplete = true;
+      if (firedDuringRegistration && !settled) {
+        finish({ status: "timed-out" }, false);
+      }
+    } catch {
+      finish({ status: "unavailable" }, false);
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -995,6 +1221,12 @@ export function captureSnapshot<B extends Bridge>(bridge: B, id: string, normali
     try {
       const getter: unknown = (holder as Record<string, unknown>)[key];
       if (getter === undefined) {
+        continue;
+      }
+      if (typeof getter === "function" && getter.length > 0) {
+        warnHost(
+          `concierge: [snapshot_slot_not_a_getter] bridge ${encodeDiagnosticSubject(id)}: snapshot key ${encodeDiagnosticSubject(key)} takes arguments, so it was not captured. Snapshots are zero-argument getters. Fix: move parameterized queries off the snapshot into actions.`,
+        );
         continue;
       }
       // **`.call(holder)`, never a bare `getter()`.** `Bridge`'s

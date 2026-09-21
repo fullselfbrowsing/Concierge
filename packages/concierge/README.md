@@ -11,9 +11,10 @@ web application. Concierge owns action admission, validation, consent,
 deduplication, lifecycle, workflows, and terminal execution. It does not own the
 model, chat UI, speech, overlay, or planning loop.
 
-Version 0.3 is a public preview of contract 3. It requires Node 22.12 or newer;
-Edge runtimes are not supported in the 0.3 line. Existing actions without
-structured data and existing stage-level bridges remain supported.
+Version 0.4 is a public preview of contract 4. It requires Node 22.12 or newer;
+Edge runtimes are not supported in the 0.4 line. Existing actions without
+structured data and existing stage-level bridges remain supported. Consent
+binds the payload a review handler proposes.
 
 ## Install
 
@@ -25,7 +26,8 @@ React and Svelte lifecycle bindings are published separately. Optional AI SDK
 6/7 tool definitions and the signed browser bridge are available from
 `@full-self-browsing/concierge/ai-sdk`, `/ai-sdk/server`, and `/ai-sdk/browser`.
 The app-owned OpenAI Realtime codec is available from
-`@full-self-browsing/concierge/openai-realtime`.
+`@full-self-browsing/concierge/openai-realtime`. Test helpers live at
+`@full-self-browsing/concierge/testing`.
 Anonymous browser usage reporting is isolated in the optional
 `@full-self-browsing/concierge/telemetry` subpath; importing this package root
 continues to perform no browser storage, timer, DOM, or network work.
@@ -172,18 +174,18 @@ settles. Defaults are 16 nested levels and 256 steps per root workflow.
 
 `createSession` republishes a `ResolvedCatalog` whenever its effective catalog
 changes, including availability changes within one stage. Publishing a new
-catalog aborts the prior epoch. A contract-3 transport implements
+catalog aborts the prior epoch. A contract-4 transport implements
 `setCatalog(resolved)` and one awaited `onToolBatch` callback returning the
 batch outcome; there is no ambiguous per-call response channel.
 
 ## Compatibility and stability
 
-Documented 0.3 exports, failure reasons, wire fields, peer ranges, and contract
-3 remain compatible throughout `0.3.x`. Breaking changes require a synchronized
+Documented 0.4 exports, failure reasons, wire fields, peer ranges, and contract
+4 remain compatible throughout `0.4.x`. Breaking changes require a synchronized
 minor release and migration notes. See the
 [repository documentation](https://github.com/fullselfbrowsing/Concierge#readme),
 [security policy](https://github.com/fullselfbrowsing/Concierge/blob/main/SECURITY.md),
-and [0.2 to 0.3 migration guide](https://github.com/fullselfbrowsing/Concierge/blob/main/docs/migrations/0.2-to-0.3.md).
+and [0.3 to 0.4 migration guide](https://github.com/fullselfbrowsing/Concierge/blob/main/docs/migrations/0.3-to-0.4.md).
 
 ## License
 

@@ -79,7 +79,7 @@ async function flush() {
   for (let index = 0; index < 8; index += 1) await Promise.resolve();
 }
 
-describe("contract v3 catalog and dispatch", () => {
+  describe("contract v4 catalog and dispatch", () => {
   it("exports only the v2 Concierge runtime surface and resolves availability atomically", () => {
     let availabilityReads = 0;
     const concierge = conciergeFor([
@@ -96,9 +96,11 @@ describe("contract v3 catalog and dispatch", () => {
     const disabled = concierge.resolveCatalog({ ...CONTEXT, enabled: false });
 
     expect(Object.keys(concierge).sort()).toEqual([
+      "attestReadback",
       "dispatch",
       "dispatchBatch",
       "explain",
+      "instanceId",
       "onDispatch",
       "resolveCatalog",
     ]);
@@ -732,7 +734,7 @@ describe("contract v3 catalog and dispatch", () => {
   });
 });
 
-describe("contract v3 Session", () => {
+describe("contract v4 Session", () => {
   function transportHarness() {
     let batchHandler;
     const publications = [];
@@ -742,6 +744,7 @@ describe("contract v3 Session", () => {
         userTurnIdentity: "none",
         parallelCalls: true,
         dynamicCatalog: true,
+        acknowledgesCatalog: false,
       }),
       status: "connected",
       setCatalog(catalog) {

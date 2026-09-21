@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { DeliveryReport } from "@full-self-browsing/concierge";
+import { createCompletedDelivery } from "@full-self-browsing/concierge/testing";
 
 import { createPortfolioConcierge } from "../src/portfolio-concierge";
 import type { PortfolioBridge, PortfolioContext } from "../src/portfolio-concierge";
@@ -60,10 +61,7 @@ describe("the reviewed-project consent flow", () => {
     expect(opened).toEqual([]);
 
     expect(completeDelivery).toBeTypeOf("function");
-    completeDelivery?.({
-      responseId: "consent-response",
-      outcome: "completed",
-    });
+    completeDelivery?.(createCompletedDelivery("consent-response"));
     await Promise.resolve();
 
     const launched = await runtime.concierge.dispatch(CONTEXT, {

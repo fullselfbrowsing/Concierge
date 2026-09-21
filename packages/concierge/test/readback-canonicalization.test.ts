@@ -104,6 +104,15 @@ function createDigest({ mutateInput = false, transform } = {}) {
   };
 }
 
+function createSnapshotBridge(snapshot) {
+  const mounted = { actions: {}, snapshot };
+  return Object.freeze({
+    id: "canonicalization-test-bridge",
+    read: () => mounted,
+    register: () => () => {},
+  });
+}
+
 function createFlow({
   digest = createDigest(),
   output,
@@ -117,8 +126,20 @@ function createFlow({
       {
         id: "active",
         match: (ctx) => ctx.pathname === ACTIVE_CONTEXT.pathname,
+        bridge: createSnapshotBridge({ token: () => "stable" }),
         actions: [
-          action("review", schema(output), (ctx) => {
+          action("review", schema(output), async (ctx) => {
+            const proposed = await ctx.review.propose(ctx.args);
+            if (!proposed.ok) {
+              if (proposed.reason === "payload_unsupported") {
+                return {
+                  ok: false,
+                  reason: "invalid_args",
+                  message: "The review payload could not be proposed.",
+                };
+              }
+              return { ok: true, message: "Reviewed." };
+            }
             reviewEntries.push(ctx);
             return { ok: true, message: "Reviewed." };
           }),
@@ -178,18 +199,13 @@ async function flushMicrotasks() {
 }
 
 async function completeAttestedDelivery(flow, hash, marker) {
-  expect(flow.deliveryCallbacks, marker).toHaveLength(1);
-  flow.deliveryCallbacks[0]({
-    responseId: "review-response",
-    outcome: "completed",
+  const outcome = flow.concierge.attestReadback({
+    act: "confirmed",
+    actId: "act-canonical",
     readbackHash: hash,
-    attestation: {
-      act: "confirmed",
-      userTurnId: "confirm-turn",
-      readbackHash: hash,
-    },
+    userTurnId: "confirm-turn",
   });
-  await flushMicrotasks();
+  expect(outcome, marker).toBe("accepted");
 }
 
 async function expectCanonicalRelease(payload, canonicalText, marker) {
@@ -212,7 +228,7 @@ async function expectCanonicalRelease(payload, canonicalText, marker) {
     readbackHash: hashBytes(canonical),
   });
   expect(readbacks).toHaveLength(1);
-  expect(flow.digest.calls).toHaveLength(2);
+  expect(flow.digest.calls).toHaveLength(1);
   for (const call of flow.digest.calls) {
     expect(call.algorithm).toBe("SHA-256");
     expect(call.bytes).toEqual(canonical);
@@ -554,9 +570,8 @@ describe("receipt verification retains core-owned bytes and distrusts every clai
     expect(await flow.review()).toMatchObject({ ok: true });
     await completeAttestedDelivery(flow, hashBytes(canonical));
     expect(await flow.confirm()).toMatchObject({ ok: true });
-    expect(digest.calls).toHaveLength(2);
+    expect(digest.calls).toHaveLength(1);
     expect(digest.calls[0].bytes).toEqual(canonical);
-    expect(digest.calls[1].bytes).toEqual(canonical);
   });
 
   it("J14 — rejects accessor-backed and exotic receipt claims without execution", async () => {
@@ -663,7 +678,7 @@ describe("receipt verification retains core-owned bytes and distrusts every clai
     await completeAttestedDelivery(flow, hashBytes(canonical));
     expect(await flow.confirm()).toMatchObject({ ok: true });
     expect(methodReads).toBe(1);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(1);
   });
 
   it("J17 — accepts non-enumerable data claims but closes on optional accessors", async () => {
@@ -685,18 +700,11 @@ describe("receipt verification retains core-owned bytes and distrusts every clai
     const attestation = {};
     Object.defineProperties(attestation, {
       act: { value: "confirmed" },
+      actId: { value: "act-canonical-j17" },
       readbackHash: { value: hash },
       userTurnId: { value: "confirm-turn" },
     });
-    const report = {};
-    Object.defineProperties(report, {
-      attestation: { value: attestation },
-      outcome: { value: "completed" },
-      readbackHash: { value: hash },
-      responseId: { value: "review-response" },
-    });
-    flow.deliveryCallbacks[0](report);
-    await flushMicrotasks();
+    expect(flow.concierge.attestReadback(attestation)).toBe("accepted");
     expect(await flow.confirm()).toMatchObject({ ok: true });
 
     for (const authorityField of ["readbackHash", "attestation"]) {

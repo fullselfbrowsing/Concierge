@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "rootDir": "./src",
+    "outDir": "./dist"
+  },
+  "include": [
+    "src/webrtc/**/*.ts",
+    "src/websocket/**/*.ts",
+    "src/types.ts",
+    "src/host.ts"
+  ]
+}

@@ -10,9 +10,10 @@ Svelte 5 context, lifecycle, and snapshot bindings for an existing
 [`@full-self-browsing/concierge`](https://github.com/fullselfbrowsing/Concierge)
 instance and bridge registry.
 
-Version 0.3 is a public preview of contract 3. It supports Svelte 5, requires
+Version 0.4 is a public preview of contract 4. It supports Svelte 5, requires
 Node 22.12 or newer for server rendering, and does not support Edge runtimes in
-the 0.3 line. The existing context and bridge APIs are unchanged.
+the 0.4 line. `useConciergeActivity` exposes `{ active, lastEvent }`, and
+`useConciergeBridge` accepts a `null` bridge to unregister.
 
 ## Entry points
 
@@ -35,6 +36,7 @@ import {
   provideConcierge,
   svelteSnapshotNormalizer,
   useConcierge,
+  useConciergeActivity,
   useConciergeBridge,
 } from "@full-self-browsing/concierge-svelte/client.svelte";
 ```

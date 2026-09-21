@@ -58,7 +58,7 @@ rejected envelope must never fall back to unsigned dispatch.
 
 ## Package and release integrity
 
-Official releases are one fixed quartet, built and checked without publish
+Official releases are one fixed set of five packages, built and checked without publish
 credentials, independently sealed, then published from the protected
 `npm-production` GitHub environment through npm trusted publishing. The OIDC
 job receives only `id-token: write`; it does not checkout source, install
@@ -66,8 +66,8 @@ dependencies, build, or repack. It publishes the sealed bytes with provenance
 and verifies their integrity, source workflow, commit, run, and `latest` tag.
 
 Before installing, verify that package provenance points to
-`fullselfbrowsing/Concierge/.github/workflows/release.yml` and that all four
-packages resolve to the same `0.2.x` version.
+`fullselfbrowsing/Concierge/.github/workflows/release.yml` and that all five
+packages resolve to the same `0.4.x` version.
 
 ## Supported versions
 

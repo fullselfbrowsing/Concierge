@@ -166,6 +166,12 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
 
+  packages/concierge-dom:
+    devDependencies:
+      '@full-self-browsing/concierge':
+        specifier: workspace:*
+        version: link:../concierge
+
   packages/concierge-react:
     devDependencies:
       '@full-self-browsing/concierge':
@@ -186,6 +192,12 @@ importers:
       react-dom:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
+
+  packages/concierge-realtime:
+    devDependencies:
+      '@full-self-browsing/concierge':
+        specifier: workspace:*
+        version: link:../concierge
 
   packages/concierge-svelte:
     devDependencies:

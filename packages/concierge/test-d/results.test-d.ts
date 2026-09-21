@@ -84,6 +84,7 @@ function _reasonExhaustive(): string {
     case "invalid_invocation":
     case "identity_conflict":
     case "precondition_failed":
+    case "consent_interrupted":
       return r.reason;
     case undefined:
       return "";
