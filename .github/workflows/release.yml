@@ -19,6 +19,7 @@ jobs:
       pull-requests: write
     outputs:
       hasChangesets: ${{ steps.changesets.outputs.hasChangesets }}
+      allPublished: ${{ steps.published.outputs.allPublished }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
         with:
@@ -43,6 +44,16 @@ jobs:
           node scripts/release/seal.mjs self-test
           node scripts/release/publisher.mjs self-test
 
+      # Runs before Changesets, which rewrites manifests in the working tree
+      # for the Version Packages PR. The question is about the commit that was
+      # pushed, not about what a pending release would become.
+      - name: Report whether the pushed version is already published
+        id: published
+        run: |
+          result="$(node scripts/release/published.mjs)"
+          echo "$result"
+          echo "allPublished=$(node -p 'JSON.parse(process.argv[1]).allPublished' "$result")" >> "$GITHUB_OUTPUT"
+
       - name: Open or update the fixed-set Version Packages PR
         id: changesets
         uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
@@ -53,7 +64,10 @@ jobs:
 
   verify:
     needs: version
-    if: ${{ needs.version.outputs.hasChangesets == 'false' }}
+    # No pending Changesets AND something left to publish. The first condition
+    # alone is satisfied by any ordinary merge, which is how every commit to
+    # `main` came to park a deployment at a gate that could only fail.
+    if: ${{ needs.version.outputs.hasChangesets == 'false' && needs.version.outputs.allPublished == 'false' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
