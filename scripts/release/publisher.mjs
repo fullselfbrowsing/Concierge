@@ -516,9 +516,28 @@ function wait(milliseconds) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
 }
 
+/**
+ * Read a just-published version back until the registry serves it.
+ *
+ * **The window is minutes, because npm's is.** This waited 6 attempts at 1.5s
+ * — about nine seconds — and the 0.4.0 release measured roughly two and a half
+ * minutes between a successful `npm publish` and the version becoming readable.
+ * Every package published correctly and then failed its own verification, so a
+ * five-package set took six runs of this job instead of one, advancing one
+ * package per run. The check was not wrong to insist on reading the bytes back;
+ * it was wrong about how long that takes.
+ *
+ * Nothing here relaxes what is verified. A version that never appears, or that
+ * appears with foreign bytes, provenance, or tag, still raises
+ * `[PUBLISH_AMBIGUOUS]` and stops the set. Waiting longer only stops the
+ * publisher from reporting a lagging read replica as an ambiguous publish.
+ */
+const VERIFY_ATTEMPTS = 60;
+const VERIFY_INTERVAL_MS = 5_000;
+
 async function validateAfterPublish(archive, registry, inputs) {
   let lastError = null;
-  for (let attempt = 0; attempt < 6; attempt += 1) {
+  for (let attempt = 0; attempt < VERIFY_ATTEMPTS; attempt += 1) {
     try {
       const state = registry.query(archive);
       if (state.kind === "present") {
@@ -528,10 +547,11 @@ async function validateAfterPublish(archive, registry, inputs) {
     } catch (error) {
       lastError = error;
     }
-    if (attempt < 5) await wait(1_500);
+    if (attempt < VERIFY_ATTEMPTS - 1) await wait(VERIFY_INTERVAL_MS);
   }
+  const waited = Math.round((VERIFY_ATTEMPTS * VERIFY_INTERVAL_MS) / 1000);
   throw new Error(
-    `[PUBLISH_AMBIGUOUS] ${archive.name}@${archive.version} could not be verified after publish: ${String(lastError ?? "not visible")}`,
+    `[PUBLISH_AMBIGUOUS] ${archive.name}@${archive.version} could not be verified ${waited}s after publish: ${String(lastError ?? "not visible")}`,
   );
 }
 

@@ -88,12 +88,19 @@ npm pkg set exports='./index.js'
 npm publish --access public --tag bootstrap --otp='<current-2fa-code>'
 ```
 
-Use a fresh temporary directory for each package. Confirm that only `bootstrap`
-points to the inert version and that `latest` is absent:
+Use a fresh temporary directory for each package. Confirm that `bootstrap`
+points to the inert version:
 
 ```sh
 npm view @full-self-browsing/concierge dist-tags --json
 ```
+
+npm also points `latest` at that first version even though `--tag bootstrap`
+was the only tag requested, so expect `latest` to be present rather than
+absent. It is corrected when the real release publishes with `--tag latest`,
+and the publisher's `[REGISTRY_TAG]` check refuses to finish until every
+package's `latest` is the shared release version. A record whose only version
+is the inert bootstrap is the state this step is meant to produce.
 
 Do not publish any repository-built `0.1.0`, assign `latest`, or use an
 automation token for bootstrap. Do not unpublish the inert version after
@@ -125,12 +132,15 @@ done
 
 The workflow field is the filename `release.yml`, not its full path. All names
 are case-sensitive. `--allow-publish` is required by current npm trust
-configuration and grants only the command used by this release workflow; do
-not also grant `--allow-stage-publish`. npm currently permits one trusted
+configuration; pass it and nothing else. npm currently permits one trusted
 publisher per package.
 
-Verify each relationship and its publish-only permission with
-`npm trust list <package>`. In each package's npm settings, set publishing
+Verify each relationship with `npm trust list <package>`. It reports
+`permissions: publish, stage publish` even when only `--allow-publish` was
+passed — npm grants both, and the extra grant cannot be declined from the CLI.
+Treat that output as expected rather than as a misconfigured relationship. The
+workflow only ever runs `npm publish`, and the sealed publisher is the only
+tool the protected environment can reach. In each package's npm settings, set publishing
 access to require 2FA and disallow traditional tokens. No `NPM_TOKEN` or write
 token belongs in the repository or GitHub secrets. See npm's
 [trusted-publisher requirements](https://docs.npmjs.com/trusted-publishers/)
