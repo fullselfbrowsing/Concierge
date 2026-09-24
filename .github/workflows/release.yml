@@ -225,7 +225,10 @@ jobs:
   publish:
     needs: [seal, browser_e2e]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Read-back after publish is minutes per package on npm, so five packages
+    # do not fit in fifteen. The publisher is resumable, but a job killed
+    # mid-set is still a partial publication to reconcile by hand.
+    timeout-minutes: 45
     environment: npm-production
     permissions:
       id-token: write
@@ -289,7 +292,7 @@ jobs:
 
           const pinned = {
             "config.mjs": "17f2f25fd40aea7d99024c0da5c7fc8b137dc272646fa1b8d47947bfb3735866",
-            "release-publisher.mjs": "3ddab82fbf3ef5479f823618b8d1a79a73a1862b297459120d3596a2534a3f3b",
+            "release-publisher.mjs": "e78adc75f57feec3b003b0f4929b55a69b6e873908f7850a4e875fd77315dcc7",
             "release-line.json": "d650e2ac9707867db77b5f7b8fd2dd97f8fd0399f578a991091c73ee791dca73",
           };
           const expected = ["release-seal.json"];
